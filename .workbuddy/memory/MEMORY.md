@@ -108,7 +108,23 @@ mryang 的个人代码规范字典 + AI 代码合规校验平台。
 
 ## 仓库与运行方式（v0.1 已落地）
 
-工作区 `C:\Users\Administrator\WorkBuddy\2026-09-11-08-02-39\`（非用户长期路径，属会话工作区）
+**仓库位置：`D:\mryang\workspace\2026\arsenal`** —— 2026-09-11 从 WorkBuddy 会话目录
+`C:\Users\Administrator\WorkBuddy\2026-09-11-08-02-39` 迁出落地。单仓 monorepo、Git 化、分支 `main`。
+之所以不拆三仓：`tools/build-content.py` 一个生成器同时产出三类数据，拆开需跨仓同步，
+而**同步失败是静默的** —— 正是本项目最想避免的那类问题。
+
+**Git 边界**（判定原则：能由数据源重新生成的一律不进 Git）
+
+| 进 Git | 出 Git |
+|---|---|
+| `arsenal-rules/` `arsenal-cookbook/` `arsenal-stacks/`（数据源）、`tools/`、两端 `src/` | `node_modules/` `.next/` `out/` `target/` |
+| `.verify/*.ts` `.verify/*.mjs`（649 行自检脚本，**属资产**） | `src/generated/`、`.verify/tmp/`、`.verify/shots/`、`arsenal-demo-*.zip` |
+
+`.gitattributes` 统一文本为 LF。提交信息遵守本仓 `COL-GIT-001`（约定式提交）。
+**踩过的坑**：`arsenal-web/.gitignore` 原本整条忽略 `.verify/`，把 649 行自检脚本一起挡在仓库外，
+已改为只忽略 `tmp/` 与 `shots/`。改 gitignore 时要问一句「这是产物还是资产」。
+
+**目录职责**
 
 | 目录 | 内容 |
 |---|---|
