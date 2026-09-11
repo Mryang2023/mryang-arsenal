@@ -26,6 +26,14 @@ arsenal-web/.verify/shots/
 # ── 示例导出包：装配台随时可重新导出，不占仓库 ────────────────
 arsenal-demo-*.zip
 
+# ── IDE 本地配置：每台机器、每个人都不一样，不进仓库 ──────────
+#    JetBrains 会在项目根建 .idea/，VS Code 建 .vscode/
+.idea/
+*.iml
+*.ipr
+*.iws
+.vscode/
+
 # ── 工具与系统 ───────────────────────────────────────────────
 *.tsbuildinfo
 next-env.d.ts
@@ -33,3 +41,4 @@ next-env.d.ts
 Thumbs.db
 *.log
 npm-debug.log*
+*.swp
