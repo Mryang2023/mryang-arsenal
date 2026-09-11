@@ -1,0 +1,77 @@
+{
+  "ruleset": "arsenal-rules",
+  "name": "杨先生的军火库 · 规范集",
+  "codename": "arsenal",
+  "version": "0.1.0",
+  "releasedAt": "2026-09-11",
+  "description": "个人 Java / Spring Boot 工程规范集。一份数据，三种出口：人查 / 给 AI 用 / 拿代码验。",
+  "targetStack": {
+    "language": "Java 17",
+    "framework": "Spring Boot 3.2.x",
+    "namespace": "jakarta",
+    "build": "Maven",
+    "database": "MySQL 8"
+  },
+  "severityPolicy": {
+    "MUST": "硬约束。违反必修，计入合规分。总数硬上限 50 条——超过说明规范已超出人能记住的量。",
+    "SHOULD": "强烈建议。违反不计分，但报告中列出。",
+    "MAY": "可选风格。仅作为提示词参考，不参与校验。",
+    "NEVER": "明令禁止。与 MUST 同级阻断。"
+  },
+  "budget": {
+    "mustHardLimit": 50,
+    "mustCurrent": 50,
+    "totalCurrent": 62
+  },
+  "sourceRegistry": {
+    "ali-spec": {
+      "title": "阿里巴巴 Java 开发手册（嵩山版 / 黄山版）",
+      "type": "industry-standard",
+      "authority": "国内事实标准，源自阿里大规模一线实战故障案例反推",
+      "severityMapping": { "强制": "MUST", "推荐": "SHOULD", "参考": "MAY" },
+      "note": "只取与后端服务强相关的「强制」条目为主；「推荐」条目按项目实际决定是否升级。"
+    },
+    "google-java-style": {
+      "title": "Google Java Style Guide",
+      "type": "industry-standard",
+      "authority": "Google 官方，只规定 hard-and-fast rules，可执行性最强",
+      "note": "主要用于格式、命名、imports、Javadoc 类条目。章节号可直接引用。"
+    },
+    "spring-boot-doc": {
+      "title": "Spring Boot 3 / Spring Framework 6 官方文档与约定",
+      "type": "framework-doc",
+      "authority": "框架官方",
+      "note": "用于分层、构造器注入、@Transactional 语义、Jakarta 命名空间等框架相关条目。"
+    },
+    "owasp": {
+      "title": "OWASP Java Security / Cheat Sheet Series",
+      "type": "security-baseline",
+      "authority": "国际安全基线",
+      "note": "用于反序列化、注入、XSS、硬编码凭据等安全条目。"
+    },
+    "effective-java": {
+      "title": "Effective Java (3rd Edition), Joshua Bloch",
+      "type": "book",
+      "authority": "Java 领域公认经典",
+      "note": "用于异常设计、可变性、equals/hashCode 等语言级条目。"
+    }
+  },
+  "categories": [
+    { "key": "skeleton",     "name": "工程骨架", "dir": "skeleton",     "fileCount": 1 },
+    { "key": "web",          "name": "Web 层",   "dir": "web",          "fileCount": 1 },
+    { "key": "service",      "name": "业务层",   "dir": "service",      "fileCount": 1 },
+    { "key": "data",         "name": "数据层",   "dir": "data",         "fileCount": 1 },
+    { "key": "concurrency",  "name": "并发",     "dir": "concurrency",  "fileCount": 1 },
+    { "key": "reliability",  "name": "可靠性",   "dir": "reliability",  "fileCount": 1 },
+    { "key": "security",     "name": "安全",     "dir": "security",     "fileCount": 1 },
+    { "key": "test",         "name": "测试",     "dir": "test",         "fileCount": 1 },
+    { "key": "collab",       "name": "协作",     "dir": "collab",       "fileCount": 1 }
+  ],
+  "changelog": [
+    {
+      "version": "0.1.0",
+      "date": "2026-09-11",
+      "note": "首版。全部条目源自行业基准提炼，未使用任何既有项目代码反推。9 大类共 60 条，其中 MUST/NEVER 级 50 条。"
+    }
+  ]
+}

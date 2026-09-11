@@ -1,0 +1,800 @@
+{
+  "collection": "arsenal-project",
+  "version": "0.2.0",
+  "releasedAt": "2026-09-11",
+  "description": "把选型结果还原成一棵真实目录树。选 MyBatis-Plus 就有 resources/mapper/，选 Flyway 就有 db/migration/，选 Gradle 就没有 pom.xml —— 结构跟着选型变，而不是给一份固定模板让人照着建空目录。",
+  "groupId": "com.example",
+  "artifactId": "arsenal-demo",
+  "basePackage": "com.example",
+  "tree": {
+    "name": "arsenal-demo/",
+    "desc": "项目根目录，名字与 artifactId 一致",
+    "kind": "dir",
+    "children": [
+      {
+        "name": "pom.xml",
+        "desc": "Maven 坐标与依赖。版本全部交给 parent BOM，业务依赖一个都不手写",
+        "kind": "file",
+        "badge": "Maven",
+        "when": {
+          "build": [
+            "maven"
+          ]
+        }
+      },
+      {
+        "name": "build.gradle",
+        "desc": "Gradle 构建脚本。用 toolchain 指定 JDK，不依赖本机 JAVA_HOME",
+        "kind": "file",
+        "badge": "Gradle",
+        "when": {
+          "build": [
+            "gradle"
+          ]
+        }
+      },
+      {
+        "name": "settings.gradle",
+        "desc": "工程名与子模块声明",
+        "kind": "file",
+        "badge": "Gradle",
+        "when": {
+          "build": [
+            "gradle"
+          ]
+        }
+      },
+      {
+        "name": "README.md",
+        "desc": "这份 README 由装配台生成：选型表 + 启动步骤 + 隐患清单",
+        "kind": "file"
+      },
+      {
+        "name": ".gitignore",
+        "desc": "排除 target/、logs/、.env —— 这是防密钥泄漏的最后一道机械防线",
+        "kind": "file"
+      },
+      {
+        "name": "docs/",
+        "desc": "项目自己的文档位。导出包会把隐患体检单放在这里",
+        "kind": "dir",
+        "children": [
+          {
+            "name": "risk-report.md",
+            "desc": "当前选型的隐患体检单。改选型后重新导出一份，保持同步",
+            "kind": "file",
+            "badge": "导出附带"
+          }
+        ]
+      },
+      {
+        "name": "src/",
+        "desc": "",
+        "kind": "dir",
+        "children": [
+          {
+            "name": "main/",
+            "desc": "生产代码与运行时资源。这里的每个文件都会进最终产物",
+            "kind": "dir",
+            "children": [
+              {
+                "name": "java/com/example/",
+                "desc": "根包。只放启动类，其他类一律进子包",
+                "kind": "dir",
+                "children": [
+                  {
+                    "name": "Application.java",
+                    "desc": "启动类。必须在根包 —— @SpringBootApplication 隐式带 @ComponentScan，放错位置会让部分 Bean 扫不到，报出的错误与真实原因毫无关系",
+                    "kind": "file",
+                    "badge": "所有项目"
+                  },
+                  {
+                    "name": "common/",
+                    "desc": "与业务无关的全局共享物。这一层只往下被依赖，不反向引用任何业务包",
+                    "kind": "dir",
+                    "children": [
+                      {
+                        "name": "ApiResponse.java",
+                        "desc": "统一响应体。所有接口只返回这一种外壳，前端只解析一种结构",
+                        "kind": "file"
+                      },
+                      {
+                        "name": "PageResult.java",
+                        "desc": "统一分页结构：页码、页大小、总数、列表，字段名固定不再各写一套",
+                        "kind": "file"
+                      },
+                      {
+                        "name": "ErrorCode.java",
+                        "desc": "错误码常量表。码值集中定义，禁止散落在各处的魔法数字",
+                        "kind": "file"
+                      },
+                      {
+                        "name": "exception/",
+                        "desc": "领域内可预期的失败类型",
+                        "kind": "dir",
+                        "children": [
+                          {
+                            "name": "BizException.java",
+                            "desc": "业务异常基类，携带错误码 —— 可预期的失败用它，不抛 RuntimeException",
+                            "kind": "file"
+                          }
+                        ]
+                      },
+                      {
+                        "name": "web/",
+                        "desc": "与 HTTP 协议相关的公共物",
+                        "kind": "dir",
+                        "children": [
+                          {
+                            "name": "GlobalExceptionHandler.java",
+                            "desc": "全局异常出口。所有异常在这里转成统一响应体，兜底分支必须记录堆栈",
+                            "kind": "file"
+                          }
+                        ]
+                      }
+                    ]
+                  },
+                  {
+                    "name": "config/",
+                    "desc": "所有 @Configuration 集中在此。项目里只有这一个地方允许出现 @Bean",
+                    "kind": "dir",
+                    "children": [
+                      {
+                        "name": "WebMvcConfig.java",
+                        "desc": "跨域与拦截器链。TraceId 拦截器必须排在鉴权之前",
+                        "kind": "file",
+                        "badge": "所有项目"
+                      },
+                      {
+                        "name": "JacksonConfig.java",
+                        "desc": "JSON 序列化策略。Long 转字符串防前端精度丢失 —— 这是最容易上线后才发现的坑",
+                        "kind": "file",
+                        "badge": "所有项目"
+                      },
+                      {
+                        "name": "AsyncConfig.java",
+                        "desc": "异步线程池。所有 @Async 都走它，禁止 new Thread",
+                        "kind": "file",
+                        "badge": "所有项目"
+                      },
+                      {
+                        "name": "RetryConfig.java",
+                        "desc": "重试策略。退避与次数上限在此统一，不允许在业务代码里写重试循环",
+                        "kind": "file",
+                        "badge": "所有项目"
+                      },
+                      {
+                        "name": "SecurityConfig.java",
+                        "desc": "鉴权规则链：放行名单、过滤器顺序、方法级鉴权开关",
+                        "kind": "file",
+                        "badge": "Spring Security",
+                        "when": {
+                          "auth": [
+                            "securityjwt"
+                          ]
+                        }
+                      },
+                      {
+                        "name": "SaTokenConfig.java",
+                        "desc": "Sa-Token 拦截器注册与放行名单",
+                        "kind": "file",
+                        "badge": "Sa-Token",
+                        "when": {
+                          "auth": [
+                            "satoken"
+                          ]
+                        }
+                      },
+                      {
+                        "name": "MybatisPlusConfig.java",
+                        "desc": "注册分页插件与乐观锁插件。漏注册时 Page 查询不报错，只是分页参数被静默忽略，返回整张表",
+                        "kind": "file",
+                        "badge": "MyBatis-Plus",
+                        "when": {
+                          "persistence": [
+                            "mybatisplus"
+                          ]
+                        }
+                      },
+                      {
+                        "name": "JpaAuditConfig.java",
+                        "desc": "开启 JPA 审计，让 @CreatedDate / @LastModifiedDate 自动填充，不要在每个 save 前手写 setCreateTime",
+                        "kind": "file",
+                        "badge": "JPA",
+                        "when": {
+                          "persistence": [
+                            "jpa"
+                          ]
+                        }
+                      },
+                      {
+                        "name": "DruidMonitorConfig.java",
+                        "desc": "Druid 监控页与慢 SQL 统计",
+                        "kind": "file",
+                        "badge": "Druid",
+                        "when": {
+                          "pool": [
+                            "druid"
+                          ]
+                        }
+                      },
+                      {
+                        "name": "CacheConfig.java",
+                        "desc": "本地缓存管理器。必须有容量上限与过期时间：没有上限的缓存等于内存泄漏",
+                        "kind": "file",
+                        "badge": "Caffeine",
+                        "when": {
+                          "cache": [
+                            "caffeine"
+                          ]
+                        }
+                      },
+                      {
+                        "name": "RedisConfig.java",
+                        "desc": "Redis 序列化配置。默认 JDK 序列化不可读、跨语言不可用",
+                        "kind": "file",
+                        "badge": "Redis",
+                        "when": {
+                          "cache": [
+                            "redis"
+                          ]
+                        }
+                      },
+                      {
+                        "name": "NacosRefreshConfig.java",
+                        "desc": "配置变更监听与运行时刷新",
+                        "kind": "file",
+                        "badge": "Nacos",
+                        "when": {
+                          "registry": [
+                            "nacos"
+                          ]
+                        }
+                      },
+                      {
+                        "name": "SchedulerConfig.java",
+                        "desc": "定时任务线程池与 ShedLock 分布式锁。默认单线程，一个任务跑久会让其余任务全部顺延",
+                        "kind": "file",
+                        "badge": "@Scheduled",
+                        "when": {
+                          "scheduler": [
+                            "spring"
+                          ]
+                        }
+                      },
+                      {
+                        "name": "XxlJobConfig.java",
+                        "desc": "调度中心执行器注册",
+                        "kind": "file",
+                        "badge": "XXL-Job",
+                        "when": {
+                          "scheduler": [
+                            "xxljob"
+                          ]
+                        }
+                      },
+                      {
+                        "name": "OpenApiConfig.java",
+                        "desc": "接口文档元信息与鉴权 scheme。生产 profile 必须关闭文档页",
+                        "kind": "file",
+                        "badge": "SpringDoc",
+                        "when": {
+                          "apidoc": [
+                            "springdoc",
+                            "knife4j"
+                          ]
+                        }
+                      },
+                      {
+                        "name": "MetricsConfig.java",
+                        "desc": "业务指标埋点与 Prometheus 暴露",
+                        "kind": "file",
+                        "badge": "Prometheus",
+                        "when": {
+                          "observability": [
+                            "prometheus"
+                          ]
+                        }
+                      }
+                    ]
+                  },
+                  {
+                    "name": "interceptor/",
+                    "desc": "拦截器。顺序敏感：TraceId 必须在最前，鉴权在其后",
+                    "kind": "dir",
+                    "children": [
+                      {
+                        "name": "TraceIdInterceptor.java",
+                        "desc": "给每个请求打链路 id 并写进 MDC，否则异步与跨服务日志串不起来",
+                        "kind": "file"
+                      },
+                      {
+                        "name": "AuthInterceptor.java",
+                        "desc": "登录态校验与放行名单。用拦截器就要在 WebMvcConfig 注册，漏注册的表现是接口直接裸奔",
+                        "kind": "file",
+                        "badge": "鉴权",
+                        "when": {
+                          "auth": [
+                            "securityjwt",
+                            "satoken"
+                          ]
+                        }
+                      }
+                    ]
+                  },
+                  {
+                    "name": "filter/",
+                    "desc": "过滤器。只在需要包装请求体（如 XSS、请求日志）时才有",
+                    "kind": "dir",
+                    "children": [
+                      {
+                        "name": "RequestLogFilter.java",
+                        "desc": "请求日志与耗时统计。注意：包装请求体会让文件上传多占一份内存",
+                        "kind": "file"
+                      }
+                    ]
+                  },
+                  {
+                    "name": "integration/",
+                    "desc": "外部系统的统一边界。所有跨系统调用只从这一层出去，便于统一超时与重试",
+                    "kind": "dir",
+                    "badge": "外部依赖",
+                    "when": {
+                      "mq": [
+                        "rocketmq",
+                        "rabbitmq",
+                        "kafka"
+                      ]
+                    },
+                    "children": [
+                      {
+                        "name": "MessagePublisher.java",
+                        "desc": "消息生产者。发送与业务写入的事务边界在这里定义清楚",
+                        "kind": "file"
+                      }
+                    ]
+                  },
+                  {
+                    "name": "user/",
+                    "desc": "业务领域示例：按领域分包，不是按层分包。真实项目的每个领域都是同样的六件套",
+                    "kind": "dir",
+                    "children": [
+                      {
+                        "name": "controller/UserController.java",
+                        "desc": "HTTP 入口。只做参数校验与调用，不写业务逻辑，不直接碰数据库",
+                        "kind": "file"
+                      },
+                      {
+                        "name": "dto/CreateUserRequest.java",
+                        "desc": "入参 DTO。必须带校验注解，且与实体分开",
+                        "kind": "file"
+                      },
+                      {
+                        "name": "dto/UserResponse.java",
+                        "desc": "出参 DTO。实体不直接出接口 —— 否则加一个字段就泄露一次",
+                        "kind": "file"
+                      },
+                      {
+                        "name": "dto/UserQuery.java",
+                        "desc": "查询条件对象。参数超过三个就必须用对象承载",
+                        "kind": "file"
+                      },
+                      {
+                        "name": "service/UserService.java",
+                        "desc": "业务层。事务边界在这一层，@Transactional 只写在 public 方法上",
+                        "kind": "file"
+                      },
+                      {
+                        "name": "repository/UserRepository.java",
+                        "desc": "数据访问。SQL 与 ORM 调用只出现在这里",
+                        "kind": "file",
+                        "when": {
+                          "persistence": [
+                            "mybatisplus",
+                            "jpa"
+                          ]
+                        }
+                      },
+                      {
+                        "name": "repository/UserDao.java",
+                        "desc": "数据访问。用 JdbcTemplate 手写 SQL，SQL 与映射都在这里",
+                        "kind": "file",
+                        "when": {
+                          "persistence": [
+                            "jdbc"
+                          ]
+                        }
+                      },
+                      {
+                        "name": "domain/User.java",
+                        "desc": "实体与枚举。表结构在代码里的投影，字段与列一一对应",
+                        "kind": "file"
+                      },
+                      {
+                        "name": "exception/UserNotFoundException.java",
+                        "desc": "领域内业务异常。继承 BizException，错误码由本领域负责",
+                        "kind": "file"
+                      }
+                    ]
+                  },
+                  {
+                    "name": "job/",
+                    "desc": "定时任务。任务只做「触发」，真正的逻辑仍放在 service 里以便复用与测试",
+                    "kind": "dir",
+                    "badge": "定时任务",
+                    "when": {
+                      "scheduler": [
+                        "spring",
+                        "xxljob"
+                      ]
+                    },
+                    "children": [
+                      {
+                        "name": "UserSyncJob.java",
+                        "desc": "任务类。方法要短、要幂等、要可重入 —— 超时与重复触发是常态",
+                        "kind": "file",
+                        "badge": "定时任务",
+                        "when": {
+                          "scheduler": [
+                            "spring",
+                            "xxljob"
+                          ]
+                        }
+                      }
+                    ]
+                  },
+                  {
+                    "name": "security/",
+                    "desc": "鉴权相关的实现物：令牌签发、解析、当前用户上下文",
+                    "kind": "dir",
+                    "badge": "鉴权",
+                    "when": {
+                      "auth": [
+                        "securityjwt"
+                      ]
+                    },
+                    "children": [
+                      {
+                        "name": "JwtAuthenticationFilter.java",
+                        "desc": "JWT 解析过滤器。算法必须做白名单校验，否则 alg=none 可直接绕过签名",
+                        "kind": "file",
+                        "badge": "Spring Security",
+                        "when": {
+                          "auth": [
+                            "securityjwt"
+                          ]
+                        }
+                      },
+                      {
+                        "name": "CurrentUserHolder.java",
+                        "desc": "当前登录用户上下文。基于 ThreadLocal —— 用完必须在 finally 里清理，否则会跨请求越权",
+                        "kind": "file",
+                        "badge": "所有项目"
+                      }
+                    ]
+                  }
+                ]
+              },
+              {
+                "name": "resources/",
+                "desc": "配置文件与运行时资源。打包后它们位于 classpath 根下，会有覆盖规则",
+                "kind": "dir",
+                "children": [
+                  {
+                    "name": "application.yml",
+                    "desc": "跨环境一致的配置。密钥一律走环境变量，不写进这个文件",
+                    "kind": "file"
+                  },
+                  {
+                    "name": "application-dev.yml",
+                    "desc": "开发环境差异配置",
+                    "kind": "file"
+                  },
+                  {
+                    "name": "application-prod.yml",
+                    "desc": "生产环境差异配置。这个文件里不应出现任何明文密钥",
+                    "kind": "file"
+                  },
+                  {
+                    "name": "logback-spring.xml",
+                    "desc": "日志滚动与分级。按 profile 切换输出目标",
+                    "kind": "file",
+                    "badge": "可选"
+                  },
+                  {
+                    "name": "mapper/",
+                    "desc": "MyBatis XML 映射文件。用注解写 SQL 时这个目录不存在",
+                    "kind": "dir",
+                    "badge": "MyBatis-Plus",
+                    "when": {
+                      "persistence": [
+                        "mybatisplus"
+                      ]
+                    },
+                    "children": [
+                      {
+                        "name": "UserMapper.xml",
+                        "desc": "复杂 SQL 的落点。简单增删改查用注解就够，不必都往这里搬",
+                        "kind": "file",
+                        "badge": "MyBatis-Plus",
+                        "when": {
+                          "persistence": [
+                            "mybatisplus"
+                          ]
+                        }
+                      }
+                    ]
+                  },
+                  {
+                    "name": "db/",
+                    "desc": "库结构定义。这一层决定了「新环境能不能一键起起来」",
+                    "kind": "dir",
+                    "children": [
+                      {
+                        "name": "migration/",
+                        "desc": "Flyway 版本化迁移。命名 V{版本}__{说明}.sql，执行顺序由版本号决定",
+                        "kind": "dir",
+                        "badge": "Flyway",
+                        "when": {
+                          "migration": [
+                            "flyway"
+                          ]
+                        },
+                        "children": [
+                          {
+                            "name": "V1__init.sql",
+                            "desc": "初始建表脚本。字段、索引、注释一次写全",
+                            "kind": "file",
+                            "badge": "Flyway",
+                            "when": {
+                              "migration": [
+                                "flyway"
+                              ]
+                            }
+                          }
+                        ]
+                      },
+                      {
+                        "name": "changelog/",
+                        "desc": "Liquibase changelog。master 文件只做 include，不写具体变更",
+                        "kind": "dir",
+                        "badge": "Liquibase",
+                        "when": {
+                          "migration": [
+                            "liquibase"
+                          ]
+                        },
+                        "children": [
+                          {
+                            "name": "db.changelog-master.xml",
+                            "desc": "变更总入口。按顺序 include 每个 changeset 文件",
+                            "kind": "file",
+                            "badge": "Liquibase",
+                            "when": {
+                              "migration": [
+                                "liquibase"
+                              ]
+                            }
+                          }
+                        ]
+                      },
+                      {
+                        "name": "schema.sql",
+                        "desc": "不引入迁移工具时的建表脚本。至少要有它，并纳入版本控制",
+                        "kind": "file",
+                        "badge": "无迁移工具",
+                        "when": {
+                          "migration": [
+                            "none"
+                          ]
+                        }
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "name": "test/java/com/example/",
+            "desc": "测试代码与主代码同包名，但不共享任何工具类 —— 测试里能做的事，生产代码里不该能做",
+            "kind": "dir",
+            "children": [
+              {
+                "name": "ApplicationTests.java",
+                "desc": "上下文冒烟测试。它只证明一件事：Spring 容器能起来。这一条比很多业务测试更早地拦住配置错误",
+                "kind": "file",
+                "badge": "测试",
+                "when": {
+                  "test": [
+                    "mockito",
+                    "testcontainers"
+                  ]
+                }
+              },
+              {
+                "name": "user/service/UserServiceTest.java",
+                "desc": "Service 单元测试。Mock 掉外部依赖，只测业务分支",
+                "kind": "file",
+                "badge": "测试",
+                "when": {
+                  "test": [
+                    "mockito",
+                    "testcontainers"
+                  ]
+                }
+              },
+              {
+                "name": "user/controller/UserControllerTest.java",
+                "desc": "接口切片测试。只加载 Web 层，验证参数校验与响应码",
+                "kind": "file",
+                "badge": "测试",
+                "when": {
+                  "test": [
+                    "mockito",
+                    "testcontainers"
+                  ]
+                }
+              },
+              {
+                "name": "support/TestcontainersConfig.java",
+                "desc": "用真实数据库跑集成测试。代价是必须有 Docker，CI 上没有 Docker 就会红",
+                "kind": "file",
+                "badge": "Testcontainers",
+                "when": {
+                  "test": [
+                    "testcontainers"
+                  ]
+                }
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "appTemplate": "package com.example;\n\n__IMPORTS__\n\n/**\n * 应用启动类。\n *\n * 三条硬约束（军火库 SKEL-STRC-002）：\n *   1. 必须放在根包 com.example。@SpringBootApplication 隐式带 @ComponentScan，\n *      扫描范围是「本类所在包及其子包」。放到子包里的结果是部分 Bean 扫不到，\n *      而报出来的错误与真实原因毫无关系。\n *   2. 根包里只放这一个类。其他类一律进子包 —— 否则分包边界会从根包开始糊掉。\n *   3. 启动类不做业务初始化。需要预热数据就写 ApplicationRunner，\n *      否则启动失败的原因会被埋进业务异常里。\n *\n * 为什么这个类看起来这么空：\n * 全局开关全部放在各自负责的配置类里，启动类只保留「包扫描锚点」这一个职责。\n *\n * 当前组合的开关归属表（删掉哪个配置类，等于关掉对应的开关）：\n *\n__SWITCHES__\n *\n * 这不是洁癖。启动类一旦开始堆注解，它就会变成「谁都想往里加一行」的地方，\n * 半年后没人说得清哪一行是干什么的、能不能删。\n */\n@SpringBootApplication\n__ANNOTATIONS__\npublic class Application {\n\n    public static void main(String[] args) {\n        SpringApplication.run(Application.class, args);\n    }\n}\n",
+  "appAnnotations": [
+    {
+      "code": "@MapperScan(\"com.example.**.repository\")",
+      "import": "org.mybatis.spring.annotation.MapperScan",
+      "comment": "扫描 Mapper 接口。也可以给每个接口加 @Mapper，但那样每新增一个都要记得加 ——漏掉的表现是启动报 NoSuchBeanDefinitionException，且找不出是哪个接口漏了。",
+      "source": "持久层 · MyBatis-Plus",
+      "when": {
+        "persistence": [
+          "mybatisplus"
+        ]
+      }
+    }
+  ],
+  "switchOwners": [
+    {
+      "switch": "@EnableScheduling",
+      "owner": "config/SchedulerConfig.java",
+      "why": "定时任务总开关",
+      "when": {
+        "scheduler": [
+          "spring"
+        ]
+      }
+    },
+    {
+      "switch": "@EnableSchedulerLock",
+      "owner": "config/SchedulerConfig.java",
+      "why": "多实例下给任务加分布式锁，防止重复执行",
+      "when": {
+        "scheduler": [
+          "spring"
+        ]
+      }
+    },
+    {
+      "switch": "@EnableCaching",
+      "owner": "config/CacheConfig.java",
+      "why": "注解式缓存总开关",
+      "when": {
+        "cache": [
+          "caffeine"
+        ]
+      }
+    },
+    {
+      "switch": "@EnableCaching",
+      "owner": "config/RedisConfig.java",
+      "why": "注解式缓存总开关（Redis 作缓存管理器）",
+      "when": {
+        "cache": [
+          "redis"
+        ]
+      }
+    },
+    {
+      "switch": "@EnableJpaAuditing",
+      "owner": "config/JpaAuditConfig.java",
+      "why": "审计字段自动填充",
+      "when": {
+        "persistence": [
+          "jpa"
+        ]
+      }
+    },
+    {
+      "switch": "WebMvcConfigurer",
+      "owner": "config/WebMvcConfig.java",
+      "why": "拦截器链与跨域。不用 @EnableWebMvc —— 它会让自动配置整体失效",
+      "when": {
+        "web": [
+          "mvc"
+        ]
+      }
+    },
+    {
+      "switch": "@EnableWebFlux",
+      "owner": "（自动装配）",
+      "why": "WebFlux 由 starter 自动装配，加了反而会打断自动配置",
+      "when": {
+        "web": [
+          "webflux"
+        ]
+      }
+    },
+    {
+      "switch": "@Async / @EnableAsync",
+      "owner": "config/AsyncConfig.java",
+      "why": "异步线程池。禁止 new Thread，也禁止用默认的 SimpleAsyncTaskExecutor",
+      "when": null
+    },
+    {
+      "switch": "@Transactional",
+      "owner": "service 层方法上",
+      "why": "由 Boot 自动开启，不需要任何 @Enable 注解。写在 public 方法上才生效",
+      "when": null
+    }
+  ],
+  "files": {
+    "gitignore": "# 构建产物\ntarget/\nbuild/\nout/\n!.mvn/wrapper/maven-wrapper.jar\n\n# 日志与运行时\nlogs/\n*.log\n\n# IDE\n.idea/\n*.iml\n*.ipr\n*.iws\n.vscode/\n\n# 密钥与本地配置 —— 这三行是防事故的核心\n.env\n.env.*\n!.env.example\napplication-local.yml\nsrc/main/resources/application-local.yml\n\n# 系统文件\n.DS_Store\nThumbs.db\n",
+    "flywayV1": "-- V1__init.sql\n--\n-- 第一条迁移脚本要一次把规范立住，后面所有建表都照它抄。\n-- 三条约定：\n--   1. 主键统一 bigint unsigned + 自增，不用 varchar 做主键（索引膨胀且无顺序）\n--   2. 每张表必带 create_time / update_time / deleted，且都有默认值\n--   3. 索引命名固定：唯一索引 uk_ 前缀，普通索引 idx_ 前缀，外键 fk_ 前缀\n--      —— 不这样做，半年后看到 idx1、idx2 只能靠猜\n\nCREATE TABLE `example_order`\n(\n    `id`          bigint unsigned NOT NULL AUTO_INCREMENT COMMENT '主键',\n    `order_no`    varchar(32)     NOT NULL COMMENT '业务单号，对外唯一标识',\n    `amount`      decimal(18, 2)  NOT NULL DEFAULT 0.00 COMMENT '金额。钱一律用 decimal，不用 double',\n    `status`      tinyint         NOT NULL DEFAULT 0 COMMENT '状态：0待处理 1处理中 2已完成 3已取消',\n    `remark`      varchar(255)             DEFAULT NULL COMMENT '备注',\n    `create_time` datetime        NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',\n    `update_time` datetime        NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',\n    `deleted`     tinyint         NOT NULL DEFAULT 0 COMMENT '逻辑删除：0未删 1已删',\n    PRIMARY KEY (`id`),\n    UNIQUE KEY `uk_order_no` (`order_no`),\n    KEY `idx_status_create_time` (`status`, `create_time`)\n) ENGINE = InnoDB\n  DEFAULT CHARSET = utf8mb4\n  COLLATE = utf8mb4_general_ci COMMENT ='示例订单表';\n",
+    "liquibaseMaster": "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<!--\n  变更总入口。这个文件只做 include，不写具体变更 ——\n  否则它会随着项目推进膨胀成一个没人敢改的巨型 XML。\n-->\n<databaseChangeLog\n        xmlns=\"http://www.liquibase.org/xml/ns/dbchangelog\"\n        xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\"\n        xsi:schemaLocation=\"http://www.liquibase.org/xml/ns/dbchangelog\n                            http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.24.xsd\">\n\n    <include file=\"db/changelog/changes/001-init.xml\" relativeToChangelogFile=\"false\"/>\n\n</databaseChangeLog>\n",
+    "smokeTest": "package com.example;\n\nimport org.junit.jupiter.api.Test;\nimport org.springframework.boot.test.context.SpringBootTest;\n\n/**\n * 上下文冒烟测试。\n *\n * 它只证明一件事：**Spring 容器能起来**。\n * 但这一条比很多业务测试更早地拦住问题 —— 配置写错、Bean 循环依赖、\n * 数据源连不上、Mapper 扫描路径写错，都会在这里直接失败。\n *\n * 注意：这个测试需要能连上数据库。CI 里要么起一个测试库，\n * 要么用 Testcontainers，不要用 H2 假装它是 MySQL。\n */\n@SpringBootTest\nclass ApplicationTests {\n\n    @Test\n    void contextLoads() {\n        // 容器起不来，这个测试就不会通过\n    }\n}\n",
+    "gradleSettings": "rootProject.name = 'arsenal-demo'\n",
+    "readmeTemplate": "# arsenal-demo\n\n由「杨先生的军火库 · 架构装配台」按当前选型生成。\n\n__SELECTION_TABLE__\n\n## 目录结构\n\n```\n__TREE__\n```\n\n__START__\n\n## 这套组合的隐患\n\n__RISKS__\n\n## 上手前必须补齐的类\n\n导出包只包含「结构与配置」层面的文件，不含业务代码 —— 业务代码每个项目都不一样。\n下面这些类被配置类引用了，但不在导出包里，需要自己实现或从蓝图库复制：\n\n__DANGLING__\n\n## 交付清单\n\n__FILES__\n",
+    "readmeStartMaven": "## 本地启动\n\n```bash\n# 1. 准备数据库（先建库，表结构交给迁移工具）\n#    建好之后把连接信息写进环境变量，不要写进 application.yml\nexport DB_URL='jdbc:mysql://127.0.0.1:3306/arsenal_demo?useSSL=false&serverTimezone=Asia/Shanghai'\nexport DB_USERNAME=root\nexport DB_PASSWORD=******\n\n# 2. 启动\nmvn spring-boot:run\n\n# 3. 验证：容器起来了不算成功，能返回数据才算\ncurl -s localhost:8080/actuator/health\n```\n\n启动类跑不起来时，先看这一条：**数据库连不上**占了启动失败的大半。",
+    "readmeStartGradle": "## 本地启动\n\n```bash\nexport DB_URL='jdbc:mysql://127.0.0.1:3306/arsenal_demo?useSSL=false&serverTimezone=Asia/Shanghai'\nexport DB_USERNAME=root\nexport DB_PASSWORD=******\n\n./gradlew bootRun\ncurl -s localhost:8080/actuator/health\n```\n\n启动类跑不起来时，先看这一条：**数据库连不上**占了启动失败的大半。"
+  },
+  "structureNotes": [
+    {
+      "title": "按领域分包，不按层分包",
+      "text": "顶层是业务领域（user、order、article），领域内部才分 controller / service / repository。按层分包（所有 controller 一个包）在项目长到十几个领域后会先崩：改一个功能要跨五个包找文件。",
+      "rule": null
+    },
+    {
+      "title": "根包只放启动类",
+      "text": "@SpringBootApplication 的扫描范围是「本类所在包及其子包」。启动类放错位置，Bean 扫不到的报错会指向一个与真实原因无关的地方。",
+      "rule": "SKEL-STRC-002"
+    },
+    {
+      "title": "config 是唯一允许出现 @Bean 的地方",
+      "text": "业务类里写 @Bean 会让「这个对象是谁创建的」变得无法回答 —— 调试时看到注入的是代理对象，却找不到定义处。",
+      "rule": null
+    },
+    {
+      "title": "common 只被依赖，不反向依赖业务",
+      "text": "common 一旦 import 了 user 包里的类，就说明这个类放错位置了。这条边界失守后，common 会逐渐变成第二个「什么都有」的包。",
+      "rule": null
+    }
+  ],
+  "structureLegend": [
+    {
+      "tone": "dir",
+      "text": "目录：职责写在右侧，不列文件清单"
+    },
+    {
+      "tone": "file",
+      "text": "文件：带来源徽章的，说明它是哪个选型带来的"
+    },
+    {
+      "tone": "badge",
+      "text": "徽章：换掉这个选型，这一块（连同文件）会整体消失"
+    }
+  ]
+}

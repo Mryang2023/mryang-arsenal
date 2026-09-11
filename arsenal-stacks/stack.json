@@ -1,0 +1,1429 @@
+{
+  "collection": "arsenal-stacks",
+  "name": "军火库 · 技术选型与架构装配",
+  "version": "0.1.0",
+  "releasedAt": "2026-09-11",
+  "description": "把一个 Spring Boot 项目拆成 17 个选型维度。勾选组合后，实时合成 pom 依赖、application.yml、必需的配置类与联动代码，并给出运维清单与冲突提示。",
+  "groups": [
+    {
+      "id": "base",
+      "name": "基础",
+      "glyph": "◇",
+      "desc": "决定语言能力与运行时模型，改起来最贵，一开始就要定对。"
+    },
+    {
+      "id": "data",
+      "name": "数据访问",
+      "glyph": "▦",
+      "desc": "持久层、数据库、连接池、迁移。项目里最不容易返工的一块。"
+    },
+    {
+      "id": "middleware",
+      "name": "中间件",
+      "glyph": "⇉",
+      "desc": "缓存、消息、注册中心、调度。每引入一个就多一个运维面。"
+    },
+    {
+      "id": "crosscut",
+      "name": "横切关注点",
+      "glyph": "⛨",
+      "desc": "鉴权、文档、监控、对象映射、样板代码、测试。"
+    }
+  ],
+  "dimensions": [
+    {
+      "id": "jdk",
+      "groupId": "base",
+      "name": "JDK 版本",
+      "why": "决定能用哪些语言特性。17 是当前最稳的 LTS，21 才有虚拟线程。",
+      "defaultOption": "17",
+      "options": [
+        {
+          "id": "17",
+          "name": "Java 17 (LTS)",
+          "badge": "稳妥",
+          "summary": "record、密封类、switch 表达式、text block 全部可用。生态兼容性最好，所有框架都完整支持。",
+          "pomProperties": {
+            "java.version": "17"
+          },
+          "notes": [
+            "record 让 DTO 与值对象变得极简，是这一版最大的收益。",
+            "Spring Boot 3.x 最低要求就是 17，低于它的项目必须先升级。"
+          ],
+          "pitfalls": [
+            "不要用 var 去接 lambda 返回值，可读性会明显下降。"
+          ]
+        },
+        {
+          "id": "21",
+          "name": "Java 21 (LTS)",
+          "badge": "前沿",
+          "summary": "在 17 基础上增加虚拟线程、模式匹配 for switch、记录模式、分代 ZGC。",
+          "pomProperties": {
+            "java.version": "21"
+          },
+          "yaml": "# 虚拟线程：每请求一个虚拟线程，IO 等待不再占用平台线程\nspring:\n  threads:\n    virtual:\n      enabled: true",
+          "sample": {
+            "title": "虚拟线程不是银弹：瓶颈会转移到连接池",
+            "lang": "yaml",
+            "code": "spring:\n  threads:\n    virtual:\n      enabled: true\n\n# 开启后，Tomcat 不再受 max-threads 约束，\n# 请求并发能力急剧上升 —— 但数据库连接池 maximum-pool-size 没变。\n# 结果是大量虚拟线程在等连接，表现从「线程不够」变成「获取连接超时」。\n# 所以要配套重新审视连接池大小与下游限流。"
+          },
+          "notes": [
+            "虚拟线程适合 IO 密集场景；CPU 密集场景没有收益，反而增加调度开销。",
+            "synchronized 块会 pin 住载体线程，虚拟线程场景下应改用 ReentrantLock。",
+            "踩坑提醒：虚拟线程数与数据库连接池不是同一个量级，必须显式限流。"
+          ],
+          "pitfalls": [
+            "以为开了虚拟线程就能提吞吐：真实的瓶颈往往在连接池或下游。",
+            "在虚拟线程里用 ThreadLocal 缓存大对象：内存占用会成倍放大。"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "build",
+      "groupId": "base",
+      "name": "构建工具",
+      "why": "决定依赖解析与构建脚本的形态。单模块项目两者差别不大，多模块时差异明显。",
+      "defaultOption": "maven",
+      "options": [
+        {
+          "id": "maven",
+          "name": "Maven",
+          "badge": "通用",
+          "summary": "约定优于配置，生态最广，团队上手成本最低。BOM 依赖管理成熟。",
+          "notes": [
+            "spring-boot-starter-parent 已经管好绝大多数版本，业务依赖不要手写 version。",
+            "多模块用 <dependencyManagement> 统一版本，禁止子模块各自声明。"
+          ],
+          "pitfalls": [
+            "依赖冲突用 mvn dependency:tree 定位，不要靠猜。"
+          ]
+        },
+        {
+          "id": "gradle",
+          "name": "Gradle",
+          "badge": "灵活",
+          "summary": "构建脚本即代码，增量构建更快，多模块与自定义任务更灵活。代价是需要维护脚本本身。",
+          "dependencies": [
+            {
+              "groupId": "",
+              "artifactId": "",
+              "kind": "plugin",
+              "note": "Gradle 使用 plugins 块而非 Maven 依赖坐标，见下方样例"
+            }
+          ],
+          "sample": {
+            "title": "build.gradle 关键片段",
+            "lang": "text",
+            "code": "plugins {\n    id 'java'\n    id 'org.springframework.boot' version '3.2.5'\n    id 'io.spring.dependency-management' version '1.1.4'\n}\n\njava {\n    toolchain { languageVersion = JavaLanguageVersion.of(17) }\n}\n\ndependencies {\n    // 版本同样交给 BOM，不写版本号\n    implementation 'org.springframework.boot:spring-boot-starter-web'\n    implementation 'org.springframework.boot:spring-boot-starter-validation'\n    testImplementation 'org.springframework.boot:spring-boot-starter-test'\n}"
+          },
+          "notes": [
+            "用 toolchain 指定 JDK，避免依赖本机 JAVA_HOME。",
+            "不要把构建逻辑写成几百行的脚本 —— 那等于把构建系统变成了需要维护的应用。"
+          ],
+          "pitfalls": [
+            "Gradle 版本与 Spring Boot 插件版本必须匹配，否则报错信息会指向无关位置。"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "web",
+      "groupId": "base",
+      "name": "Web 运行时",
+      "why": "决定线程模型与编程范式。绝大多数业务系统应该选 MVC。",
+      "defaultOption": "mvc",
+      "options": [
+        {
+          "id": "mvc",
+          "name": "Spring MVC + Tomcat",
+          "badge": "推荐",
+          "summary": "同步阻塞、每请求一线程。编程模型直观，调试容易，生态与文档最全。",
+          "dependencies": [
+            {
+              "groupId": "org.springframework.boot",
+              "artifactId": "spring-boot-starter-web",
+              "note": "已内嵌 Tomcat，无需单独引入"
+            }
+          ],
+          "notes": [
+            "同步阻塞意味着一次慢查询会占住一个线程 —— 所以要设超时、要限连接数。",
+            "搭配线程池做异步任务（见蓝图「异步任务」），比全站 reactive 务实得多。"
+          ],
+          "pitfalls": [
+            "默认 max-threads=200，配置成 2000 并不能提高吞吐，只会让下游被打爆。"
+          ]
+        },
+        {
+          "id": "webflux",
+          "name": "Spring WebFlux + Netty",
+          "badge": "高阶",
+          "summary": "响应式非阻塞，少量线程承载高并发连接。适合网关、流式转发、大量长连接场景。",
+          "dependencies": [
+            {
+              "groupId": "org.springframework.boot",
+              "artifactId": "spring-boot-starter-webflux"
+            }
+          ],
+          "yaml": "spring:\n  codec:\n    max-in-memory-size: 2MB   # 不设上限时，大响应体会把堆撑爆",
+          "sample": {
+            "title": "响应式 Controller 写法",
+            "lang": "java",
+            "code": "@RestController\n@RequestMapping(\"/api/v1/users\")\npublic class UserController {\n\n    private final UserService userService;\n\n    public UserController(UserService userService) {\n        this.userService = userService;\n    }\n\n    // 注意返回的是 Mono/Flux，不是普通对象\n    @GetMapping(\"/{id}\")\n    public Mono<ApiResponse<UserResponse>> detail(@PathVariable long id) {\n        return userService.detail(id).map(ApiResponse::ok);\n    }\n}"
+          },
+          "notes": [
+            "整条链路都必须是响应式的。只要中间有一处阻塞调用（如 JDBC、RestTemplate），收益立刻归零，且阻塞会被放大到整个事件循环上。",
+            "阻断式 JDBC 不可用，必须换 R2DBC 或把阻塞调用扔到独立调度器上。",
+            "排障难度显著高于 MVC：堆栈里全是 reactor 的操作符，看不出业务语义。"
+          ],
+          "pitfalls": [
+            "在响应式链路里调用阻塞接口：少数几个阻塞就会拖死整个事件循环。",
+            "为了「技术先进」而选 WebFlux：CRUD 业务几乎无收益，维护成本却高一个量级。"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "persistence",
+      "groupId": "data",
+      "name": "持久层",
+      "why": "最影响日常写代码手感的一个选择 —— Service 里怎么写数据访问，全由它决定。",
+      "defaultOption": "jdbc",
+      "options": [
+        {
+          "id": "jdbc",
+          "name": "Spring JdbcTemplate",
+          "badge": "最轻",
+          "summary": "Spring 自带，零额外依赖。SQL 完全手写，没有任何隐式行为，出问题时能一眼看懂。",
+          "dependencies": [
+            {
+              "groupId": "org.springframework.boot",
+              "artifactId": "spring-boot-starter-jdbc"
+            },
+            {
+              "groupId": "com.mysql",
+              "artifactId": "mysql-connector-j",
+              "scope": "runtime"
+            }
+          ],
+          "configClasses": [],
+          "sample": {
+            "title": "Service 里的数据访问写法",
+            "lang": "java",
+            "code": "@Repository\npublic class UserRepository {\n\n    private final JdbcTemplate jdbcTemplate;\n\n    public UserRepository(JdbcTemplate jdbcTemplate) {\n        this.jdbcTemplate = jdbcTemplate;\n    }\n\n    public User findById(long id) {\n        String sql = \"SELECT id, username, mobile FROM user WHERE id = ?\";\n        List<User> rows = jdbcTemplate.query(sql, rowMapper, id);\n        return rows.isEmpty() ? null : rows.get(0);\n    }\n}"
+          },
+          "notes": [
+            "自动配置已就绪，只需配 datasource，不需要写任何配置类。",
+            "没有懒加载、没有一级缓存、没有隐式刷新 —— 所有行为都写在 SQL 里。",
+            "代价是重复的 RowMapper 与手写 SQL，字段多时维护量不小。"
+          ],
+          "pitfalls": [
+            "在循环里逐条查询（N+1）：一次列表接口打出 500 条 SQL。要改成 in 批量查。",
+            "拼 SQL 字符串传参：必须用 ? 占位符，这是注入的唯一入口。"
+          ]
+        },
+        {
+          "id": "mybatisplus",
+          "name": "MyBatis-Plus",
+          "badge": "主流",
+          "summary": "国内使用最广。单表 CRUD 由 BaseMapper 自动生成，复杂 SQL 手写在 XML 里，两边各取所长。",
+          "dependencies": [
+            {
+              "groupId": "com.baomidou",
+              "artifactId": "mybatis-plus-spring-boot3-starter",
+              "version": "3.5.7",
+              "note": "注意是 spring-boot3 版本，普通版不兼容 Spring Boot 3"
+            }
+          ],
+          "yaml": "mybatis-plus:\n  global-config:\n    db-config:\n      logic-delete-field: isDeleted   # 逻辑删除字段，配好后 deleteById 自动变成 update\n      logic-delete-value: 1\n      logic-not-delete-value: 0\n  configuration:\n    # 驼峰与下划线自动映射，省掉大量 resultMap\n    map-underscore-to-camel-case: true\n    # 生产环境关掉 SQL 打印，否则日志量会失控\n    log-impl: org.apache.ibatis.logging.nologging.NoLoggingImpl\nmapper-locations: classpath*:/mapper/**/*.xml",
+          "configClasses": [
+            {
+              "className": "MybatisPlusConfig",
+              "path": "src/main/java/com/example/config/MybatisPlusConfig.java",
+              "code": "package com.example.config;\n\nimport com.baomidou.mybatisplus.annotation.DbType;\nimport com.baomidou.mybatisplus.extension.plugins.MybatisPlusInterceptor;\nimport com.baomidou.mybatisplus.extension.plugins.inner.OptimisticLockerInnerInterceptor;\nimport com.baomidou.mybatisplus.extension.plugins.inner.PaginationInnerInterceptor;\nimport org.springframework.context.annotation.Bean;\nimport org.springframework.context.annotation.Configuration;\n\n/**\n * 必须手工注册分页插件 —— 这是最容易漏的一步。\n * 不注册时 Page 查询不会报错，只是分页参数被静默忽略，\n * 返回全部数据（一个查询把整张表拉进内存）。\n */\n@Configuration\npublic class MybatisPlusConfig {\n\n    @Bean\n    public MybatisPlusInterceptor mybatisPlusInterceptor() {\n        MybatisPlusInterceptor interceptor = new MybatisPlusInterceptor();\n        // 乐观锁插件：配合 @Version 字段使用，防并发覆盖\n        interceptor.addInnerInterceptor(new OptimisticLockerInnerInterceptor());\n        // 分页插件必须最后加，且必须指定 DbType\n        PaginationInnerInterceptor page = new PaginationInnerInterceptor(DbType.MYSQL);\n        // 单页最大条数兜底：即便调用方传了 100000 也会被限制住\n        page.setMaxLimit(500L);\n        interceptor.addInnerInterceptor(page);\n        return interceptor;\n    }\n}"
+            }
+          ],
+          "sample": {
+            "title": "Service 里的数据访问写法",
+            "lang": "java",
+            "code": "@Service\npublic class UserService {\n\n    private final UserMapper userMapper;\n\n    public UserService(UserMapper userMapper) {\n        this.userMapper = userMapper;\n    }\n\n    public PageResult<UserResponse> page(UserQuery query) {\n        // 分页插件生效后，这里不需要手写 count 与 limit\n        Page<User> page = new Page<>(query.getPage(), query.getPageSize());\n        LambdaQueryWrapper<User> wrapper = new LambdaQueryWrapper<User>()\n                .eq(User::getStatus, query.getStatus())\n                .like(StringUtils.hasText(query.getUsername()),\n                        User::getUsername, query.getUsername())\n                .orderByDesc(User::getId);\n        Page<User> result = userMapper.selectPage(page, wrapper);\n        return PageResult.of(\n                result.getRecords().stream().map(UserResponse::from).toList(),\n                result.getTotal(), query.getPage(), query.getPageSize());\n    }\n}"
+          },
+          "notes": [
+            "单表 CRUD 用 BaseMapper + LambdaQueryWrapper，复杂 SQL 写 XML —— 不要硬用 Wrapper 拼多表连接，那会变成不可读的代码。",
+            "分页插件必须手工注册，漏了不报错、只是静默返回全量。",
+            "逻辑删除字段配好后，deleteById 会自动改成 update，不用改业务代码。"
+          ],
+          "pitfalls": [
+            "忘记注册分页插件：分页参数被静默忽略，一次查询拉全表。",
+            "用 Wrapper 硬拼多表 join：可读性远不如一条 XML SQL，且无法用索引提示。",
+            "在 service 里直接调 mapper 做多表写入却不加事务：数据一致性没有保证。"
+          ]
+        },
+        {
+          "id": "jpa",
+          "name": "Spring Data JPA",
+          "badge": "规范",
+          "summary": "以领域模型为中心，方法名即查询，自动建表。适合模型复杂、以对象为中心的系统。",
+          "dependencies": [
+            {
+              "groupId": "org.springframework.boot",
+              "artifactId": "spring-boot-starter-data-jpa"
+            },
+            {
+              "groupId": "com.mysql",
+              "artifactId": "mysql-connector-j",
+              "scope": "runtime"
+            }
+          ],
+          "yaml": "spring:\n  jpa:\n    hibernate:\n      ddl-auto: validate      # 生产环境绝不使用 update/create，只做校验\n    open-in-view: false        # 必须关掉，见下方说明\n    properties:\n      hibernate:\n        jdbc.batch_size: 50     # 批量写入，减少来回次数\n        order_inserts: true\n        order_updates: true\n        query.in_clause_parameter_padding: true",
+          "configClasses": [
+            {
+              "className": "JpaAuditConfig",
+              "path": "src/main/java/com/example/config/JpaAuditConfig.java",
+              "code": "package com.example.config;\n\nimport java.util.Optional;\nimport org.springframework.context.annotation.Bean;\nimport org.springframework.context.annotation.Configuration;\nimport org.springframework.data.domain.AuditorAware;\nimport org.springframework.data.jpa.repository.config.EnableJpaAuditing;\n\n/**\n * 开启 JPA 审计：让 @CreatedDate / @LastModifiedDate 自动填充，\n * 不要在每个 save 之前手写 setCreateTime —— 总有某条路径会忘。\n */\n@Configuration\n@EnableJpaAuditing\npublic class JpaAuditConfig {\n\n    /** 操作人从当前登录态取。取不到时返回空而不是抛异常，避免定时任务写库失败。 */\n    @Bean\n    public AuditorAware<String> auditorAware() {\n        return () -> Optional.ofNullable(CurrentUserHolder.getUsername());\n    }\n}"
+            }
+          ],
+          "sample": {
+            "title": "Service 里的数据访问写法",
+            "lang": "java",
+            "code": "@Service\npublic class UserService {\n\n    private final UserRepository userRepository;\n\n    public UserService(UserRepository userRepository) {\n        this.userRepository = userRepository;\n    }\n\n    @Transactional(readOnly = true)\n    public PageResult<UserResponse> page(UserQuery query, Pageable pageable) {\n        Page<User> page = userRepository.findByStatus(query.getStatus(), pageable);\n        return PageResult.of(\n                page.getContent().stream().map(UserResponse::from).toList(),\n                page.getTotalElements(), query.getPage(), query.getPageSize());\n    }\n}"
+          },
+          "notes": [
+            "open-in-view 必须关掉。开着它意味着数据库连接会一直持有到响应渲染完成 ——长连接、懒加载在视图层触发、事务边界被拉长到整个请求，是 JPA 最常见的生产事故来源。",
+            "ddl-auto 生产环境只能是 validate 或 none。update 会静默改表结构，包括删列、改类型，且没有任何确认。",
+            "分页建议用 Slice（不查总数）做「下一页」列表，性能差别很大。"
+          ],
+          "pitfalls": [
+            "开着 open-in-view：请求结束前连接不释放，高并发下连接池瞬间打满。",
+            "N+1 查询：@ManyToOne 默认 EAGER，列表查询会按行数发 SQL。用 @EntityGraph 或 join fetch 解决。",
+            "ddl-auto: update 上生产：某天应用重启后表结构被悄悄改了。",
+            "在 @Transactional 方法外访问懒加载属性：LazyInitializationException。"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "database",
+      "groupId": "data",
+      "name": "数据库",
+      "why": "决定 SQL 方言、驱动依赖与连接参数。选错后迁移成本极高，属于一次性决策。",
+      "defaultOption": "mysql",
+      "options": [
+        {
+          "id": "mysql",
+          "name": "MySQL 8.x",
+          "badge": "通用",
+          "summary": "国内最主流，运维资料最多，云厂商支持最完整。8.x 已支持窗口函数与 CTE。",
+          "dependencies": [
+            {
+              "groupId": "com.mysql",
+              "artifactId": "mysql-connector-j",
+              "scope": "runtime"
+            }
+          ],
+          "yaml": "spring:\n  datasource:\n    url: jdbc:mysql://${DB_HOST:127.0.0.1}:${DB_PORT:3306}/${DB_NAME:app}\"\n         \"?useUnicode=true&characterEncoding=utf8mb4\"\n         \"&serverTimezone=Asia/Shanghai&useSSL=false&allowPublicKeyRetrieval=true\"\n         \"&rewriteBatchedStatements=true   # 批量插入必须开，否则一条条发，慢十倍以上\n    driver-class-name: com.mysql.cj.jdbc.Driver",
+          "notes": [
+            "字符集必须 utf8mb4。utf8 在 MySQL 里其实是三字节的，存不下 emoji 与部分生僻字。",
+            "serverTimezone 必须显式设置，否则时间字段会出现 8 小时偏移。",
+            "批量写入必须加 rewriteBatchedStatements=true，否则 JDBC 的 batch 是假的。"
+          ],
+          "pitfalls": [
+            "用 utf8 而非 utf8mb4：存 emoji 报错「Incorrect string value」。",
+            "排序规则选了 utf8mb4_general_ci 却在做严格比对：某些字符会被视为相等。"
+          ]
+        },
+        {
+          "id": "postgres",
+          "name": "PostgreSQL 16",
+          "badge": "严谨",
+          "summary": "类型系统严格、JSONB 与全文检索强、事务与并发控制更符合标准。适合数据模型复杂或分析需求重的场景。",
+          "dependencies": [
+            {
+              "groupId": "org.postgresql",
+              "artifactId": "postgresql",
+              "scope": "runtime"
+            }
+          ],
+          "yaml": "spring:\n  datasource:\n    # reWriteBatchedInserts 让 JDBC batch 真正合并成一条多值 INSERT\n    url: jdbc:postgresql://${DB_HOST:127.0.0.1}:${DB_PORT:5432}/${DB_NAME:app}?ApplicationName=arsenal-demo&reWriteBatchedInserts=true\n    driver-class-name: org.postgresql.Driver",
+          "notes": [
+            "PG 的表名、字段名默认折叠为小写；用双引号包裹的大写标识符不会被折叠，会变成两套命名。所以一律用小写加下划线。",
+            "COUNT(*) 在大表上很慢，PG 需要顺序扫描；需要近似值可用 pg_class.reltuples。",
+            "reWriteBatchedInserts=true 才能让 JDBC batch 真正合并成一条多值 INSERT。"
+          ],
+          "pitfalls": [
+            "建表时用了带引号的大写标识符：之后所有查询都必须带引号，否则找不到表。",
+            "把 MySQL 的 ON DUPLICATE KEY UPDATE 直接搬过来：语法不成立，要用 ON CONFLICT。"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "pool",
+      "groupId": "data",
+      "name": "连接池",
+      "why": "Spring Boot 默认 HikariCP。选 Druid 主要是为了它的监控面板。",
+      "defaultOption": "hikari",
+      "options": [
+        {
+          "id": "hikari",
+          "name": "HikariCP",
+          "badge": "默认",
+          "summary": "Spring Boot 内置，性能最好，配置项少。绝大多数项目的最优解。",
+          "dependencies": [
+            {
+              "groupId": "org.springframework.boot",
+              "artifactId": "spring-boot-starter-jdbc",
+              "note": "已内置 HikariCP"
+            }
+          ],
+          "yaml": "spring:\n  datasource:\n    hikari:\n      maximum-pool-size: 20        # 不是越大越好，超过数据库处理能力只会加剧锁竞争\n      minimum-idle: 5\n      connection-timeout: 3000     # 必须设，否则池满时无限等待且无异常\n      idle-timeout: 600000\n      max-lifetime: 1800000        # 必须小于数据库 wait_timeout\n      connection-test-query: SELECT 1",
+          "notes": [
+            "连接池大小经验公式：核数 × 2 + 有效磁盘数。20 已经能支撑相当规模的业务。",
+            "connection-timeout 是必设项。默认 30s 太长，线上表现是所有接口一起卡住。"
+          ],
+          "pitfalls": [
+            "maximum-pool-size 调到 200：数据库端 max_connections 被打满，反而拖垮全局。"
+          ]
+        },
+        {
+          "id": "druid",
+          "name": "Druid",
+          "badge": "带监控",
+          "summary": "阿里开源。自带 SQL 监控、慢 SQL 记录、防火墙。代价是需要手工维护配置类与监控页鉴权。",
+          "dependencies": [
+            {
+              "groupId": "com.alibaba",
+              "artifactId": "druid-spring-boot-3-starter",
+              "version": "1.2.23",
+              "note": "Spring Boot 3 必须用 spring-boot-3-starter 版本"
+            }
+          ],
+          "yaml": "spring:\n  datasource:\n    druid:\n      initial-size: 5\n      min-idle: 5\n      max-active: 20\n      max-wait: 3000                 # 等价于 Hikari 的 connection-timeout\n      validation-query: SELECT 1\n      test-while-idle: true\n      # 慢 SQL 记录：这是 Druid 最实用的功能\n      filter:\n        stat:\n          enabled: true\n          slow-sql-millis: 1000\n          log-slow-sql: true\n      stat-view-servlet:\n        enabled: true\n        login-username: ${DRUID_USER}\n        login-password: ${DRUID_PWD}\n        # 生产环境必须限制来源 IP，监控页会暴露全部 SQL\n        allow: 127.0.0.1",
+          "configClasses": [
+            {
+              "className": "DruidMonitorConfig",
+              "path": "src/main/java/com/example/config/DruidMonitorConfig.java",
+              "code": "package com.example.config;\n\nimport com.alibaba.druid.support.jakarta.StatViewServlet;\nimport org.springframework.boot.web.servlet.ServletRegistrationBean;\nimport org.springframework.context.annotation.Bean;\nimport org.springframework.context.annotation.Configuration;\n\n/**\n * Druid 监控页注册。\n *\n * 注意：监控页会暴露全部 SQL 语句、表名、参数与执行计划，\n * 属于内部信息，必须限制来源 IP 并加鉴权，绝不可对公网开放。\n */\n@Configuration\npublic class DruidMonitorConfig {\n\n    @Bean\n    public ServletRegistrationBean<StatViewServlet> druidStatView() {\n        ServletRegistrationBean<StatViewServlet> bean =\n                new ServletRegistrationBean<>(new StatViewServlet(), \"/druid/*\");\n        bean.addInitParameter(\"loginUsername\", System.getenv(\"DRUID_USER\"));\n        bean.addInitParameter(\"loginPassword\", System.getenv(\"DRUID_PWD\"));\n        // 只允许本机访问，生产环境改成内网网段\n        bean.addInitParameter(\"allow\", \"127.0.0.1\");\n        return bean;\n    }\n}"
+            }
+          ],
+          "notes": [
+            "Druid 的核心价值是慢 SQL 与 SQL 统计，不是连接池性能本身。若不需要监控，Hikari 更合适。",
+            "Spring Boot 3 必须用 druid-spring-boot-3-starter（jakarta 命名空间），旧版会报 ClassNotFound。"
+          ],
+          "pitfalls": [
+            "监控页对公网开放：等于把数据库结构全文送出去。",
+            "用了 Spring Boot 2 的 druid starter：Servlet API 不兼容，启动直接失败。"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "migration",
+      "groupId": "data",
+      "name": "数据库迁移",
+      "why": "决定表结构变更如何进版本控制。不用迁移工具意味着生产环境靠人肉执行 SQL。",
+      "defaultOption": "flyway",
+      "options": [
+        {
+          "id": "flyway",
+          "name": "Flyway",
+          "badge": "推荐",
+          "summary": "SQL 优先，脚本即迁移。把 schema 变更纳入 Git，让「生产库是哪个版本」有确定答案。",
+          "dependencies": [
+            {
+              "groupId": "org.flywaydb",
+              "artifactId": "flyway-core"
+            },
+            {
+              "groupId": "org.flywaydb",
+              "artifactId": "flyway-mysql",
+              "note": "MySQL 10.x 起必须单独引入"
+            }
+          ],
+          "yaml": "spring:\n  flyway:\n    enabled: true\n    locations: classpath:db/migration\n    baseline-on-migrate: true      # 已有存量库时，把当前状态记为基线\n    baseline-version: 0\n    validate-on-migrate: true      # 校验脚本校验和，防止有人改历史脚本\n    out-of-order: false            # 禁止插入历史版本，保持线性\n    clean-disabled: true           # 生产环境必须禁用 clean（它会删光所有表）",
+          "configClasses": [],
+          "sample": {
+            "title": "迁移脚本命名与写法",
+            "lang": "sql",
+            "code": "-- src/main/resources/db/migration/V1__create_user.sql\n-- 命名规则：V<版本>__<描述>.sql，双下划线，版本号不可回改\n-- 校验和一旦变化，Flyway 会直接拒绝启动 —— 这是有意为之：\n-- 历史脚本必须视为不可变，改结构要新增一个版本\nCREATE TABLE `user` (\n    `id`          bigint unsigned NOT NULL AUTO_INCREMENT,\n    `username`    varchar(32)     NOT NULL,\n    `create_time` datetime        NOT NULL DEFAULT CURRENT_TIMESTAMP,\n    `update_time` datetime        NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,\n    PRIMARY KEY (`id`),\n    UNIQUE KEY `uk_username` (`username`)\n) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4;\n\n-- 加字段用新版本，不要改 V1：\n-- src/main/resources/db/migration/V2__add_user_mobile.sql\n-- ALTER TABLE `user` ADD COLUMN `mobile` varchar(20) NOT NULL DEFAULT '' COMMENT '手机号';"
+          },
+          "notes": [
+            "历史脚本一旦执行过就不能再改 —— 校验和会变，启动直接失败。改结构必须新增版本。",
+            "迁移必须可重复执行、且在多实例部署下安全（Flyway 用锁表保证只有一个实例在迁移）。"
+          ],
+          "pitfalls": [
+            "改了已经上线的 V1 脚本：所有环境启动时校验和不匹配，服务起不来。",
+            "生产环境保留 clean 权限：一条 flyway:clean 命令删光所有表。"
+          ]
+        },
+        {
+          "id": "liquibase",
+          "name": "Liquibase",
+          "badge": "跨库",
+          "summary": "变更集用 XML/YAML 描述，可自动生成各数据库的方言 SQL。适合需要同时支持多种数据库的产品。",
+          "dependencies": [
+            {
+              "groupId": "org.liquibase",
+              "artifactId": "liquibase-core"
+            }
+          ],
+          "yaml": "spring:\n  liquibase:\n    enabled: true\n    change-log: classpath:db/changelog/db.changelog-master.yaml\n    contexts: prod",
+          "notes": [
+            "changelog 是「主索引」，只负责 include 各个变更集，不要往里写具体变更。",
+            "每条 changeset 必须有唯一 id + author，改了内容会导致校验和变化。",
+            "跨库能力是它的核心卖点：同一份变更集能生成 MySQL 与 PG 两种方言。"
+          ],
+          "pitfalls": [
+            "改动已执行的 changeset：校验和不匹配导致启动失败。"
+          ]
+        },
+        {
+          "id": "none",
+          "name": "不使用迁移工具",
+          "badge": "轻量",
+          "summary": "手工维护 schema.sql，需要时人工执行。短期项目或原型阶段可以接受。",
+          "dependencies": [],
+          "notes": [
+            "代价是：没有「当前生产库是什么版本」的确定答案，回滚靠记忆。",
+            "如果一定要这样，至少把所有 DDL 集中在一个受版本控制的 sql 文件里，并记录每次执行的时间与执行人。"
+          ],
+          "pitfalls": [
+            "生产环境靠人肉执行 SQL：漏执行、执行顺序错误、环境间不一致几乎必然发生。",
+            "多人同时改表结构且没有记录：谁都不知道某个列是谁加的。"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "cache",
+      "groupId": "middleware",
+      "name": "缓存",
+      "why": "本地缓存快但有一致性代价，分布式缓存一致但多一次网络往返。",
+      "defaultOption": "caffeine",
+      "options": [
+        {
+          "id": "none",
+          "name": "不用缓存",
+          "badge": "最小",
+          "summary": "先优化 SQL 与索引。没有实测证明是瓶颈之前，缓存只会带来一致性问题。",
+          "dependencies": [],
+          "notes": [
+            "「加个缓存」是很多性能问题的错误答案：缓存带来的是数据一致性的复杂度，而不是免费的加速。"
+          ],
+          "pitfalls": [
+            "在没有监控数据的情况下直接上缓存：问题被掩盖而不是被解决。"
+          ]
+        },
+        {
+          "id": "caffeine",
+          "name": "Caffeine（本地缓存）",
+          "badge": "单机首选",
+          "summary": "进程内缓存，纳秒级读取，无网络开销。适合字典、配置、低频变更的热点数据。",
+          "dependencies": [
+            {
+              "groupId": "com.github.ben-manes.caffeine",
+              "artifactId": "caffeine"
+            },
+            {
+              "groupId": "org.springframework.boot",
+              "artifactId": "spring-boot-starter-cache"
+            }
+          ],
+          "configClasses": [
+            {
+              "className": "CacheConfig",
+              "path": "src/main/java/com/example/config/CacheConfig.java",
+              "code": "package com.example.config;\n\nimport com.github.benmanes.caffeine.cache.Caffeine;\nimport java.time.Duration;\nimport org.springframework.cache.CacheManager;\nimport org.springframework.cache.annotation.EnableCaching;\nimport org.springframework.cache.caffeine.CaffeineCacheManager;\nimport org.springframework.context.annotation.Bean;\nimport org.springframework.context.annotation.Configuration;\n\n/**\n * 本地缓存配置。\n *\n * 两个必须设置的参数：\n *   maximumSize  没有上限的缓存等于内存泄漏。\n *   expireAfterWrite  没有过期的缓存等于永久脏数据。\n */\n@Configuration\n@EnableCaching\npublic class CacheConfig {\n\n    @Bean\n    public CacheManager cacheManager() {\n        CaffeineCacheManager manager = new CaffeineCacheManager();\n        manager.setCaffeine(Caffeine.newBuilder()\n                // 条目数上限，超出后按 W-TinyLFU 淘汰\n                .maximumSize(10_000)\n                // 写入后过期，防止长期持有脏数据\n                .expireAfterWrite(Duration.ofMinutes(10))\n                // 打开统计，用于判断命中率是否值得\n                .recordStats());\n        return manager;\n    }\n}"
+            }
+          ],
+          "sample": {
+            "title": "使用方式与必须注意的失效问题",
+            "lang": "java",
+            "code": "@Service\npublic class DictService {\n\n    @Cacheable(cacheNames = \"dict\", key = \"#type\")\n    public List<DictItem> listByType(String type) {\n        return dictRepository.listByType(type);\n    }\n\n    // 更新时必须清缓存，否则读到的是旧值\n    @CacheEvict(cacheNames = \"dict\", key = \"#item.type\")\n    public void update(DictItem item) {\n        dictRepository.update(item);\n    }\n}\n\n// 注意：本地缓存是「每个实例一份」。\n// 多实例部署时，A 实例清了自己的缓存，B 实例仍然是旧值。\n// 所以本地缓存只用于「变更极少 + 容许短暂不一致」的数据。"
+          },
+          "notes": [
+            "多实例下各存一份：更新后其他实例仍是旧值，直到过期。只适合容忍短暂不一致的数据。",
+            "必须设 maximumSize 与 expireAfterWrite，两个都不设等于埋了一个内存泄漏。"
+          ],
+          "pitfalls": [
+            "@Cacheable 加在同类内部调用的方法上：代理不生效，缓存静默失效。",
+            "缓存 null 值导致「查不到」被永久记住：要配 unless 或明确的空值策略。"
+          ]
+        },
+        {
+          "id": "redis",
+          "name": "Redis（分布式缓存）",
+          "badge": "主流",
+          "summary": "多实例共享一份缓存，同时可兼做分布式锁、限流、会话存储、简单队列。",
+          "dependencies": [
+            {
+              "groupId": "org.springframework.boot",
+              "artifactId": "spring-boot-starter-data-redis"
+            },
+            {
+              "groupId": "org.apache.commons",
+              "artifactId": "commons-pool2",
+              "note": "使用连接池必须引入，漏了会退回无连接池模式"
+            }
+          ],
+          "yaml": "spring:\n  data:\n    redis:\n      host: ${REDIS_HOST:127.0.0.1}\n      port: ${REDIS_PORT:6379}\n      password: ${REDIS_PASSWORD}\n      database: 0\n      # 两处超时都必须设 —— 见下方说明\n      connect-timeout: 2000ms\n      timeout: 3000ms\n      lettuce:\n        pool:\n          max-active: 16\n          max-idle: 8\n          min-idle: 2\n          max-wait: 2000ms",
+          "configClasses": [
+            {
+              "className": "RedisConfig",
+              "path": "src/main/java/com/example/config/RedisConfig.java",
+              "code": "package com.example.config;\n\nimport com.fasterxml.jackson.annotation.JsonAutoDetect;\nimport com.fasterxml.jackson.annotation.PropertyAccessor;\nimport com.fasterxml.jackson.databind.ObjectMapper;\nimport com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;\nimport org.springframework.context.annotation.Bean;\nimport org.springframework.context.annotation.Configuration;\nimport org.springframework.data.redis.connection.RedisConnectionFactory;\nimport org.springframework.data.redis.core.RedisTemplate;\nimport org.springframework.data.redis.serializer.Jackson2JsonRedisSerializer;\nimport org.springframework.data.redis.serializer.StringRedisSerializer;\n\n/**\n * Redis 序列化配置。\n *\n * 默认的 JdkSerializationRedisSerializer 有两个致命问题：\n *   1. 用 redis-cli 看到的是一堆二进制乱码，排障基本不可能；\n *   2. 每个实体类都要实现 Serializable，改字段会反序列化失败。\n * 换成 JSON 序列化后，值是可读的，也能跨语言消费。\n */\n@Configuration\npublic class RedisConfig {\n\n    @Bean\n    public RedisTemplate<String, Object> redisTemplate(RedisConnectionFactory factory) {\n        RedisTemplate<String, Object> template = new RedisTemplate<>();\n        template.setConnectionFactory(factory);\n\n        ObjectMapper mapper = new ObjectMapper();\n        mapper.registerModule(new JavaTimeModule());\n        mapper.setVisibility(PropertyAccessor.ALL, JsonAutoDetect.Visibility.ANY);\n        Jackson2JsonRedisSerializer<Object> json =\n                new Jackson2JsonRedisSerializer<>(mapper, Object.class);\n        StringRedisSerializer stringSerializer = new StringRedisSerializer();\n\n        template.setKeySerializer(stringSerializer);\n        template.setHashKeySerializer(stringSerializer);\n        template.setValueSerializer(json);\n        template.setHashValueSerializer(json);\n        template.afterPropertiesSet();\n        return template;\n    }\n}"
+            }
+          ],
+          "sample": {
+            "title": "Redis 不可当数据库用：超时与降级必须写",
+            "lang": "java",
+            "code": "// 正确姿态：缓存失败要能降级到查库，而不是让整个接口失败\npublic UserResponse detail(long id) {\n    String key = \"user:\" + id;\n    try {\n        Object cached = redisTemplate.opsForValue().get(key);\n        if (cached != null) {\n            return (UserResponse) cached;\n        }\n    } catch (Exception e) {\n        // 缓存不可用时只记录，不阻断主流程（但必须有日志，不能静默）\n        log.warn(\"Redis 读取失败，降级查库 key={}\", key, e);\n    }\n\n    UserResponse response = UserResponse.from(loadOrThrow(id));\n    try {\n        redisTemplate.opsForValue().set(key, response, Duration.ofMinutes(30));\n    } catch (Exception e) {\n        log.warn(\"Redis 写入失败，本次不缓存 key={}\", key, e);\n    }\n    return response;\n}"
+          },
+          "notes": [
+            "必须把 Redis 当「可失效的加速层」而不是数据源。Redis 挂掉时接口应当降级查库，而不是整体不可用。",
+            "超时必须设：connect-timeout 与 timeout 都要设，否则 Redis 抖动会把你的线程全部挂住。",
+            "键必须带业务前缀与冒号分隔（user:1001），否则 redis-cli 里根本分不清谁是谁。",
+            "分布式锁用 SET key value NX PX，不要用 setnx + expire 两步（非原子）。"
+          ],
+          "pitfalls": [
+            "把 Redis 当唯一数据源：一次宕机数据全丢。",
+            "只设 timeout 不设 connect-timeout：连不上时线程会卡在连接阶段。",
+            "缓存与数据库双写不一致：先更新库再删缓存，不要「更新库也更新缓存」。",
+            "大 key（几十万成员的 Set/Hash）：单次操作阻塞整个 Redis 实例。"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "mq",
+      "groupId": "middleware",
+      "name": "消息队列",
+      "why": "解耦与削峰。引入它意味着必须处理重复消费、顺序、积压三件事。",
+      "defaultOption": "none",
+      "options": [
+        {
+          "id": "none",
+          "name": "不用消息队列",
+          "badge": "最小",
+          "summary": "单体应用内部用 Spring 事件或直接调用即可。别为了「架构看起来先进」而引入 MQ。",
+          "dependencies": [],
+          "notes": [
+            "真正需要 MQ 的信号是：需要跨进程异步、需要削峰、需要多个消费者独立处理同一事件。",
+            "如果一个事务内的两个操作，用本地事务就够了 —— 引入 MQ 反而带来一致性问题。"
+          ],
+          "pitfalls": [
+            "把「异步」等同于「消息队列」：Spring 的 @Async 已经能解决单机异步。"
+          ]
+        },
+        {
+          "id": "rocketmq",
+          "name": "RocketMQ",
+          "badge": "阿里系",
+          "summary": "事务消息、顺序消息、延迟消息支持完善，适合电商与金融场景。国内文档与运维经验多。",
+          "dependencies": [
+            {
+              "groupId": "org.apache.rocketmq",
+              "artifactId": "rocketmq-spring-boot-starter",
+              "version": "2.3.0"
+            }
+          ],
+          "yaml": "rocketmq:\n  name-server: ${ROCKETMQ_NAMESRV:127.0.0.1:9876}\n  producer:\n    group: arsenal-demo-producer\n    # 发送超时必须设，否则 broker 异常时生产者会被长期挂住\n    send-message-timeout: 3000\n    retry-times-when-send-failed: 2\n  consumer:\n    group: arsenal-demo-consumer\n    # 并发消费线程数，与业务处理耗时匹配\n    consume-thread-max: 20",
+          "sample": {
+            "title": "生产者与消费者的标准写法",
+            "lang": "java",
+            "code": "// ── 生产者：业务事务提交后再发消息 ──────────────────\n@Service\npublic class OrderService {\n\n    private final RocketMQTemplate rocketMQTemplate;\n\n    @Transactional(rollbackFor = Exception.class)\n    public void createOrder(OrderCreateRequest request) {\n        long orderId = orderRepository.insert(buildOrder(request));\n        // 发消息失败不能让下单失败，记录待补偿即可\n        try {\n            rocketMQTemplate.syncSend(\"topic-order-created\",\n                    MessageBuilder.withPayload(new OrderCreatedEvent(orderId)).build());\n        } catch (Exception e) {\n            log.error(\"订单创建事件发送失败，转本地消息表补偿 orderId={}\", orderId, e);\n        }\n    }\n}\n\n// ── 消费者：必须幂等，因为 MQ 一定至少投递一次 ──────────\n@Component\n@RocketMQMessageListener(topic = \"topic-order-created\",\n        consumerGroup = \"arsenal-demo-consumer\")\npublic class OrderCreatedConsumer implements RocketMQListener<OrderCreatedEvent> {\n\n    @Override\n    public void onMessage(OrderCreatedEvent event) {\n        // 幂等：同一个 eventId 处理过就跳过\n        if (!idempotentGuard.tryMark(event.getEventId())) {\n            log.info(\"重复消息已跳过 eventId={}\", event.getEventId());\n            return;\n        }\n        // 注意：抛异常才会触发重投，吞掉异常等于丢消息\n        inventoryService.deduct(event.getOrderId());\n    }\n}"
+          },
+          "notes": [
+            "消费端必须幂等。MQ 的投递语义是「至少一次」，重复消息是常态而不是异常。",
+            "顺序消息只对同一队列有效，全局顺序不存在（也不该要）。",
+            "本地事务与发消息的一致性：用事务消息，或本地消息表 + 定时补偿。不要在事务里同步等 MQ 返回。"
+          ],
+          "pitfalls": [
+            "消费端吞掉异常：消息被标记为成功、实际处理失败，且不会重投。",
+            "把重业务逻辑放消费者里同步执行：消费变慢后积压成山。",
+            "生产者 send 放在事务里且等待结果：MQ 抖动会拖长事务，把数据库连接耗尽。"
+          ]
+        },
+        {
+          "id": "rabbitmq",
+          "name": "RabbitMQ",
+          "badge": "易用",
+          "summary": "路由模型灵活，管理界面成熟，延迟队列靠插件。适合业务系统里做任务分发。",
+          "dependencies": [
+            {
+              "groupId": "org.springframework.boot",
+              "artifactId": "spring-boot-starter-amqp"
+            }
+          ],
+          "yaml": "spring:\n  rabbitmq:\n    host: ${RABBITMQ_HOST:127.0.0.1}\n    port: 5672\n    username: ${RABBITMQ_USER}\n    password: ${RABBITMQ_PASSWORD}\n    # 开启生产者确认，否则「发送成功」只是写进了本地缓冲区\n    publisher-confirm-type: correlated\n    publisher-returns: true\n    listener:\n      simple:\n        acknowledge-mode: manual    # 手工 ack，处理成功后才确认\n        prefetch: 10                # 每次预取条数，防止一个消费者囤积全部消息\n        retry:\n          enabled: true             # 本地重试（注意与死信队列配合）\n          max-attempts: 3",
+          "notes": [
+            "手工 ack + 死信队列是标配：处理失败的消费必须进死信，否则只能靠人肉重发。",
+            "prefetch 要设。不设时一个消费者可能把队列全部消息预取走，其他消费者闲着。"
+          ],
+          "pitfalls": [
+            "自动 ack：消费者一拿到消息就确认，处理失败即丢消息。",
+            "不开 publisher-confirm：消息实际没到 broker，但代码以为发送成功。"
+          ]
+        },
+        {
+          "id": "kafka",
+          "name": "Kafka",
+          "badge": "高吞吐",
+          "summary": "日志、事件流、大数据管道场景的首选。吞吐量比其他两者高一到两个数量级。",
+          "dependencies": [
+            {
+              "groupId": "org.springframework.kafka",
+              "artifactId": "spring-kafka"
+            }
+          ],
+          "yaml": "spring:\n  kafka:\n    bootstrap-servers: ${KAFKA_BOOTSTRAP:127.0.0.1:9092}\n    producer:\n      acks: all                     # 等所有副本确认，数据不丢但吞吐略降\n      retries: 3\n      # 开启幂等生产者，避免重试导致消息重复\n      properties:\n        enable.idempotence: true\n        max.in.flight.requests.per.connection: 1\n    consumer:\n      group-id: arsenal-demo\n      auto-offset-reset: earliest\n      enable-auto-commit: false     # 手工提交 offset，处理完成后再提交\n      max-poll-records: 100",
+          "notes": [
+            "分区数决定并行度上限，且只能增不能减 —— 一开始就要按目标吞吐定好。",
+            "手工提交 offset（enable-auto-commit: false）。自动提交下，处理失败会丢消息。"
+          ],
+          "pitfalls": [
+            "分区数设成 1：后面想并行也扩不了（分区只能增，重分区会打乱键的分配）。",
+            "消费者处理耗时超过 max.poll.interval.ms：触发 rebalance，消费组反复重组。"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "registry",
+      "groupId": "middleware",
+      "name": "注册中心 / 配置中心",
+      "why": "单体应用完全不需要。拆成多服务之后才必须回答「服务地址从哪来」。",
+      "defaultOption": "none",
+      "options": [
+        {
+          "id": "none",
+          "name": "不需要（单体）",
+          "badge": "推荐",
+          "summary": "单体应用内部就是方法调用，没有服务发现的需求。配置文件放本地加环境变量已经够用。",
+          "dependencies": [],
+          "notes": [
+            "引入注册中心的前提是「有多个可独立部署的服务」。单体应用引入它，只增加启动依赖与运维成本。",
+            "配置中心的价值在多环境、多实例统一变更配置；单体应用用 application-{profile}.yml 就足够。"
+          ],
+          "pitfalls": [
+            "为了让项目「看起来是微服务」而引入注册中心：多了一个必须高可用的组件，收益为零。"
+          ]
+        },
+        {
+          "id": "nacos",
+          "name": "Nacos",
+          "badge": "主流",
+          "summary": "同时做注册中心与配置中心，支持配置热更新与分组隔离。国内微服务的事实标准之一。",
+          "dependencies": [
+            {
+              "groupId": "com.alibaba.cloud",
+              "artifactId": "spring-cloud-starter-alibaba-nacos-discovery"
+            },
+            {
+              "groupId": "com.alibaba.cloud",
+              "artifactId": "spring-cloud-starter-alibaba-nacos-config"
+            },
+            {
+              "groupId": "org.springframework.cloud",
+              "artifactId": "spring-cloud-starter-bootstrap",
+              "note": "Spring Cloud 2021+ 默认关闭 bootstrap，需要它才能在启动早期读配置"
+            }
+          ],
+          "yaml": "# ── bootstrap.yml（注意：配置中心的连接信息必须写在这里）──\n# 为什么不能写在 application.yml：\n# application.yml 的加载时机晚于 Spring Cloud 上下文初始化，\n# 导致「配置中心地址」本身要从配置中心读 —— 循环依赖。\nspring:\n  application:\n    name: arsenal-demo\n  profiles:\n    active: dev\n  cloud:\n    nacos:\n      server-addr: ${NACOS_ADDR:127.0.0.1:8848}\n      username: ${NACOS_USER}\n      password: ${NACOS_PASSWORD}\n      discovery:\n        namespace: ${NACOS_NS:}\n        group: DEFAULT_GROUP\n      config:\n        # 配置坐标：dataId = 应用名 + profile + 后缀\n        file-extension: yaml\n        namespace: ${NACOS_NS:}\n        group: DEFAULT_GROUP\n        refresh-enabled: true   # 开启热更新",
+          "configClasses": [
+            {
+              "className": "NacosRefreshConfig",
+              "path": "src/main/java/com/example/config/NacosRefreshConfig.java",
+              "code": "package com.example.config;\n\nimport org.springframework.cloud.context.config.annotation.RefreshScope;\nimport org.springframework.context.annotation.Configuration;\n\n/**\n * Nacos 配置热更新的两个前提，缺一不可：\n *\n *   1. 配置类加 @RefreshScope（或 @ConfigurationProperties + @RefreshScope），\n *      否则 Nacos 里改了值，应用侧仍然是旧值；\n *   2. 该配置必须放在 Nacos 的 dataId 里，而不是本地 application.yml\n *      （本地文件优先级更高，会覆盖掉远端配置，改了没反应）。\n *\n * 排查「热更新不生效」的第一步永远是：确认这个 key 到底是从哪读到的。\n */\n@Configuration\n@RefreshScope\npublic class NacosRefreshConfig {\n    // 具体配置项见 @ConfigurationProperties 类\n}"
+            }
+          ],
+          "notes": [
+            "@RefreshScope 不加，配置改了不生效 —— 这是 Nacos 最高频的问题。",
+            "本地 application.yml 的优先级高于 Nacos 远端配置，会覆盖它。要热更新的项不要写在本地。",
+            "Nacos 集群至少要 3 个节点，且必须用外部数据库存储（默认内嵌 derby 无法集群）。"
+          ],
+          "pitfalls": [
+            "namespace / group / dataId 三者有一个对不上，配置就读不到，且默认不报错。",
+            "把数据库密码放 Nacos 却不做鉴权：配置中心变成了凭据泄漏点。",
+            "服务下线时没注销：Nacos 里残留实例，流量仍会被路由过去。"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "scheduler",
+      "groupId": "middleware",
+      "name": "定时任务",
+      "why": "单机任务用 @Scheduled 就够；多实例部署时必须解决「只有一个实例该执行」。",
+      "defaultOption": "spring",
+      "options": [
+        {
+          "id": "spring",
+          "name": "Spring @Scheduled",
+          "badge": "单机",
+          "summary": "零依赖，注解即任务。配合 ShedLock 可解决多实例重复执行问题。",
+          "dependencies": [
+            {
+              "groupId": "net.javacrumbs.shedlock",
+              "artifactId": "shedlock-spring",
+              "version": "5.13.0",
+              "note": "多实例部署时必加，否则任务会被每个实例各执行一次"
+            },
+            {
+              "groupId": "net.javacrumbs.shedlock",
+              "artifactId": "shedlock-provider-jdbc-template",
+              "version": "5.13.0"
+            }
+          ],
+          "configClasses": [
+            {
+              "className": "SchedulerConfig",
+              "path": "src/main/java/com/example/config/SchedulerConfig.java",
+              "code": "package com.example.config;\n\nimport javax.sql.DataSource;\nimport net.javacrumbs.shedlock.core.LockProvider;\nimport net.javacrumbs.shedlock.provider.jdbctemplate.JdbcTemplateLockProvider;\nimport net.javacrumbs.shedlock.spring.annotation.EnableSchedulerLock;\nimport org.springframework.context.annotation.Bean;\nimport org.springframework.context.annotation.Configuration;\nimport org.springframework.scheduling.annotation.EnableScheduling;\n\n/**\n * 定时任务配置。\n *\n * 两个关键点：\n *   1. 必须自己定义 TaskScheduler 线程池。默认是单线程的，\n *      一个任务跑久了，其他任务全部延后 —— 而且不会有任何告警。\n *   2. 多实例部署必须用 ShedLock 加分布式锁，否则每个实例都会执行一次。\n *      表现是「数据莫名其妙被重复处理了 N 次」（N = 实例数）。\n */\n@Configuration\n@EnableScheduling\n@EnableSchedulerLock(defaultLockAtMostFor = \"PT10M\")\npublic class SchedulerConfig {\n\n    @Bean\n    public LockProvider lockProvider(DataSource dataSource) {\n        return new JdbcTemplateLockProvider(\n                JdbcTemplateLockProvider.Configuration.builder()\n                        .withJdbcTemplate(new org.springframework.jdbc.core.JdbcTemplate(dataSource))\n                        .usingDbTime()   // 用数据库时间，避免各实例时钟不一致导致锁失效\n                        .build());\n    }\n}"
+            }
+          ],
+          "sample": {
+            "title": "任务写法",
+            "lang": "java",
+            "code": "@Component\npublic class ReportJob {\n\n    /** lockAtMostFor：任务最长持锁时间，必须大于任务最坏耗时。\n     *  设小了，任务还没跑完锁就释放，另一个实例会重复执行。 */\n    @Scheduled(cron = \"0 0 2 * * ?\")\n    @SchedulerLock(name = \"dailyReport\", lockAtMostFor = \"PT30M\", lockAtLeastFor = \"PT1M\")\n    public void generateDailyReport() {\n        // 任务必须幂等：即使重复执行也不产生重复数据\n        reportService.generateForYesterday();\n    }\n}"
+          },
+          "notes": [
+            "Cron 表达式从左到右是「秒 分 时 日 月 周」，和 Linux crontab 差一位，写错很常见。",
+            "任务必须幂等：分布式锁只是降低概率，不能替代幂等设计。"
+          ],
+          "pitfalls": [
+            "多实例不加锁：任务被执行 N 次，产生 N 倍数据。",
+            "任务方法抛异常未捕获：该任务后续调度会被取消（Spring 的行为）。",
+            "在任务里做长事务：整点任务与业务高峰撞在一起，互相拖累。"
+          ]
+        },
+        {
+          "id": "xxljob",
+          "name": "XXL-Job",
+          "badge": "分布式",
+          "summary": "独立调度中心，统一管理任务、支持分片、失败重试、执行日志查询、动态改 cron。",
+          "dependencies": [
+            {
+              "groupId": "com.xuxueli",
+              "artifactId": "xxl-job-core",
+              "version": "2.4.1"
+            }
+          ],
+          "yaml": "xxl:\n  job:\n    admin:\n      # 调度中心地址（多个用逗号分隔）\n      addresses: ${XXLJOB_ADMIN:http://127.0.0.1:8080/xxl-job-admin}\n      access-token: ${XXLJOB_TOKEN}\n    executor:\n      appname: arsenal-demo-executor\n      # 执行器注册方式：自动注册（推荐，避免手工配 IP）\n      address: ''\n      ip: ''\n      port: 9999\n      logpath: ./logs/xxl-job\n      logretentiondays: 30",
+          "configClasses": [
+            {
+              "className": "XxlJobConfig",
+              "path": "src/main/java/com/example/config/XxlJobConfig.java",
+              "code": "package com.example.config;\n\nimport com.xxl.job.core.executor.impl.XxlJobSpringExecutor;\nimport org.slf4j.Logger;\nimport org.slf4j.LoggerFactory;\nimport org.springframework.beans.factory.annotation.Value;\nimport org.springframework.context.annotation.Bean;\nimport org.springframework.context.annotation.Configuration;\n\n/**\n * XXL-Job 执行器配置。\n *\n * 一个容易忽略的点：executor 的 ip 留空时由框架自动探测，\n * 在容器/多网卡环境下可能探测到错误的网卡地址，\n * 表现为「调度中心显示执行器在线，但任务一直不执行」。\n * 明确指定 ip 或配置网络策略可以避免。\n */\n@Configuration\npublic class XxlJobConfig {\n\n    private static final Logger log = LoggerFactory.getLogger(XxlJobConfig.class);\n\n    @Value(\"${xxl.job.admin.addresses}\")\n    private String adminAddresses;\n\n    @Value(\"${xxl.job.executor.appname}\")\n    private String appName;\n\n    @Value(\"${xxl.job.executor.port}\")\n    private int port;\n\n    @Bean\n    public XxlJobSpringExecutor xxlJobExecutor() {\n        XxlJobSpringExecutor executor = new XxlJobSpringExecutor();\n        executor.setAdminAddresses(adminAddresses);\n        executor.setAppname(appName);\n        executor.setPort(port);\n        log.info(\"XXL-Job 执行器已初始化 appName={} port={}\", appName, port);\n        return executor;\n    }\n}"
+            }
+          ],
+          "notes": [
+            "@XxlJob 注解的方法返回值要 void，且内部必须自己 try-catch —— 抛异常会被记为执行失败并重试。",
+            "分片广播适合「大量数据分片并行处理」，每个执行器只处理自己分片的数据。"
+          ],
+          "pitfalls": [
+            "调度中心与执行器时钟不同步：任务触发时间看起来会漂移。",
+            "执行日志保留天数不设：磁盘被几十 GB 日志占满。"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "auth",
+      "groupId": "crosscut",
+      "name": "认证鉴权",
+      "why": "决定「谁能访问这个接口」怎么表达。安全相关，不能靠自定义过滤器凑合。",
+      "defaultOption": "securityjwt",
+      "options": [
+        {
+          "id": "securityjwt",
+          "name": "Spring Security + JWT",
+          "badge": "推荐",
+          "summary": "官方方案，过滤器链清晰，方法级注解（@PreAuthorize）成熟。学习曲线较陡但一次学透。",
+          "dependencies": [
+            {
+              "groupId": "org.springframework.boot",
+              "artifactId": "spring-boot-starter-security"
+            },
+            {
+              "groupId": "io.jsonwebtoken",
+              "artifactId": "jjwt-api",
+              "version": "0.12.5"
+            },
+            {
+              "groupId": "io.jsonwebtoken",
+              "artifactId": "jjwt-impl",
+              "version": "0.12.5",
+              "scope": "runtime"
+            },
+            {
+              "groupId": "io.jsonwebtoken",
+              "artifactId": "jjwt-jackson",
+              "version": "0.12.5",
+              "scope": "runtime"
+            }
+          ],
+          "configClasses": [
+            {
+              "className": "SecurityConfig",
+              "path": "src/main/java/com/example/config/SecurityConfig.java",
+              "code": "package com.example.config;\n\nimport com.example.security.JwtAuthenticationFilter;\nimport org.springframework.context.annotation.Bean;\nimport org.springframework.context.annotation.Configuration;\nimport org.springframework.http.HttpMethod;\nimport org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;\nimport org.springframework.security.config.annotation.web.builders.HttpSecurity;\nimport org.springframework.security.config.http.SessionCreationPolicy;\nimport org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;\nimport org.springframework.security.crypto.password.PasswordEncoder;\nimport org.springframework.security.web.SecurityFilterChain;\nimport org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;\n\n/**\n * Spring Security 配置。\n *\n * 四条原则：\n *   1. 无状态：JWT 场景必须关掉 Session（STATELESS），否则水平扩容后\n *      会话落在某一台机器上，其他实例认不出你。\n *   2. CSRF 关闭：无状态 + 不用 Cookie 时 CSRF 不构成威胁；\n *      但如果你同时用了 Cookie，就必须开回来。\n *   3. 白名单必须显式列出，默认拒绝。\n *   4. 密码编码器用 BCrypt，不要用 MD5/SHA1（可暴力破解）。\n */\n@Configuration\n@EnableMethodSecurity\npublic class SecurityConfig {\n\n    /** 无需认证即可访问的路径。只放登录、注册、健康检查、文档。 */\n    private static final String[] WHITELIST = {\n            \"/api/v1/auth/login\",\n            \"/api/v1/auth/register\",\n            \"/actuator/health\",\n    };\n\n    private final JwtAuthenticationFilter jwtAuthenticationFilter;\n\n    public SecurityConfig(JwtAuthenticationFilter jwtAuthenticationFilter) {\n        this.jwtAuthenticationFilter = jwtAuthenticationFilter;\n    }\n\n    @Bean\n    public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {\n        http\n                .csrf(csrf -> csrf.disable())\n                .sessionManagement(session ->\n                        session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))\n                .authorizeHttpRequests(auth -> auth\n                        .requestMatchers(WHITELIST).permitAll()\n                        // 接口文档在生产环境应关闭；开发环境放开\n                        .requestMatchers(\"/v3/api-docs/**\", \"/swagger-ui/**\").permitAll()\n                        .requestMatchers(HttpMethod.OPTIONS, \"/**\").permitAll()\n                        // 其余一律要认证：默认拒绝，而不是默认放行\n                        .anyRequest().authenticated())\n                // JWT 过滤器放在用户名密码过滤器之前\n                .addFilterBefore(jwtAuthenticationFilter,\n                        UsernamePasswordAuthenticationFilter.class);\n        return http.build();\n    }\n\n    /** BCrypt 自带盐值且可调计算强度，是密码存储的默认选择。 */\n    @Bean\n    public PasswordEncoder passwordEncoder() {\n        return new BCryptPasswordEncoder();\n    }\n}"
+            },
+            {
+              "className": "MethodSecuritySample",
+              "path": "方法级鉴权用法",
+              "code": "// 方法级鉴权：把「谁能调这个接口」写在方法上，一眼可见。\n@RestController\n@RequestMapping(\"/api/v1/users\")\npublic class UserController {\n\n    // 需要 ADMIN 角色\n    @PreAuthorize(\"hasRole('ADMIN')\")\n    @DeleteMapping(\"/{id}\")\n    public ApiResponse<Void> delete(@PathVariable long id) {\n        userService.delete(id);\n        return ApiResponse.ok();\n    }\n\n    // 只允许本人或管理员（水平越权防护，SEC-AUTH-001）\n    @PreAuthorize(\"#id == authentication.principal.userId or hasRole('ADMIN')\")\n    @GetMapping(\"/{id}/profile\")\n    public ApiResponse<UserProfileResponse> profile(@PathVariable long id) {\n        return ApiResponse.ok(userService.profile(id));\n    }\n}\n\n// 注意：@PreAuthorize 只解决「能不能进这个接口」，\n// 不解决「这条数据是不是你的」。列表类接口必须把当前用户\n// 作为查询条件传下去，不能靠前端传 userId。"
+            }
+          ],
+          "notes": [
+            "JWT 的 payload 是明文 Base64，不是加密 —— 绝不能放手机号、身份证等敏感信息。",
+            "Refresh Token 必须有独立的撤销机制（Redis 黑名单或版本号），否则签发后无法失效。",
+            "水平越权是比注入更常见的漏洞：列表接口务必用当前登录用户作为查询条件。"
+          ],
+          "pitfalls": [
+            "把 userId 放在请求参数里：攻击者改成别人的 id 就能读别人的数据。",
+            "JWT 密钥硬编码且长度不足：HMAC-SHA256 需要至少 256 位密钥。",
+            "白名单写成 /**：以为只是临时放开，然后忘了删。",
+            "Spring Security 默认密码打印：日志里出现 Using generated security password。"
+          ]
+        },
+        {
+          "id": "satoken",
+          "name": "Sa-Token",
+          "badge": "轻量",
+          "summary": "国产轻量鉴权框架，API 直观（StpUtil.login / checkPermission），上手比 Security 快很多。",
+          "dependencies": [
+            {
+              "groupId": "cn.dev33",
+              "artifactId": "sa-token-spring-boot3-starter",
+              "version": "1.38.0",
+              "note": "Spring Boot 3 必须用 boot3 版本"
+            },
+            {
+              "groupId": "cn.dev33",
+              "artifactId": "sa-token-redis-jackson",
+              "version": "1.38.0",
+              "note": "用 Redis 存会话时引入，否则重启后全部登录态失效"
+            }
+          ],
+          "yaml": "sa-token:\n  token-name: Authorization\n  # Token 有效期 30 天。设得太短用户体验差，太长泄漏风险高\n  timeout: 2592000\n  # 最低活跃频率 -1 表示不检查，表示只要在有效期就一直有效\n  active-timeout: -1\n  # 允许同一账号多端登录（false 则新登录踢掉旧登录）\n  is-concurrent: true\n  is-share: false\n  token-style: uuid\n  # 生产环境必须关掉控制台输出\n  is-print: false",
+          "configClasses": [
+            {
+              "className": "SaTokenConfig",
+              "path": "src/main/java/com/example/config/SaTokenConfig.java",
+              "code": "package com.example.config;\n\nimport cn.dev33.satoken.interceptor.SaInterceptor;\nimport cn.dev33.satoken.router.SaRouter;\nimport cn.dev33.satoken.stp.StpUtil;\nimport org.springframework.context.annotation.Configuration;\nimport org.springframework.web.servlet.config.annotation.InterceptorRegistry;\nimport org.springframework.web.servlet.config.annotation.WebMvcConfigurer;\n\n/**\n * Sa-Token 拦截器注册。\n *\n * 关键设计：全局拦截器只做「是否登录」检查，\n * 权限粒度交给方法上的 @SaCheckPermission —— \n * 把权限规则全部堆在拦截器里，会变成一个没人敢改的 if 长列表。\n */\n@Configuration\npublic class SaTokenConfig implements WebMvcConfigurer {\n\n    @Override\n    public void addInterceptors(InterceptorRegistry registry) {\n        registry.addInterceptor(new SaInterceptor(handler ->\n                        // 只拦「登录校验」，白名单显式列出\n                        SaRouter.match(\"/**\")\n                                .notMatch(\"/api/v1/auth/**\")\n                                .notMatch(\"/actuator/**\")\n                                .check(r -> StpUtil.checkLogin())))\n                .addPathPatterns(\"/**\");\n    }\n}"
+            }
+          ],
+          "notes": [
+            "一定要接 Redis 存会话。默认存在内存里，重启即全员掉线，多实例部署更是互相认不出。",
+            "Sa-Token 的 token 默认是 UUID 而非 JWT。若要无状态 JWT 需额外配置，权衡点是「能否主动踢人」。"
+          ],
+          "pitfalls": [
+            "不接 Redis：重启后所有用户需重新登录；多实例部署时登录态互不可见。",
+            "is-print 保持 true 上生产：控制台会持续打印 token 相关信息。"
+          ]
+        },
+        {
+          "id": "custom",
+          "name": "自研拦截器 + JWT",
+          "badge": "不推荐",
+          "summary": "自己写过滤器解析 JWT 并塞进 ThreadLocal。看起来简单，但鉴权细节极易漏。",
+          "dependencies": [
+            {
+              "groupId": "io.jsonwebtoken",
+              "artifactId": "jjwt-api",
+              "version": "0.12.5"
+            },
+            {
+              "groupId": "io.jsonwebtoken",
+              "artifactId": "jjwt-impl",
+              "version": "0.12.5",
+              "scope": "runtime"
+            },
+            {
+              "groupId": "io.jsonwebtoken",
+              "artifactId": "jjwt-jackson",
+              "version": "0.12.5",
+              "scope": "runtime"
+            }
+          ],
+          "notes": [
+            "选择它就意味着你要自己实现：token 解析、过期处理、时钟偏移容忍、签名算法白名单（防 alg=none 攻击）、权限判定、异常统一处理。这几项任何一项漏掉都是安全漏洞。",
+            "如果只是觉得 Spring Security 配置繁琐，其实更划算的是用 Sa-Token。",
+            "唯一合理的使用场景是：需要与既有非 Java 系统共用同一套 token 约定，且安全边界非常清晰。"
+          ],
+          "pitfalls": [
+            "不校验签名算法：攻击者把 header 改成 alg=none 即可伪造 token。",
+            "ThreadLocal 用完不 remove：线程池复用导致下一个请求拿到上一个人的身份 —— 这是最严重的越权漏洞之一。",
+            "只在拦截器里判断「token 有效」却不管「有没有权限访问这个资源」。"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "apidoc",
+      "groupId": "crosscut",
+      "name": "接口文档",
+      "why": "决定接口契约如何被消费。用注解生成比手写 wiki 可靠，因为代码变了文档会跟着变。",
+      "defaultOption": "springdoc",
+      "options": [
+        {
+          "id": "springdoc",
+          "name": "SpringDoc OpenAPI",
+          "badge": "推荐",
+          "summary": "Spring Boot 3 的标准选择（springfox 已停止维护且不兼容 Boot 3）。注解生成，UI 内置。",
+          "dependencies": [
+            {
+              "groupId": "org.springdoc",
+              "artifactId": "springdoc-openapi-starter-webmvc-ui",
+              "version": "2.5.0"
+            }
+          ],
+          "yaml": "springdoc:\n  swagger-ui:\n    # 生产环境必须关闭：文档页会把全部接口结构送给任何能访问的人\n    enabled: true\n    path: /swagger-ui.html\n  api-docs:\n    path: /v3/api-docs\n  # 只扫描指定包，避免把 actuator 内部端点也扫进来\n  packages-to-scan: com.example",
+          "configClasses": [
+            {
+              "className": "OpenApiConfig",
+              "path": "src/main/java/com/example/config/OpenApiConfig.java",
+              "code": "package com.example.config;\n\nimport io.swagger.v3.oas.models.OpenAPI;\nimport io.swagger.v3.oas.models.info.Info;\nimport io.swagger.v3.oas.models.security.SecurityRequirement;\nimport io.swagger.v3.oas.models.security.SecurityScheme;\nimport org.springframework.context.annotation.Bean;\nimport org.springframework.context.annotation.Configuration;\n\n/**\n * OpenAPI 元信息。\n *\n * 注册 SecurityScheme 后，Swagger UI 右上角会出现\n * 「Authorize」按钮，可以直接填 JWT 调试受保护接口 ——\n * 不注册的话每次调试都要手工改 header，很影响使用率。\n */\n@Configuration\npublic class OpenApiConfig {\n\n    private static final String SCHEME = \"bearerAuth\";\n\n    @Bean\n    public OpenAPI openAPI() {\n        return new OpenAPI()\n                .info(new Info()\n                        .title(\"军火库示例服务\")\n                        .version(\"1.0.0\")\n                        .description(\"所有接口统一返回 ApiResponse；\"\n                                + \"业务错误码见错误码表\"))\n                .addSecurityItem(new SecurityRequirement().addList(SCHEME))\n                .components(new io.swagger.v3.oas.models.Components()\n                        .addSecuritySchemes(SCHEME, new SecurityScheme()\n                                .type(SecurityScheme.Type.HTTP)\n                                .scheme(\"bearer\")\n                                .bearerFormat(\"JWT\")));\n    }\n}"
+            }
+          ],
+          "notes": [
+            "生产环境必须关掉 swagger-ui.enabled，否则接口结构对外全公开。",
+            "DTO 上的 @Schema(description = ...) 会直接进文档；不写则字段无说明。"
+          ],
+          "pitfalls": [
+            "换成 springfox：不兼容 Spring Boot 3（依赖旧 Servlet API），启动直接失败。",
+            "文档页上生产：暴露全部接口、参数结构与示例，等于给攻击者做了功课。"
+          ]
+        },
+        {
+          "id": "knife4j",
+          "name": "Knife4j",
+          "badge": "中文增强",
+          "summary": "SpringDoc 的中文增强 UI，界面更适合国内团队使用，支持调试、离线文档导出。",
+          "dependencies": [
+            {
+              "groupId": "com.github.xiaoymin",
+              "artifactId": "knife4j-openapi3-jakarta-spring-boot-starter",
+              "version": "4.5.0",
+              "note": "jakarta 版本，对应 Spring Boot 3"
+            }
+          ],
+          "yaml": "knife4j:\n  enable: true\n  setting:\n    language: zh_cn\n  # 生产环境建议关闭（enable: false）",
+          "notes": [
+            "它是在 SpringDoc 之上的 UI 层，注解用法与 SpringDoc 完全一致（@Schema、@Operation）。",
+            "离线文档导出对交付给外部对接方很实用，省掉手写接口文档的时间。"
+          ],
+          "pitfalls": [
+            "必须用 jakarta 版本，用错版本会因 javax.servlet 缺失而启动失败。"
+          ]
+        },
+        {
+          "id": "none",
+          "name": "不生成文档",
+          "badge": "极简",
+          "summary": "用 Markdown 手写接口文档。适合接口极少、且几乎不变的项目。",
+          "dependencies": [],
+          "notes": [
+            "手写文档的必然结局是「代码改了文档没改」，然后没有任何人再信任它。",
+            "如果实在不想引入注解，至少让集成测试承担契约描述的作用。"
+          ],
+          "pitfalls": [
+            "文档与实现漂移后，对接方按文档写代码，联调时才发现全是错的。"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "observability",
+      "groupId": "crosscut",
+      "name": "可观测性",
+      "why": "出问题时你唯一能依靠的东西。没有监控的应用等于在黑盒里跑。",
+      "defaultOption": "prometheus",
+      "options": [
+        {
+          "id": "none",
+          "name": "仅日志",
+          "badge": "最小",
+          "summary": "只输出日志文件，靠 grep 排查。小项目起步可以，但故障定位会非常慢。",
+          "dependencies": [],
+          "notes": [
+            "至少要保证：日志有 traceId、异常有堆栈、关键路径有 INFO 级别记录。",
+            "没有指标意味着「系统现在是否健康」只能靠用户投诉来发现。"
+          ],
+          "pitfalls": [
+            "只打 println 不打日志：容器化后 stdout 无人收集，出问题什么都查不到。"
+          ]
+        },
+        {
+          "id": "actuator",
+          "name": "Actuator",
+          "badge": "基础",
+          "summary": "Spring Boot 自带健康检查与运行时信息。是容器编排（K8s）探针的必要条件。",
+          "dependencies": [
+            {
+              "groupId": "org.springframework.boot",
+              "artifactId": "spring-boot-starter-actuator"
+            }
+          ],
+          "yaml": "management:\n  endpoints:\n    web:\n      exposure:\n        # 只暴露必要端点。/env、/heapdump、/beans 绝不能对公网开放\n        include: health,info,metrics\n  endpoint:\n    health:\n      # 默认不对匿名用户展示细节（含数据库连接状态等内部信息）\n      show-details: when_authorized\n      probes:\n        enabled: true        # 开启 K8s liveness/readiness 探针\n  server:\n    port: 8081              # 可选：管理端口与业务端口分离，避免暴露业务端口",
+          "notes": [
+            "/actuator/health 用作 K8s 探针时，注意它会检查数据库连接 —— 数据库短暂抖动会导致 Pod 被重启，往往适得其反。必要时把 db 健康检查排除。",
+            "管理端口建议与业务端口分离，安全边界更清晰。"
+          ],
+          "pitfalls": [
+            "exposure.include: \"*\"：/heapdump 能直接下载整个堆内存，里面有全部凭据与用户数据。",
+            "health 检查包含数据库且用于 liveness 探针：数据库抖动引起 Pod 反复重启。"
+          ]
+        },
+        {
+          "id": "prometheus",
+          "name": "Actuator + Prometheus + Grafana",
+          "badge": "推荐",
+          "summary": "暴露标准指标格式，接入 Prometheus 抓取，Grafana 出图。可做告警与容量规划。",
+          "dependencies": [
+            {
+              "groupId": "org.springframework.boot",
+              "artifactId": "spring-boot-starter-actuator"
+            },
+            {
+              "groupId": "io.micrometer",
+              "artifactId": "micrometer-registry-prometheus"
+            }
+          ],
+          "yaml": "management:\n  endpoints:\n    web:\n      exposure:\n        include: health,info,metrics,prometheus\n  metrics:\n    tags:\n      # 打上应用名标签，多服务共用一套 Prometheus 时才能区分\n      application: ${spring.application.name}\n    distribution:\n      percentiles-histogram:\n        # 开启后才有 P95/P99 直方图，只看平均值会漏掉长尾\n        http.server.requests: true\n    export:\n      prometheus:\n        enabled: true",
+          "configClasses": [
+            {
+              "className": "MetricsConfig",
+              "path": "src/main/java/com/example/config/MetricsConfig.java",
+              "code": "package com.example.config;\n\nimport io.micrometer.core.aop.TimedAspect;\nimport io.micrometer.core.instrument.MeterRegistry;\nimport org.springframework.context.annotation.Bean;\nimport org.springframework.context.annotation.Configuration;\n\n/**\n * 自定义业务指标。\n *\n * 为什么需要它：HTTP 指标只能告诉你「接口变慢了」，\n * 但告诉不了你「是哪一类业务变慢了」。\n * 加上业务维度的计数器，才能把技术指标映射回业务问题。\n *\n * 指标命名约定：<域>_<对象>_<动作>_<单位>，\n * 例如 order_create_total、import_rows_processed_total。\n */\n@Configuration\npublic class MetricsConfig {\n\n    /** 开启 @Timed 注解支持（AOP 代理），否则 @Timed 不会生效。 */\n    @Bean\n    public TimedAspect timedAspect(MeterRegistry registry) {\n        return new TimedAspect(registry);\n    }\n}"
+            }
+          ],
+          "sample": {
+            "title": "业务指标埋点",
+            "lang": "java",
+            "code": "@Service\npublic class OrderService {\n\n    private final Counter orderCreatedCounter;\n    private final Counter orderFailedCounter;\n\n    // 计数器在构造时注册一次，不要在方法里反复 Counter.builder()\n    public OrderService(MeterRegistry registry) {\n        this.orderCreatedCounter = Counter.builder(\"order_create_total\")\n                .description(\"成功创建的订单数\")\n                .register(registry);\n        this.orderFailedCounter = Counter.builder(\"order_create_failed_total\")\n                .description(\"创建失败的订单数\")\n                .tag(\"reason\", \"business\")\n                .register(registry);\n    }\n\n    @Transactional(rollbackFor = Exception.class)\n    public long create(OrderCreateRequest request) {\n        try {\n            long id = orderRepository.insert(buildOrder(request));\n            orderCreatedCounter.increment();\n            return id;\n        } catch (BizException e) {\n            orderFailedCounter.increment();\n            throw e;\n        }\n    }\n}"
+          },
+          "notes": [
+            "必须开 percentiles-histogram，否则只有平均值。平均响应 100ms 的背后可能是「99% 是 10ms，1% 是 9 秒」。",
+            "告警要基于症状（错误率、P99 延迟、队列积压）而不是原因（CPU 使用率）。",
+            "自定义业务指标比技术指标更有价值：它能把「系统慢」翻译成「哪类业务出问题」。"
+          ],
+          "pitfalls": [
+            "标签值里放用户 id / 订单号：指标基数爆炸，Prometheus 内存被撑爆。",
+            "只看平均值做容量规划：长尾被完全掩盖。",
+            "Counter 在方法内 builder 注册：每次调用都新建，指标数据错乱且内存增长。"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "mapping",
+      "groupId": "crosscut",
+      "name": "对象映射",
+      "why": "Entity / DTO / VO 之间的转换。字段少时手写更清晰，字段多时映射器更省事。",
+      "defaultOption": "manual",
+      "options": [
+        {
+          "id": "manual",
+          "name": "手写静态工厂方法",
+          "badge": "推荐",
+          "summary": "在 DTO 上写 from(Entity) 静态方法。零依赖、零魔法、编译期检查、调试直观。",
+          "dependencies": [],
+          "sample": {
+            "title": "标准写法：把转换与脱敏收在一处",
+            "lang": "java",
+            "code": "public record UserResponse(Long id, String username, String mobile) {\n\n    /**\n     * 实体 → 出参。\n     *\n     * 为什么不放在 Controller 或工具类里：\n     *   转换逻辑跟着 DTO 走，改字段时你在改这个文件，\n     *   编译错误会直接指出所有需要同步修改的地方。\n     */\n    public static UserResponse from(User user) {\n        if (user == null) {\n            return null;\n        }\n        return new UserResponse(\n                user.getId(),\n                user.getUsername(),\n                Desensitize.mobile(user.getMobile()));\n    }\n}"
+          },
+          "notes": [
+            "字段少于 10 个时手写通常比引入映射器更划算：可读、可断点、无反射开销。",
+            "把脱敏、格式化这类副作用放在转换方法里，能保证「不会漏」。"
+          ],
+          "pitfalls": [
+            "在 Controller 里内联转换：转换逻辑散落各处，加字段时必然漏改某一处。"
+          ]
+        },
+        {
+          "id": "mapstruct",
+          "name": "MapStruct",
+          "badge": "字段多时",
+          "summary": "编译期生成映射代码，运行期零反射。字段几十个的实体，用它比手写省事。",
+          "dependencies": [
+            {
+              "groupId": "org.mapstruct",
+              "artifactId": "mapstruct",
+              "version": "1.5.5.Final"
+            },
+            {
+              "groupId": "org.mapstruct",
+              "artifactId": "mapstruct-processor",
+              "version": "1.5.5.Final",
+              "scope": "provided"
+            },
+            {
+              "groupId": "org.projectlombok",
+              "artifactId": "lombok-mapstruct-binding",
+              "version": "0.2.0",
+              "note": "同时用 Lombok 时必须加，否则生成的代码引用不到 Lombok 生成的 getter"
+            }
+          ],
+          "sample": {
+            "title": "映射器声明",
+            "lang": "java",
+            "code": "@Mapper(componentModel = MappingConstants.ComponentModel.SPRING,\n        unmappedTargetPolicy = ReportingPolicy.ERROR)\npublic interface UserConverter {\n\n    // 字段名不一致时显式声明映射，不要靠猜\n    @Mapping(source = \"mobile\", target = \"mobile\", qualifiedByName = \"desensitizeMobile\")\n    UserResponse toResponse(User user);\n\n    @Named(\"desensitizeMobile\")\n    default String desensitizeMobile(String mobile) {\n        return Desensitize.mobile(mobile);\n    }\n}\n\n// 注意 unmappedTargetPolicy = ERROR：\n// 默认是 WARN，结果就是「目标对象某个字段没被映射」这种问题\n// 只在运行期表现为「字段是 null」，编译期完全沉默。\n// 设成 ERROR 后，漏映射会直接编译失败。"
+          },
+          "notes": [
+            "unmappedTargetPolicy 必须设成 ERROR。默认 WARN 会让漏字段变成运行期的 null。",
+            "与 Lombok 同时使用时必须加 lombok-mapstruct-binding，否则注解处理器顺序问题会导致生成代码编译失败。",
+            "生成的实现类在 target/generated-sources 下，出问题时可以直接看它到底生成了什么。"
+          ],
+          "pitfalls": [
+            "漏加 lombok-mapstruct-binding：报「找不到 getter 方法」且指向莫名其妙的位置。",
+            "保持默认 WARN：字段没映射不报错，只在上线后表现为某个字段总是 null。"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "boilerplate",
+      "groupId": "crosscut",
+      "name": "样板代码策略",
+      "why": "决定 getter/构造器/日志声明是手写还是生成。这是团队偏好，不是对错问题。",
+      "defaultOption": "lombok",
+      "options": [
+        {
+          "id": "lombok",
+          "name": "使用 Lombok",
+          "badge": "简洁",
+          "summary": "@Data / @RequiredArgsConstructor / @Slf4j 消除大量样板代码，代码更短更聚焦。",
+          "dependencies": [
+            {
+              "groupId": "org.projectlombok",
+              "artifactId": "lombok",
+              "scope": "provided"
+            }
+          ],
+          "sample": {
+            "title": "常用组合与三条使用边界",
+            "lang": "java",
+            "code": "@Slf4j                       // 替代手写 LoggerFactory\n@Service\n@RequiredArgsConstructor     // 为所有 final 字段生成构造器（构造器注入的简写）\npublic class UserService {\n\n    private final UserRepository userRepository;\n    private final PasswordEncoder passwordEncoder;\n\n    public Long create(CreateUserRequest request) {\n        log.info(\"创建用户 username={}\", request.username());\n        // ...\n    }\n}\n\n// ── 三条边界 ──────────────────────────────────────\n// 1. 实体类不要用 @Data 生成 setter：实体应当只有明确的\n//    业务方法，而不是让任何字段都能被任意改写。\n// 2. 不要用 @Builder 去构造需要校验的对象：\n//    builder 会绕过构造器里的参数校验。\n// 3. 不要用 @EqualsAndHashCode 于 JPA 实体：\n//    关联实体互相引用会导致无限递归与延迟加载异常。"
+          },
+          "notes": [
+            "@RequiredArgsConstructor 是构造器注入最简洁的表达，但要显式声明 `private final` 字段。",
+            "IDE 需要安装 Lombok 插件，否则会报「找不到 getter」。CI 上则靠注解处理器，不影响构建。"
+          ],
+          "pitfalls": [
+            "在实体上用 @Data：等于给所有字段开了 setter，破坏封装。",
+            "@Builder 绕过构造器校验：必填字段可以为 null 地构造出来。",
+            "@EqualsAndHashCode 用在双向关联实体上：栈溢出。"
+          ]
+        },
+        {
+          "id": "plain",
+          "name": "不用 Lombok（纯手写）",
+          "badge": "零魔法",
+          "summary": "手写 getter/setter/构造器。代码更长，但没有任何编译期魔法，调试与阅读零障碍。",
+          "dependencies": [],
+          "sample": {
+            "title": "手写写法",
+            "lang": "java",
+            "code": "@Service\npublic class UserService {\n\n    private static final Logger log = LoggerFactory.getLogger(UserService.class);\n\n    private final UserRepository userRepository;\n\n    public UserService(UserRepository userRepository) {\n        this.userRepository = userRepository;\n    }\n\n    public Long create(CreateUserRequest request) {\n        log.info(\"创建用户 username={}\", request.username());\n        // ...\n    }\n}\n\n// 显式构造器的额外好处：\n// 依赖一变，测试代码会立刻编译失败，\n// 依赖变更在编译期暴露，而不是运行期变成 NPE。"
+          },
+          "notes": [
+            "对于入参 / 出参优先用 record，能省掉绝大部分 getter/setter 手写量。",
+            "团队里如果有成员不熟悉 Lombok，混用时容易出现「看不懂为什么能编译」的摩擦。"
+          ],
+          "pitfalls": [
+            "record 不能用于需要 setter 绑定的 @ModelAttribute 查询对象，那种仍要手写。"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "test",
+      "groupId": "crosscut",
+      "name": "测试策略",
+      "why": "决定测试能跑多快、能覆盖多深。集成测试很有价值，但必须有选择地使用。",
+      "defaultOption": "mockito",
+      "options": [
+        {
+          "id": "mockito",
+          "name": "JUnit 5 + Mockito",
+          "badge": "推荐",
+          "summary": "纯单元测试，外部依赖全部 Mock。毫秒级执行，可在每次提交前全量跑。",
+          "dependencies": [
+            {
+              "groupId": "org.springframework.boot",
+              "artifactId": "spring-boot-starter-test",
+              "scope": "test",
+              "note": "已含 JUnit 5、Mockito、AssertJ"
+            }
+          ],
+          "sample": {
+            "title": "三种测试的适用范围",
+            "lang": "java",
+            "code": "// ① 纯单元测试：只测业务逻辑，不启动 Spring 容器。\n//    快（毫秒级）、稳定，覆盖 Service 的分支逻辑。\n@ExtendWith(MockitoExtension.class)\nclass UserServiceTest { /* 见蓝图：标准 CRUD 垂直切片 */ }\n\n// ② 切片测试：只启动 Web 层，Service 用 @MockBean。\n//    用于验证「参数校验、异常出口、JSON 结构」是否正确。\n@WebMvcTest(UserController.class)\nclass UserControllerTest {\n\n    @Autowired\n    private MockMvc mockMvc;\n\n    @MockBean\n    private UserService userService;\n\n    @Test\n    @DisplayName(\"创建用户：缺用户名时返回 400 且带字段级原因\")\n    void create_shouldRejectBlankUsername() throws Exception {\n        mockMvc.perform(post(\"/api/v1/users\")\n                        .contentType(MediaType.APPLICATION_JSON)\n                        .content(\"{\\\"username\\\":\\\"\\\",\\\"mobile\\\":\\\"13800138000\\\"}\"))\n                .andExpect(status().isBadRequest())\n                .andExpect(jsonPath(\"$.code\").value(40001))\n                // 关键断言：错误信息里必须指出是哪个字段\n                .andExpect(jsonPath(\"$.message\").value(\"containsString(\\\"username\\\")\"));\n    }\n}\n\n// ③ 集成测试：真实数据库。数量要克制 —— 它慢、脆、且失败原因难定位。\n//    只用于验证「SQL 语句、事务行为、ORM 映射」这三件事。\n@SpringBootTest\n@Transactional   // 每个用例结束自动回滚，保证独立性\nclass UserRepositoryIT { }"
+          },
+          "notes": [
+            "测试金字塔：单元测试占绝大多数，切片测试次之，集成测试最少。倒过来会得到一个跑 20 分钟的测试套件，然后没人跑它。",
+            "断言用 AssertJ（assertThat）或 JUnit 的 assertEquals，禁止 System.out 人肉验证。",
+            "每个用例必须独立：共享状态的测试会在并行执行时随机失败。"
+          ],
+          "pitfalls": [
+            "测试之间共享数据库状态：执行顺序一变就失败，最后没人敢动测试。",
+            "@MockBean 用太多：等于在测一个「你以为的」Spring 配置，而不是真实的。",
+            "只断言没抛异常（不写 verify）：失败路径的副作用完全没被验证。"
+          ]
+        },
+        {
+          "id": "testcontainers",
+          "name": "JUnit 5 + Testcontainers",
+          "badge": "真实环境",
+          "summary": "用 Docker 起真实的 MySQL/Redis 跑测试。环境与生产一致，避免「本地过、线上挂」。",
+          "dependencies": [
+            {
+              "groupId": "org.springframework.boot",
+              "artifactId": "spring-boot-starter-test",
+              "scope": "test"
+            },
+            {
+              "groupId": "org.springframework.boot",
+              "artifactId": "spring-boot-testcontainers",
+              "scope": "test"
+            },
+            {
+              "groupId": "org.testcontainers",
+              "artifactId": "mysql",
+              "scope": "test"
+            },
+            {
+              "groupId": "org.testcontainers",
+              "artifactId": "junit-jupiter",
+              "scope": "test"
+            }
+          ],
+          "configClasses": [
+            {
+              "className": "TestcontainersConfig",
+              "path": "src/test/java/com/example/support/TestcontainersConfig.java",
+              "code": "package com.example.support;\n\nimport org.springframework.boot.test.context.TestConfiguration;\nimport org.springframework.boot.testcontainers.service.connection.ServiceConnection;\nimport org.springframework.context.annotation.Bean;\nimport org.testcontainers.containers.MySQLContainer;\n\n/**\n * 集成测试用真实数据库。\n *\n * 关键：容器是 static 且只启动一次（@ServiceConnection 会把\n * 连接信息自动注入 datasource 配置），所有测试类共享。\n * 每个测试类起一个容器会让测试套件慢到没人愿意跑。\n *\n * 另一个好处是：它验证的是真实的 MySQL 行为，\n * 包括字符集、排序规则、唯一索引冲突的具体错误码 ——\n * 这些用 H2 永远测不出来。\n */\n@TestConfiguration(proxyBeanMethods = false)\npublic class TestcontainersConfig {\n\n    @Bean\n    @ServiceConnection\n    public MySQLContainer<?> mysqlContainer() {\n        return new MySQLContainer<>(\"mysql:8.0.36\")\n                // 必须指定 utf8mb4，否则测不出 emoji 相关的字符集问题\n                .withCommand(\"--character-set-server=utf8mb4\",\n                        \"--collation-server=utf8mb4_general_ci\")\n                .withReuse(true);\n    }\n}"
+            }
+          ],
+          "notes": [
+            "CI 环境必须有 Docker，否则整批集成测试跑不起来 —— 这是选它的主要前提。",
+            "容器共享（static 容器 + withReuse）是让测试套件保持可接受耗时的关键。",
+            "不要用它替代单元测试。它慢一个数量级，应该只覆盖「必须依赖真实数据库」的场景。"
+          ],
+          "pitfalls": [
+            "每个测试类起一个新容器：套件耗时从 30 秒变成 10 分钟。",
+            "CI 没有 Docker 权限：本地能过、流水线上全红。",
+            "用 H2 模拟 MySQL：方言差异导致「测试全过、上线就挂」。"
+          ]
+        }
+      ]
+    }
+  ],
+  "presets": [
+    {
+      "id": "minimal",
+      "name": "单体最小集",
+      "badge": "起步",
+      "summary": "刚起步的内部系统或原型。依赖最少、运维最简单，能被一个人完整掌握。",
+      "picks": {
+        "jdk": "17",
+        "build": "maven",
+        "web": "mvc",
+        "persistence": "jdbc",
+        "database": "mysql",
+        "pool": "hikari",
+        "migration": "flyway",
+        "cache": "none",
+        "mq": "none",
+        "registry": "none",
+        "scheduler": "spring",
+        "auth": "securityjwt",
+        "apidoc": "springdoc",
+        "observability": "actuator",
+        "mapping": "manual",
+        "boilerplate": "lombok",
+        "test": "mockito"
+      }
+    },
+    {
+      "id": "standard",
+      "name": "生产标配",
+      "badge": "推荐",
+      "summary": "面向真实用户的业务系统。补齐了缓存、监控、文档、契约测试，运维面仍然可控。",
+      "picks": {
+        "jdk": "17",
+        "build": "maven",
+        "web": "mvc",
+        "persistence": "mybatisplus",
+        "database": "mysql",
+        "pool": "hikari",
+        "migration": "flyway",
+        "cache": "redis",
+        "mq": "none",
+        "registry": "none",
+        "scheduler": "spring",
+        "auth": "securityjwt",
+        "apidoc": "springdoc",
+        "observability": "prometheus",
+        "mapping": "manual",
+        "boilerplate": "lombok",
+        "test": "testcontainers"
+      }
+    },
+    {
+      "id": "cloud",
+      "name": "云原生微服务",
+      "badge": "多服务",
+      "summary": "已拆成多个可独立部署的服务。注册中心、消息队列、全链路可观测性齐备。",
+      "picks": {
+        "jdk": "21",
+        "build": "maven",
+        "web": "mvc",
+        "persistence": "mybatisplus",
+        "database": "mysql",
+        "pool": "hikari",
+        "migration": "flyway",
+        "cache": "redis",
+        "mq": "rocketmq",
+        "registry": "nacos",
+        "scheduler": "xxljob",
+        "auth": "securityjwt",
+        "apidoc": "springdoc",
+        "observability": "prometheus",
+        "mapping": "mapstruct",
+        "boilerplate": "lombok",
+        "test": "testcontainers"
+      }
+    },
+    {
+      "id": "enterprise",
+      "name": "企业中台",
+      "badge": "重",
+      "summary": "多团队协作、需要跨库与强审计。用 Druid 换监控、Liquibase 换跨库、Knife4j 换中文文档。",
+      "picks": {
+        "jdk": "17",
+        "build": "maven",
+        "web": "mvc",
+        "persistence": "mybatisplus",
+        "database": "postgres",
+        "pool": "druid",
+        "migration": "liquibase",
+        "cache": "redis",
+        "mq": "rocketmq",
+        "registry": "nacos",
+        "scheduler": "xxljob",
+        "auth": "satoken",
+        "apidoc": "knife4j",
+        "observability": "prometheus",
+        "mapping": "mapstruct",
+        "boilerplate": "lombok",
+        "test": "testcontainers"
+      }
+    }
+  ]
+}

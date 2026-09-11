@@ -1,0 +1,35 @@
+server:
+  port: 3011
+  servlet:
+    encoding:
+      charset: UTF-8
+      enabled: true
+      force: true
+  compression:
+    enabled: true
+
+spring:
+  application:
+    name: arsenal-server
+  jackson:
+    serialization:
+      indent-output: true
+
+arsenal:
+  # 规则数据源。与前端、导出器读的是同一份文件，不做任何副本。
+  rules-dir: ${ARSENAL_RULES_DIR:../arsenal-rules}
+
+  lint:
+    # 单文件单规则最多回报多少处违规（超出折叠计数），避免报告被噪音淹没
+    max-violations-per-rule: 5
+    # 单次请求允许扫描的总字节上限，防止一个请求把内存打满
+    max-scan-bytes: 2097152
+
+  cors:
+    allowed-origins: http://localhost:3010,http://127.0.0.1:3010
+
+logging:
+  level:
+    com.arsenal: INFO
+  pattern:
+    console: "%d{HH:mm:ss.SSS} %-5level %logger{20} - %msg%n"

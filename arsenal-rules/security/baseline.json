@@ -1,0 +1,171 @@
+{
+  "category": "security",
+  "name": "安全",
+  "description": "越权、脱敏、注入、反序列化、输出转义。这一层的条目多数不可逆——泄露一次就是永久事故。",
+  "rules": [
+    {
+      "id": "SEC-AUTH-001",
+      "category": "security",
+      "subcategory": "authorization",
+      "title": "涉及用户私有数据的接口必须校验资源归属，防水平越权",
+      "severity": "MUST",
+      "sources": [
+        { "ref": "阿里巴巴Java开发手册 安全规约 §1【强制】", "type": "industry-standard", "quote": "隶属于用户个人的页面或者功能必须进行权限控制校验。防止没有做水平权限校验就可随意访问、修改、删除别人的数据，比如查看他人的私信内容、修改他人的订单。" },
+        { "ref": "OWASP Top 10 · A01:2021 Broken Access Control", "type": "security-baseline" }
+      ],
+      "rationale": "登录校验只回答「你是谁」，不回答「这条数据是不是你的」。最常见的漏洞就是接口只要传对 ID 就能读到别人的数据——攻击成本是改一个数字。OWASP 连续多年把失效的访问控制列为第一风险。",
+      "appliesTo": { "stack": ["spring-boot-3"], "scope": "server" },
+      "bad": "@GetMapping(\"/order/{id}\")\npublic ApiResponse<OrderVO> get(@PathVariable Long id) {\n  return ApiResponse.ok(orderService.getById(id));   // 没校验这个订单属不属于当前用户\n}",
+      "good": "@GetMapping(\"/order/{id}\")\npublic ApiResponse<OrderVO> get(@PathVariable Long id) {\n  Long uid = AuthContext.currentUserId();\n  OrderVO order = orderService.getById(id);\n  if (!order.getUserId().equals(uid)) {\n    throw new BizException(ErrorCode.FORBIDDEN);\n  }\n  return ApiResponse.ok(order);\n}\n\n// 更彻底：数据层直接带 owner 条件\n// select ... from orders where id = ? and user_id = ?",
+      "check": {
+        "llm": "该接口是否访问用户私有数据（单据、消息、文件、个人资料等）？是否校验了资源归属（owner 是否等于当前登录用户）？只回答 是/否/不适用，给出行号。",
+        "manual": "优先检查按 ID 直接查询的接口；推荐在数据访问层统一追加 owner 条件，而非依赖每个 Controller 手写判断"
+      },
+      "promptFragment": "任何访问用户私有数据的接口必须校验资源归属：确认资源的 owner 等于当前登录用户，否则抛出 403。推荐在数据访问层统一追加 owner 条件（where id = ? and user_id = ?），不要只靠 Controller 手写判断。",
+      "tags": ["security", "authz", "p0", "高频踩坑"],
+      "status": "active",
+      "version": 1,
+      "updatedAt": "2026-09-11"
+    },
+    {
+      "id": "SEC-DATA-001",
+      "category": "security",
+      "subcategory": "privacy",
+      "title": "用户敏感数据展示必须脱敏",
+      "severity": "MUST",
+      "sources": [
+        { "ref": "阿里巴巴Java开发手册 安全规约 §2【强制】", "type": "industry-standard", "quote": "用户敏感数据禁止直接展示，必须对展示数据进行脱敏。中国大陆个人手机号码显示为：137****0969，隐藏中间 4 位，防止隐私泄露。" }
+      ],
+      "rationale": "脱敏必须在服务端出口做，不能交给前端——前端脱敏只是视觉遮蔽，接口响应里仍然有明文，抓包即可获得。",
+      "appliesTo": { "stack": ["spring-boot-3"], "scope": "server" },
+      "bad": "return ApiResponse.ok(new UserVO(user.getMobile(), user.getIdCard(), user.getBankCard()));   // 明文返回",
+      "good": "public static String maskMobile(String m) {\n  if (m == null || m.length() < 7) return m;\n  return m.substring(0, 3) + \"****\" + m.substring(7);\n}\n// VO 层统一脱敏：137****0969 / 身份证保留前 6 后 2 / 银行卡保留后 4 位",
+      "check": {
+        "llm": "该 VO 是否包含手机号、身份证号、银行卡号、真实姓名等敏感字段？是否在服务端出口做了脱敏？只回答 是/否/不适用，给出行号。",
+        "manual": "确认脱敏在服务端完成，且不存在「根据 role 动态返回明文」的绕行路径"
+      },
+      "promptFragment": "手机号、身份证号、银行卡号、真实姓名等敏感数据在接口响应中必须脱敏（手机号 137****0969，身份证保留前 6 后 2，银行卡保留后 4 位）。脱敏必须在服务端出口完成，禁止依赖前端处理。",
+      "tags": ["security", "privacy", "p0"],
+      "status": "active",
+      "version": 1,
+      "updatedAt": "2026-09-11"
+    },
+    {
+      "id": "SEC-DATA-002",
+      "category": "security",
+      "subcategory": "credential",
+      "title": "密码等敏感凭据必须加密存储，禁止明文保存或硬编码",
+      "severity": "NEVER",
+      "sources": [
+        { "ref": "阿里巴巴Java开发手册 安全规约【强制】", "type": "industry-standard", "quote": "存储用户密码等敏感信息必须使用加密存储。" },
+        { "ref": "OWASP Cheat Sheet · Password Storage / Secrets Management", "type": "security-baseline", "quote": "Use adaptive hashing (bcrypt, scrypt, Argon2). Never store secrets in source code." }
+      ],
+      "rationale": "密码必须用 bcrypt/Argon2 这类自适应哈希（自带盐、可调计算成本），不能用 MD5/SHA 这类快哈希——彩虹表和 GPU 撞库分钟级破。密钥硬编码则等于把生产环境密码公开在仓库里。",
+      "appliesTo": { "stack": ["java-17"], "scope": "server" },
+      "bad": "user.setPassword(MD5(rawPassword));\nprivate static final String SECRET_KEY = \"abc123456789\";   // 硬编码密钥",
+      "good": "PasswordEncoder encoder = new BCryptPasswordEncoder();\nuser.setPassword(encoder.encode(rawPassword));\n// 密钥通过环境变量注入：@Value(\"${app.secret-key}\")",
+      "check": {
+        "regex": { "pattern": "(MessageDigest\\.getInstance\\s*\\(\\s*[\"'](MD5|SHA-?1)[\"']|password\\s*[:=]\\s*[\"'][^\"']{6,}[\"'])", "flags": "i", "targetGlob": "**/*.java", "expect": "absent" },
+        "llm": "该处是否对密码使用了 MD5/SHA 等快速哈希？是否存在硬编码的密钥、盐值或默认密码？只回答 是/否/不适用，给出行号。"
+      },
+      "promptFragment": "用户密码必须使用 BCrypt 或 Argon2 等自适应哈希存储，严禁 MD5/SHA 等快速哈希，严禁明文存储。所有密钥、盐值、默认密码必须通过环境变量或配置中心注入，严禁硬编码在代码中。",
+      "tags": ["security", "credential", "p0"],
+      "status": "active",
+      "version": 1,
+      "updatedAt": "2026-09-11"
+    },
+    {
+      "id": "SEC-INPUT-001",
+      "category": "security",
+      "subcategory": "validation",
+      "title": "所有外部入参必须做有效性校验，含排序字段、重定向地址、正则输入",
+      "severity": "MUST",
+      "sources": [
+        { "ref": "阿里巴巴Java开发手册 安全规约 §4【强制】", "type": "industry-standard", "quote": "用户请求传入的任何参数必须做有效性验证。忽略参数校验可能导致：page size 过大导致内存溢出、恶意 order by 导致数据库慢查询、任意重定向、SQL 注入、反序列化注入、正则输入源串拒绝服务 ReDoS。" }
+      ],
+      "rationale": "参数校验不只是「非空、长度」。排序字段、跳转 URL、正则表达式输入这三类是高风险但最容易被漏掉的位置——它们无法用 Bean Validation 表达，必须单独白名单。",
+      "appliesTo": { "stack": ["spring-boot-3"], "scope": "server" },
+      "bad": "@RequestParam String sortBy  →  直接拼进 order by\n@RequestParam String redirectUrl  →  直接 response.sendRedirect(redirectUrl)\nPattern.compile(userInput)  →  攻击者构造灾难性回溯正则导致 CPU 打满",
+      "good": "// 排序白名单\nprivate static final Set<String> SORTABLE = Set.of(\"create_time\", \"update_time\", \"name\");\nString col = SORTABLE.contains(sortBy) ? sortBy : \"create_time\";\n\n// 重定向白名单\nif (!ALLOWED_HOSTS.contains(URI.create(redirectUrl).getHost())) throw new BizException(ErrorCode.INVALID_PARAM);\n\n// 正则加长度限制 + 超时保护",
+      "check": {
+        "llm": "该接口的入参中是否存在排序列、跳转 URL、正则表达式、文件路径等高风险参数？这些参数是否做了白名单或格式校验？只回答 是/否/不适用，给出行号。"
+      },
+      "promptFragment": "所有外部入参必须做有效性校验。特别注意四类高风险参数：1) order by / 排序字段必须走白名单枚举；2) 重定向 URL 必须校验目标域名白名单；3) 用户输入参与正则匹配前必须限制长度；4) 文件路径必须防目录穿越。",
+      "tags": ["security", "validation", "p0", "高频踩坑"],
+      "status": "active",
+      "version": 1,
+      "updatedAt": "2026-09-11"
+    },
+    {
+      "id": "SEC-DESER-001",
+      "category": "security",
+      "subcategory": "deserialization",
+      "title": "禁止反序列化不可信数据，必须关闭多态类型自动解析",
+      "severity": "NEVER",
+      "sources": [
+        { "ref": "OWASP Top 10 · A08:2021 Software and Data Integrity Failures / Deserialization", "type": "security-baseline", "quote": "Never deserialize untrusted data. Restrict polymorphic type handling." },
+        { "ref": "阿里巴巴Java开发手册 安全规约 §4 说明（反序列化注入）", "type": "industry-standard" }
+      ],
+      "rationale": "Java 原生反序列化和 Jackson 的多态类型（@JsonTypeInfo + DefaultTyping）会在反序列化阶段就执行任意类的构造逻辑，不需要业务代码参与，是典型的远程代码执行路径。",
+      "appliesTo": { "stack": ["java-17"], "scope": "server" },
+      "bad": "ObjectInputStream ois = new ObjectInputStream(input);\nObject obj = ois.readObject();   // 反序列化不可信输入\n\n// 或开启 Jackson 全局多态\nmapper.activateDefaultTyping(..., ObjectMapper.DefaultTyping.NON_FINAL);",
+      "good": "// 使用 JSON 而非 Java 原生序列化，并限定目标类型\nUserDTO dto = objectMapper.readValue(json, UserDTO.class);\n// 不开启 activateDefaultTyping",
+      "check": {
+        "regex": { "pattern": "(new\\s+ObjectInputStream|activateDefaultTyping|enableDefaultTyping|JSON\\.parseObject\\s*\\([^,]*,\\s*Feature\\.SupportAutoType)", "targetGlob": "**/*.java", "expect": "absent" },
+        "llm": "该项目是否对不可信输入使用 Java 原生反序列化，或开启 Jackson 全局多态类型解析？只回答 是/否/不适用，给出行号。"
+      },
+      "promptFragment": "禁止对不可信数据使用 Java 原生反序列化（ObjectInputStream）。禁止开启 Jackson 的 activateDefaultTyping。外部输入一律使用限定目标类型的 JSON 反序列化。",
+      "tags": ["security", "deserialization", "p0"],
+      "status": "active",
+      "version": 1,
+      "updatedAt": "2026-09-11"
+    },
+    {
+      "id": "SEC-OUTPUT-001",
+      "category": "security",
+      "subcategory": "xss",
+      "title": "禁止向页面输出未经转义的用户数据",
+      "severity": "MUST",
+      "sources": [
+        { "ref": "阿里巴巴Java开发手册 安全规约 §5【强制】", "type": "industry-standard", "quote": "禁止向 HTML 页面输出未经安全过滤或未正确转义的用户数据。" },
+        { "ref": "OWASP Top 10 · A03:2021 Injection (XSS)", "type": "security-baseline" }
+      ],
+      "rationale": "任何用户可写、别人可读的位置（昵称、备注、工单内容、文件原名）都是存储型 XSS 的入口。一旦有人插入脚本，所有查看该页面的用户都会中招。",
+      "appliesTo": { "stack": ["spring-boot-3"], "scope": "both" },
+      "bad": "model.addAttribute(\"nickname\", user.getNickname());   // 模板中直接输出 ${nickname}\nresponse.getWriter().write(user.getRemark());   // 直接写入原始内容",
+      "good": "// 输出转义（HTML 实体编码）\nString safe = HtmlUtils.htmlEscape(user.getNickname());\n// 或由模板引擎默认转义 + 富文本单独走白名单过滤（推荐 OWASP Java HTML Sanitizer）",
+      "check": {
+        "llm": "该处是否把用户可控的内容直接写入 HTML 响应或模板变量，且未做转义或过滤？只回答 是/否/不适用，给出行号。"
+      },
+      "promptFragment": "所有用户可控内容输出到 HTML 页面时必须转义或过滤。普通文本用 HTML 实体转义；富文本必须使用 OWASP Java HTML Sanitizer 按白名单过滤标签与属性。",
+      "tags": ["security", "xss"],
+      "status": "active",
+      "version": 1,
+      "updatedAt": "2026-09-11"
+    },
+    {
+      "id": "SEC-LOG-001",
+      "category": "security",
+      "subcategory": "privacy",
+      "title": "敏感字段禁止写入日志",
+      "severity": "SHOULD",
+      "sources": [
+        { "ref": "阿里巴巴Java开发手册 异常日志·日志规约 §3【强制】", "type": "industry-standard", "quote": "根据国家法律，网络运行状态、网络安全事件、个人敏感信息操作等相关记录，留存的日志不少于六个月。" },
+        { "ref": "OWASP Cheat Sheet · Logging", "type": "security-baseline", "quote": "Do not log sensitive data such as passwords, tokens, or PII." }
+      ],
+      "rationale": "日志文件的访问控制通常远弱于数据库，且会被同步到日志平台被更多人看到。一旦把 token 或密码打进日志，等于把凭据扩散到了整个运维链路。",
+      "appliesTo": { "stack": ["java-17"], "scope": "server" },
+      "bad": "log.info(\"登录请求: {}\", req);   // req.toString() 包含明文密码\nlog.debug(\"token={}\", token);",
+      "good": "log.info(\"登录请求: username={}\", req.getUsername());\nlog.debug(\"token={}\", DesensitizeUtil.mask(token));\n// 入参 DTO 的 toString() 必须排除 password 等敏感字段",
+      "check": {
+        "ast": { "engine": "javaparser", "query": "log call argument references field/param named password|token|secret|idCard|mobile without masking" },
+        "llm": "该日志语句是否输出了密码、token、密钥、身份证、手机号等敏感字段的原始值？只回答 是/否/不适用，给出行号。"
+      },
+      "promptFragment": "禁止在日志中输出密码、token、密钥、身份证号、银行卡号等敏感字段的原始值。打印包含敏感字段的对象时，必须显式选取安全字段，或使用脱敏工具处理。",
+      "tags": ["security", "logging"],
+      "status": "active",
+      "version": 1,
+      "updatedAt": "2026-09-11"
+    }
+  ]
+}

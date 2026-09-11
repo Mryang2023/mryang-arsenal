@@ -1,0 +1,13 @@
+node_modules/
+.next/
+out/
+src/generated/
+
+# .verify 里的 *.ts / *.mjs 是自检脚本，属资产，必须进 Git。
+# 只排除跑出来的产物（tmp 里的 zip、shots 里的截图）。
+.verify/tmp/
+.verify/shots/
+
+*.tsbuildinfo
+next-env.d.ts
+.DS_Store

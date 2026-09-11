@@ -1,0 +1,37 @@
+{
+  "name": "arsenal-web",
+  "version": "0.1.0",
+  "private": true,
+  "description": "杨先生的军火库 · 前端。一份规则数据，三种出口：人查 / 给 AI 用 / 拿代码验。",
+  "scripts": {
+    "sync": "node scripts/sync-rules.mjs && node scripts/sync-content.mjs",
+    "sync:rules": "node scripts/sync-rules.mjs",
+    "sync:content": "node scripts/sync-content.mjs",
+    "predev": "npm run sync",
+    "dev": "next dev -p 3010",
+    "prebuild": "npm run sync",
+    "build": "next build",
+    "start": "next start -p 3010",
+    "verify:arch": "tsx .verify/audit-check.ts",
+    "verify:project": "tsx .verify/project-check.ts",
+    "verify": "npm run verify:arch && npm run verify:project && npm run verify:engine",
+    "verify:engine": "node .verify/run.cjs",
+    "lint": "next lint"
+  },
+  "dependencies": {
+    "next": "14.2.33",
+    "react": "18.3.1",
+    "react-dom": "18.3.1"
+  },
+  "devDependencies": {
+    "@types/node": "20.14.10",
+    "@types/react": "18.3.3",
+    "@types/react-dom": "18.3.0",
+    "autoprefixer": "10.4.19",
+    "playwright-core": "^1.63.0",
+    "postcss": "8.4.39",
+    "tailwindcss": "3.4.17",
+    "tsx": "^4.23.13",
+    "typescript": "5.5.3"
+  }
+}

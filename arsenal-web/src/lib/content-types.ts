@@ -1,0 +1,188 @@
+/**
+ * 蓝图库（arsenal-cookbook）与技术选型台（arsenal-stacks）的类型定义。
+ *
+ * 与 types.ts 分开的原因是两者的生命周期不同：
+ * 规则集是长期稳定的资产，蓝图与选型会随技术栈演进而频繁增补。
+ */
+
+// ─────────────────────────────────────────────────────────────
+// 蓝图库
+// ─────────────────────────────────────────────────────────────
+
+/** 代码在系统中的位置。决定展示配色与分组。 */
+export type CodeLayer =
+  | 'client' | 'web' | 'dto-in' | 'dto-out' | 'service' | 'repo' | 'domain'
+  | 'exception' | 'common' | 'config' | 'structure' | 'sql' | 'test'
+  | 'concurrency' | 'integration';
+
+/**
+ * 一条要点备注。
+ *
+ * mark 是「片段锚点」——一段必然出现在代码里的原文。
+ * 刻意不用行号：代码一改行号就错位，而错位的备注会给出自信的错误结论。
+ * 锚点找不到目标时同步脚本直接构建失败，不会静默降级。
+ */
+export interface Highlight {
+  mark: string;
+  title: string;
+  text: string;
+  /** 关联的规则 ID，可跳转到规则详情 */
+  rule?: string;
+}
+
+export interface FeatureFile {
+  id: string;
+  path: string;
+  layer: CodeLayer;
+  lang: string;
+  /** 这个文件在整体中承担什么职责 */
+  role: string;
+  code: string;
+  highlights: Highlight[];
+}
+
+export interface FlowStep {
+  layer: CodeLayer;
+  step: string;
+  detail: string;
+}
+
+export interface FeatureMatrix {
+  title: string;
+  columns: string[];
+  rows: string[][];
+  notes: string[];
+}
+
+export interface Feature {
+  id: string;
+  order: number;
+  name: string;
+  subtitle: string;
+  glyph: string;
+  level: string;
+  scenario: string;
+  intent: string;
+  tags: string[];
+  relatedRules: string[];
+  flow: FlowStep[];
+  packages: string[];
+  files: FeatureFile[];
+  matrix?: FeatureMatrix;
+  checklist: string[];
+  pitfalls: string[];
+  /** 由同步脚本注入 */
+  fileCount: number;
+  highlightCount: number;
+  ruleCount: number;
+  lines: number;
+}
+
+export interface Cookbook {
+  meta: {
+    collection: string;
+    name: string;
+    version: string;
+    releasedAt: string;
+    description: string;
+    order: string[];
+    count: number;
+  };
+  features: Feature[];
+}
+
+// ─────────────────────────────────────────────────────────────
+// 技术选型台
+// ─────────────────────────────────────────────────────────────
+
+export interface Dependency {
+  groupId: string;
+  artifactId: string;
+  version?: string;
+  scope?: string;
+  /** 非 Maven 依赖（如 Gradle 插件）用这个标记 */
+  kind?: string;
+  note?: string;
+}
+
+export interface ConfigClass {
+  className: string;
+  path: string;
+  code: string;
+}
+
+export interface Sample {
+  title: string;
+  lang: string;
+  code: string;
+}
+
+export interface StackOption {
+  id: string;
+  name: string;
+  badge?: string;
+  summary: string;
+  dependencies?: Dependency[];
+  pomProperties?: Record<string, string>;
+  yaml?: string;
+  configClasses?: ConfigClass[];
+  sample?: Sample;
+  /** 运维动作：要装什么、要建什么 */
+  ops?: string[];
+  /** 需要的环境变量 */
+  env?: { key: string; desc: string }[];
+  notes?: string[];
+  pitfalls?: string[];
+}
+
+export interface StackDimension {
+  id: string;
+  groupId: string;
+  name: string;
+  why: string;
+  defaultOption: string;
+  options: StackOption[];
+}
+
+export interface StackGroup {
+  id: string;
+  name: string;
+  glyph: string;
+  desc: string;
+}
+
+export interface Preset {
+  id: string;
+  name: string;
+  badge: string;
+  summary: string;
+  picks: Record<string, string>;
+}
+
+export interface Stack {
+  collection: string;
+  name: string;
+  version: string;
+  releasedAt: string;
+  description: string;
+  groups: StackGroup[];
+  dimensions: StackDimension[];
+  presets: Preset[];
+}
+
+/** 当前选择：维度 id → 选项 id */
+export type StackPicks = Record<string, string>;
+
+/** 合成产物 */
+export interface ComposedStack {
+  dependencies: Dependency[];
+  properties: Record<string, string>;
+  yamlBlocks: { dimName: string; optName: string; body: string }[];
+  configClasses: (ConfigClass & { dimName: string; optName: string })[];
+  samples: (Sample & { dimName: string; optName: string; layer: CodeLayer })[];
+  ops: { dimName: string; optName: string; items: string[] }[];
+  env: { key: string; desc: string; dimName: string; optName: string }[];
+  notes: { dimName: string; optName: string; items: string[] }[];
+  pitfalls: { dimName: string; optName: string; items: string[] }[];
+  selected: { dimension: StackDimension; option: StackOption }[];
+}

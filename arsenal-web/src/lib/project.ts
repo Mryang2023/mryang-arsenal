@@ -1,0 +1,760 @@
+import projRaw from '@/generated/project.json';
+import type { ArchAudit, ArchGap } from './arch';
+import type { ComposedStack, StackPicks } from './content-types';
+import { composeStack, dimensionById, dimensions, renderPom, renderYaml } from './stack';
+
+/**
+ * 项目结构层。
+ *
+ * 它把「选型」翻译成「磁盘上的东西」，供三个出口共用：
+ *   ① 结构图  —— 哪些目录会有、哪些不会、每一块是谁带来的
+ *   ② 启动类  —— 完整可粘贴的 Application.java（含开关归属表）
+ *   ③ 导出包  —— 一份能直接放进 IDE 的项目骨架
+ *
+ * 三个出口读的是同一份 project.json，所以改一处结构，三处同时变。
+ * 这是「一份数据三种出口」在选型台上的第三次出现 —— 第一次是规则，第二次是架构，这里是结构。
+ *
+ * 一条自我约束：**这里生成的每一个文件都必须真的有用**。
+ * 为了凑数生成一堆空目录、空类，只会让用户觉得导出包是垃圾。
+ * 所以宁可少几个文件，也要保证 README 里的每一句话都能对得上包里的实际内容。
+ */
+
+// ─────────────────────────────────────────────────────────────
+// 数据
+// ─────────────────────────────────────────────────────────────
+
+export interface TreeNode {
+  name: string;
+  desc: string;
+  kind: 'dir' | 'file';
+  badge?: string;
+  when?: Record<string, string[]>;
+  children?: TreeNode[];
+}
+
+export interface AppAnnotation {
+  code: string;
+  import: string;
+  comment: string;
+  source: string;
+  when?: Record<string, string[]>;
+}
+
+export interface SwitchOwner {
+  switch: string;
+  owner: string;
+  why: string;
+  when?: Record<string, string[]> | null;
+}
+
+export interface StructureNote {
+  title: string;
+  text: string;
+  rule?: string | null;
+}
+
+export interface ProjectDoc {
+  groupId: string;
+  artifactId: string;
+  basePackage: string;
+  tree: TreeNode;
+  appTemplate: string;
+  appAnnotations: AppAnnotation[];
+  switchOwners: SwitchOwner[];
+  files: {
+    gitignore: string;
+    flywayV1: string;
+    liquibaseMaster: string;
+    smokeTest: string;
+    gradleSettings: string;
+    readmeTemplate: string;
+    readmeStartMaven: string;
+    readmeStartGradle: string;
+  };
+  structureNotes: StructureNote[];
+  structureLegend: { tone: string; text: string }[];
+}
+
+export const projectDoc = projRaw as unknown as ProjectDoc;
+
+const SPRING_BOOT_VERSION = '3.2.5';
+const JAVA_PACKAGE_DIR = projectDoc.basePackage.replace(/\./g, '/');
+const JAVA_MAIN = `src/main/java/${JAVA_PACKAGE_DIR}`;
+const JAVA_TEST = `src/test/java/${JAVA_PACKAGE_DIR}`;
+const RES = 'src/main/resources';
+
+// ─────────────────────────────────────────────────────────────
+// 条件求值
+// ─────────────────────────────────────────────────────────────
+
+/**
+ * 判定一个 when 条件是否成立。
+ *
+ * 语义与架构层完全一致（维度之间「与」，选项列表内部「或」），
+ * 这样同一份选型在两个地方不会得出不同结论。
+ * 不写条件 = 恒成立；槽位为空 = 不成立（空不等于「任意」）。
+ */
+export function condMet(
+  when: Record<string, string[]> | undefined | null,
+  picks: StackPicks
+): boolean {
+  if (!when) return true;
+  return Object.entries(when).every(([dim, opts]) => {
+    const picked = picks[dim];
+    return !!picked && opts.includes(picked);
+  });
+}
+
+/** 当前是否选中了某个维度的某个选项 */
+export function picked(dim: string, opts: string[], picks: StackPicks): boolean {
+  const v = picks[dim];
+  return !!v && opts.includes(v);
+}
+
+// ─────────────────────────────────────────────────────────────
+// 结构图：按选型过滤目录树
+// ─────────────────────────────────────────────────────────────
+
+/**
+ * 过滤目录树。
+ *
+ * 规则：节点自身条件成立，且（若是目录）过滤后还剩子节点。
+ * 后半句很重要 —— 否则会出现「resources/mapper/ 显示着，但里面什么都没有」，
+ * 用户会照着建一个空目录，然后怀疑整张图。
+ */
+export function filterTree(nodes: TreeNode[], picks: StackPicks): TreeNode[] {
+  const out: TreeNode[] = [];
+  for (const node of nodes) {
+    if (!condMet(node.when, picks)) continue;
+    if (node.kind === 'dir') {
+      const children = filterTree(node.children ?? [], picks);
+      if (!children.length) continue;
+      out.push({ ...node, children });
+    } else {
+      out.push(node);
+    }
+  }
+  return out;
+}
+
+export interface TreeStats {
+  dirs: number;
+  files: number;
+  java: number;
+  resources: number;
+  test: number;
+  badges: string[];
+}
+
+export function treeStats(nodes: TreeNode[], prefix = ''): TreeStats {
+  const stats: TreeStats = { dirs: 0, files: 0, java: 0, resources: 0, test: 0, badges: [] };
+  const collect = (list: TreeNode[], path: string) => {
+    for (const n of list) {
+      const here = `${path}/${n.name}`;
+      if (n.kind === 'dir') {
+        stats.dirs += 1;
+        collect(n.children ?? [], here.replace(/\/$/, ''));
+      } else {
+        stats.files += 1;
+        if (n.name.endsWith('.java')) {
+          stats.java += 1;
+          if (here.includes('/test/')) stats.test += 1;
+        } else if (here.includes('/resources/')) {
+          stats.resources += 1;
+        }
+        if (n.badge && !stats.badges.includes(n.badge)) stats.badges.push(n.badge);
+      }
+    }
+  };
+  collect(nodes, prefix);
+  return stats;
+}
+
+/**
+ * 渲染成等宽文本树，供 README 使用。
+ *
+ * 同一层的说明文字按最长名字对齐 —— 不对齐的树在等宽字体里看着像一团麻，
+ * 而这份树是要被贴进 README、发给别人看的。
+ */
+export function renderTreeText(picks: StackPicks, maxDesc = 58): string {
+  const root = projectDoc.tree;
+  const lines: string[] = [root.name];
+
+  const clip = (s: string) => (s.length > maxDesc ? `${s.slice(0, maxDesc - 1)}…` : s);
+
+  const walk = (nodes: TreeNode[], prefix: string) => {
+    const visible = nodes;
+    const width = visible.reduce((w, n) => Math.max(w, displayWidth(n.name)), 0);
+    visible.forEach((n, i) => {
+      const last = i === visible.length - 1;
+      const branch = last ? '└── ' : '├── ';
+      const gap = ' '.repeat(Math.max(1, width - displayWidth(n.name) + 2));
+      const desc = n.desc ? `${gap}${clip(n.desc)}` : '';
+      lines.push(`${prefix}${branch}${n.name}${desc}`);
+      if (n.kind === 'dir') {
+        walk(filterTree(n.children ?? [], picks), `${prefix}${last ? '    ' : '│   '}`);
+      }
+    });
+  };
+
+  walk(filterTree(root.children ?? [], picks), '');
+  return lines.join('\n');
+}
+
+// ─────────────────────────────────────────────────────────────
+// 等宽对齐：中文算两列
+// ─────────────────────────────────────────────────────────────
+
+/** 字符串在等宽字体下占多少列。CJK 与全角符号占 2 列。 */
+export function displayWidth(s: string): number {
+  let w = 0;
+  for (const ch of s) {
+    const cp = ch.codePointAt(0) ?? 0;
+    const wide =
+      (cp >= 0x1100 && cp <= 0x115f) ||
+      (cp >= 0x2e80 && cp <= 0x303e) ||
+      (cp >= 0x3041 && cp <= 0x33ff) ||
+      (cp >= 0x3400 && cp <= 0x4dbf) ||
+      (cp >= 0x4e00 && cp <= 0x9fff) ||
+      (cp >= 0xa000 && cp <= 0xa4cf) ||
+      (cp >= 0xac00 && cp <= 0xd7a3) ||
+      (cp >= 0xf900 && cp <= 0xfaff) ||
+      (cp >= 0xfe30 && cp <= 0xfe6f) ||
+      (cp >= 0xff00 && cp <= 0xff60) ||
+      (cp >= 0xffe0 && cp <= 0xffe6);
+    w += wide ? 2 : 1;
+  }
+  return w;
+}
+
+export function padTo(s: string, columns: number): string {
+  return s + ' '.repeat(Math.max(0, columns - displayWidth(s)));
+}
+
+// ─────────────────────────────────────────────────────────────
+// 启动类
+// ─────────────────────────────────────────────────────────────
+
+const APP_IMPORT_BASE = [
+  'import org.springframework.boot.SpringApplication;',
+  'import org.springframework.boot.autoconfigure.SpringBootApplication;',
+];
+
+/** 按选型装配 Application.java。 */
+export function renderAppClass(picks: StackPicks): string {
+  const active = projectDoc.appAnnotations.filter((a) => condMet(a.when, picks));
+
+  const imports = [
+    ...APP_IMPORT_BASE,
+    ...active.map((a) => `import ${a.import};`),
+  ].join('\n');
+
+  // 注解块的注释要能解释「这一行为什么在这里」，所以带上来源
+  const annotations = active.length
+    ? active.map((a) => `${a.code}   // ← ${a.source}`).join('\n')
+    : '// （当前选型没有需要挂在启动类上的注解 —— 全局开关都在各自的配置类里）';
+
+  const owners = projectDoc.switchOwners.filter((s) => condMet(s.when, picks));
+  const colSwitch = Math.max(
+    displayWidth('开关'),
+    ...owners.map((o) => displayWidth(o.switch))
+  );
+  const colOwner = Math.max(
+    displayWidth('归属'),
+    ...owners.map((o) => displayWidth(o.owner))
+  );
+  const switchLines = [
+    ` *   ${padTo('开关', colSwitch)}  ${padTo('归属', colOwner)}  作用`,
+    ` *   ${'─'.repeat(colSwitch)}  ${'─'.repeat(colOwner)}  ${'─'.repeat(26)}`,
+    ...owners.map(
+      (o) => ` *   ${padTo(o.switch, colSwitch)}  ${padTo(o.owner, colOwner)}  ${o.why}`
+    ),
+  ].join('\n');
+
+  return projectDoc.appTemplate
+    .replace('__IMPORTS__', imports)
+    .replace('__ANNOTATIONS__', annotations)
+    .replace('__SWITCHES__', switchLines);
+}
+
+// ─────────────────────────────────────────────────────────────
+// 构建文件：Gradle
+// ─────────────────────────────────────────────────────────────
+
+/**
+ * 生成 build.gradle。
+ *
+ * 与 pom 的差别不只是语法：Maven 的 scope 在 Gradle 里要拆成不同的配置项，
+ * 而注解处理器（Lombok、MapStruct）在 Maven 里只是一个 provided 依赖，
+ * 在 Gradle 里必须同时进 compileOnly 与 annotationProcessor ——
+ * 少写后者时的表现是「编译过了，但 Lombok 生成的 getter 全是红」，极难自己反应过来。
+ */
+export function renderGradle(composed: ComposedStack, javaVersion: string): string {
+  const lines: string[] = [];
+  const seen = new Set<string>();
+  const blocks: string[] = [];
+
+  for (const { dimension, option } of composed.selected) {
+    const deps: string[] = [];
+    for (const d of option.dependencies ?? []) {
+      if (d.kind || !d.groupId || !d.artifactId) continue;
+      const key = `${d.groupId}:${d.artifactId}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+
+      const coord = `${d.groupId}:${d.artifactId}`;
+      const isProcessor = d.scope === 'provided';
+      if (d.scope === 'test') deps.push(`    testImplementation '${coord}'`);
+      else if (isProcessor) {
+        // 注解处理器必须两行都写，只写 compileOnly 会导致注解不生效
+        deps.push(`    compileOnly '${coord}'`);
+        deps.push(`    annotationProcessor '${coord}'`);
+      } else if (d.scope === 'runtime') deps.push(`    runtimeOnly '${coord}'`);
+      else deps.push(`    implementation '${coord}'`);
+      if (d.note) deps.push(`    // ${d.note}`);
+    }
+    if (deps.length) blocks.push(`    // ── ${dimension.name} · ${option.name}\n${deps.join('\n')}`);
+  }
+
+  lines.push('plugins {');
+  lines.push("    id 'java'");
+  lines.push(`    id 'org.springframework.boot' version '${SPRING_BOOT_VERSION}'`);
+  lines.push("    id 'io.spring.dependency-management' version '1.1.4'");
+  lines.push('}');
+  lines.push('');
+  lines.push(`group = '${projectDoc.groupId}'`);
+  lines.push("version = '1.0.0'");
+  lines.push('');
+  lines.push('java {');
+  lines.push(`    toolchain { languageVersion = JavaLanguageVersion.of(${javaVersion}) }`);
+  lines.push('}');
+  lines.push('');
+  lines.push('repositories {');
+  lines.push('    mavenCentral()');
+  lines.push('}');
+  lines.push('');
+  lines.push('dependencies {');
+  lines.push('    // 版本一律交给 Spring Boot 插件管理的 BOM，不手写版本号');
+  lines.push(blocks.join('\n\n'));
+  lines.push('}');
+  lines.push('');
+  lines.push('tasks.named(\'test\') {');
+  lines.push('    useJUnitPlatform()');
+  lines.push('}');
+  lines.push('');
+  return lines.join('\n');
+}
+
+// ─────────────────────────────────────────────────────────────
+// profile 配置
+// ─────────────────────────────────────────────────────────────
+
+/** 生产 profile。核心约定：这个文件会进仓库，所以不能有任何明文密钥。 */
+export function renderProdYaml(picks: StackPicks): string {
+  const out: string[] = [
+    '# 生产环境覆盖项。',
+    '# 这个文件会被提交进仓库 —— 所以它里面不能出现任何明文密钥，',
+    '# 所有敏感值一律写成 ${ENV_VAR}，由部署环境注入。',
+    '',
+    'server:',
+    '  port: ${SERVER_PORT:8080}',
+    '  # 优雅停机：收到信号后先停止接收新请求，等在途请求结束再退出',
+    '  shutdown: graceful',
+  ];
+
+  if (picked('persistence', ['jdbc', 'mybatisplus', 'jpa'], picks) && picks.database) {
+    out.push(
+      '',
+      'spring:',
+      '  datasource:',
+      '    url: ${DB_URL}',
+      '    username: ${DB_USERNAME}',
+      '    password: ${DB_PASSWORD}',
+      '    hikari:',
+      '      maximum-pool-size: ${DB_POOL_SIZE:20}',
+      '      connection-timeout: 3000'
+    );
+  }
+
+  if (picked('cache', ['redis'], picks)) {
+    out.push('', '  data:', '    redis:', '      host: ${REDIS_HOST}', '      password: ${REDIS_PASSWORD}');
+  }
+
+  if (picked('apidoc', ['springdoc', 'knife4j'], picks)) {
+    out.push(
+      '',
+      '# 接口文档在生产必须关闭：它会暴露全部接口结构，连鉴权规则都交代清楚',
+      'springdoc:',
+      '  swagger-ui:',
+      '    enabled: false',
+      'knife4j:',
+      '  enable: false'
+    );
+  }
+
+  if (picked('observability', ['actuator', 'prometheus'], picks)) {
+    out.push(
+      '',
+      'management:',
+      '  endpoints:',
+      '    web:',
+      '      exposure:',
+      '        # 只暴露必要的端点。/env、/heapdump 这类绝不能出现在公网',
+      '        include: health,info,prometheus',
+      '  endpoint:',
+      '    health:',
+      '      show-details: never'
+    );
+  }
+
+  out.push('', 'logging:', '  level:', '    root: INFO', '    com.example: INFO', '  file:', '    name: /var/log/app/arsenal-demo.log');
+  return `${out.join('\n')}\n`;
+}
+
+/** 开发 profile：本地差异 + 便于排查的日志级别。 */
+export function renderDevYaml(picks: StackPicks): string {
+  const out: string[] = [
+    '# 开发环境差异项。只放「和别的环境不一样」的配置，重复项一律不抄。',
+    '',
+    'logging:',
+    '  level:',
+    '    root: INFO',
+    '    com.example: DEBUG',
+    '    # 打开它能看到实际执行的 SQL —— 排查问题时比打印日志有效得多，但只在本地开',
+    '    org.springframework.jdbc.core: DEBUG',
+  ];
+  if (picked('persistence', ['mybatisplus'], picks)) {
+    out.push('', 'mybatis-plus:', '  configuration:', '    log-impl: org.apache.ibatis.logging.stdout.StdOutImpl');
+  }
+  if (picked('apidoc', ['springdoc', 'knife4j'], picks)) {
+    out.push('', 'springdoc:', '  swagger-ui:', '    enabled: true');
+  }
+  return `${out.join('\n')}\n`;
+}
+
+// ─────────────────────────────────────────────────────────────
+// 导出
+// ─────────────────────────────────────────────────────────────
+
+export interface ExportFile {
+  path: string;
+  content: string;
+  /** 界面分组用 */
+  group: '构建' | '源码' | '配置' | '数据' | '文档' | '测试';
+  /** 这一份是哪个模块带来的（空 = 基础文件） */
+  from?: string;
+}
+
+export interface ExportPlan {
+  files: ExportFile[];
+  bytes: number;
+  dangling: DanglingRef[];
+  kind: 'maven' | 'gradle';
+}
+
+export interface DanglingRef {
+  /** 被引用的全限定类名 */
+  fqn: string;
+  /** 预期落位 */
+  path: string;
+  /** 谁引用了它 */
+  usedBy: string[];
+}
+
+/** 取 markdown 表格里的竖线安全的文本 */
+function cell(s: string): string {
+  return s.replace(/\|/g, '\\|').replace(/\n/g, ' ');
+}
+
+function selectionTableMarkdown(picks: StackPicks): string {
+  const rows: string[] = [];
+  for (const dim of dimensions) {
+    const optId = picks[dim.id];
+    const opt = optId ? dim.options.find((o) => o.id === optId) : undefined;
+    rows.push(
+      `| ${cell(dim.name)} | ${opt ? `**${cell(opt.name)}**` : '—'} | ${cell(opt?.summary ?? '未选型')} |`
+    );
+  }
+  return ['| 模块 | 当前选择 | 说明 |', '| --- | --- | --- |', ...rows].join('\n');
+}
+
+function gapMarkdown(gap: ArchGap): string {
+  const out: string[] = [`**${gap.title}**`, '', gap.detail, ''];
+  if (gap.trigger) out.push(`- 触发条件：${gap.trigger}`);
+  if (gap.symptoms?.length) {
+    out.push('- 会看到的现象：');
+    for (const s of gap.symptoms) out.push(`  - ${s}`);
+  }
+  if (gap.impact) out.push(`- 后果：${gap.impact}`);
+  if (gap.consequences?.length) {
+    for (const c of gap.consequences) out.push(`- 连带影响：${c}`);
+  }
+  if (gap.fix) out.push(`- 对策：${gap.fix}`);
+  out.push('');
+  return out.join('\n');
+}
+
+export function riskReportMarkdown(picks: StackPicks, audit: ArchAudit, name: string): string {
+  const out: string[] = [`# 隐患体检单 · ${name}`, ''];
+  out.push(
+    `由「杨先生的军火库 · 架构装配台」按当前选型生成。`,
+    `结论：**${audit.status === 'broken' ? '跑不起来' : audit.status === 'incomplete' ? '能跑，但零件不全' : '可以跑起来'}**`,
+    ''
+  );
+
+  if (!audit.blockers.length && !audit.gaps.length && !audit.risks.length && !audit.notes.length) {
+    out.push('未发现隐患。这一套组合零件齐全、能力闭环、没有组合冲突。', '');
+    return out.join('\n');
+  }
+
+  const sections: [string, ArchGap[]][] = [
+    ['跑不起来', audit.blockers],
+    ['缺件（能启动，但少能力）', audit.gaps],
+    ['组合隐患（单独看都对，拼起来出事）', audit.risks],
+    ['提示（知道就行）', audit.notes],
+  ];
+  for (const [title, list] of sections) {
+    if (!list.length) continue;
+    out.push(`## ${title}（${list.length}）`, '');
+    for (const g of list) out.push(gapMarkdown(g));
+  }
+
+  out.push('---', '');
+  out.push(
+    '> 改完选型之后请重新导出一份。隐患是「组合」的属性 ——',
+    '> 换掉任意一个零件，结论都可能变，让这份单子和实际配置脱节比没有单子更危险。'
+  );
+  return `${out.join('\n')}\n`;
+}
+
+/** 导出文件汇总。等价于「这套选型的产物」在磁盘上的完整落位。 */
+export function buildExportPlan(picks: StackPicks, audit: ArchAudit): ExportPlan {
+  const composed = composeStack(picks);
+  const files: ExportFile[] = [];
+  const isGradle = picks.build === 'gradle';
+  const javaVersion = composed.properties['java.version'] ?? '17';
+
+  // ── 构建文件 ──
+  if (isGradle) {
+    files.push({ path: 'build.gradle', content: renderGradle(composed, javaVersion), group: '构建' });
+    files.push({ path: 'settings.gradle', content: projectDoc.files.gradleSettings, group: '构建' });
+  } else {
+    files.push({
+      path: 'pom.xml',
+      content: renderPom(composed, projectDoc.artifactId),
+      group: '构建',
+    });
+  }
+  files.push({ path: '.gitignore', content: projectDoc.files.gitignore, group: '构建' });
+
+  // ── 启动类 ──
+  files.push({
+    path: `${JAVA_MAIN}/Application.java`,
+    content: renderAppClass(picks),
+    group: '源码',
+  });
+
+  // ── 选型带来的配置类 ──
+  // 只导出带真实路径的：有些 configClasses 的 path 写的是用法说明，它们不是文件。
+  for (const c of composed.configClasses) {
+    if (!c.path || !c.path.endsWith('.java')) continue;
+    const dir = c.path.includes('/test/') ? JAVA_TEST : JAVA_MAIN;
+    const file = c.path.includes('/test/')
+      ? c.path.replace(/^src\/test\/java\/com\/example\//, `${JAVA_TEST}/`)
+      : c.path.replace(/^src\/main\/java\/com\/example\//, `${JAVA_MAIN}/`);
+    files.push({
+      path: file.startsWith('src/') ? file : `${dir}/${c.className}.java`,
+      content: c.code,
+      group: '源码',
+      from: `${c.dimName} · ${c.optName}`,
+    });
+  }
+
+  // ── 配置文件 ──
+  files.push({ path: `${RES}/application.yml`, content: renderYaml(composed), group: '配置' });
+  files.push({ path: `${RES}/application-dev.yml`, content: renderDevYaml(picks), group: '配置' });
+  files.push({ path: `${RES}/application-prod.yml`, content: renderProdYaml(picks), group: '配置' });
+
+  // ── 数据层配套 ──
+  if (picked('migration', ['flyway'], picks)) {
+    files.push({
+      path: `${RES}/db/migration/V1__init.sql`,
+      content: projectDoc.files.flywayV1,
+      group: '数据',
+      from: '数据库迁移 · Flyway',
+    });
+  } else if (picked('migration', ['liquibase'], picks)) {
+    files.push({
+      path: `${RES}/db/changelog/db.changelog-master.xml`,
+      content: projectDoc.files.liquibaseMaster,
+      group: '数据',
+      from: '数据库迁移 · Liquibase',
+    });
+  }
+  if (picked('persistence', ['mybatisplus'], picks)) {
+    files.push({
+      path: `${RES}/mapper/.gitkeep`,
+      content: '',
+      group: '数据',
+      from: '持久层 · MyBatis-Plus',
+    });
+  }
+
+  // ── 测试 ──
+  if (picks.test) {
+    files.push({
+      path: `${JAVA_TEST}/ApplicationTests.java`,
+      content: projectDoc.files.smokeTest,
+      group: '测试',
+      from: '测试策略',
+    });
+  }
+
+  // ── 文档 ──
+  files.push({
+    path: 'docs/risk-report.md',
+    content: riskReportMarkdown(picks, audit, projectDoc.artifactId),
+    group: '文档',
+  });
+
+  const treeText = renderTreeText(picks);
+  const startBlock = isGradle
+    ? projectDoc.files.readmeStartGradle
+    : projectDoc.files.readmeStartMaven;
+  const dangling = findDanglingRefs(files);
+
+  // 交付清单里必须包含 README 自己 —— 清单是在 README 生成之前算出来的，
+  // 不显式插进去就会出现「清单里没有 README」这种低级但一眼可见的漏洞。
+  const fileList = [
+    { path: 'README.md', lines: 0, self: true },
+    ...files.map((f) => ({
+      path: f.path,
+      lines: f.content ? f.content.split('\n').length : 0,
+      self: false,
+    })),
+  ]
+    .map((f) =>
+      f.self
+        ? `- \`${f.path}\` — 本文件`
+        : `- \`${f.path}\`${f.lines ? ` — ${f.lines} 行` : ' — 占位文件'}`
+    )
+    .join('\n');
+
+  const riskBlock = riskReportMarkdown(picks, audit, projectDoc.artifactId)
+    .split('\n')
+    .slice(1)
+    .join('\n')
+    .trim();
+
+  const danglingBlock = dangling.length
+    ? dangling
+        .map((d) => `- \`${d.fqn}\` → 预期位置 \`${d.path}\`（被 ${d.usedBy.join('、')} 引用）`)
+        .join('\n')
+    : '没有发现悬空引用 —— 导出包里的文件引用关系是自洽的。';
+
+  const readme = projectDoc.files.readmeTemplate
+    .replace('__SELECTION_TABLE__', selectionTableMarkdown(picks))
+    .replace('__TREE__', treeText)
+    .replace('__START__', startBlock)
+    .replace('__RISKS__', riskBlock)
+    .replace('__DANGLING__', danglingBlock)
+    .replace('__FILES__', fileList);
+
+  files.unshift({ path: 'README.md', content: readme, group: '文档' });
+
+  // 路径唯一性：重名文件在 zip 里会互相覆盖，而且不会有任何报错
+  const seen = new Set<string>();
+  const unique = files.filter((f) => {
+    if (seen.has(f.path)) return false;
+    seen.add(f.path);
+    return true;
+  });
+
+  return {
+    files: unique,
+    bytes: unique.reduce((n, f) => n + f.content.length, 0),
+    dangling,
+    kind: isGradle ? 'gradle' : 'maven',
+  };
+}
+
+/**
+ * 找出「被引用、但不在包里」的类。
+ *
+ * 为什么值得专门算一遍：
+ *   导出包只含结构与配置，不含业务代码（业务代码每个项目都不一样）。
+ *   于是必然有一些配置类会引用到包外的类（例如 SecurityConfig 引用 JwtAuthenticationFilter）。
+ *   与其在 README 里含糊地说「部分类需自行实现」，不如**算出来具体是哪些** ——
+ *   用户拿到包才知道自己还差几件事，而不是编译报错时一个一个撞。
+ *
+ * 只扫 import 行。同包内不加 import 的引用扫不到，这是已知的边界 ——
+ * 宁可少报（漏掉几条需要人工补），不要多报（把已有文件也列成缺失，会消耗掉信任）。
+ */
+export function findDanglingRefs(files: ExportFile[]): DanglingRef[] {
+  const present = new Set(files.map((f) => f.path));
+  const map = new Map<string, Set<string>>();
+  const base = `${projectDoc.groupId}.`;
+
+  for (const f of files) {
+    if (!f.path.endsWith('.java')) continue;
+    for (const line of f.content.split('\n')) {
+      const m = /^\s*import\s+(?:static\s+)?([\w.]+)\s*;/.exec(line);
+      if (!m) continue;
+      const fqn = m[1];
+      if (!fqn.startsWith(base)) continue;
+      // 静态 import 可能指向方法或常量，取到类名为止（去掉可能的成员名）
+      const parts = fqn.split('.');
+      const clsIdx = parts.findIndex((p) => /^[A-Z]/.test(p));
+      if (clsIdx < 0) continue;
+      const classFqn = parts.slice(0, clsIdx + 1).join('.');
+      const path = `src/main/java/${classFqn.replace(/\./g, '/')}.java`;
+      const testPath = `src/test/java/${classFqn.replace(/\./g, '/')}.java`;
+      if (present.has(path) || present.has(testPath)) continue;
+      if (!map.has(classFqn)) map.set(classFqn, new Set());
+      map.get(classFqn)!.add(f.path);
+    }
+  }
+
+  return [...map.entries()]
+    .map(([fqn, usedBy]) => ({
+      fqn,
+      path: `src/main/java/${fqn.replace(/\./g, '/')}.java`,
+      usedBy: [...usedBy].sort(),
+    }))
+    .sort((a, b) => a.fqn.localeCompare(b.fqn));
+}
+
+// ─────────────────────────────────────────────────────────────
+// 界面用的汇总
+// ─────────────────────────────────────────────────────────────
+
+export interface StructureSummary {
+  dirs: number;
+  files: number;
+  treeNodes: number;
+  exportFiles: number;
+  exportBytes: number;
+  dangling: number;
+  kind: 'maven' | 'gradle';
+}
+
+export function summarize(plan: ExportPlan, picks: StackPicks): StructureSummary {
+  const stats = treeStats(filterTree(projectDoc.tree.children ?? [], picks), projectDoc.tree.name);
+  return {
+    dirs: stats.dirs,
+    files: stats.files,
+    treeNodes: stats.dirs + stats.files,
+    exportFiles: plan.files.length,
+    exportBytes: plan.bytes,
+    dangling: plan.dangling.length,
+    kind: plan.kind,
+  };
+}
+
+export function formatBytes(n: number): string {
+  if (n < 1024) return `${n} B`;
+  if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`;
+  return `${(n / 1024 / 1024).toFixed(2)} MB`;
+}
+
+export { dimensionById, dimensions };

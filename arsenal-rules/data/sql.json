@@ -1,0 +1,168 @@
+{
+  "category": "data",
+  "name": "数据层",
+  "description": "SQL 安全、表结构规约、并发更新。数据库是最后一道防线，这里的错误通常不可回滚。",
+  "rules": [
+    {
+      "id": "DATA-SQL-001",
+      "category": "data",
+      "subcategory": "security",
+      "title": "SQL 参数必须使用占位符绑定，禁止任何形式的字符串拼接",
+      "severity": "NEVER",
+      "sources": [
+        { "ref": "阿里巴巴Java开发手册 安全规约 §3【强制】", "type": "industry-standard", "quote": "用户输入的 SQL 参数严格使用参数绑定或者 METADATA 字段值限定，防止 SQL 注入，禁止字符串拼接 SQL 访问数据库。" },
+        { "ref": "OWASP Cheat Sheet · SQL Injection Prevention", "type": "security-baseline" }
+      ],
+      "rationale": "拼接 SQL 是唯一一个「一次失误就可能导致整库泄露」的编码问题。占位符绑定不是优化建议，是底线。注意 ORDER BY / 表名 / 列名无法用占位符绑定，必须走白名单校验。",
+      "appliesTo": { "stack": ["jdbc", "mysql"], "scope": "server" },
+      "bad": "String sql = \"select * from users where name = '\" + name + \"'\";\njdbcTemplate.query(sql, rs);",
+      "good": "String sql = \"select id, name from users where name = ?\";\njdbcTemplate.query(sql, rs, name);\n\n// 排序列走白名单\nString col = SORTABLE_COLUMNS.contains(sortBy) ? sortBy : \"create_time\";",
+      "check": {
+        "regex": { "pattern": "(select|insert|update|delete)[^;\"']*[\"']\\s*\\+\\s*[a-zA-Z_]", "flags": "i", "targetGlob": "**/*.java", "expect": "absent" },
+        "llm": "该处 SQL 是否通过字符串拼接构造（含 String.format、StringBuilder append、+ 号）？只回答 是/否/不适用，给出行号。",
+        "manual": "审查 ORDER BY / GROUP BY / 表名 / 列名拼接处，占位符无法覆盖这些位置，必须白名单校验"
+      },
+      "promptFragment": "所有 SQL 参数必须使用 ? 占位符绑定，严禁字符串拼接构造 SQL。ORDER BY、表名、列名等无法绑定的位置必须使用白名单校验。",
+      "tags": ["sql", "security", "p0", "高频踩坑"],
+      "status": "active",
+      "version": 1,
+      "updatedAt": "2026-09-11"
+    },
+    {
+      "id": "DATA-SQL-002",
+      "category": "data",
+      "subcategory": "query",
+      "title": "查询必须显式列出字段，禁止 SELECT *",
+      "severity": "NEVER",
+      "sources": [
+        { "ref": "阿里巴巴Java开发手册 MySQL 数据库规约", "type": "industry-standard", "quote": "禁止使用 SELECT *，必须显式指定字段。" }
+      ],
+      "rationale": "SELECT * 在表加字段后会把新字段一并带出，实体映射、序列化体积、索引覆盖全部受影响。更严重的是：如果实体里加了敏感字段（密码、密钥），它会自动出现在接口响应里。",
+      "appliesTo": { "stack": ["mysql"], "scope": "server" },
+      "bad": "String sql = \"select * from pm_projects where user_id = ?\";",
+      "good": "String sql = \"select id, name, status, create_time from pm_projects where user_id = ?\";",
+      "check": {
+        "regex": { "pattern": "select\\s+\\*\\s+from|SELECT\\s+\\*\\s+FROM", "targetGlob": "**/*.{java,xml,sql}", "expect": "absent" }
+      },
+      "promptFragment": "所有 SQL 查询必须显式列出所需字段名，严禁使用 SELECT *。",
+      "tags": ["sql", "p0"],
+      "status": "active",
+      "version": 1,
+      "updatedAt": "2026-09-11"
+    },
+    {
+      "id": "DATA-SCHM-001",
+      "category": "data",
+      "subcategory": "schema",
+      "title": "表名与字段名必须使用小写字母或数字，禁止数字开头、禁止保留字",
+      "severity": "MUST",
+      "sources": [
+        { "ref": "阿里巴巴Java开发手册 MySQL 数据库·建表规约 §3【强制】", "type": "industry-standard", "quote": "表名、字段名必须使用小写字母或数字，禁止出现数字开头，禁止两个下划线中间只出现数字。" },
+        { "ref": "阿里巴巴Java开发手册 MySQL 数据库·建表规约 §4【强制】", "type": "industry-standard", "quote": "表名不使用复数名词。禁止使用保留字。" }
+      ],
+      "rationale": "MySQL 在 Linux 下默认大小写敏感、Windows 下不敏感，混用大小写会导致「本机建表成功、线上找不到表」。保留字（desc/range/match/order 等）在部分 SQL 场景必须反引号，容易被手写 SQL 漏掉而报语法错误。",
+      "appliesTo": { "stack": ["mysql"], "scope": "server" },
+      "bad": "CREATE TABLE UserInfos (...)   -- 大写 + 复数\nCREATE TABLE project_members_2 (...)   -- 下划线中间是数字",
+      "good": "CREATE TABLE project_member (...)\nCREATE TABLE bid_tender (...)   -- 避开保留字 range/match/desc",
+      "check": {
+        "regex": { "pattern": "(create|alter)\\s+table\\s+(if\\s+not\\s+exists\\s+)?[A-Za-z_0-9]*[A-Z]", "flags": "i", "targetGlob": "**/*.sql", "expect": "absent" },
+        "manual": "核对表名是否为单数，是否命中 MySQL 保留字列表"
+      },
+      "promptFragment": "表名和字段名必须全小写字母或数字，禁止数字开头，禁止两个下划线中间只有数字，表名使用单数名词，禁止使用 MySQL 保留字（如 desc、range、match、order）。",
+      "tags": ["schema", "mysql"],
+      "status": "active",
+      "version": 1,
+      "updatedAt": "2026-09-11"
+    },
+    {
+      "id": "DATA-SCHM-002",
+      "category": "data",
+      "subcategory": "schema",
+      "title": "表达是与否的字段必须以 is_ 开头，类型为 unsigned tinyint",
+      "severity": "MUST",
+      "sources": [
+        { "ref": "阿里巴巴Java开发手册 MySQL 数据库·建表规约 §1【强制】", "type": "industry-standard", "quote": "表达是与否概念的字段，必须使用 is_xxx 的方式命名，数据类型是 unsigned tinyint（1 表示是，0 表示否）。" }
+      ],
+      "rationale": "统一命名让「表里哪个字段是布尔」不需要看字段注释就能判断，也让 ORM 映射可预测。副作用：实体里对应字段不能写成 is_deleted（序列化会变成 deleted），需要显式配置映射。",
+      "appliesTo": { "stack": ["mysql"], "scope": "server" },
+      "bad": "deleted tinyint(1) DEFAULT 0,\nstatus tinyint(1) DEFAULT 0   -- 布尔语义却叫 status",
+      "good": "is_deleted tinyint(1) unsigned NOT NULL DEFAULT 0,\nis_enabled tinyint(1) unsigned NOT NULL DEFAULT 1",
+      "check": {
+        "regex": { "pattern": "^\\s*[a-z_]+\\s+tinyint\\s*\\(\\s*1\\s*\\)(?![^,]*unsigned)", "flags": "im", "targetGlob": "**/*.sql", "expect": "absent" },
+        "llm": "该表中是否存在布尔语义但不以 is_ 开头的字段，或 tinyint(1) 未声明 unsigned 的字段？只回答 是/否/不适用，给出字段名。"
+      },
+      "promptFragment": "表达是与否的字段必须命名为 is_xxx，类型为 tinyint(1) unsigned，1 表示是、0 表示否。非负数字段一律使用 unsigned。",
+      "tags": ["schema", "mysql"],
+      "status": "active",
+      "version": 1,
+      "updatedAt": "2026-09-11"
+    },
+    {
+      "id": "DATA-SCHM-003",
+      "category": "data",
+      "subcategory": "schema",
+      "title": "每张业务表必须具备 id、create_time、update_time 三个字段",
+      "severity": "MUST",
+      "sources": [
+        { "ref": "阿里巴巴Java开发手册 MySQL 数据库·建表规约", "type": "industry-standard", "quote": "表必备三字段：id、gmt_create、gmt_modified。" }
+      ],
+      "rationale": "create_time/update_time 缺失会让「这条数据什么时候来的」变成考古问题，也让增量同步、数据排查、审计全部失去依据。补字段的成本远高于一开始就加上。",
+      "appliesTo": { "stack": ["mysql"], "scope": "server" },
+      "bad": "CREATE TABLE bid_tender (\n  tender_no varchar(64),\n  title varchar(255)\n);",
+      "good": "CREATE TABLE bid_tender (\n  id bigint unsigned NOT NULL AUTO_INCREMENT,\n  tender_no varchar(64) NOT NULL,\n  title varchar(255) NOT NULL,\n  create_time datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,\n  update_time datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,\n  PRIMARY KEY (id)\n);",
+      "check": {
+        "llm": "该建表语句是否缺少 id / create_time / update_time 三个必备字段？只回答 是/否/不适用，列出缺失的字段名。",
+        "manual": "注意：create_time 类型用 datetime 而非 timestamp（避免 2038 问题与隐式时区转换）"
+      },
+      "promptFragment": "每张业务表必须包含 id（bigint unsigned 自增主键）、create_time、update_time 三个字段，后两者用 datetime 类型并设置默认值与自动更新。",
+      "tags": ["schema", "mysql"],
+      "status": "active",
+      "version": 1,
+      "updatedAt": "2026-09-11"
+    },
+    {
+      "id": "DATA-SQL-003",
+      "category": "data",
+      "subcategory": "query",
+      "title": "统计行数使用 count(*)，不要用 count(列名) 或 count(常量)",
+      "severity": "SHOULD",
+      "sources": [
+        { "ref": "阿里巴巴Java开发手册 MySQL 数据库·SQL 语句", "type": "industry-standard", "quote": "不要使用 count(列名) 或 count(常量) 来替代 count(*)，count(*) 是 SQL92 定义的标准统计行数的语法。" }
+      ],
+      "rationale": "count(列名) 会跳过该列为 NULL 的行，语义是「有多少行的这一列非空」，与「有多少行」不是一回事。用错了不会报错，只会给出偏小的数字。",
+      "appliesTo": { "stack": ["mysql"], "scope": "server" },
+      "bad": "select count(user_id) from pm_project;",
+      "good": "select count(*) from pm_project;",
+      "check": {
+        "regex": { "pattern": "count\\s*\\(\\s*(?!\\*)[a-zA-Z_0-9.]+\\s*\\)", "flags": "i", "targetGlob": "**/*.{java,sql,xml}", "expect": "absent" }
+      },
+      "promptFragment": "统计行数统一使用 count(*)，禁止使用 count(列名) 或 count(常量)。",
+      "tags": ["sql"],
+      "status": "active",
+      "version": 1,
+      "updatedAt": "2026-09-11"
+    },
+    {
+      "id": "DATA-SQL-004",
+      "category": "data",
+      "subcategory": "concurrency",
+      "title": "并发更新同一记录必须加锁，禁止读-改-写裸奔",
+      "severity": "SHOULD",
+      "sources": [
+        { "ref": "阿里巴巴Java开发手册 并发处理 §10【强制】", "type": "industry-standard", "quote": "并发修改同一记录时，避免更新丢失，需要加锁。要么在应用层加锁，要么在缓存加锁，要么在数据库层使用乐观锁，使用 version 作为更新依据。" }
+      ],
+      "rationale": "「先查、再判断、再更新」在并发下会丢更新：两个请求都读到旧值，后写的覆盖先写的。乐观锁（version 字段 + update ... where version = ?）是成本最低的解法，且能顺带发现并发冲突。",
+      "appliesTo": { "stack": ["mysql"], "scope": "server" },
+      "bad": "Project p = dao.selectById(id);\np.setStatus(NEW);\ndao.update(p);   // 并发下丢失更新",
+      "good": "// 乐观锁：带 version 条件更新，返回受影响行数\nint rows = dao.updateWithVersion(id, NEW, oldVersion);\nif (rows == 0) throw new BizException(ErrorCode.CONCURRENT_MODIFIED);",
+      "check": {
+        "llm": "该方法是否存在「先查询、再基于查询结果更新同一行」的模式且未使用乐观锁或悲观锁？只回答 是/否/不适用，给出行号。"
+      },
+      "promptFragment": "并发更新同一记录必须加锁。优先使用乐观锁：表加 version 字段，更新语句带 where version = #{oldVersion} 条件，并检查受影响行数为 0 时抛出并发修改异常。",
+      "tags": ["concurrency", "sql"],
+      "status": "active",
+      "version": 1,
+      "updatedAt": "2026-09-11"
+    }
+  ]
+}

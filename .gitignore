@@ -1,0 +1,35 @@
+# ═══════════════════════════════════════════════════════════════
+#  杨先生的军火库 —— 仓库边界
+#
+#  判定原则：能由数据源重新生成的一律不进 Git。
+#  进 Git 的是「数据源」：arsenal-rules / arsenal-cookbook / arsenal-stacks /
+#  tools/  /  arsenal-web/src  /  arsenal-server/src
+# ═══════════════════════════════════════════════════════════════
+
+# ── 依赖与构建产物 ────────────────────────────────────────────
+node_modules/
+.next/
+out/
+dist/
+build/
+target/
+
+# ── 生成物：由 tools/build-content.py + sync-content.mjs 产出 ──
+#    重新生成：python tools/build-content.py && cd arsenal-web && node scripts/sync-content.mjs
+arsenal-web/src/generated/
+
+# ── 验证产物：脚本本身要提交，跑出来的东西不要 ────────────────
+#    .verify/*.ts / *.mjs 是 649 行自检代码，属资产
+arsenal-web/.verify/tmp/
+arsenal-web/.verify/shots/
+
+# ── 示例导出包：装配台随时可重新导出，不占仓库 ────────────────
+arsenal-demo-*.zip
+
+# ── 工具与系统 ───────────────────────────────────────────────
+*.tsbuildinfo
+next-env.d.ts
+.DS_Store
+Thumbs.db
+*.log
+npm-debug.log*

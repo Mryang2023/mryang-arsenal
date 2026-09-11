@@ -1,0 +1,148 @@
+{
+  "category": "collab",
+  "name": "协作",
+  "description": "Git 提交规范、代码注释与命名约定。这一层不解决技术问题，解决的是「半年后你还看得懂自己的代码吗」。",
+  "rules": [
+    {
+      "id": "COL-GIT-001",
+      "category": "collab",
+      "subcategory": "commit",
+      "title": "Git 提交信息必须遵循约定式提交格式",
+      "severity": "MUST",
+      "sources": [
+        { "ref": "Conventional Commits 1.0.0 规范", "type": "spec", "quote": "<type>[optional scope]: <description>" },
+        { "ref": "Angular 提交规范（约定式提交的事实源头）", "type": "industry-standard" }
+      ],
+      "rationale": "统一格式让提交历史可被机器解析：能自动生成 changelog、能按 type 过滤出某次发布包含哪些修复。更重要的是逼你写清楚这次改动的性质——「修复」和「重构」在出问题时是完全不同的排查方向。",
+      "appliesTo": { "stack": ["git"], "scope": "any" },
+      "bad": "git commit -m \"update\"\ngit commit -m \"改了一些东西\"\ngit commit -m \"fix bug\"",
+      "good": "git commit -m \"feat(project-member): 支持按成员查看在项项目\"\ngit commit -m \"fix(auth): 修复 token 过期后未清理 ThreadLocal 导致的越权\"\ngit commit -m \"refactor(schema): 拆分 SchemaInitializer 为按模块注册\"",
+      "check": {
+        "regex": { "pattern": "^(?!Merge|Revert|(feat|fix|refactor|docs|test|chore|perf|build|ci|style)(\\([a-z0-9-]+\\))?: .{4,})", "targetGlob": "**/*.commit-msg", "expect": "absent" },
+        "manual": "可通过 commit-msg git hook 强制校验"
+      },
+      "promptFragment": "Git 提交信息必须遵循约定式提交格式：<type>(<scope>): <描述>。type 取值范围：feat/fix/refactor/docs/test/chore/perf/build/ci/style。描述使用中文或英文均可，必须说清改了什么、为什么改，禁止「update」「修改」这类无信息量的描述。",
+      "tags": ["git", "process"],
+      "status": "active",
+      "version": 1,
+      "updatedAt": "2026-09-11"
+    },
+    {
+      "id": "COL-GIT-002",
+      "category": "collab",
+      "subcategory": "commit",
+      "title": "单次提交只做一件事，禁止混合无关改动",
+      "severity": "SHOULD",
+      "sources": [
+        { "ref": "Conventional Commits 规范 · 原子提交原则", "type": "spec" },
+        { "ref": "Google 工程实践 · Small CLs", "type": "industry-standard", "quote": "Small, focused changes are easier to review and safer to roll back." }
+      ],
+      "rationale": "混合提交让回滚变成一件危险的事——想撤销那个有问题的改动，就得连带撤销其他正常改动。也让人无法通过 git log 还原「这次改动到底做了什么」。",
+      "appliesTo": { "stack": ["git"], "scope": "any" },
+      "bad": "一次提交同时包含：新增功能 + 格式化全文件 + 升级依赖 + 修复无关 bug",
+      "good": "拆成 4 次提交，各自 message 独立说明；格式化等大范围无功能改动单独一次提交（type=style）",
+      "check": {
+        "manual": "提交前 review git diff --stat，若同时命中多种 type 的改动，考虑拆分"
+      },
+      "promptFragment": "每次提交只做一件事。功能新增、重构、格式化、依赖升级、无关 bug 修复必须拆成独立的提交。大范围格式化改动必须单独提交并标注 type=style。",
+      "tags": ["git", "process"],
+      "status": "active",
+      "version": 1,
+      "updatedAt": "2026-09-11"
+    },
+    {
+      "id": "COL-GIT-003",
+      "category": "collab",
+      "subcategory": "hygiene",
+      "title": "禁止提交密钥、凭据与构建产物",
+      "severity": "NEVER",
+      "sources": [
+        { "ref": "OWASP Cheat Sheet · Secrets Management", "type": "security-baseline", "quote": "Never commit secrets to version control; remove them from history if committed." },
+        { "ref": "阿里巴巴Java开发手册 工程结构 · 版本管理", "type": "industry-standard" }
+      ],
+      "rationale": "密钥一旦提交，即使后续删除，Git 历史里依然完整存在，任何能读仓库的人都能翻出来。构建产物（target/、node_modules/、class 文件）混入则会让仓库迅速膨胀且产生无意义冲突。",
+      "appliesTo": { "stack": ["git"], "scope": "any" },
+      "bad": "提交了 application-prod.yml（含生产数据库密码）、.env、target/、*.class、*.jks",
+      "good": ".gitignore 至少包含：target/ build/ dist/ node_modules/ .env* *.local.yml *.jks *.p12 *.log\n// 已误提交的密钥：立即轮换密钥，再用 git filter-repo 清理历史（仅删除当前文件不够）",
+      "check": {
+        "manual": "检查 .gitignore 覆盖范围；检查 git ls-files 中是否含密钥文件或构建产物；确认密钥文件的权限与轮换记录"
+      },
+      "promptFragment": "严禁提交任何密钥、凭据、证书文件（.env、*-local.yml、*.jks、*.p12）和构建产物（target/、build/、node_modules/、*.class）。所有此类路径必须写入 .gitignore。若不慎提交，必须立即轮换密钥并清理 Git 历史。",
+      "tags": ["git", "security", "p0"],
+      "status": "active",
+      "version": 1,
+      "updatedAt": "2026-09-11"
+    },
+    {
+      "id": "COL-CODE-001",
+      "category": "collab",
+      "subcategory": "javadoc",
+      "title": "对外可见的类与公共方法必须写 Javadoc，且首句必须是摘要短语",
+      "severity": "SHOULD",
+      "sources": [
+        { "ref": "Google Java Style Guide §7.2 / §7.3", "type": "industry-standard", "quote": "At the minimum, Javadoc is present for every visible class, member, and record component. The summary fragment is a noun phrase or verb phrase, not a complete sentence." }
+      ],
+      "rationale": "Javadoc 是 IDE 里唯一会主动呈现给你的文档——鼠标悬停即可见。首句必须是摘要短语（如「Returns the customer ID.」而不是「@return the customer ID」），因为它会被抽取为概述。",
+      "appliesTo": { "stack": ["java-17"], "scope": "server" },
+      "bad": "/**\n * 获取用户\n * @param id\n * @return\n */\npublic UserVO get(Long id) { ... }   // 块标签后无描述，等同于没写",
+      "good": "/**\n * 按主键查询用户，查不到时返回 null。\n *\n * @param id 用户主键，不可为 null\n * @return 用户视图对象；不存在时返回 null\n * @throws IllegalArgumentException id 为 null 时抛出\n */\npublic UserVO get(Long id) { ... }",
+      "check": {
+        "llm": "该类/方法的 Javadoc 是否存在？块标签（@param/@return/@throws）后是否都有实际描述？首句是否为摘要短语？只回答 是/否/不适用，给出行号。",
+        "manual": "例外：重写父类方法的实现、以及 getXxx/isXxx 这类自解释方法可以不写 Javadoc"
+      },
+      "promptFragment": "所有 public 类与 public/protected 方法必须有 Javadoc。Javadoc 首句为摘要短语（名词或动词短语），@param/@return/@throws 后必须有实际描述，禁止留空。重写父类的方法和 getter/setter 可省略。",
+      "tags": ["javadoc", "documentation"],
+      "status": "active",
+      "version": 1,
+      "updatedAt": "2026-09-11"
+    },
+    {
+      "id": "COL-CODE-002",
+      "category": "collab",
+      "subcategory": "annotation",
+      "title": "重写父类方法必须加 @Override",
+      "severity": "MUST",
+      "sources": [
+        { "ref": "Google Java Style Guide §6.1 @Override: always used", "type": "industry-standard", "quote": "An @Override annotation is used whenever it is valid." },
+        { "ref": "Effective Java 3rd Edition · Item 40: Consistently use the Override annotation", "type": "book" }
+      ],
+      "rationale": "@Override 让编译器帮你确认签名真的匹配父类。签名写错（参数类型差一点）时，你以为是重写，实际是新增了一个永远不被调用的方法——加上注解后这种错误编译期就报。",
+      "appliesTo": { "stack": ["java-17"], "scope": "server" },
+      "bad": "public String tostring() { ... }   // 本意是重写 toString，因大小写错误变成新方法",
+      "good": "@Override\npublic String toString() { ... }",
+      "check": {
+        "ast": { "engine": "javaparser", "query": "method with @Override absent but overrides a supertype method (excluding Object.toString/equals/hashCode when intentional)" }
+      },
+      "promptFragment": "所有重写父类或接口的方法必须加 @Override 注解。",
+      "tags": ["annotation", "java"],
+      "status": "active",
+      "version": 1,
+      "updatedAt": "2026-09-11"
+    },
+    {
+      "id": "COL-CODE-003",
+      "category": "collab",
+      "subcategory": "naming",
+      "title": "禁止魔法值，常量必须全大写加下划线且语义完整",
+      "severity": "MUST",
+      "sources": [
+        { "ref": "阿里巴巴Java开发手册 编程规约·常量定义 §1【强制】", "type": "industry-standard", "quote": "不允许任何魔法值（即未经预先定义的常量）直接出现在代码中。" },
+        { "ref": "阿里巴巴Java开发手册 编程规约·命名风格 §5【强制】", "type": "industry-standard", "quote": "常量命名全部大写，单词间用下划线隔开，力求语义表达完整清楚，不要嫌名字长。" },
+        { "ref": "Google Java Style Guide §5.2.4 Constant names", "type": "industry-standard" }
+      ],
+      "rationale": "魔法值把「这个数字是什么意思」变成必须回溯上下文的问题，也让修改变成全局搜索替换。拼接字符串常量更危险——少一个下划线就是另一把缓存 key，且不会报错。",
+      "appliesTo": { "stack": ["java-17"], "scope": "server" },
+      "bad": "if (status == 3) { ... }\ncache.put(\"Id#taobao_\" + tradeId, v);\nprivate static final int TO = 10;",
+      "good": "if (ProjectStatus.ARCHIVED.getCode() == status) { ... }\ncache.put(CACHE_KEY_TRADE_PREFIX + tradeId, v);\nprivate static final int MAX_RETRY_TIMES = 10;",
+      "check": {
+        "llm": "该处是否出现未定义成常量的字面量（数字/字符串）用于业务判断或标识？常量命名是否为全大写加下划线且语义完整？只回答 是/否/不适用，给出行号。",
+        "manual": "注意区分：0/1 这类用于数组下标或简单计数的字面量不算魔法值"
+      },
+      "promptFragment": "禁止在业务代码中出现魔法值。所有用于业务判断、状态标识、配置阈值的字面量必须定义为常量或枚举。常量命名必须全大写、单词间下划线分隔、语义完整（如 MAX_RETRY_TIMES 而不是 MAX）。",
+      "tags": ["naming", "constant", "p0"],
+      "status": "active",
+      "version": 1,
+      "updatedAt": "2026-09-11"
+    }
+  ]
+}
