@@ -7,11 +7,14 @@ mvn spring-boot:run          # 启动（需 Maven）
 mvn -q clean package         # 打 jar
 ```
 
-无 Maven 环境下可做静态编译校验：
+本机没有 Maven，所以有两个脚本可以替代：
 
 ```bash
-bash scripts/compile-check.sh
+bash scripts/run.sh          # 编译并启动（无需 Maven，用本地 .m2 的依赖）
+bash scripts/compile-check.sh  # 只做静态编译校验，不启动
 ```
+
+`run.sh` 支持 `RUN_CWD=<dir>` 指定工作目录 —— 用于复现「工作目录不同导致行为不同」这类问题。
 
 ## 它做什么
 
@@ -44,6 +47,23 @@ curl -s -X POST http://localhost:3011/api/lint \
 指向与前端、导出器完全相同的那份 JSON。
 
 **服务端不持有规则副本，也不在数据库里存第二份。** 它只是那堆 JSON 的一层可执行外壳。
+
+### 相对路径不绑工作目录
+
+`../arsenal-rules` 是相对路径，而「相对谁」这件事曾经让服务起不来：
+在 `arsenal-server/` 下启动时它指向正确位置，在仓库根下启动时指向上一层并不存在的目录，
+报错只说「目录不存在」，看不出其实是工作目录不对。已踩过一次。
+
+现在的解析顺序是「绝对路径 → 工作目录 → 逐级向上（含裸目录名）」，并且
+**只接受带 `meta.json` 的目录** —— 判断依据是内容不是名字，
+所以不存在「同名空目录被误认」的情况。启动日志第一行就会打出解析结果：
+
+```
+INFO  c.a.l.RuleLoader - 规则目录：D:\...\arsenal\arsenal-rules
+```
+
+若解析结果不是按工作目录直奔的那一个，日志会额外说明「工作目录 X 下没有，已自动换基准找到」。
+真找不到时，报错会把试过的每条路径和当前工作目录一起列出来。
 
 ## 启动时会发生什么
 

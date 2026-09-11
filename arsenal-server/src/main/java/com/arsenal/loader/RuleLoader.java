@@ -36,16 +36,108 @@ public class RuleLoader {
 
     private static final Logger log = LoggerFactory.getLogger(RuleLoader.class);
 
+    /** 规则目录的识别标记。只认带它的目录 —— 名字碰巧相同的空目录不算数。 */
+    private static final String META_FILE = "meta.json";
+    /** 向上找多少级。仓库根到模块目录之间通常只有 1-2 级，6 级留足余量。 */
+    private static final int MAX_UPWARD = 6;
+
+    /** 配置原文，只用于日志与报错文案 */
+    private final String configuredRaw;
     private final Path rulesRoot;
     private final ObjectMapper mapper;
 
     public RuleLoader(@Value("${arsenal.rules-dir}") String rulesDir, ObjectMapper mapper) {
-        this.rulesRoot = Paths.get(rulesDir).toAbsolutePath().normalize();
+        this.configuredRaw = rulesDir;
         this.mapper = mapper;
+        this.rulesRoot = resolve(rulesDir);
     }
 
     public Path rulesRoot() {
         return rulesRoot;
+    }
+
+    /**
+     * 解析规则目录。
+     *
+     * 不能只按工作目录解析相对路径 —— 这是踩过的坑：配置值 {@code ../arsenal-rules}
+     * 在 arsenal-server 下启动时指向正确位置，在仓库根下启动时指向上一层并不存在的目录，
+     * 服务直接起不来；而报错只说「目录不存在」，看不出其实是工作目录不对。
+     *
+     * 所以按「绝对路径 → 工作目录 → 逐级向上」依次试候选，
+     * 并且<b>只接受带 meta.json 的目录</b>：判断依据是内容，不是名字。
+     */
+    private Path resolve(String raw) {
+        Path configured = Paths.get(raw);
+        Path cwd = Paths.get("").toAbsolutePath().normalize();
+
+        // 绝对路径是明确指令：说哪个就是哪个，不做任何兜底猜测
+        if (configured.isAbsolute()) {
+            Path abs = configured.normalize();
+            if (!isRuleset(abs)) {
+                throw unusable(abs, List.of(abs), cwd, true);
+            }
+            log.info("规则目录：{}　（来自绝对路径配置）", abs);
+            return abs;
+        }
+
+        List<Path> candidates = new ArrayList<>();
+        addCandidate(candidates, cwd.resolve(configured));
+
+        String bare = configured.getFileName() == null ? "" : configured.getFileName().toString();
+        boolean byName = !bare.isEmpty() && !".".equals(bare) && !"..".equals(bare);
+        if (byName) {
+            addCandidate(candidates, cwd.resolve(bare));
+        }
+
+        Path up = cwd;
+        for (int i = 0; i < MAX_UPWARD && up.getParent() != null; i++) {
+            up = up.getParent();
+            addCandidate(candidates, up.resolve(configured));
+            if (byName) {
+                addCandidate(candidates, up.resolve(bare));
+            }
+        }
+
+        for (Path c : candidates) {
+            if (isRuleset(c)) {
+                if (c.equals(candidates.get(0))) {
+                    log.info("规则目录：{}", c);
+                } else {
+                    log.info("规则目录：{}　—— 工作目录 {} 下没有，已自动换基准找到", c, cwd);
+                }
+                return c;
+            }
+        }
+        throw unusable(candidates.get(0), candidates, cwd, false);
+    }
+
+    private void addCandidate(List<Path> out, Path p) {
+        Path n = p.toAbsolutePath().normalize();
+        if (!out.contains(n)) {
+            out.add(n);
+        }
+    }
+
+    private boolean isRuleset(Path p) {
+        return Files.isDirectory(p) && Files.isRegularFile(p.resolve(META_FILE));
+    }
+
+    /** 报错要把「试过哪些路径、工作目录是什么」写全 —— 只说目录不存在，等于让人猜。 */
+    private IllegalStateException unusable(Path primary, List<Path> tried, Path cwd, boolean absolute) {
+        StringBuilder sb = new StringBuilder();
+        sb.append("规则目录不可用：").append(primary);
+        if (absolute) {
+            sb.append("（配置 ").append(configuredRaw).append(" 是绝对路径，但该目录下没有 ").append(META_FILE).append("）");
+            return new IllegalStateException(sb.toString());
+        }
+        sb.append("（目录不存在，或目录下没有 ").append(META_FILE).append("）")
+                .append("\n  当前工作目录：").append(cwd)
+                .append("\n  配置值 ").append(configuredRaw).append(" 按以下顺序试过，都不成立：");
+        for (Path t : tried) {
+            sb.append("\n    - ").append(t);
+        }
+        sb.append("\n  指定方式：启动参数 --arsenal.rules-dir=<绝对路径>，或环境变量 ARSENAL_RULES_DIR");
+        return new IllegalStateException(sb.toString());
     }
 
     public LoadedRuleset load() {
@@ -54,7 +146,7 @@ public class RuleLoader {
                     "规则目录不存在：" + rulesRoot + "（用 arsenal.rules-dir 或环境变量 ARSENAL_RULES_DIR 指定）");
         }
 
-        RulesetMeta meta = read(rulesRoot.resolve("meta.json"), RulesetMeta.class);
+        RulesetMeta meta = read(rulesRoot.resolve(META_FILE), RulesetMeta.class);
         List<Path> files = discover(meta);
         if (files.isEmpty()) {
             throw new IllegalStateException("规则目录下没有找到任何规则文件：" + rulesRoot);
