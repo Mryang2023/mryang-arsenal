@@ -138,7 +138,10 @@ mryang 的个人代码规范字典 + AI 代码合规校验平台。
 **前端跑法**：`npm run dev`（本沙箱会被 safe-delete 拦截）→ 改用 `npm run build` +
 `python -m http.server 3010 --bind 127.0.0.1 --directory out`
 （构建前必须**在前台单独**清 `.next` / `out`，且加 `NODE_OPTIONS=` 清空注入的删除守卫）
-**后端验证法**：`bash arsenal-server/scripts/compile-check.sh`（无 mvn，JDK 17 在 `~/.jdks/ms-17.0.18`）
+**后端静态编译校验**：`bash arsenal-server/scripts/compile-check.sh`（无 mvn，JDK 17 在 `~/.jdks/ms-17.0.18`）
+**后端真启动**：`bash arsenal-server/scripts/run.sh`（同样无需 mvn，用 .m2 运行时依赖；`RUN_CWD=<dir>` 可覆盖工作目录）
+　沙箱注意：环境注入了 `SERVER__PORT=54253`（会被 Spring 的宽松绑定当成 `server.port`，且该端口已被占用），
+　本地验证必须加 `--server.port=<空闲端口>`（命令行参数优先级高于环境变量）
 **一条命令跑完全部校验**：`npm run verify` = 引擎样本 + 架构自检（35 项）+ 结构层自检（103 项）
 **视觉自检**：`node arsenal-web/.verify/shots.mjs`（画布 6 态）+
 `npx tsx .verify/shots-project.mjs`（结构图 / 启动类 / 隐患单 / 导出，**会真的接住浏览器下载的 zip**）
