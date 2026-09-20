@@ -40,6 +40,7 @@ import GapCard from './GapCard';
 import Inspector from './Inspector';
 import ProjectTree from './ProjectTree';
 import SlotBlock from './SlotBlock';
+import ArchDiagram from './ArchDiagram';
 import { TONE } from './palette';
 
 /**
@@ -58,7 +59,7 @@ import { TONE } from './palette';
 type TabId =
   | 'build' | 'yaml' | 'env'
   | 'app' | 'config' | 'code'
-  | 'tree'
+  | 'tree' | 'arch'
   | 'risk' | 'ops' | 'prompt';
 
 interface TabSpec {
@@ -137,6 +138,7 @@ export default function StackComposer() {
     {
       group: '交付',
       tabs: [
+        { id: 'arch', glyph: '⊞', label: '架构图' },
         { id: 'risk', glyph: '⚠', label: '隐患体检单', count: hazardCount },
         { id: 'ops', glyph: '▥', label: '运维清单' },
         { id: 'prompt', glyph: '⎘', label: '给 AI 的约束' },
@@ -591,6 +593,8 @@ export default function StackComposer() {
                   </div>
                 </div>
               )}
+
+              {tab === 'arch' && <ArchDiagram picks={picks} audit={audit} />}
 
               {tab === 'risk' && (
                 <div className="space-y-4">

@@ -179,3 +179,22 @@ export function downloadZip(entries: ZipEntry[], filename: string): number {
   setTimeout(() => URL.revokeObjectURL(url), 4000);
   return bytes;
 }
+
+/**
+ * 下载单个文本文件（SVG / Markdown / DSL 源码）。
+ *
+ * 与 zip 同一条自我约束：只处理文本。SVG 之所以能走这条路，正是因为它
+ * 是「图形 + 文本」而不是 canvas —— 一份能进 Git、能 diff、能被 IDE 预览的图。
+ */
+export function downloadText(content: string, filename: string, mime = 'text/plain'): number {
+  const blob = new Blob([content], { type: `${mime};charset=utf-8` });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  setTimeout(() => URL.revokeObjectURL(url), 4000);
+  return blob.size;
+}

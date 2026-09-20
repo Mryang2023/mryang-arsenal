@@ -1,7 +1,8 @@
 import projRaw from '@/generated/project.json';
-import type { ArchAudit, ArchGap } from './arch';
+import { capLabel, STATUS_META, type ArchAudit, type ArchGap } from './arch';
 import type { ComposedStack, StackPicks } from './content-types';
 import { composeStack, dimensionById, dimensions, renderPom, renderYaml } from './stack';
+import { buildArchDiagram, archDiagramD2, archDiagramMermaid } from './arch-diagram';
 
 /**
  * 项目结构层。
@@ -527,6 +528,134 @@ export function riskReportMarkdown(picks: StackPicks, audit: ArchAudit, name: st
   return `${out.join('\n')}\n`;
 }
 
+/**
+ * 架构说明文档。
+ *
+ * 与 architecture.svg（由 arch-diagram.ts 生成）是同一份数据的两种读法：
+ * 图回答「长什么样」，这份文档回答「为什么是这样、缺了什么」。
+ * 两者都从 picks + audit 现算，不存在「图改了文档没改」的可能。
+ */
+export function architectureDocMarkdown(picks: StackPicks, audit: ArchAudit, name: string): string {
+  const built = buildArchDiagram({ picks, audit, title: name });
+  const { model } = built;
+  const out: string[] = [];
+
+  out.push(`# 架构说明 · ${name}`, '');
+  out.push('由「杨先生的军火库 · 架构装配台」按当前选型生成。', '');
+  out.push(
+    '本文与 `architecture.svg` 是同一份数据的两种读法：图看形状，这里看理由。',
+    '改完选型请重新导出 —— 图与文字都会跟着变，但**只有重新导出才会变**。',
+    ''
+  );
+  out.push(`结论：**${STATUS_META[audit.status].label}**`, '');
+  out.push(STATUS_META[audit.status].summary, '');
+
+  // ── 一、分层结构与当前落位 ──
+  out.push('## 一、分层结构与当前落位', '');
+  out.push('| 泳道 | 这一层负责什么 | 当前选择 |');
+  out.push('| --- | --- | --- |');
+  for (const lane of model.lanes) {
+    const installed = lane.slots.map((s) => {
+      if (s.state === 'filled' || s.state === 'conflict') return s.title;
+      if (s.state === 'missing-required') return `**缺（必需）**`;
+      if (s.state === 'missing-recommended') return '未装（建议）';
+      return '—';
+    });
+    const desc = lane.desc.replace(/\n/g, ' ');
+    out.push(`| **${cell(lane.name)}** | ${cell(desc)} | ${cell(installed.join('；')) || '—'} |`);
+  }
+  out.push('');
+
+  // ── 二、请求链路 ──
+  // 这一段是这张图存在的理由：其余信息选型表里也有，只有「请求怎么穿过」是图独有的。
+  // 措辞必须克制 —— 只有数据里真的定义了层内流水线，才谈得上「先后」与「旁路」。
+  // 平铺一层（例如鉴权、文档、缓存）本来就不分先后，硬造一个顺序比不写更误导。
+  out.push('## 二、请求链路', '');
+  out.push(
+    '请求自接入层进入，向下穿过各层。**有层内流水线的层按下面的顺序流经**；',
+    '没有流水线的层，其零件是并列关系，不存在先后。',
+    ''
+  );
+  for (const lane of model.lanes) {
+    if (!lane.slots.length) continue;
+    let line: string;
+    if (lane.pipelineCount >= 2) {
+      const onPath = lane.slots.slice(0, lane.pipelineCount);
+      line = `- **${lane.name}**：${onPath.map((s) => s.title).join(' → ')}`;
+      const bypass = lane.slots.slice(lane.pipelineCount);
+      if (bypass.length) {
+        line += `　旁路件：${bypass.map((s) => s.title).join('、')}（不在请求路径上）`;
+      }
+    } else if (lane.slots.length === 1) {
+      line = `- **${lane.name}**：${lane.slots[0].title}`;
+    } else {
+      line = `- **${lane.name}**：${lane.slots.map((s) => s.title).join('、')}（并列，无先后）`;
+    }
+    out.push(line);
+  }
+  out.push('');
+
+  // ── 三、能力供需 ──
+  out.push('## 三、能力供需', '');
+  out.push(
+    `当前组合共提供 **${audit.providedCaps.length}** 项能力。`,
+    '每个零件声明它提供什么、需要什么，校验时求一次并集 —— 所以「缺什么」是算出来的，不是列出来的。',
+    ''
+  );
+  if (audit.unmetCaps.length) {
+    out.push('以下能力被索要、但当前无人提供：', '');
+    for (const cap of audit.unmetCaps) out.push(`- \`${cap}\` ${capLabel(cap)}`);
+  } else {
+    out.push('没有「被索要却无人提供」的能力 —— 供需是闭环的。');
+  }
+  out.push('');
+
+  // ── 四、缺口与隐患 ──
+  // 直接复用隐患体检单的正文，但从第一个二级标题开始切 —— 它的 H1 与结论行
+  // 在本文档开头已经写过一遍了，复制过来就成了同一段话连着说两次。
+  const risk = riskReportMarkdown(picks, audit, name);
+  const riskLines = risk.split('\n');
+  const firstSection = riskLines.findIndex((l) => l.startsWith('## '));
+  out.push('## 四、缺口与隐患', '');
+  if (firstSection >= 0) {
+    // 降一级：这份单子被嵌进本文档的一节，保持它自己的 ## 会与本文的章节平级
+    const demoted = riskLines
+      .slice(firstSection)
+      .map((l) => (l.startsWith('## ') ? `#${l}` : l))
+      .join('\n')
+      .trim();
+    out.push(demoted, '');
+  } else {
+    out.push('未发现隐患 —— 这一套组合零件齐全、能力闭环、没有组合冲突。', '');
+  }
+
+  // ── 五、图例 ──
+  out.push('## 五、怎么读那张图', '');
+  out.push(
+    '- **横向色带 = 6 层**，色带名字左边写着这一层有几个槽位',
+    '- **实线方块 = 已选**；**虚线方块 = 未选** —— 可选件留空是正常状态，不是问题',
+    '- **红色虚线 = 缺必需**（项目起不来）；**黄铜虚线 = 缺建议**（能跑，但少能力）',
+    '- **黄铜实线 + ⚠ = 已选，但它参与了某个组合隐患** —— 单独看每个零件都对，拼起来才出问题',
+    '- 方块右上角的「必需 / 建议」是**该槽位留空时的性质**，不是当前状态',
+    '- 层内 `→` 是请求真正流经的顺序；**竖虚线右侧是旁路件**（例如迁移工具只在发布期起作用）',
+    '- 图上的 `architecture.d2` / `architecture.mermaid` 是同一张图的源码，想自己改图就拿去渲染'
+  );
+  out.push('');
+
+  return `${out.join('\n')}\n`;
+}
+
+/** README 里那句「当前组合如何」—— 一句话，把结论和缺口数说清。 */
+function archSummaryMarkdown(audit: ArchAudit): string {
+  const parts: string[] = [];
+  parts.push(`当前组合：**${STATUS_META[audit.status].label}**`);
+  parts.push(`必选 ${audit.stats.requiredFilled}/${audit.stats.requiredTotal} 已装`);
+  parts.push(`共 ${audit.stats.filled}/${audit.stats.total} 个槽位已选`);
+  if (audit.blockers.length) parts.push(`${audit.blockers.length} 项缺失或冲突会导致起不来`);
+  else if (audit.gaps.length) parts.push(`${audit.gaps.length} 项建议补齐`);
+  return `${parts.join(' · ')}。`;
+}
+
 /** 导出文件汇总。等价于「这套选型的产物」在磁盘上的完整落位。 */
 export function buildExportPlan(picks: StackPicks, audit: ArchAudit): ExportPlan {
   const composed = composeStack(picks);
@@ -617,6 +746,31 @@ export function buildExportPlan(picks: StackPicks, audit: ArchAudit): ExportPlan
     group: '文档',
   });
 
+  // ── 架构图与技术说明 ──
+  // 图用浅色主题：这份 SVG 多半在白底的 GitHub、IDE 预览或 Word 里被看到，
+  // 站内那套暗色是给屏幕上的产品界面用的，进了文档就成了黑块。
+  // 也正因为 SVG 是纯文本，它才落在这个「只打文本文件」的打包器能力范围里。
+  const diagram = buildArchDiagram({
+    picks,
+    audit,
+    title: projectDoc.artifactId,
+    theme: 'light',
+  });
+  files.push({ path: 'architecture.svg', content: diagram.svg, group: '文档' });
+  files.push({
+    path: 'ARCHITECTURE.md',
+    content: architectureDocMarkdown(picks, audit, projectDoc.artifactId),
+    group: '文档',
+  });
+  // 顺手把同一张图的 DSL 源码也给了：拼字符串不要钱，而想自己改图、改配色、
+  // 接进自己文档流水线的人，拿了这两个文件就能继续，我们不必为此背一个图引擎。
+  files.push({ path: 'architecture.d2', content: archDiagramD2(diagram.model), group: '文档' });
+  files.push({
+    path: 'architecture.mermaid',
+    content: archDiagramMermaid(diagram.model),
+    group: '文档',
+  });
+
   const treeText = renderTreeText(picks);
   const startBlock = isGradle
     ? projectDoc.files.readmeStartGradle
@@ -654,6 +808,7 @@ export function buildExportPlan(picks: StackPicks, audit: ArchAudit): ExportPlan
 
   const readme = projectDoc.files.readmeTemplate
     .replace('__SELECTION_TABLE__', selectionTableMarkdown(picks))
+    .replace('__ARCH_SUMMARY__', archSummaryMarkdown(audit))
     .replace('__TREE__', treeText)
     .replace('__START__', startBlock)
     .replace('__RISKS__', riskBlock)

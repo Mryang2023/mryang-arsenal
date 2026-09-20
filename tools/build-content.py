@@ -424,7 +424,7 @@ def build_project():
         seen_switches.add(key)
 
     # ── ④ 模板占位符：漏一个，导出的文件里就会留一段 __XXX__ ──
-    known_readme = {'__SELECTION_TABLE__', '__TREE__', '__START__',
+    known_readme = {'__SELECTION_TABLE__', '__ARCH_SUMMARY__', '__TREE__', '__START__',
                     '__RISKS__', '__DANGLING__', '__FILES__'}
     known_app = {'__IMPORTS__', '__SWITCHES__', '__ANNOTATIONS__'}
     for tpl, known, label in (

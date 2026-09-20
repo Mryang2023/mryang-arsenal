@@ -291,7 +291,7 @@ for (const s of projDoc.switchOwners ?? []) {
 
 const templateChecks = [
   ['README 模板', projDoc.files?.readmeTemplate ?? '',
-    ['__SELECTION_TABLE__', '__TREE__', '__START__', '__RISKS__', '__DANGLING__', '__FILES__']],
+    ['__SELECTION_TABLE__', '__ARCH_SUMMARY__', '__TREE__', '__START__', '__RISKS__', '__DANGLING__', '__FILES__']],
   ['启动类模板', projDoc.appTemplate ?? '',
     ['__IMPORTS__', '__SWITCHES__', '__ANNOTATIONS__']],
 ];

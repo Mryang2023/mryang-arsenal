@@ -19,6 +19,7 @@ import url from 'node:url';
 import { auditArchitecture, arch } from '@/lib/arch';
 import { defaultPicks, dimensions, presetPicks, presets } from '@/lib/stack';
 import { filterTree, buildExportPlan, projectDoc, renderAppClass, renderTreeText } from '@/lib/project';
+import { buildArchDiagram, archDiagramD2, archDiagramMermaid } from '@/lib/arch-diagram';
 import type { StackPicks } from '@/lib/content-types';
 import { buildZip } from '@/lib/zip';
 
@@ -104,6 +105,9 @@ function planOf(picks: StackPicks) {
 }
 function pathsOf(picks: StackPicks) {
   return planOf(picks).files.map((f) => f.path);
+}
+function readmeOf(picks: StackPicks) {
+  return planOf(picks).files.find((f) => f.path === 'README.md')!.content;
 }
 
 // MyBatis-Plus 才有的东西
@@ -286,7 +290,7 @@ check(
 // 【6】zip 真的能被标准工具解开
 // ═══════════════════════════════════════════════════════════════
 async function zipChecks() {
-  console.log('\n【6】zip 打包');
+  console.log('\n【7】zip 打包');
 
   const manifest: { preset: string; file: string; entries: number }[] = [];
 
@@ -315,6 +319,93 @@ async function zipChecks() {
     'utf8'
   );
   console.log(`\n  已写出 ${manifest.length} 个 zip 到 .verify/tmp/，交给 zipfile 复核`);
+}
+
+// ═══════════════════════════════════════════════════════════════
+// 【6】架构图与技术说明
+//
+// 这张图是自己拼 SVG 拼出来的，没有引擎兜底 —— 所以必须用断言把
+// 「画出来是什么样」钉住：槽位一个不少、坐标没有 NaN、中文没被截断、
+// 每个状态都有图例解释。否则改一次版式就可能悄悄画歪。
+// ═══════════════════════════════════════════════════════════════
+console.log('\n【6】架构图与技术说明');
+
+for (const preset of presets) {
+  const picks = preset.picks as StackPicks;
+  const audit = auditArchitecture(picks);
+  const plan = planOf(picks);
+  const svgFile = plan.files.find((f) => f.path === 'architecture.svg');
+  const docFile = plan.files.find((f) => f.path === 'ARCHITECTURE.md');
+
+  check(`${preset.name}：导出包含 architecture.svg`, !!svgFile);
+  check(`${preset.name}：导出包含 ARCHITECTURE.md`, !!docFile);
+  if (!svgFile || !docFile) continue;
+
+  const svg = svgFile.content;
+  const doc = docFile.content;
+
+  // ① 合法性与可解析性：坐标里出现 NaN 的图，浏览器会整块不画
+  check(`${preset.name}：SVG 无 NaN 坐标`, !/NaN|undefined|Infinity/.test(svg));
+  check(
+    `${preset.name}：SVG 标签闭合`,
+    svg.startsWith('<svg') && svg.trimEnd().endsWith('</svg>')
+  );
+  check(`${preset.name}：SVG 带 viewBox`, /viewBox="0 0 \d+ \d+"/.test(svg));
+
+  // ② 槽位齐全：17 个槽位一个都不能漏，漏了图就不再是这张架构图
+  const slots = Object.keys(arch.nodes);
+  const diagram = buildArchDiagram({ picks, audit, title: 'x' });
+  const drawn = diagram.model.lanes.flatMap((l) => l.slots.map((s) => s.dimId));
+  check(
+    `${preset.name}：17 个槽位全部上图`,
+    drawn.length === slots.length && slots.every((id) => drawn.includes(id)),
+    `${drawn.length}/${slots.length}`
+  );
+  check(`${preset.name}：6 条泳道齐全`, diagram.model.lanes.length === arch.lanes.length);
+
+  // ③ 中文必须真的进了 SVG。早期用错转义时中文会整片消失，而 SVG 依然「合法」。
+  const cjkCount = (svg.match(/[\u4e00-\u9fff]/g) ?? []).length;
+  check(`${preset.name}：图上保留了中文标签`, cjkCount >= 80, `${cjkCount} 个汉字`);
+  check(`${preset.name}：所有泳道名都在图上`, arch.lanes.every((l) => svg.includes(l.name)));
+
+  // ④ 状态必须可区分：缺必需 / 缺建议 / 已选 / 未选，四种画法都要在图例里出现
+  for (const label of ['已选', '缺必需', '缺建议', '未选']) {
+    check(`${preset.name}：图例含「${label}」`, svg.includes(`>${label}<`));
+  }
+
+  // ⑤ 必须有一眼可辨的「跑不起来」信号：缺必需模块时图上要有红
+  if (audit.blockers.length > 0) {
+    check(`${preset.name}：有阻塞项时图上出现告警色`, svg.includes('#C0392B'));
+  }
+
+  // ⑥ 技术说明与图同源：图的结论必须和 audit 的结论一致
+  check(`${preset.name}：说明文档含结论行`, doc.includes('结论：**'));
+  check(
+    `${preset.name}：说明文档结论与校验一致`,
+    doc.includes(audit.status === 'broken' ? '跑不起来' : audit.status === 'incomplete' ? '能跑，但零件不全' : '可以跑起来')
+  );
+  check(`${preset.name}：说明文档含请求链路`, doc.includes('## 二、请求链路'));
+  check(`${preset.name}：说明文档含能力供需`, doc.includes('## 三、能力供需'));
+  check(`${preset.name}：说明文档解释了怎么读图`, doc.includes('## 五、怎么读那张图'));
+  check(`${preset.name}：README 已插入架构图小节`, readmeOf(picks).includes('## 架构图'));
+
+  // ⑦ README 里的相对链接必须真能命中包里的文件，否则点开是 404
+  const md = readmeOf(picks);
+  check(`${preset.name}：README 引用了 architecture.svg`, md.includes('(architecture.svg)'));
+  check(`${preset.name}：README 引用了 ARCHITECTURE.md`, md.includes('(ARCHITECTURE.md)'));
+}
+
+// DSL 源码：拼字符串不要钱，但要保证拼出来的是能用的语法
+{
+  const picks = presetPicks('standard');
+  const audit = auditArchitecture(picks);
+  const d = buildArchDiagram({ picks, audit, title: 'x' });
+  const d2 = archDiagramD2(d.model);
+  const mmd = archDiagramMermaid(d.model);
+  check('D2 源码含全部泳道', arch.lanes.every((l) => d2.includes(`${l.id}: ${l.name} {`)));
+  check('D2 源码含数据层流水线', d2.includes('data.persistence -> data.database'));
+  check('Mermaid 源码含 subgraph', (mmd.match(/subgraph /g) ?? []).length === arch.lanes.length);
+  check('Mermaid 源码含流水线箭头', mmd.includes('-->'));
 }
 
 zipChecks().then(() => {
