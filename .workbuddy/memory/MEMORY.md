@@ -28,7 +28,10 @@
 
 ## 运行方式
 
-- 一条命令：`cd arsenal-web && npm run verify` = 35 项架构判定 + 103 项结构/导出 + 14 项引擎样本 + 8 项前后端一致性 = **160 项**。
+- 一条命令：`cd arsenal-web && npm run verify` = 35 项架构判定 + 56 项图与交互 + 191 项结构/导出 + 14 项引擎样本 + 8 项前后端一致性 = **304 项**。
+  （旧记忆里写的 160 / project 103 是**错的**：project-check 脚本实测报 191 项，2026-09-20 按实跑输出更正。）
+  `verify:parity` 那 8 项需要 `bash` + JDK 17（它要起后端探针实跑导出）；本机无 bash 时该层报 `execvpe(/bin/bash) failed`，其余 296 项照常有效。
+  **架构图交互层**（`src/lib/arch-graph.ts` + `arch-diagram.ts` 的 `view`）的硬规矩：依赖边（provides/requires，是事实）与版式边（pipelines，是版式主张）**绝不许混着说**；可达性只走依赖边，路由两种都走但必须 `usesLayout` 标注。渲染器加法契约：不传 `view` 时 `buildArchDiagramSvg` 产物**逐字节不变**（导出包走这条），交互钩子只由 `buildArchDiagramSvgInteractive` 输出。
 - **前端 `npm run dev`（端口 3010）实测可用**，六个路由（`/ /rules /blueprints /stack /check /export`）全 200。
   旧记忆里「沙箱中 `next dev` 被 safe-delete 拦」是**错的** —— 那是 `node_modules` 缺失时期的误判，已更正。
   静态导出另走：`npm run build`（`next.config.mjs` 设了 `output:'export'`）→ `out/` + `python -m http.server 3010 -d out`。

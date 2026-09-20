@@ -146,9 +146,14 @@ src/app/                  页面
 
 ## 自检
 
+`npm run verify` 一条命令跑完五层、共 **304 项**（任一层红即中断）：
+
 ```
-npm run verify:engine      # 校验引擎对靶子样本的命中率与误报检查
-npm run verify:arch        # 可运行性校验的 34 项判定（含归并、假阳性、单调性）
+npm run verify:arch        # 35 项：能力供需 / 槽位必需性 / 三态结论
+npm run verify:graph       # 56 项：架构图交互层 —— 依赖边与版式边不许混淆、可达/路由自洽、渲染器加法契约
+npm run verify:project     # 191 项：结构树、启动类、隐患、README、架构图与说明、zip 打包
+npm run verify:engine      # 14 项：校验引擎对靶子样本的命中率与误报检查
+npm run verify:parity      # 8 项：前后端导出逐字节一致性（需 bash + JDK 17，起后端探针实跑）
 ```
 
 ## 注意

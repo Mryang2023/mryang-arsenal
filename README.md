@@ -145,17 +145,22 @@ bash scripts/compile-check.sh      # 26 源文件 → 41 class
 cd arsenal-web && npm run verify
 ```
 
-一条命令跑完四层、共 **160 项**：
+一条命令跑完五层、共 **304 项**：
 
 | 层 | 项数 | 看什么 |
 |---|---|---|
 | `verify:arch` | 35 | 能力供需 / 槽位必需性 / 三态结论 |
-| `verify:project` | 103 | 结构树、启动类、隐患、README、zip 打包 |
+| `verify:graph` | 56 | 架构图交互层：依赖边与版式边不许混淆、可达/路由自洽、渲染器加法契约 |
+| `verify:project` | 191 | 结构树、启动类、隐患、README、架构图与说明、zip 打包 |
 | `verify:engine` | 14 | 规则池对账、样本检出、误报检查 |
 | `verify:parity` | 8 | 前后端导出逐字节一致性（含后端探针实跑） |
 
-改动能力模型、槽位必需性、策略或结构树之后**必须重跑**，基线在
-`.verify/audit-check.ts` 与 `.verify/project-check.ts`。
+改动能力模型、槽位必需性、策略、结构树或架构图渲染之后**必须重跑**：基线在
+`.verify/audit-check.ts`、`.verify/graph-check.ts` 与 `.verify/project-check.ts`。
+
+> `verify:parity` 需要 `bash` + JDK 17：它要起后端探针实跑一遍导出再逐字节比对。
+> 没有 bash 的环境这一层跑不了（报 `execvpe(/bin/bash) failed`），此时前四层
+> （35 + 56 + 191 + 14 = 296 项）仍然有效，只有最后一层的 8 项缺失。
 
 ---
 

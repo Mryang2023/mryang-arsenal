@@ -133,6 +133,12 @@ export interface DiagramSlot {
   onPipeline: boolean;
   /** 悬停时能看到的能力说明 */
   tip: string;
+  /** 当前选项提供的能力 —— 不参与默认 SVG，供交互层与图模型使用 */
+  provides: string[];
+  /** 当前选项索要的能力 */
+  requires: string[];
+  /** 索要了、但当前组合里没人提供的能力 */
+  unmet: string[];
 }
 
 export interface DiagramLane {
@@ -175,6 +181,7 @@ function pipelineCountOf(laneId: string, slotIds: string[]): number {
 export function buildArchDiagramModel(input: DiagramInput): ArchDiagramModel {
   const { picks, audit, title, subtitle } = input;
   const dimById = new Map(dimensions.map((d) => [d.id, d]));
+  const providedSet = new Set(audit.providedCaps);
 
   const lanes: DiagramLane[] = arch.lanes.map((lane) => {
     const slotIds = slotsOfLane(lane.id);
@@ -186,6 +193,12 @@ export function buildArchDiagramModel(input: DiagramInput): ArchDiagramModel {
       const optId = picks[dimId];
       const opt = optId ? dim?.options.find((o) => o.id === optId) : undefined;
       const state = audit.slotStates[dimId] ?? 'empty';
+
+      // 能力声明取自「选中的那个选项」—— 空格子既不提供也不索要任何能力。
+      // 这里只把事实挂到方块上，画不画由 view 决定。
+      const spec = optId ? arch.options[dimId]?.[optId] : undefined;
+      const provides = spec?.provides ?? [];
+      const requires = spec?.requires ?? [];
 
       // 悬停说明：把「缺了会怎样」和「提供了哪些能力」都摊开，
       // 图上一眼看不出代价的地方，鼠标停一下就能看到。
@@ -204,6 +217,9 @@ export function buildArchDiagramModel(input: DiagramInput): ArchDiagramModel {
         recommended: !!node?.recommended,
         onPipeline: index < pipelineCount,
         tip: parts.join(' '),
+        provides,
+        requires,
+        unmet: requires.filter((c) => !providedSet.has(c)),
       };
     });
 
@@ -391,7 +407,45 @@ function stateLabel(state: SlotState): string {
   }
 }
 
-function roundedCard(x: number, y: number, slot: DiagramSlot, p: DiagramPalette): string {
+// ─────────────────────────────────────────────────────────────
+// 交互层：视图态是纯函数的**输入**，不是渲染完再改 DOM
+//
+// 聚焦、可达、路由、透镜、导览 —— 全部作为 view 传进来重新渲染一份 SVG。
+// 这样「架构图是算出来的」在交互态下依然成立：任何一个像素都能由
+// 数据 + 视图态重放出来，不存在藏在 DOM 里的第二份真相。
+//
+// 硬约束：**不传 view、也不开 interactive 时，产物必须与加交互层之前逐字节相同。**
+// 导出包里的 architecture.svg 走的正是这条路 —— 所以那份产物永远不会带上
+// 只有屏幕上才成立的临时状态（与 archify 自己的规矩一致：导出里不留 viewer 状态）。
+// ─────────────────────────────────────────────────────────────
+
+export interface DiagramView {
+  /** 当前选中的槽位（画一圈焦点环） */
+  focus?: string;
+  /** 参与高亮的槽位；设了它，不在其中的方块会被压暗 */
+  lit?: string[];
+  /** 参与高亮的层内流水线段，键为 `${laneId}:${index}` */
+  litPipes?: string[];
+  /** 参与高亮的泳道 */
+  litLanes?: string[];
+  /** 当前在看什么 —— 只用于提示语气，不影响几何 */
+  tone?: 'upstream' | 'downstream' | 'route' | 'lens' | 'story';
+}
+
+interface SvgOptions {
+  /** 是否输出 id / data-* 交互钩子（屏幕上要，导出包里不要） */
+  interactive?: boolean;
+  view?: DiagramView;
+}
+
+function roundedCard(
+  x: number,
+  y: number,
+  slot: DiagramSlot,
+  p: DiagramPalette,
+  opts: SvgOptions = {},
+  laneId = ''
+): string {
   const { stroke, dash } = stateStroke(slot.state, p);
   const out: string[] = [];
   // 右上角要放角标时，标题可用宽度必须让出来 —— 否则长标题会钻到角标底下
@@ -401,11 +455,37 @@ function roundedCard(x: number, y: number, slot: DiagramSlot, p: DiagramPalette)
     slot.state === 'conflict';
   const maxTextW = CARD_W - CARD_PAD * 2 - (hasCornerTag ? 24 : 0);
 
-  out.push(`<g>`);
+  const litSet = opts.view?.lit ? new Set(opts.view.lit) : null;
+  const isLit = !litSet || litSet.has(slot.dimId);
+  const isFocus = !!opts.view?.focus && opts.view.focus === slot.dimId;
+
+  const gAttrs: string[] = [];
+  if (opts.interactive) {
+    gAttrs.push(
+      `id="slot-${slot.dimId}"`,
+      `data-slot="${slot.dimId}"`,
+      `data-lane="${laneId}"`,
+      `data-state="${slot.state}"`,
+      'role="button"',
+      'tabindex="0"'
+    );
+  }
+  if (litSet && !isLit) gAttrs.push('opacity="0.3"');
+
+  const cardStroke = litSet && isLit ? p.accent : stroke;
+  const cardStrokeWidth = litSet && isLit ? 2 : 1;
+
+  out.push(gAttrs.length ? `<g ${gAttrs.join(' ')}>` : '<g>');
   if (slot.tip) out.push(`<title>${escapeXml(slot.tip)}</title>`);
+  if (isFocus) {
+    out.push(
+      `<rect x="${x - 3}" y="${y - 3}" width="${CARD_W + 6}" height="${CARD_H + 6}" rx="8" ` +
+        `fill="none" stroke="${p.accent}" stroke-width="2" stroke-dasharray="4 3"/>`
+    );
+  }
   out.push(
     `<rect x="${x}" y="${y}" width="${CARD_W}" height="${CARD_H}" rx="6" ` +
-      `fill="${stateFill(slot.state, p)}" stroke="${stroke}" stroke-width="1"${dash}/>`
+      `fill="${stateFill(slot.state, p)}" stroke="${cardStroke}" stroke-width="${cardStrokeWidth}"${dash}/>`
   );
 
   // 主标题：选项名。两行放不下就省略。
@@ -449,13 +529,17 @@ function roundedCard(x: number, y: number, slot: DiagramSlot, p: DiagramPalette)
   return out.join('');
 }
 
-export function buildArchDiagramSvg(model: ArchDiagramModel, theme: DiagramTheme = 'dark'): string {
+function renderArchSvg(
+  model: ArchDiagramModel,
+  theme: DiagramTheme,
+  opts: SvgOptions
+): string {
   const p = DIAGRAM_PALETTE[theme];
   const out: string[] = [];
 
   out.push(
     `<svg xmlns="http://www.w3.org/2000/svg" width="${model.width}" height="${model.height}" ` +
-      `viewBox="0 0 ${model.width} ${model.height}" role="img" ` +
+      `viewBox="0 0 ${model.width} ${model.height}" role="${opts.interactive ? 'group' : 'img'}" ` +
       `aria-label="${escapeXml(model.title)}">`
   );
   out.push(
@@ -500,13 +584,19 @@ export function buildArchDiagramSvg(model: ArchDiagramModel, theme: DiagramTheme
   );
 
   // ── 泳道 ──
+  const litLanes = opts.view?.litLanes ? new Set(opts.view.litLanes) : null;
+  const litPipes = opts.view?.litPipes ? new Set(opts.view.litPipes) : null;
+
   model.lanes.forEach((lane, laneIndex) => {
     const y = lanesTop + laneIndex * (LANE_H + LANE_GAP);
     const centerY = y + LANE_H / 2;
+    const laneLit = !litLanes || litLanes.has(lane.id);
 
     out.push(
       `<rect x="${PAD}" y="${y}" width="${model.width - PAD * 2}" height="${LANE_H}" rx="8" ` +
-        `fill="${p.band}" stroke="${p.bandStroke}" stroke-width="1"/>`
+        `fill="${p.band}" stroke="${litLanes && laneLit ? p.accent : p.bandStroke}" ` +
+        `stroke-width="${litLanes && laneLit ? 2 : 1}"` +
+        `${opts.interactive ? ` data-lane-band="${lane.id}"` : ''}/>`
     );
 
     // 泳道名（左栏）
@@ -520,18 +610,22 @@ export function buildArchDiagramSvg(model: ArchDiagramModel, theme: DiagramTheme
     const cardsY = y + LANE_PAD_Y;
     lane.slots.forEach((slot, i) => {
       const x = CARDS_X + i * (CARD_W + CARD_GAP);
-      out.push(roundedCard(x, cardsY, slot, p));
+      out.push(roundedCard(x, cardsY, slot, p, opts, lane.id));
     });
 
     // 层内流水线箭头：只在「请求真正流经」的那几个方块之间画
     for (let i = 0; i + 1 < lane.pipelineCount; i += 1) {
       const x1 = CARDS_X + i * (CARD_W + CARD_GAP) + CARD_W;
       const x2 = x1 + CARD_GAP;
+      const pipeKey = `${lane.id}:${i}`;
+      const pipeDim = litPipes ? !litPipes.has(pipeKey) : false;
+      const pipeColor = pipeDim ? p.bandStroke : p.cardStroke;
       out.push(
         `<line x1="${x1 + 2}" y1="${centerY}" x2="${x2 - 5}" y2="${centerY}" ` +
-          `stroke="${p.cardStroke}" stroke-width="2"/>`,
+          `stroke="${pipeColor}" stroke-width="2"${pipeDim ? ' opacity="0.3"' : ''}` +
+          `${opts.interactive ? ` data-pipe="${pipeKey}"` : ''}/>`,
         `<path d="M ${x2 - 5} ${centerY - 4} L ${x2} ${centerY} L ${x2 - 5} ${centerY + 4} Z" ` +
-          `fill="${p.cardStroke}"/>`
+          `fill="${pipeColor}"${pipeDim ? ' opacity="0.3"' : ''}/>`
       );
     }
 
@@ -574,6 +668,28 @@ export function buildArchDiagramSvg(model: ArchDiagramModel, theme: DiagramTheme
 
   out.push('</svg>');
   return out.join('\n');
+}
+
+/**
+ * 规范产物：导出包里的 architecture.svg 与「下载 SVG」走的都是这条。
+ * 永远不带交互钩子，也不带任何视图态 —— 它必须是可复现、可归档的那一份。
+ */
+export function buildArchDiagramSvg(model: ArchDiagramModel, theme: DiagramTheme = 'dark'): string {
+  return renderArchSvg(model, theme, {});
+}
+
+/**
+ * 屏幕上的产物：多出 id / data-* / tabindex 这些**不可见**的交互钩子，
+ * 并按视图态压暗或点亮。几何、文字、配色与规范产物完全一致 ——
+ * 区别只在"能不能点"和"当前高亮谁"，所以「你看到什么，下载到的就是什么」
+ * 在视觉上依然成立；下载到的那份只是去掉了临时高亮。
+ */
+export function buildArchDiagramSvgInteractive(
+  model: ArchDiagramModel,
+  theme: DiagramTheme,
+  view: DiagramView
+): string {
+  return renderArchSvg(model, theme, { interactive: true, view });
 }
 
 export interface BuiltDiagram {

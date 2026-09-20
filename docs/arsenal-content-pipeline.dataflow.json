@@ -1,0 +1,165 @@
+{
+  "schema_version": 1,
+  "diagram_type": "dataflow",
+  "meta": {
+    "title": "杨先生的军火库 · 内容流水线",
+    "subtitle": "一份数据，三种出口 —— 内容源到出口的五步，其中一条不经生成器",
+    "locale": "zh-CN",
+    "visual_preset": "signal-flow",
+    "quality_profile": "showcase",
+    "viewBox": [1080, 570],
+    "views": [
+      {
+        "id": "rule_change",
+        "label": "改一条规则",
+        "focus": ["rules_hand", "sot", "generated", "outputs"],
+        "note": "规则是手写数据，从手写源直达 source of truth，不经过 build-content。"
+      },
+      {
+        "id": "case_change",
+        "label": "改一个案例 / 选型",
+        "focus": ["content_py", "build_py", "sot", "generated", "outputs"],
+        "note": "案例与选型必须改 tools/content/*.py 再跑生成器；直接改产物 JSON 会在下次构建被覆盖。"
+      },
+      {
+        "id": "gates",
+        "label": "两道构建期闸门",
+        "focus": ["build_py", "sot", "generated"],
+        "note": "build-content 拦住生成期错误；sync-content 拦住锚点失配 —— 两者都是失败即中断。"
+      }
+    ],
+    "legend": {
+      "mode": "auto",
+      "entries": {
+        "dashed": { "label": "旁路：手写，不经生成器" },
+        "database": { "label": "进 Git 的数据源 / 可重建快照" }
+      }
+    }
+  },
+  "stages": [
+    { "label": "① 内容源" },
+    { "label": "② 生成与校验" },
+    { "label": "③ Source of Truth" },
+    { "label": "④ 编译期快照" },
+    { "label": "⑤ 三种出口" }
+  ],
+  "nodes": [
+    {
+      "id": "content_py",
+      "type": "backend",
+      "label": "tools/content",
+      "sublabel": "12 个 .py 模块",
+      "tag": "案例 · 选型",
+      "stage": 0,
+      "row": 0
+    },
+    {
+      "id": "rules_hand",
+      "type": "backend",
+      "label": "规则手写源",
+      "sublabel": "62 条 / 11 文件",
+      "tag": "不经生成器",
+      "stage": 0,
+      "row": 2
+    },
+    {
+      "id": "build_py",
+      "type": "backend",
+      "label": "build-content",
+      "sublabel": "生成 + 构建期校验",
+      "tag": "闸门一",
+      "stage": 1,
+      "row": 1
+    },
+    {
+      "id": "sot",
+      "type": "database",
+      "label": "Source of Truth",
+      "sublabel": "三份，都进 Git",
+      "tag": "rules / cookbook / stacks",
+      "stage": 2,
+      "row": 2
+    },
+    {
+      "id": "generated",
+      "type": "database",
+      "label": "generated/*.json",
+      "sublabel": "编译期快照",
+      "tag": "闸门二 · 可重建",
+      "stage": 3,
+      "row": 1
+    },
+    {
+      "id": "outputs",
+      "type": "frontend",
+      "label": "三种出口",
+      "sublabel": "页面 · 载体 · 校验",
+      "tag": "src/lib/*.ts",
+      "stage": 4,
+      "row": 1
+    }
+  ],
+  "flows": [
+    {
+      "id": "f_content_gen",
+      "from": "content_py",
+      "to": "build_py",
+      "label": "12 个模块"
+    },
+    {
+      "id": "f_rules_bypass",
+      "from": "rules_hand",
+      "to": "sot",
+      "label": "62 条 · 手写",
+      "variant": "dashed",
+      "route": "straight"
+    },
+    {
+      "id": "f_gen_sot",
+      "from": "build_py",
+      "to": "sot",
+      "label": "案例 · 选型"
+    },
+    {
+      "id": "f_sot_snapshot",
+      "from": "sot",
+      "to": "generated",
+      "label": "锚点全命中才写"
+    },
+    {
+      "id": "f_snapshot_outputs",
+      "from": "generated",
+      "to": "outputs",
+      "label": "纯函数层"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "三种出口（第一原则：一份数据，三种出口）",
+      "items": [
+        "人查 —— /rules /blueprints /stack 页面，6 个路由",
+        "给 AI 用 —— 导出 prompt / cursorrules / claude / mcp 等 6 种载体",
+        "拿代码验 —— POST /api/lint 送代码拿违规清单，非正则层进 skipped 如实披露"
+      ]
+    },
+    {
+      "dot": "amber",
+      "title": "三条硬约定（违反即出事故）",
+      "items": [
+        "改案例 / 选型 → 改 tools/content/*.py 再跑生成器，不要直接改产物 JSON",
+        "改规则 → 直接改 arsenal-rules/**/*.json（规则是唯一不经生成器的手写源）",
+        "案例备注用「片段锚点」不用行号；sync-content 找不到锚点即构建失败"
+      ]
+    },
+    {
+      "dot": "slate",
+      "title": "为什么用 Python 生成器而不是手写 JSON",
+      "items": [
+        "Java / YAML / XML 里全是双引号和换行，手写 JSON 字符串必须逐行转义，极易出错且完全不可读",
+        "生成器把校验放在构建期：错误在 build-content 就中断，而不是等页面渲染才发现",
+        "MUST + NEVER ≤ 50 是硬上限，超了视为设计问题，不是阈值太小"
+      ]
+    }
+  ]
+}
