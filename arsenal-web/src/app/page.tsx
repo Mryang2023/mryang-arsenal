@@ -1,10 +1,10 @@
 import Link from 'next/link';
 import SeverityBadge from '@/components/SeverityBadge';
-import { liveStats, meta, orderedCategories, rules, sourceIndex, countBySeverity } from '@/lib/rules';
+import { liveStats, meta, orderedCategories, rules, sourceIndex, sourceTypeLabel, countBySeverity } from '@/lib/rules';
 import { cookbookStats } from '@/lib/cookbook';
 import { dimensions as stackDimensions } from '@/lib/stack';
 import { arch, lanes as archLanes } from '@/lib/arch';
-import { CATEGORY_THEME, SEVERITY_THEME, SEVERITY_ORDER, SOURCE_TYPE_LABEL } from '@/lib/theme';
+import { CATEGORY_THEME, SEVERITY_THEME, SEVERITY_ORDER } from '@/lib/theme';
 
 /** 装配台规模，页面上的数字直接来自数据文件，不手写。 */
 const stackDimCount = stackDimensions.length;
@@ -319,7 +319,7 @@ export default function HomePage() {
                     <td className="px-4 py-2.5 text-fg">{s.ref}</td>
                     <td className="px-3 py-2.5">
                       <span className="rounded border border-line px-1.5 py-0.5 text-2xs text-fgMuted">
-                        {SOURCE_TYPE_LABEL[s.type] ?? s.type}
+                        {sourceTypeLabel(s.type)}
                       </span>
                     </td>
                     <td className="mono px-4 py-2.5 text-right text-fgMuted">{s.count}</td>

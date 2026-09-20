@@ -20,11 +20,20 @@ arsenal-web/src/generated/
 
 # ── 验证产物：脚本本身要提交，跑出来的东西不要 ────────────────
 #    .verify/*.ts / *.mjs 是自检代码，属资产；截图与中间 zip 是产物
+#    _b_*.mjs 是 tsx 为了解析 tsconfig 路径别名（@/lib/...）生成的临时打包产物，
+#    每个入口文件一份、近 900KB，跑一次就变一次 —— 绝不能进仓库。
 arsenal-web/.verify/tmp/
 arsenal-web/.verify/shots*/
+arsenal-web/.verify/_b_*.mjs
 
 # ── 示例导出包：装配台随时可重新导出，不占仓库 ────────────────
 arsenal-demo-*.zip
+
+# ── 会话级调试产物：探针输出 / 临时脚本，用完即弃 ──────────────
+#    约定：一次性抓取（环境探测、命令日志重定向、临时 runner）一律写
+#    到 .workbuddy/_* —— 下划线前缀 = 不是资产，随手可删。
+#    注意只匹配下划线开头，.workbuddy/memory/ 不受影响。
+.workbuddy/_*
 
 # ── IDE 本地配置：每台机器、每个人都不一样，不进仓库 ──────────
 #    JetBrains 会在项目根建 .idea/，VS Code 建 .vscode/

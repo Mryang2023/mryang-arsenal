@@ -56,16 +56,24 @@
       "note": "用于异常设计、可变性、equals/hashCode 等语言级条目。"
     }
   },
+  "sourceTypes": {
+    "industry-standard": "行业规范",
+    "framework-doc": "框架文档",
+    "spec": "技术标准",
+    "book": "经典著作",
+    "security-baseline": "安全基线",
+    "project-decision": "项目决策"
+  },
   "categories": [
-    { "key": "skeleton",     "name": "工程骨架", "dir": "skeleton",     "fileCount": 1 },
-    { "key": "web",          "name": "Web 层",   "dir": "web",          "fileCount": 1 },
-    { "key": "service",      "name": "业务层",   "dir": "service",      "fileCount": 1 },
-    { "key": "data",         "name": "数据层",   "dir": "data",         "fileCount": 1 },
-    { "key": "concurrency",  "name": "并发",     "dir": "concurrency",  "fileCount": 1 },
-    { "key": "reliability",  "name": "可靠性",   "dir": "reliability",  "fileCount": 1 },
-    { "key": "security",     "name": "安全",     "dir": "security",     "fileCount": 1 },
-    { "key": "test",         "name": "测试",     "dir": "test",         "fileCount": 1 },
-    { "key": "collab",       "name": "协作",     "dir": "collab",       "fileCount": 1 }
+    { "key": "skeleton",     "name": "工程骨架", "english": "Skeleton",    "blurb": "项目结构、包命名、依赖与配置",           "dir": "skeleton",     "fileCount": 1 },
+    { "key": "web",          "name": "Web 层",   "english": "Web",         "blurb": "Controller 职责、入参出参契约、校验出口",  "dir": "web",          "fileCount": 1 },
+    { "key": "service",      "name": "业务层",   "english": "Service",     "blurb": "分层边界、事务、注入与业务异常",           "dir": "service",      "fileCount": 1 },
+    { "key": "data",         "name": "数据层",   "english": "Data",        "blurb": "SQL 写法、表结构、索引与分页",            "dir": "data",         "fileCount": 1 },
+    { "key": "concurrency",  "name": "并发",     "english": "Concurrency", "blurb": "线程池、ThreadLocal、时间格式化",         "dir": "concurrency",  "fileCount": 1 },
+    { "key": "reliability",  "name": "可靠性",   "english": "Reliability", "blurb": "异常、日志、重试退避与超时",              "dir": "reliability",  "fileCount": 1 },
+    { "key": "security",     "name": "安全",     "english": "Security",    "blurb": "注入、反序列化、凭据与脱敏",              "dir": "security",     "fileCount": 1 },
+    { "key": "test",         "name": "测试",     "english": "Test",        "blurb": "测试结构、命名与断言",                   "dir": "test",         "fileCount": 1 },
+    { "key": "collab",       "name": "协作",     "english": "Collab",      "blurb": "Git 提交、分支与文档约定",               "dir": "collab",       "fileCount": 1 }
   ],
   "changelog": [
     {

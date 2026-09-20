@@ -4,8 +4,8 @@ import type { Metadata } from 'next';
 import CodeBlock from '@/components/CodeBlock';
 import CopyButton from '@/components/CopyButton';
 import SeverityBadge from '@/components/SeverityBadge';
-import { getRule, rules, rulesOfCategory } from '@/lib/rules';
-import { CATEGORY_THEME, SEVERITY_THEME, CHECK_LAYER_THEME, SOURCE_TYPE_LABEL } from '@/lib/theme';
+import { getRule, rules, rulesOfCategory, sourceTypeLabel } from '@/lib/rules';
+import { CATEGORY_THEME, SEVERITY_THEME, CHECK_LAYER_THEME } from '@/lib/theme';
 
 export function generateStaticParams() {
   return rules.map((r) => ({ id: r.id }));
@@ -231,7 +231,7 @@ export default function RuleDetailPage({ params }: { params: { id: string } }) {
                   <div className="flex flex-wrap items-center gap-2">
                     <span className="text-[13px] text-fg">{s.ref}</span>
                     <span className="rounded border border-line px-1.5 py-0.5 text-2xs text-fgFaint">
-                      {SOURCE_TYPE_LABEL[s.type ?? ''] ?? s.type}
+                      {sourceTypeLabel(s.type)}
                     </span>
                   </div>
                   {s.quote && (

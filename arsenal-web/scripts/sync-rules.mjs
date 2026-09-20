@@ -1,5 +1,8 @@
 /**
- * 规则数据同步：arsenal-rules/**\/*.json  →  src/generated/rules.json
+ * 数据同步：arsenal-rules  →  src/generated/
+ *
+ *   arsenal-rules/**\/*.json   →  src/generated/rules.json        （规则集）
+ *   arsenal-rules/mcp-tools.json → src/generated/mcp-tools.json   （MCP 工具定义）
  *
  * 为什么要有这一步：
  * arsenal-rules 是唯一数据源（source of truth，Git 化、后端/前端/导出器共读）。
@@ -92,21 +95,76 @@ for (const r of rules) {
 const mustClass = (bySeverity.MUST ?? 0) + (bySeverity.NEVER ?? 0);
 const limit = meta.budget?.mustHardLimit ?? 50;
 
+/**
+ * meta.json → 前端可见的 meta。
+ *
+ * 刻意是白名单而不是 `{...meta}` 展开：后端能从磁盘读全文，前端只该拿到
+ * 它真正会渲染的字段，别的别跟着一起进包。
+ *
+ * 但白名单有个致命坏处 —— **漏一个字段是静默的**。`sourceTypes` 就真的漏过：
+ * meta.json 里加了它、后端 RulesetMeta 也映射了，唯独这里没透传，
+ * 于是「同一份映射两端共读」只成立了一半，前端只能靠 theme.ts 里那份副本兜着。
+ * 所以下面加了 `assertMetaAccounted`：meta.json 里出现白名单外的键就**构建失败**，
+ * 逼人显式回答「这个字段前端要不要」。
+ */
+const META_PASSTHROUGH = [
+  'ruleset', 'name', 'codename', 'version', 'releasedAt', 'description',
+  'targetStack', 'severityPolicy', 'budget', 'sourceRegistry', 'sourceTypes',
+  'categories', 'changelog',
+];
+
+/** 明确「前端不需要」的键。写在这里是为了让上面的断言能给出确定的答案。 */
+const META_IGNORED = ['$schema', '$comment'];
+
+function assertMetaAccounted(m) {
+  const known = new Set([...META_PASSTHROUGH, ...META_IGNORED]);
+  const unaccounted = Object.keys(m).filter((k) => !known.has(k));
+  if (unaccounted.length) {
+    fail(
+      `meta.json 里有未处理的字段：${unaccounted.join('、')}\n` +
+      `  要么加进 sync-rules.mjs 的 META_PASSTHROUGH（前端要用），\n` +
+      `  要么加进 META_IGNORED（确认前端不需要）。\n` +
+      `  不声明的字段会被静默丢掉 —— sourceTypes 就这么漏过一次。`
+    );
+  }
+}
+assertMetaAccounted(meta);
+
+/**
+ * MCP 工具定义同步：arsenal-rules/mcp-tools.json → src/generated/mcp-tools.json
+ *
+ * 为什么单独一个文件而不是塞进 rules.json：它是「协议适配层」的数据，不是规则数据。
+ * 混进 rules.json 会让「规则集」这个出口多出与规则无关的字段，
+ * 而 `json` 载体是要逐字段跟后端对齐的 —— 多一个键就要多解释一次。
+ *
+ * 校验放在这里而不是靠人眼：工具名重复、缺 inputSchema、launcher 少 command，
+ * 这类问题在运行时表现为「AI 客户端连不上/调不通」，排查成本远高于构建期报错。
+ */
+const mcpPath = path.join(rulesRoot, 'mcp-tools.json');
+if (!fs.existsSync(mcpPath)) fail('缺少 arsenal-rules/mcp-tools.json —— MCP 工具定义是导出与适配层共读的数据源');
+const mcp = JSON.parse(fs.readFileSync(mcpPath, 'utf8'));
+
+const mcpProblems = [];
+if (!mcp.server?.name) mcpProblems.push('server.name 缺失');
+if (!mcp.launcher?.command) mcpProblems.push('launcher.command 缺失');
+if (!Array.isArray(mcp.tools) || mcp.tools.length === 0) mcpProblems.push('tools 为空');
+const toolNames = new Set();
+for (const t of mcp.tools ?? []) {
+  if (!t.name) mcpProblems.push('tools[] 存在缺少 name 的条目');
+  else if (toolNames.has(t.name)) mcpProblems.push(`工具名重复：${t.name}`);
+  toolNames.add(t.name);
+  if (!t.description) mcpProblems.push(`工具 ${t.name} 缺少 description（AI 靠它决定调不调）`);
+  if (!t.inputSchema) mcpProblems.push(`工具 ${t.name} 缺少 inputSchema`);
+}
+if (mcpProblems.length) fail(`mcp-tools.json 校验未通过：\n  - ${mcpProblems.join('\n  - ')}`);
+
+fs.mkdirSync(outDir, { recursive: true });
+const mcpOut = path.join(outDir, 'mcp-tools.json');
+fs.writeFileSync(mcpOut, JSON.stringify(mcp, null, 2), 'utf8');
+
 const payload = {
   generatedAt: new Date().toISOString(),
-  meta: {
-    ruleset: meta.ruleset,
-    name: meta.name,
-    version: meta.version,
-    releasedAt: meta.releasedAt,
-    description: meta.description,
-    targetStack: meta.targetStack,
-    severityPolicy: meta.severityPolicy,
-    budget: meta.budget,
-    sourceRegistry: meta.sourceRegistry,
-    categories: meta.categories,
-    changelog: meta.changelog,
-  },
+  meta: Object.fromEntries(META_PASSTHROUGH.map((k) => [k, meta[k]])),
   stats: {
     total: rules.length,
     bySeverity,
@@ -133,5 +191,6 @@ const rel = path.relative(webRoot, outFile).replace(/\\/g, '/');
 console.log(
   `[arsenal] 已同步 ${rules.length} 条规则 → ${rel}\n` +
   `         强制级 ${mustClass}/${limit}（预算用掉 ${payload.stats.budgetUsedPct}%）` +
-  `｜提示词 ${payload.stats.promptChars} 字符 ≈ ${payload.stats.promptTokensEstimate} tokens`
+  `｜提示词 ${payload.stats.promptChars} 字符 ≈ ${payload.stats.promptTokensEstimate} tokens\n` +
+  `         MCP 工具 ${mcp.tools.length} 个 → ${path.relative(webRoot, mcpOut).replace(/\\/g, '/')}`
 );

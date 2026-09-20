@@ -78,10 +78,14 @@ public class RuleIndex {
         return Optional.ofNullable(byId.get(id));
     }
 
-    public List<Rule> byCategory(String category) {
-        return byCategory.getOrDefault(category, List.of());
-    }
-
+    /**
+     * 按分类取规则。
+     *
+     * 这里曾经还有一个 {@code byCategory(String)} 单数版访问器，已经删掉：
+     * 它返回的是**全量**索引，而调用方（导出的 markdown）手里是**筛选后**的列表，
+     * 两者混用就会出现「分类标题写 9 条、下面只列 3 条」。
+     * 现在需要分组的地方一律对「手里那份列表」分组，不再回查全量索引。
+     */
     public Map<String, List<Rule>> grouped() {
         return byCategory;
     }

@@ -39,6 +39,40 @@ export function rulesOfCategory(cat: CategoryKey): Rule[] {
   return byCategory.get(cat) ?? [];
 }
 
+/**
+ * 分类的声明顺序 —— 取自 meta.categories，不是前端写死的数组。
+ *
+ * 顺序是有含义的（从工程骨架到协作约定），而「有含义的顺序」只该有一个出处。
+ * 后端 ExporterService.select 用的是同一个来源，所以两端的条目顺序必然一致。
+ * 早前后端按分类字母序排、前端按写死的 CATEGORY_ORDER 排 —— 同一种载体
+ * 两端给出的条目顺序不一样，而且两边都觉得自己是对的。
+ */
+export const categoryRank = new Map<string, number>(
+  meta.categories.map((c, i) => [c.key, i])
+);
+
+/** 分类元信息（名称 / 英文名 / 说明）。查不到时退回 key —— 露出原始 key 比编一个好听的名字更容易发现问题。 */
+export function categoryMetaOf(key: string): { name: string; english: string; blurb: string } {
+  const c = meta.categories.find((x) => x.key === key);
+  return {
+    name: c?.name || key,
+    english: c?.english || key,
+    blurb: c?.blurb || '',
+  };
+}
+
+/**
+ * 来源类型 → 中文标签。
+ *
+ * 读的是 meta.sourceTypes（与后端同一份数据），不是 TS 里的常量表。
+ * 兜底口径与后端 RulesetMeta.sourceTypeLabel 逐字对齐：
+ * 类型缺失 → 「来源」；类型不认识 → 原样露出原始 key。
+ */
+export function sourceTypeLabel(type?: string): string {
+  if (!type) return '来源';
+  return meta.sourceTypes?.[type] ?? type;
+}
+
 export const orderedCategories = CATEGORY_ORDER.map((key) => ({
   key,
   rules: rulesOfCategory(key),

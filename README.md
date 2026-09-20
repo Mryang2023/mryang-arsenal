@@ -9,7 +9,7 @@
 ## 仓库位置
 
 ```
-D:\mryang\workspace\2026\arsenal
+D:\workspace\2026\mryang-arsenal
 ```
 
 单仓 monorepo。之所以不拆成三个仓：`tools/build-content.py` 一个生成器同时产出
@@ -59,7 +59,7 @@ arsenal/
 ├── arsenal-web/                 Next.js 前端（3010）
 │   ├── src/app/{rules,check,export,blueprints,stack}/  五个页面
 │   ├── src/lib/{cookbook,stack,arch,project,zip}.ts    纯函数层
-│   └── .verify/                 自检脚本（649 行，属资产，进 Git）
+│   └── .verify/                 自检脚本（1129 行，属资产，进 Git）
 │
 ├── arsenal-server/              Spring Boot 后端（3011，只读规则集）
 │   └── src/main/java/com/arsenal/{loader,engine,exporter,web,domain}
@@ -94,19 +94,50 @@ src/lib/*.ts  →  页面 / 合成器 / 导出器
 ```bash
 cd arsenal-web
 npm install                # 首次
-npm run build              # 会先自动跑 sync-content.mjs
-python -m http.server 3010 -d out
+npm run dev                # 开发模式，改代码热更新
 ```
 
-> 沙箱里 `next dev` 会被 safe-delete 守卫拦截，所以走「静态构建 + http.server」这条路。
+静态导出（脱离服务器，进 Git / 进内网 / 直接分享）：
+
+```bash
+npm run build              # prebuild 会先自动跑 sync
+python -m http.server 3010 -d out
+```
 
 ### 后端（3011）
 
 ```bash
 cd arsenal-server
-bash scripts/compile-check.sh      # 本机无 mvn，用 JDK 17 + .m2 跑 javac 静态编译
-# 有 Maven 时：mvn spring-boot:run
+bash scripts/run.sh                                   # 编译并启动，无需 Maven
+SERVER_ARGS="--server.port=3011" bash scripts/run.sh  # 指定端口
 ```
+
+`run.sh` 自己找 JDK 17（扫 `~/.jdks` 与 Program Files 各处，取最高的 17），并拼 `.m2` 里的运行时依赖。
+JDK 装在别处时用 `JDK_HOME=<JDK 目录> bash scripts/run.sh` 指定；有 Maven 时 `mvn spring-boot:run` 也可以。
+
+只想要静态编译（不启动，只验 API 用对了没）：
+
+```bash
+bash scripts/compile-check.sh      # 26 源文件 → 41 class
+```
+
+> `SKIP_COMPILE=1` 只跳过 javac，资源照旧复制 —— 资源复制是刻意放在守卫之外的。
+> 早先两者在同一个 `if` 里，于是「先 `compile-check.sh` 再 `SKIP_COMPILE=1` 启动」这条最自然的路径
+> 会缺 `application.yml`，启动报 `Could not resolve placeholder 'arsenal.rules-dir'` ——
+> 看着像配置写错，实则 `target/classes` 里只有 `com/`。
+
+启动后的接口：
+
+| 接口 | 用途 |
+|---|---|
+| `GET /api/health` | 存活 + 规则集版本（62 条 / 50 条强制级） |
+| `GET /api/stats` | 按严重度、分类统计 |
+| `GET /api/rules` · `/grouped` · `/sources` · `/{id}` | 规则查询 |
+| `GET /api/export/formats` · `/api/export/{format}` · `/{format}/raw` | 导出六种载体 |
+| `POST /api/lint` | 送代码拿违规清单 + 非正则层的 `skipped` 如实披露 |
+
+`POST /api/lint` 的请求体是 `{"files":[{"name":"com/example/UserController.java","content":"..."}]}`。
+`name` 用于匹配规则的 `targetGlob`，所以路径要尽量真实 —— 填裸文件名和填完整包路径，匹配到的规则数量差很多。
 
 ### 自检（改动后必跑）
 
@@ -114,7 +145,15 @@ bash scripts/compile-check.sh      # 本机无 mvn，用 JDK 17 + .m2 跑 javac 
 cd arsenal-web && npm run verify
 ```
 
-一条命令跑完三层：**35 项架构判定 + 103 项结构与导出 + 引擎样本**。
+一条命令跑完四层、共 **160 项**：
+
+| 层 | 项数 | 看什么 |
+|---|---|---|
+| `verify:arch` | 35 | 能力供需 / 槽位必需性 / 三态结论 |
+| `verify:project` | 103 | 结构树、启动类、隐患、README、zip 打包 |
+| `verify:engine` | 14 | 规则池对账、样本检出、误报检查 |
+| `verify:parity` | 8 | 前后端导出逐字节一致性（含后端探针实跑） |
+
 改动能力模型、槽位必需性、策略或结构树之后**必须重跑**，基线在
 `.verify/audit-check.ts` 与 `.verify/project-check.ts`。
 

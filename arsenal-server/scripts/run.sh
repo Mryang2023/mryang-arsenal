@@ -22,24 +22,23 @@ set -uo pipefail
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SERVER_ROOT="$(dirname "$HERE")"
 
-JDKBIN="${JDK_HOME:-C:/Users/Administrator/.jdks/ms-17.0.18}/bin"
+# ── JDK 定位：不在这里写死，统一走 _cp.sh ───────────────────────
+# 原先这行写死 C:/Users/Administrator/.jdks/ms-17.0.18。换一台机器、或 IDE 重装一次 JDK，
+# 这个路径就失效，而报错只说「java not found under ...」——看不出是默认值过时了。
+# `_cp.sh` 的注释里写着「各写一份的结果就是哪天换 JDK 只改了一处，另一处静默用旧路径，
+# 正是本项目在防的那类漂移」—— run.sh 恰好就是没跟上那一份，已实测在本机直接启动失败。
+# shellcheck source=./_cp.sh
+source "$HERE/_cp.sh" || exit 1
+
+JDKBIN="$JDK_DIR/bin"
 M2="${M2_REPO:-C:/Users/Administrator/.m2/repository}"
 
-to_win() {
-  if command -v cygpath >/dev/null 2>&1; then
-    cygpath -m "$1"
-  else
-    printf '%s' "$1"
-  fi
-}
-
+# to_win 由 _cp.sh 提供（它那版是幂等的，能把「已是 D:\ 风格」的路径原样放过）。
 JAVA="$JDKBIN/java.exe"
 [ -x "$JAVA" ] || JAVA="$JDKBIN/java"
-JAVAC="$JDKBIN/javac.exe"
-[ -x "$JAVAC" ] || JAVAC="$JDKBIN/javac"
 
 if [ ! -x "$JAVA" ]; then
-  echo "[FAIL] java not found under: $JDKBIN" >&2
+  echo "[FAIL] java not found under: $JDKBIN  (JDK_DIR=$JDK_DIR)" >&2
   exit 1
 fi
 
@@ -100,16 +99,23 @@ done
 
 cd "$SERVER_ROOT" || exit 1
 
+mkdir -p target/classes
+
 if [ "${SKIP_COMPILE:-0}" != "1" ]; then
   SOURCES=$(find src/main/java -name "*.java")
   echo "编译：$(echo "$SOURCES" | wc -l | tr -d ' ') 个源文件"
-  mkdir -p target/classes
   if ! "$JAVAC" -encoding UTF-8 -nowarn -d target/classes -cp "${CP#;}" $SOURCES; then
     echo "[FAIL] 编译失败" >&2
     exit 1
   fi
-  cp -r src/main/resources/. target/classes/
 fi
+
+# 资源复制刻意留在 SKIP_COMPILE 之外：变量名的意思是「跳过编译」，不是「跳过资源」。
+# 而且 compile-check.sh 只做静态校验、不复制资源，所以哪怕按最正常的顺序
+# 「先 compile-check 再 SKIP_COMPILE=1 启动」也会缺 application.yml，
+# 现象是 Spring 报 `Could not resolve placeholder 'arsenal.rules-dir'` ——
+# 看着像配置写错，实则 target/classes 里只有 com/，配置文件根本没进去。
+cp -r src/main/resources/. target/classes/
 
 RUN_DIR="${RUN_CWD:-$SERVER_ROOT}"
 mkdir -p "$RUN_DIR" 2>/dev/null

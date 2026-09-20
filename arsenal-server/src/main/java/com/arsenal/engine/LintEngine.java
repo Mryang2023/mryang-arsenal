@@ -20,10 +20,12 @@ import java.util.regex.Pattern;
 import java.util.regex.PatternSyntaxException;
 
 /**
- * Level 1 校验引擎（文本层）。
+ * Level 1 校验引擎（文本层 + 语法树层）。
  *
- * 只执行 check.regex 这一层 —— 零成本、可离线、确定性最强。
- * 其余三层（ast / llm / manual）不在这里伪造判定，一律进 skipped 如实披露。
+ * 执行两层：check.regex（文本正则，零成本、可离线、确定性最强）与
+ * check.ast 中「语法层高置信」的子集（由 AstEngine 用 jdk.compiler 跑，零新增依赖）。
+ * 其余 —— ast 中需类型解析/跨文件符号表的部分、llm、manual —— 不在这里伪造判定，
+ * 一律进 skipped 如实披露。
  *
  * 为什么坚持「不伪造」：一个假阳性会让人开始怀疑整个报告，
  * 一旦开始怀疑，工具就死了。宁可老实说「这条我检不了」。
@@ -37,13 +39,15 @@ public class LintEngine {
     private static final int MAX_HITS_PER_RULE_PER_FILE = 200;
 
     private final RuleIndex index;
+    private final AstEngine astEngine;
     private final int maxPerRule;
     private final long maxScanBytes;
 
-    public LintEngine(RuleIndex index,
+    public LintEngine(RuleIndex index, AstEngine astEngine,
                       @Value("${arsenal.lint.max-violations-per-rule:5}") int maxPerRule,
                       @Value("${arsenal.lint.max-scan-bytes:2097152}") long maxScanBytes) {
         this.index = index;
+        this.astEngine = astEngine;
         this.maxPerRule = Math.max(1, maxPerRule);
         this.maxScanBytes = maxScanBytes;
     }
@@ -64,24 +68,28 @@ public class LintEngine {
 
         List<Rule> active = index.active();
         List<Compiled> compiled = new ArrayList<>();
+        List<Rule> astRules = new ArrayList<>();
         List<SkippedRule> skipped = new ArrayList<>();
 
         // ── 1. 编译 ─────────────────────────────────────
         for (Rule r : active) {
             Rule.Check c = r.checkOrEmpty();
-            if (!c.hasRegex()) {
+            if (c.hasRegex()) {
+                Rule.RegexCheck rc = c.regex();
+                try {
+                    Pattern p = Pattern.compile(rc.pattern(), flagsOf(rc.flags()));
+                    compiled.add(new Compiled(r, p, GlobMatcher.compile(rc.globOrDefault()), rc.expectPresent()));
+                } catch (PatternSyntaxException e) {
+                    skipped.add(new SkippedRule(r.id(), r.title(), r.severity(), r.category(), "regex",
+                            "规则自身的正则无法编译（这是规则缺陷，请修复）：" + e.getDescription()));
+                    log.warn("规则 {} 的正则无法编译：{}", r.id(), e.getDescription());
+                }
+            } else if (c.hasAst() && astEngine.hasChecker(r.id())) {
+                // AST 语法层有对应检查器 —— 交给 AstEngine 在扫描阶段执行
+                astRules.add(r);
+            } else {
                 skipped.add(new SkippedRule(r.id(), r.title(), r.severity(), r.category(),
                         c.layer(), reasonFor(c)));
-                continue;
-            }
-            Rule.RegexCheck rc = c.regex();
-            try {
-                Pattern p = Pattern.compile(rc.pattern(), flagsOf(rc.flags()));
-                compiled.add(new Compiled(r, p, GlobMatcher.compile(rc.globOrDefault()), rc.expectPresent()));
-            } catch (PatternSyntaxException e) {
-                skipped.add(new SkippedRule(r.id(), r.title(), r.severity(), r.category(), "regex",
-                        "规则自身的正则无法编译（这是规则缺陷，请修复）：" + e.getDescription()));
-                log.warn("规则 {} 的正则无法编译：{}", r.id(), e.getDescription());
             }
         }
 
@@ -149,6 +157,29 @@ public class LintEngine {
                 ruleFileHits.computeIfAbsent(c.rule().id(), k -> new LinkedHashSet<>()).add(name);
             }
 
+            // ── 2b. AST 层（语法树）── 仅对 Java 源执行，解析一次跑完全部检查器
+            if (!astRules.isEmpty() && name.endsWith(".java")) {
+                touched = true;
+                Map<String, List<AstEngine.Finding>> astHits = astEngine.lintFile(astRules, name, text);
+                for (Map.Entry<String, List<AstEngine.Finding>> e : astHits.entrySet()) {
+                    Rule ar = index.byId(e.getKey()).orElse(null);
+                    if (ar == null) {
+                        continue;
+                    }
+                    int shown = 0;
+                    for (AstEngine.Finding fnd : e.getValue()) {
+                        if (shown++ >= maxPerRule) {
+                            break;
+                        }
+                        violations.add(new Violation(
+                                ar.id(), ar.title(), ar.severity(), ar.category(),
+                                name, fnd.line(), 1, fnd.snippet(),
+                                fnd.message(), ar.promptFragment(), 0));
+                    }
+                    ruleFileHits.computeIfAbsent(ar.id(), k -> new LinkedHashSet<>()).add(name);
+                }
+            }
+
             if (touched) {
                 matchedFiles++;
             }
@@ -203,7 +234,7 @@ public class LintEngine {
         long ms = (System.nanoTime() - start) / 1_000_000;
 
         return new LintReport(
-                files.size(), totalLines, active.size(), compiled.size(),
+                files.size(), totalLines, active.size(), compiled.size() + astRules.size(),
                 matchedFiles, notApplicable,
                 violations, skipped,
                 score, grade(score), counts,
@@ -230,7 +261,9 @@ public class LintEngine {
 
     private String reasonFor(Rule.Check c) {
         if (c.hasAst()) {
-            return "需 Java AST 解析 —— 交由 AST 层（" + c.ast().engineOrDefault() + "）执行";
+            // 走到这里说明该 AST 规则没有语法层检查器：依赖类型解析 / 跨文件符号表 / 控制流，
+            // jdk.compiler 的纯语法扫描做不到，诚实留待 LLM 语义层，绝不伪造判定
+            return "AST 语法层无对应检查器：依赖类型解析/跨文件符号表/控制流，留待 LLM 语义层执行";
         }
         if (c.hasLlm()) {
             return "需语义判定 —— 交由 LLM 层执行（强制要求行号定位，给不出行号视为无效）";
