@@ -1,6 +1,6 @@
 'use client';
 
-import { Fragment, useMemo, useState } from 'react';
+import { Fragment, useMemo, useRef, useState } from 'react';
 import CodeBlock from '@/components/CodeBlock';
 import CopyButton from '@/components/CopyButton';
 import {
@@ -165,6 +165,22 @@ export default function StackComposer() {
     setExported(null);
   }
 
+  /**
+   * 跳到架构图。
+   *
+   * 产物区在页面下方，页签条要滚过整块画布才看得到 —— 只把页签做出来是不够的，
+   * 得有一个首屏就能看见的入口，否则功能等于不存在。
+   */
+  const productsRef = useRef<HTMLElement | null>(null);
+  function focusArch() {
+    setTab('arch');
+    setShowArtifacts(true);
+    // 等页签内容渲染完再滚，否则滚到的是旧高度
+    requestAnimationFrame(() => {
+      productsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+  }
+
   function handleExport() {
     const name = `${projectDoc.artifactId}-${plan.kind}.zip`;
     const bytes = downloadZip(
@@ -262,6 +278,21 @@ export default function StackComposer() {
           >
             清空重搭
           </button>
+          <span className="mx-1 h-[16px] w-px bg-line" />
+          <button
+            type="button"
+            onClick={focusArch}
+            className="flex items-center gap-1.5 rounded-md border px-2.5 py-1 text-[11px] font-medium transition-colors"
+            style={{
+              borderColor: 'rgba(217,164,65,0.6)',
+              background: 'rgba(217,164,65,0.12)',
+              color: '#D9A441',
+            }}
+            title="把这套组合画成 6 层架构图：缺什么、请求怎么穿过、哪块有隐患，一眼看到；可下载 SVG / PNG 或复制 D2 / Mermaid 源码"
+          >
+            <span className="mono text-[12px] leading-none">⊞</span>
+            看架构图
+          </button>
         </div>
       </div>
 
@@ -350,7 +381,7 @@ export default function StackComposer() {
       </div>
 
       {/* ── 产物 ──────────────────────────────────────────── */}
-      <section className="panel overflow-hidden">
+      <section ref={productsRef} className="panel scroll-mt-4 overflow-hidden">
         <header className="flex flex-wrap items-center gap-x-2 gap-y-2 border-b border-line px-4 py-2.5">
           <span className="mono text-[13px] leading-none text-brass">⎗</span>
           <h3 className="text-2xs font-semibold text-fg">这套组合的产物</h3>
@@ -369,7 +400,7 @@ export default function StackComposer() {
                 background: 'rgba(217,164,65,0.12)',
                 color: '#D9A441',
               }}
-              title={`打包 ${plan.files.length} 个文件为 zip：构建文件、启动类、配置类、迁移脚本、README 与隐患单`}
+              title={`打包 ${plan.files.length} 个文件为 zip：构建文件、启动类、配置类、迁移脚本、README、隐患单、架构图与技术说明`}
             >
               <span className="mono text-[12px] leading-none">⇩</span>
               一键导出项目
