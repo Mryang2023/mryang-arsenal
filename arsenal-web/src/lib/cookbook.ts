@@ -2,7 +2,7 @@ import raw from '@/generated/cookbook.json';
 import type { Cookbook, Feature, FeatureFile, Highlight } from './content-types';
 
 /**
- * 蓝图库入口。
+ * 最佳实践案例库入口。
  *
  * 数据来源：仓库根目录 arsenal-cookbook/**\/*.json。
  * 本文件不做任何内容加工，只提供检索与锚点定位。
@@ -18,14 +18,14 @@ export function getFeature(id: string): Feature | undefined {
   return byId.get(id);
 }
 
-/** 全部关联规则 ID（去重），用于展示「这份蓝图共覆盖多少条规则」 */
+/** 全部关联规则 ID（去重），用于展示「这个案例库共覆盖多少条规则」 */
 export const allRelatedRules = (() => {
   const s = new Set<string>();
   for (const f of features) for (const r of f.relatedRules) s.add(r);
   return [...s].sort();
 })();
 
-/** 规则 ID → 引用了它的蓝图清单，用于规则详情页反向链接 */
+/** 规则 ID → 引用了它的案例清单，用于规则详情页反向链接 */
 export const featuresByRule = (() => {
   const m = new Map<string, Feature[]>();
   for (const f of features) {

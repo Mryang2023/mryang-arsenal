@@ -13,7 +13,7 @@ D:\mryang\workspace\2026\arsenal
 ```
 
 单仓 monorepo。之所以不拆成三个仓：`tools/build-content.py` 一个生成器同时产出
-规则 / 蓝图 / 选型三类数据，它们本就是「一份数据三种出口」的耦合体，拆开会让构建链断成三段。
+规则 / 案例 / 选型三类数据，它们本就是「一份数据三种出口」的耦合体，拆开会让构建链断成三段。
 
 | | 端口 | 技术栈 |
 |---|---|---|
@@ -40,7 +40,7 @@ arsenal/
 ├── tools/                       内容生成器（Python）
 │   ├── build-content.py         主入口 + 构建期校验
 │   └── content/*.py             内容源：在 Python 侧原样承载 Java / YAML / XML
-│       ├── skeleton.py crud.py http.py async_tx.py     ← 蓝图（端到端功能范例）
+│       ├── skeleton.py crud.py http.py async_tx.py     ← 最佳实践案例（端到端垂直切片）
 │       ├── stack_base.py stack_data.py stack_mw.py
 │       ├── stack_arch.py stack_cross.py stack_presets.py  ← 装配台选型
 │       └── stack_project.py     项目结构树 / 启动类 / 导出文件模板
@@ -50,7 +50,7 @@ arsenal/
 │   ├── meta.json                分类树与统计
 │   └── {skeleton,web,service,data,concurrency,reliability,security,test,collab}/*.json
 │
-├── arsenal-cookbook/            蓝图数据（4 条垂直切片 / 32 文件 / 2214 行）
+├── arsenal-cookbook/            最佳实践案例数据（4 条切片 / 32 文件 / 2214 行）
 ├── arsenal-stacks/              装配台数据
 │   ├── stack.json               17 维度 / 42 选项 / 4 预设
 │   ├── architecture.json        6 泳道 / 27 能力 / 16 条组合策略
@@ -64,7 +64,7 @@ arsenal/
 ├── arsenal-server/              Spring Boot 后端（3011，只读规则集）
 │   └── src/main/java/com/arsenal/{loader,engine,exporter,web,domain}
 │
-└── 杨先生的军火库-*.md          计划书 / 规则基线 / 蓝图库与选型台 说明
+└── 杨先生的军火库-*.md          计划书 / 规则基线 / 案例库与选型台 说明
 ```
 
 ### 数据流
@@ -125,7 +125,7 @@ cd arsenal-web && npm run verify
 | 资产 | 回答什么 | 规模 |
 |---|---|---|
 | **规则集** | 不能做什么 | 62 条（MUST 37 + NEVER 13 = 50 条强制级卡满上限，SHOULD 12） |
-| **蓝图库** | 一个功能完整该怎么写 | 4 条切片 / 32 文件 / 2214 行 / 98 条锚点备注 |
+| **最佳实践案例库** | 一个功能完整该怎么写，以及**什么时候不要这么写** | 4 条切片 / 32 文件 / 2214 行 / 98 条锚点备注 / 16 条参考出处 |
 | **架构装配台** | 由哪些零件组成、**拼起来能不能跑** | 6 泳道 / 17 模块 / 42 选项 / 27 能力 / 16 策略 |
 
 装配台的核心是**能力供需模型**：每个选项声明 `requires` / `provides`，
@@ -143,7 +143,7 @@ cd arsenal-web && npm run verify
 | 项 | 说明 |
 |---|---|
 | **MCP Server 适配层** | **项目成败关键** —— 让 AI 写代码时主动来查规范，才能真的治本 |
-| 后端接入蓝图与装配台 | 目前后端只读规则集，前端已完整可用 |
+| 后端接入案例库与装配台 | 目前后端只读规则集，前端已完整可用 |
 | AST 层校验 | 62 条里 32 条需要语法树判定，前端只跑正则层的 30 条 |
 | LLM 语义层 | 仅 MUST / SHOULD，强制要求行号定位 |
 | **62 条规则逐条过目** | 需 mryang 标记「同意 / 改 / 删」。没过目就不算军火库 |
@@ -153,5 +153,5 @@ cd arsenal-web && npm run verify
 ## 内容源约定（改之前先读）
 
 - **改规则内容 → 改 `arsenal-rules/**/*.json`**（规则是手写数据，不经生成器）
-- **改蓝图 / 选型 / 结构 → 改 `tools/content/*.py`**，然后跑生成器，**不要直接改产物 JSON**
+- **改案例 / 选型 / 结构 → 改 `tools/content/*.py`**，然后跑生成器，**不要直接改产物 JSON**
 - 规则硬约束：`MUST + NEVER ≤ 50`。超了就是设计出了问题，不是阈值太小

@@ -284,6 +284,67 @@
       "max-lifetime 大于数据库 wait_timeout：随机的「连接已关闭」错误。",
       "CORS 用 allowedOrigins(\"*\") + allowCredentials(true)：浏览器直接拒绝，或被逼放松成安全隐患。",
       "Actuator 全端点暴露：/heapdump 可被直接下载，里面有全部凭据。"
+    ],
+    "notSuitable": [
+      "一次性的脚本或工具类：为了改一个字段去搭全套骨架，成本远大于收益。",
+      "Serverless / 函数计算：冷启动敏感，Actuator、Swagger、优雅停机这些零件要按需裁掉。",
+      "资源受限的边缘运行环境：JVM 常驻内存与启动开销可能直接超过预算。",
+      "已有统一脚手架平台的团队：此时该把这份配置沉淀进平台模板，而不是让每个项目各抄一遍后各自漂移。"
+    ],
+    "performance": {
+      "title": "启动与运行期的关键开关",
+      "columns": [
+        "开关",
+        "建议值",
+        "会影响什么"
+      ],
+      "rows": [
+        [
+          "server.shutdown",
+          "graceful",
+          "让在途请求跑完再退出，否则发布时必然出现一批 502"
+        ],
+        [
+          "spring.lifecycle.timeout-per-shutdown-phase",
+          "小于网关强杀时间",
+          "设大了会拖长发布，设小了等于没开优雅停机"
+        ],
+        [
+          "连接池 connection-timeout",
+          "必须显式设置",
+          "不设时下游故障会让请求全部卡死且不抛异常"
+        ],
+        [
+          "连接池 max-lifetime",
+          "小于数据库 wait_timeout",
+          "大于它会随机出现「连接已关闭」"
+        ],
+        [
+          "Actuator 暴露端点",
+          "白名单",
+          "全暴露时 /heapdump 可直接下载，里面有全部凭据"
+        ]
+      ],
+      "conclusion": "这些不是调优项，而是「不设就会在最糟糕的时刻出事」的开关。调优数字请以自己项目的压测结果为准。"
+    },
+    "references": [
+      {
+        "title": "Spring Boot Reference · Production-ready Features",
+        "url": "https://docs.spring.io/spring-boot/reference/actuator/index.html",
+        "note": "Actuator 端点暴露与安全配置"
+      },
+      {
+        "title": "Spring Boot Reference · Graceful Shutdown",
+        "url": "https://docs.spring.io/spring-boot/reference/web/graceful-shutdown.html"
+      },
+      {
+        "title": "Spring Boot Reference · Application Properties（连接池与 Jackson）",
+        "url": "https://docs.spring.io/spring-boot/appendix/application-properties/index.html"
+      },
+      {
+        "title": "军火库规则集 · SKELETON / COLLAB 两类",
+        "note": "骨架与协作规范，含 Long 精度、@Valid 失效等条目"
+      }
     ]
   }
 }

@@ -32,7 +32,7 @@ function readJson(p) {
   }
 }
 
-// ── ① 蓝图库 ────────────────────────────────────────────────
+// ── ① 最佳实践案例库 ────────────────────────────────────────
 const cbDir = path.join(root, 'arsenal-cookbook');
 const cbMeta = readJson(path.join(cbDir, 'meta.json'));
 
@@ -67,6 +67,35 @@ for (const id of cbMeta.order ?? []) {
     }
   }
 
+  // 案例库的底线：只讲优点、不划边界的范例会诱导人在错误场景照抄。
+  // 生成器已校验过一遍，这里再独立校验一次 —— 手改 JSON 的人绕不过去。
+  if ((f.notSuitable ?? []).length < 2) {
+    cbProblems.push(`${f.id} 的 notSuitable 少于 2 条 —— 不划边界的范例会被照抄到错误场景`);
+  }
+  if ((f.references ?? []).length < 2) {
+    cbProblems.push(`${f.id} 的 references 少于 2 条 —— 无出处不收录`);
+  }
+  for (const r of f.references ?? []) {
+    if (!r.title) cbProblems.push(`${f.id} 有参考资料缺少 title`);
+    else if (!r.url && !r.note) {
+      cbProblems.push(`${f.id} 的参考资料「${r.title}」既没有链接也没有说明`);
+    }
+  }
+  if (f.performance) {
+    const width = (f.performance.columns ?? []).length;
+    if (width < 2) cbProblems.push(`${f.id} 的 performance.columns 少于 2 列`);
+    for (const row of f.performance.rows ?? []) {
+      if (row.length !== width) {
+        cbProblems.push(
+          `${f.id} 的 performance 有一行是 ${row.length} 列，表头是 ${width} 列`
+        );
+      }
+    }
+    if (!f.performance.conclusion) {
+      cbProblems.push(`${f.id} 的 performance 没有结论 —— 只给表格不给判断`);
+    }
+  }
+
   features.push({
     ...f,
     fileCount: f.files.length,
@@ -88,9 +117,11 @@ fs.writeFileSync(
 const totalFiles = features.reduce((n, f) => n + f.fileCount, 0);
 const totalHighlights = features.reduce((n, f) => n + f.highlightCount, 0);
 const totalLines = features.reduce((n, f) => n + f.lines, 0);
+const totalRefs = features.reduce((n, f) => n + (f.references ?? []).length, 0);
 console.log(
-  `[arsenal] 已同步 ${features.length} 个蓝图 → src/generated/cookbook.json\n` +
-  `         ${totalFiles} 个文件 / ${totalLines} 行代码 / ${totalHighlights} 条要点备注（锚点全部命中）`
+  `[arsenal] 已同步 ${features.length} 个案例 → src/generated/cookbook.json\n` +
+  `         ${totalFiles} 个文件 / ${totalLines} 行代码 / ${totalHighlights} 条要点备注（锚点全部命中）\n` +
+  `         适用与不适用边界、${totalRefs} 条参考出处均已校验`
 );
 
 // ── ② 技术选型 ──────────────────────────────────────────────

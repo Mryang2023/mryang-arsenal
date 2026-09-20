@@ -262,6 +262,68 @@
       "PATCH 用普通类型 + null 判断：永远做不了「清空字段」。",
       "DELETE 不幂等：删不存在的记录报 404，导致前端重试逻辑必须区分十几种失败。",
       "枚举用 ordinal() 落库：插入一个枚举值就让历史数据集体错位。"
+    ],
+    "notSuitable": [
+      "批量语义接口：一次提交一组资源（批量删除 / 批量改状态），动词表达不了，应显式建模成 POST /resources:batchDelete 这类动作资源。",
+      "动辄十来个查询参数的复杂检索：GET 会把 URL 撑爆且无法缓存，该换成 POST + 查询体，并在文档里注明它不是幂等写操作。",
+      "长耗时操作：请求里同步等几十秒，网关和浏览器都会先超时，应改成「提交返回任务号 + 轮询结果」。",
+      "WebSocket / SSE 长连接：本案例讲的是请求-响应语义，长连接另有一套生命周期管理。"
+    ],
+    "performance": {
+      "title": "动词选择对中间件的影响",
+      "columns": [
+        "动词",
+        "幂等",
+        "中间件会怎么对待它"
+      ],
+      "rows": [
+        [
+          "GET",
+          "是",
+          "可被浏览器预取、CDN 缓存、爬虫抓取 —— 所以绝不能有副作用"
+        ],
+        [
+          "POST",
+          "否",
+          "默认不缓存；失败后中间件不会自动重试（这正是创建资源想要的行为）"
+        ],
+        [
+          "PUT",
+          "是",
+          "可安全重放：网关与客户端重试不会产生额外副作用"
+        ],
+        [
+          "PATCH",
+          "否",
+          "不可重放，重试必须由业务自己保证幂等"
+        ],
+        [
+          "DELETE",
+          "是",
+          "重试安全；删不存在的记录也应返回成功而不是 404"
+        ]
+      ],
+      "conclusion": "这张表不是性能数据，而是「误用动词时哪个中间件会替你做错事」。语义错的接口，功能测试全绿也一样会在生产环境出问题。"
+    },
+    "references": [
+      {
+        "title": "RFC 9110 · HTTP Semantics",
+        "url": "https://www.rfc-editor.org/rfc/rfc9110.html",
+        "note": "幂等性与安全方法的权威定义"
+      },
+      {
+        "title": "RFC 9457 · Problem Details for HTTP APIs",
+        "url": "https://www.rfc-editor.org/rfc/rfc9457.html",
+        "note": "错误响应体的标准形状"
+      },
+      {
+        "title": "Spring Framework Reference · Annotated Controller",
+        "url": "https://docs.spring.io/spring-framework/reference/web/webmvc/mvc-controller.html"
+      },
+      {
+        "title": "军火库规则集 · WEB / HTTP 语义相关条目",
+        "note": "动词误用与状态码选错在规则库里的硬约束出处"
+      }
     ]
   }
 }

@@ -9,7 +9,7 @@ import { dimensions } from '@/lib/stack';
 const NAV = [
   { href: '/', label: '概览', glyph: '◈', count: 0 },
   { href: '/rules', label: '规则库', glyph: '▦', count: liveStats.total },
-  { href: '/blueprints', label: '蓝图库', glyph: '▤', count: cookbookStats.features },
+  { href: '/blueprints', label: '最佳实践案例库', glyph: '▤', count: cookbookStats.features },
   { href: '/stack', label: '装配台', glyph: '⬡', count: dimensions.length },
   { href: '/check', label: '校验台', glyph: '⛨', count: 0 },
   { href: '/export', label: '导出中心', glyph: '⎘', count: 0 },
@@ -127,7 +127,7 @@ export default function Shell({ children }: { children: React.ReactNode }) {
               <span className="mono text-fgMuted">{liveStats.regexCapable}</span>
             </div>
             <div className="flex justify-between py-1">
-              <span>蓝图 / 代码行</span>
+              <span>案例 / 代码行</span>
               <span className="mono text-fgMuted">
                 {cookbookStats.features} / {cookbookStats.lines}
               </span>

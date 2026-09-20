@@ -149,7 +149,7 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* ── 蓝图库与装配台 ───────────────────────────── */}
+      {/* ── 案例库与装配台 ───────────────────────────── */}
       <section>
         <SectionTitle
           eyebrow="beyond rules"
@@ -160,20 +160,21 @@ export default function HomePage() {
           {[
             {
               glyph: '▤',
-              title: '蓝图库',
+              title: '最佳实践案例库',
               href: '/blueprints',
               accent: '#4FB0C6',
               desc:
-                '一个功能「完整该怎么写」。每条蓝图是一条端到端垂直切片 ——' +
+                '一个功能「完整该怎么写」。每个案例是一条端到端垂直切片 ——' +
                 'Controller、DTO、Service、Repository、建表脚本、单测一路写全，' +
-                '每段代码旁边都有编号备注说明为什么这样写、对应哪条规则。',
+                '每段代码旁边都有编号备注说明为什么这样写、对应哪条规则，' +
+                '并写明什么时候不要用这套写法。',
               stats: [
-                `${cookbookStats.features} 条垂直切片`,
+                `${cookbookStats.features} 条案例`,
                 `${cookbookStats.files} 个文件`,
                 `${cookbookStats.lines} 行代码`,
                 `${cookbookStats.highlights} 条要点`,
               ],
-              cta: '打开蓝图库',
+              cta: '打开案例库',
             },
             {
               glyph: '⬡',

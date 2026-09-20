@@ -1,12 +1,12 @@
 /**
- * 蓝图库（arsenal-cookbook）与技术选型台（arsenal-stacks）的类型定义。
+ * 最佳实践案例库（arsenal-cookbook）与技术选型台（arsenal-stacks）的类型定义。
  *
  * 与 types.ts 分开的原因是两者的生命周期不同：
- * 规则集是长期稳定的资产，蓝图与选型会随技术栈演进而频繁增补。
+ * 规则集是长期稳定的资产，案例与选型会随技术栈演进而频繁增补。
  */
 
 // ─────────────────────────────────────────────────────────────
-// 蓝图库
+// 最佳实践案例库
 // ─────────────────────────────────────────────────────────────
 
 /** 代码在系统中的位置。决定展示配色与分组。 */
@@ -54,6 +54,32 @@ export interface FeatureMatrix {
   notes: string[];
 }
 
+/**
+ * 性能 / 量级对照表。
+ *
+ * 刻意用「列 + 行」而不是一个自由字符串：案例库里的性能说明必须是可核对的，
+ * 只给结论不给口径的段落，读者无法判断它是否适用于自己的场景。
+ */
+export interface FeaturePerformance {
+  title: string;
+  columns: string[];
+  rows: string[][];
+  /** 这张表说明了什么。只给表格不给判断，读者没法决策。 */
+  conclusion: string;
+}
+
+/**
+ * 参考出处。
+ *
+ * 与规则集的 sources 同一套立场：无出处不收录。
+ * url 与 note 至少要有一个 —— 标题后面什么都不挂，等于没有出处。
+ */
+export interface FeatureReference {
+  title: string;
+  url?: string;
+  note?: string;
+}
+
 export interface Feature {
   id: string;
   order: number;
@@ -71,6 +97,12 @@ export interface Feature {
   matrix?: FeatureMatrix;
   checklist: string[];
   pitfalls: string[];
+  /** 什么时候**不要**用这套写法。案例只有划清边界才敢被当成蓝本复制。 */
+  notSuitable: string[];
+  /** 性能 / 量级对照，非必填 */
+  performance?: FeaturePerformance;
+  /** 权威出处，至少两条 */
+  references: FeatureReference[];
   /** 由同步脚本注入 */
   fileCount: number;
   highlightCount: number;

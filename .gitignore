@@ -19,9 +19,9 @@ target/
 arsenal-web/src/generated/
 
 # ── 验证产物：脚本本身要提交，跑出来的东西不要 ────────────────
-#    .verify/*.ts / *.mjs 是 649 行自检代码，属资产
+#    .verify/*.ts / *.mjs 是自检代码，属资产；截图与中间 zip 是产物
 arsenal-web/.verify/tmp/
-arsenal-web/.verify/shots/
+arsenal-web/.verify/shots*/
 
 # ── 示例导出包：装配台随时可重新导出，不占仓库 ────────────────
 arsenal-demo-*.zip
@@ -35,6 +35,8 @@ arsenal-demo-*.zip
 .vscode/
 
 # ── 工具与系统 ───────────────────────────────────────────────
+__pycache__/
+*.py[cod]
 *.tsbuildinfo
 next-env.d.ts
 .DS_Store

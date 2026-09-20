@@ -30,7 +30,7 @@ export default function BlueprintView({ feature }: { feature: Feature }) {
       {/* ── 面包屑 ───────────────────────────────────── */}
       <div className="mono flex items-center gap-2 text-2xs text-fgFaint">
         <Link href="/blueprints" className="transition-colors hover:text-brass">
-          蓝图库
+          最佳实践案例库
         </Link>
         <span className="text-lineHi">/</span>
         <span className="text-fgMuted">{feature.id}</span>
@@ -154,7 +154,35 @@ export default function BlueprintView({ feature }: { feature: Feature }) {
         </ol>
       </section>
 
-      {/* ── HTTP 语义矩阵（仅部分蓝图有） ───────────── */}
+      {/* ── 不适用边界 ───────────────────────────────── */}
+      {/* 案例只有划清边界才敢被当成蓝本复制 —— 只讲优点的范例会被照抄到错误场景。 */}
+      <section
+        className="rounded-lg border px-5 py-4"
+        style={{ borderColor: 'rgba(229,115,75,0.28)', background: 'rgba(229,115,75,0.05)' }}
+      >
+        <div className="mb-3 flex flex-wrap items-baseline gap-2">
+          <span className="mono text-[13px]" style={{ color: '#E5734B' }}>
+            ⊘
+          </span>
+          <h2 className="text-[14px] font-semibold text-fg">什么时候不要用这套写法</h2>
+          <span className="text-2xs text-fgFaint">
+            先确认你的场景不在这里面，再动手抄
+          </span>
+        </div>
+        <ul className="grid gap-2.5 md:grid-cols-2">
+          {feature.notSuitable.map((n, i) => (
+            <li key={i} className="flex gap-2.5">
+              <span
+                className="mt-[6px] h-[5px] w-[5px] shrink-0 rounded-full"
+                style={{ background: '#E5734B' }}
+              />
+              <span className="text-2xs leading-relaxed text-fgMuted">{n}</span>
+            </li>
+          ))}
+        </ul>
+      </section>
+
+      {/* ── HTTP 语义矩阵（仅部分案例有） ────────────── */}
       {feature.matrix && (
         <section className="panel overflow-hidden">
           <div className="border-b border-line px-5 py-4">
@@ -342,10 +370,59 @@ export default function BlueprintView({ feature }: { feature: Feature }) {
         </section>
       </div>
 
+      {/* ── 性能 / 量级对照（非必填） ─────────────────── */}
+      {feature.performance && (
+        <section className="panel overflow-hidden">
+          <div className="flex flex-wrap items-baseline justify-between gap-2 border-b border-line px-5 py-3.5">
+            <div className="flex items-center gap-2">
+              <span className="mono text-[13px]" style={{ color: '#4FB0C6' }}>
+                ◱
+              </span>
+              <h2 className="text-[14px] font-semibold text-fg">{feature.performance.title}</h2>
+            </div>
+            <span className="text-2xs text-fgFaint">量级与机制，不是某台机器的实测数字</span>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-[13px]">
+              <thead>
+                <tr className="border-b border-line text-2xs uppercase tracking-wider text-fgFaint">
+                  {feature.performance.columns.map((c, i) => (
+                    <th key={i} className="whitespace-nowrap px-5 py-2.5 font-medium">
+                      {c}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {feature.performance.rows.map((row, ri) => (
+                  <tr key={ri} className="border-b border-line/60 last:border-0">
+                    {row.map((cell, ci) => (
+                      <td
+                        key={ci}
+                        className={
+                          ci === 0
+                            ? 'px-5 py-2.5 text-fg'
+                            : 'px-5 py-2.5 leading-relaxed text-fgMuted'
+                        }
+                      >
+                        {ci === 0 ? <span className="mono text-[12px]">{cell}</span> : cell}
+                      </td>
+                    ))}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <p className="border-t border-line bg-surfaceHi px-5 py-3 text-2xs leading-relaxed text-fgMuted">
+            {feature.performance.conclusion}
+          </p>
+        </section>
+      )}
+
       {/* ── 关联规则 ─────────────────────────────────── */}
       <section className="panel p-5">
         <div className="mb-3 flex flex-wrap items-baseline justify-between gap-2">
-          <h2 className="text-[14px] font-semibold text-fg">这份蓝图覆盖的规则</h2>
+          <h2 className="text-[14px] font-semibold text-fg">这份案例覆盖的规则</h2>
           <Link href="/rules" className="mono text-2xs text-fgFaint transition-colors hover:text-brass">
             去规则库 →
           </Link>
@@ -372,6 +449,44 @@ export default function BlueprintView({ feature }: { feature: Feature }) {
             );
           })}
         </div>
+      </section>
+
+      {/* ── 参考出处 ─────────────────────────────────── */}
+      {/* 与规则集同一立场：无出处不收录。已核对的给链接，内部资料给说明。 */}
+      <section className="panel p-5">
+        <div className="mb-3 flex items-center gap-2">
+          <span className="mono text-[13px]" style={{ color: '#7FC8DC' }}>
+            ↧
+          </span>
+          <h2 className="text-[14px] font-semibold text-fg">参考出处</h2>
+        </div>
+        <ul className="space-y-2.5">
+          {feature.references.map((r, i) => (
+            <li key={i} className="flex flex-col gap-0.5 md:flex-row md:items-baseline md:gap-3">
+              <span className="flex min-w-0 items-baseline gap-2">
+                <span className="mono text-2xs text-fgFaint">{String(i + 1).padStart(2, '0')}</span>
+                {r.url ? (
+                  <a
+                    href={r.url}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="text-[13px] text-fg transition-colors hover:text-brass"
+                  >
+                    {r.title}
+                    <span className="mono ml-1 text-2xs text-fgFaint">↗</span>
+                  </a>
+                ) : (
+                  <span className="text-[13px] text-fg">{r.title}</span>
+                )}
+              </span>
+              {r.note && (
+                <span className="pl-6 text-2xs leading-relaxed text-fgFaint md:pl-0">
+                  {r.note}
+                </span>
+              )}
+            </li>
+          ))}
+        </ul>
       </section>
     </div>
   );

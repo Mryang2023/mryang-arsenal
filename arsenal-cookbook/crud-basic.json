@@ -504,6 +504,61 @@
       "@Transactional 不加 rollbackFor：默认只回滚运行时异常，改成受检异常后事务静默不回滚。",
       "Service 里直接拼 SQL：分层立刻失效，且注入风险集中在这一行。",
       "出参直接返回 Entity：加字段与泄字段变成同一个动作。"
+    ],
+    "notSuitable": [
+      "复杂报表 / 聚合统计：本案例按单表条件分页，多表 join + group by 应另开只读查询层，别往这套 CRUD 里塞。",
+      "批量导入导出：逐条 insert 在万级以上会明显变慢，需要批处理与流式写出。",
+      "一个实体上百个字段的超宽表：该先做表拆分，而不是把 DTO 写成一个大杂烩。",
+      "读多写少且要求强一致的场景：先想清缓存与事务边界，再决定要不要套这套结构。"
+    ],
+    "performance": {
+      "title": "分页查询的关键量级",
+      "columns": [
+        "关注点",
+        "这套写法",
+        "说明"
+      ],
+      "rows": [
+        [
+          "单页上限",
+          "pageSize ≤ 100",
+          "DTO 上的 @Max 硬约束，防止一次拉全表打满带宽与内存"
+        ],
+        [
+          "可排序字段",
+          "白名单枚举",
+          "sort 走 ORDER_WHITELIST，避免任意字段排序击穿索引"
+        ],
+        [
+          "计数查询",
+          "与列表同条件独立 count",
+          "不查回全量再 size()，翻到最后一页也不会全表扫描"
+        ],
+        [
+          "并发写冲突",
+          "乐观锁 + 版本号",
+          "冲突时抛业务异常而非静默覆盖，前端可提示重新加载"
+        ]
+      ],
+      "conclusion": "这里给的是量级与机制，不是某台机器的实测数字。落地时请在真实数据量下压测，再回头调 pageSize 上限与索引。"
+    },
+    "references": [
+      {
+        "title": "阿里巴巴 Java 开发手册 · 工程规约与 MySQL 规约",
+        "note": "分页、索引、唯一约束的出处"
+      },
+      {
+        "title": "Spring Framework Reference · Validation, Data Binding, and Type Conversion",
+        "url": "https://docs.spring.io/spring-framework/reference/core/validation/beanvalidation.html"
+      },
+      {
+        "title": "Spring Data JPA Reference · Query Methods 与分页",
+        "url": "https://docs.spring.io/spring-data/jpa/reference/jpa/query-methods.html"
+      },
+      {
+        "title": "军火库规则集 · WEB / SERVICE / DATA 三类",
+        "note": "本案例每段代码的编号备注都指向对应规则"
+      }
     ]
   }
 }

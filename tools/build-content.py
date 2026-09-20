@@ -41,22 +41,70 @@ def write_json(rel_path, doc):
 
 
 def build_cookbook():
-    print('[1/4] arsenal-cookbook —— 端到端功能范例')
+    """产出最佳实践案例库，并对每个案例做一次完整性校验。
+
+    校验守的是「案例库」这三个字的底线：一个案例要能被当成蓝本复制，
+    就必须同时说清「什么时候用」和「什么时候不该用」。
+    只讲优点、不划边界的范例，会诱导人在错误场景照抄 —— 那比没有案例更糟。
+    """
+    print('[1/4] arsenal-cookbook —— 最佳实践案例库')
     features = []
+    problems = []
     for name in ('crud', 'http', 'async_tx', 'skeleton'):
         feat = load_module(name).FEATURE
+        fid = feat.get('id', name)
+
+        # ① 案例必须能说清适用与不适用。2~5 条具体场景，不写「需要的时候」。
+        if len(feat.get('notSuitable') or []) < 2:
+            problems.append('案例 %s 的 notSuitable 少于 2 条 —— 不划边界的范例会被人照抄到错误场景'
+                            % fid)
+        if len(feat.get('scenario') or '') < 30:
+            problems.append('案例 %s 的 scenario 过于简略，说明不了什么时候用' % fid)
+
+        # ② 参考资料至少要有一条，否则「为什么这么写」无从追溯。
+        refs = feat.get('references') or []
+        if len(refs) < 2:
+            problems.append('案例 %s 的 references 少于 2 条 —— 无出处不收录' % fid)
+        for r in refs:
+            if not r.get('title'):
+                problems.append('案例 %s 有参考资料缺少 title' % fid)
+            if not r.get('url') and not r.get('note'):
+                problems.append('案例 %s 的参考资料「%s」既没有链接也没有说明' % (fid, r.get('title')))
+
+        # ③ 性能段如果写了，表头与每行必须等宽，否则渲染出来是错位的表格。
+        perf = feat.get('performance')
+        if perf:
+            width = len(perf.get('columns') or [])
+            if width < 2:
+                problems.append('案例 %s 的 performance.columns 少于 2 列' % fid)
+            for row in perf.get('rows') or []:
+                if len(row) != width:
+                    problems.append('案例 %s 的 performance 有一行是 %d 列，表头是 %d 列'
+                                    % (fid, len(row), width))
+            if not (perf.get('rows') or []):
+                problems.append('案例 %s 的 performance 没有数据行' % fid)
+            if not perf.get('conclusion'):
+                problems.append('案例 %s 的 performance 没有结论 —— 只给表格不给判断，读者无法决策'
+                                % fid)
+
         features.append(feat)
-        write_json('arsenal-cookbook/%s.json' % feat['id'], {'feature': feat})
+        write_json('arsenal-cookbook/%s.json' % fid, {'feature': feat})
+
+    if problems:
+        print('\n[arsenal] 案例库数据校验失败：')
+        for p in problems:
+            print('  - ' + p)
+        sys.exit(1)
 
     write_json('arsenal-cookbook/meta.json', {
         'collection': 'arsenal-cookbook',
-        'name': '军火库 · 蓝图库',
-        'version': '0.1.0',
+        'name': '军火库 · 最佳实践案例库',
+        'version': '0.2.0',
         'releasedAt': '2026-09-11',
         'description': (
-            '一个功能「完整该怎么写」的示范。每个蓝图是一条端到端的垂直切片：'
-            '从 HTTP 入口一路到 SQL，中间每一层都给出可复制的完整代码，'
-            '并标注它对应军火库的哪几条规则。'
+            '照着抄的代码库。每个案例是一条端到端的垂直切片：从 HTTP 入口一路到 SQL，'
+            '每一层都给出可复制的完整代码，并写清「什么时候用 / 什么时候不要用 / 坑在哪 / '
+            '性能量级 / 参考出处」，同时标注它对应军火库的哪几条规则。'
         ),
         'order': [f['id'] for f in features],
         'count': len(features),

@@ -55,7 +55,7 @@ export const CHECK_LAYER_THEME: Record<CheckLayer, { label: string; color: strin
 };
 
 /**
- * 代码分层识别色。用于蓝图详情页把「这条代码属于哪一层」变成一眼可见。
+ * 代码分层识别色。用于案例详情页把「这条代码属于哪一层」变成一眼可见。
  *
  * 配色刻意贴近分层语义：越靠近用户越偏冷（client/web），
  * 越靠近存储越偏暖（repo/domain/sql），中间业务层用绿色。

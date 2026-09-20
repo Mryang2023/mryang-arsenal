@@ -1,6 +1,6 @@
 # arsenal-web · 杨先生的军火库（前端）
 
-规则查阅、蓝图示范、技术选型、代码校验的界面层。
+规则查阅、案例示范、技术选型、代码校验的界面层。
 Next.js 14 App Router + TypeScript + Tailwind。
 
 ```
@@ -15,7 +15,7 @@ npm run build    # 静态导出到 out/（可直接扔进内网或对象存储�
 
 ```
 arsenal-rules/**/*.json       规则集（62 条）
-arsenal-cookbook/*.json       蓝图库（4 条端到端垂直切片）
+arsenal-cookbook/*.json       最佳实践案例库（4 条端到端垂直切片）
 arsenal-stacks/stack.json     技术选型（17 维度 / 42 选项 / 4 预设）
         │
         │  scripts/sync-rules.mjs + scripts/sync-content.mjs
@@ -32,12 +32,16 @@ src/lib/{rules,cookbook,stack}.ts  →  页面 / 校验引擎 / 合成器 / 导�
 | 校验 | 时机 |
 |---|---|
 | 规则字段缺失 / ID 重复 / 无来源出处 | `sync-rules.mjs` → 构建失败 |
-| 蓝图的要点锚点在代码里找不到目标 | `sync-content.mjs` → 构建失败 |
+| 案例的要点锚点在代码里找不到目标 | `sync-content.mjs` → 构建失败 |
+| 案例缺少「不适用边界」或参考出处少于 2 条 | `sync-content.mjs` → 构建失败 |
 | 预设引用了不存在的维度或选项 | `tools/build-content.py` → 生成失败 |
 
-第二条尤其重要：蓝图的编号备注用「代码片段锚点」而不是行号定位。
+第二条尤其重要：案例的编号备注用「代码片段锚点」而不是行号定位。
 行号会随代码改动错位，而**错位的备注比没有备注更危险** —— 它会给出一个自信的错误结论。
 锚点校验保证备注永远挂在正确的代码上。
+
+第三条守的是案例库的底线：只讲优点、不划边界的范例，会诱导人在错误场景照抄，
+那比没有案例更糟。所以「什么时候不要用这套写法」和参考出处是**必填**。
 
 ## 页面
 
@@ -46,8 +50,8 @@ src/lib/{rules,cookbook,stack}.ts  →  页面 / 校验引擎 / 合成器 / 导�
 | `/` | 概览：规则总量、强制级配额、九大类分布、来源矩阵 |
 | `/rules` | 规则库：搜索 + 级别/分类/标签筛选 + 卡片/列表双视图 |
 | `/rules/[id]` | 规则详情：反例正例对照、检测方式、出处溯源 |
-| `/blueprints` | 蓝图库：4 条端到端垂直切片的入口 |
-| `/blueprints/[id]` | 蓝图详情：数据流、完整代码（带编号备注）、验收清单、常见坑 |
+| `/blueprints` | 最佳实践案例库：4 条端到端垂直切片的入口 |
+| `/blueprints/[id]` | 案例详情：不适用边界、数据流、完整代码（带编号备注）、验收清单、常见坑、性能量级、参考出处 |
 | `/stack` | 装配台：6 层架构图自由拼装，缺零件直接告诉你跑不起来 |
 | `/check` | 校验台：粘贴代码 → 违规清单（带行号）+ 合规分 |
 | `/export` | 导出中心：5 种载体一键复制 / 下载 |
@@ -100,11 +104,11 @@ src/lib/{rules,cookbook,stack}.ts  →  页面 / 校验引擎 / 合成器 / 导�
 
 ```
 scripts/sync-rules.mjs    规则同步 + 完整性校验
-scripts/sync-content.mjs  蓝图 / 选型 / 架构图同步 + 锚点与能力校验
+scripts/sync-content.mjs  案例 / 选型 / 架构图同步 + 锚点、边界与能力校验
 src/lib/types.ts          Rule 对象类型
 src/lib/content-types.ts  Feature / Stack 对象类型
 src/lib/rules.ts          规则加载、检索、统计
-src/lib/cookbook.ts       蓝图加载 + 锚点定位
+src/lib/cookbook.ts       案例加载 + 锚点定位
 src/lib/stack.ts          选型加载 + 合成引擎 + 产物渲染
 src/lib/arch.ts           架构装配图 + 可运行性校验（能力供需求解）
 src/lib/engine.ts         Level 1 校验引擎（正则层）
@@ -150,10 +154,12 @@ npm run verify:arch        # 可运行性校验的 34 项判定（含归并、�
 ## 注意
 
 - `src/generated/` 是生成物，不要手改，也不要提交。
-- 蓝图与选型的源数据是 **Python 生成器产出的 JSON**，不要手改 JSON，改生成器：
+- 案例与选型的源数据是 **Python 生成器产出的 JSON**，不要手改 JSON，改生成器：
   ```
   python tools/build-content.py     # tools/content/*.py  →  arsenal-{cookbook,stacks}/*.json
   ```
   用生成器而不是手写 JSON，是因为 Java / YAML / XML 代码里全是双引号与换行，
   手写 JSON 字符串必须逐行转义，极易出错且不可读。
+- 新增案例时，`notSuitable`（≥2 条）与 `references`（≥2 条）是硬性要求，
+  生成器与同步脚本各校验一遍 —— 写不出「什么时候不要用」的，不算案例。
 - 改规则请改 `arsenal-rules/**/*.json`，前端会自动跟上。
