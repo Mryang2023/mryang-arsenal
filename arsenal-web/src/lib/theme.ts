@@ -82,11 +82,18 @@ export function layerTheme(layer: string) {
   return LAYER_THEME[layer] ?? { label: layer, color: '#8B9DC3', glyph: '·' };
 }
 
-export const SOURCE_TYPE_LABEL: Record<string, string> = {
-  'industry-standard': '行业规范',
-  'framework-doc': '框架文档',
-  spec: '技术标准',
-  book: '经典著作',
-  'security-baseline': '安全基线',
-  'project-decision': '项目决策',
-};
+/**
+ * 来源类型的中文标签 —— **不在这里了**。
+ *
+ * 它曾经是本文件里的一个常量表，与 arsenal-rules/meta.json 的 `sourceTypes` 各存一份。
+ * 后端导出规范书时读 meta.json，前端读这份表，两边靠「记得一起改」维持一致 ——
+ * 而且这个字段一度根本没被 sync-rules.mjs 透传到前端（白名单漏了它），
+ * 也就是「共读同一份数据」当时只成立了一半。
+ *
+ * 现在统一走 `@/lib/rules` 的 `sourceTypeLabel()`，数据源是 meta.sourceTypes。
+ * 后端 RulesetMeta.sourceTypeLabel 读同一份数据，兜底口径逐字对齐：
+ * 类型缺失 → 「来源」，类型不认识 → 原样露出原始 key。
+ *
+ * 刻意不在这里 re-export：rules.ts 要 import 本文件的 CATEGORY_ORDER，
+ * 再反向引回去就成环了。
+ */

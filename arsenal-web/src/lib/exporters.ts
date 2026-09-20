@@ -1,6 +1,29 @@
 import type { CategoryKey, Rule, Severity } from './types';
-import { CATEGORY_ORDER, CATEGORY_THEME, SEVERITY_ORDER, SEVERITY_THEME, SOURCE_TYPE_LABEL } from './theme';
-import { meta, liveStats } from './rules';
+import { SEVERITY_ORDER, SEVERITY_THEME } from './theme';
+import { meta, liveStats, categoryRank, categoryMetaOf, sourceTypeLabel } from './rules';
+import mcpToolsRaw from '@/generated/mcp-tools.json';
+
+/**
+ * MCP 工具定义（来自 arsenal-rules/mcp-tools.json，只读）。
+ *
+ * 形状由 sync-rules.mjs 在构建期校验过（工具名不重复、description/inputSchema 齐全），
+ * 所以这里不再做运行时兜底 —— 兜底会掩盖数据源的问题。
+ */
+const mcpTools = mcpToolsRaw as unknown as {
+  server: { name: string; description: string; transport: string; protocolVersion: string };
+  launcher: { command: string; args: string[]; env: Record<string, string> };
+  tools: Array<{ name: string; description: string; inputSchema: Record<string, unknown> }>;
+};
+
+/**
+ * 配置里的说明行。两端各写一份字面量是刻意的：
+ * 它要进产物、又不能被序列化器改写风格，由 parity 逐字节比对守着 —— 一旦分叉就是红的。
+ */
+const MCP_CONFIG_COMMENT =
+  'MCP Server 配置（stdio）。把 __ARSENAL_HOME__ 替换成本仓库的绝对路径后再用；' +
+  '工具定义来自 arsenal-rules/mcp-tools.json，与后端导出器读的是同一份，两端产物逐字节一致。' +
+  '适配层实现在 arsenal-server/scripts/mcp-stdio.mjs（只需 node；AST 深度判定由 F2 接入），' +
+  '规则数据源为 arsenal-rules/**/*.json，此处不重复定义任何规则内容。';
 
 export type ExportFormat = 'markdown' | 'prompt' | 'cursorrules' | 'claude' | 'mcp' | 'json';
 
@@ -13,9 +36,12 @@ export interface ExportOptions {
   includeChecks: boolean;
 }
 
+/** 规则集的分类顺序（数据声明顺序）。导出选项里的「全部分类」跟着数据走，不跟着写死的数组走。 */
+const ALL_CATEGORIES = meta.categories.map((c) => c.key as CategoryKey);
+
 export const DEFAULT_EXPORT_OPTIONS: ExportOptions = {
   severities: ['MUST', 'NEVER', 'SHOULD'],
-  categories: [...CATEGORY_ORDER],
+  categories: [...ALL_CATEGORIES],
   includeExamples: true,
   includeSources: true,
   includeRationale: false,
@@ -78,7 +104,8 @@ function pick(rules: Rule[], o: ExportOptions): Rule[] {
     .filter((r) => o.categories.includes(r.category))
     .sort(
       (a, b) =>
-        CATEGORY_ORDER.indexOf(a.category) - CATEGORY_ORDER.indexOf(b.category) ||
+        (categoryRank.get(a.category) ?? Number.MAX_SAFE_INTEGER) -
+          (categoryRank.get(b.category) ?? Number.MAX_SAFE_INTEGER) ||
         a.id.localeCompare(b.id)
     );
 }
@@ -197,24 +224,30 @@ function buildMarkdown(rules: Rule[], o: ExportOptions): string {
   L.push(severityLegend());
   L.push('');
 
+  // 按「传给本函数的这份列表」分组，全流程复用同一个 Map ——
+  // 目录和各分类正文章节必须看到同一份数据，否则又会出现「标题 9 条、下面列 3 条」。
+  // 后端 ExporterService.byCategoryOf 用的是同一种分组（按首次出现顺序），
+  // 两端因此必然得出一致的分类顺序与条目数。
+  const grouped = new Map<string, Rule[]>();
+  for (const r of rules) {
+    const list = grouped.get(r.category) ?? [];
+    list.push(r);
+    grouped.set(r.category, list);
+  }
+
   // 目录
   L.push('## 目录');
   L.push('');
-  for (const cat of CATEGORY_ORDER) {
-    const list = rules.filter((r) => r.category === cat);
-    if (!list.length) continue;
-    const t = CATEGORY_THEME[cat];
-    L.push(`- **${t.name}**（${list.length}）`);
+  for (const [cat, list] of grouped) {
+    L.push(`- **${categoryMetaOf(cat).name}**（${list.length}）`);
     for (const r of list) L.push(`  - \`${r.id}\` ${r.title}`);
   }
   L.push('');
   L.push('---');
   L.push('');
 
-  for (const cat of CATEGORY_ORDER) {
-    const list = rules.filter((r) => r.category === cat);
-    if (!list.length) continue;
-    const t = CATEGORY_THEME[cat];
+  for (const [cat, list] of grouped) {
+    const t = categoryMetaOf(cat);
     L.push(`## ${t.name} · ${t.english}`);
     L.push('');
     L.push(`> ${t.blurb}`);
@@ -271,8 +304,7 @@ function buildMarkdown(rules: Rule[], o: ExportOptions): string {
         L.push('**来源**');
         L.push('');
         for (const s of r.sources) {
-          const label = SOURCE_TYPE_LABEL[s.type ?? ''] ?? s.type ?? '来源';
-          L.push(`- ${s.ref}　<sub>${label}</sub>`);
+          L.push(`- ${s.ref}　<sub>${sourceTypeLabel(s.type)}</sub>`);
           if (s.quote) L.push(`  > ${s.quote}`);
         }
         L.push('');
@@ -288,7 +320,9 @@ function buildMarkdown(rules: Rule[], o: ExportOptions): string {
     `_生成自 arsenal-rules（v${meta.version}）。共 ${rules.length} 条，` +
       `其中强制级 ${liveStats.mustClass} 条（当前上限 ${liveStats.mustHardLimit}，已用 ${liveStats.budgetUsedPct}%）。_`
   );
-  return L.join('\n');
+  // 结尾换行同 buildJson：后端 ExporterService.buildMarkdown 按同一份形状生成，
+  // 逐字节一致性由 `npm run verify:parity` 断言。
+  return L.join('\n') + '\n';
 }
 
 function buildCursorRules(rules: Rule[], o: ExportOptions): string {
@@ -400,102 +434,85 @@ function buildClaude(rules: Rule[], o: ExportOptions): string {
   return L.join('\n');
 }
 
+/** 缩进：整体右移 n 空格。用于把嵌套 JSON 挂到某个键后面（首行不缩进，它跟在键名后面）。 */
+function indentBlock(s: string, n: number): string {
+  const pad = ' '.repeat(n);
+  return s
+    .split('\n')
+    .map((line, i) => (i === 0 ? line : pad + line))
+    .join('\n');
+}
+
+/** 紧凑但留一处空格的单行对象：{ "K": "V" }。两端同一套写法。 */
+function inlineObject(o: Record<string, string>): string {
+  const parts = Object.entries(o).map(([k, v]) => `${JSON.stringify(k)}: ${JSON.stringify(v)}`);
+  return `{ ${parts.join(', ')} }`;
+}
+
+/**
+ * MCP Server 配置。
+ *
+ * 工具定义来自 arsenal-rules/mcp-tools.json（由 sync-rules 编译成 @/generated/mcp-tools.json），
+ * 后端 ExporterService.buildMcp 读的是同一份文件 —— 两端产物逐字节一致，
+ * 由 npm run verify:parity 断言。
+ *
+ * 早先这里硬编码了一份 90 行 schema、后端只给一个 _tools 字符串数组，
+ * 「两端不一致」被写进注释当成了刻意的妥协。工具定义变成数据之后，这个妥协就没有理由了。
+ *
+ * 逐字节一致是怎么做到的：不比较序列化后的对象（两边的 pretty-printer 风格本来就不同，
+ * Jackson 吐 `"a" : 1`、JSON.stringify 吐 `"a": 1`，比出来永远红），
+ * 而是像 buildMarkdown 一样**按行手工拼**，嵌套 schema 用同一套缩进规则渲染。
+ * 形状摆成一样之后，改动就变成「两边照着同一处改」。
+ *
+ * 另外修掉一处旧隐患：产物结尾曾挂一个块注释说明，而文件名是 arsenal-mcp.json ——
+ * 交出去的根本不是合法 JSON。说明文字现在一律进 $comment。
+ */
 function buildMcp(rules: Rule[]): string {
-  const toolSchema = {
-    name: 'arsenal',
-    description:
-      '杨先生的军火库 · 代码规范查询服务。写代码前用它查约束，写完用它验合规。',
-    transport: {
-      stdio: {
-        command: 'java',
-        args: ['-jar', 'arsenal-server-0.1.0.jar'],
-        env: { ARSENAL_RULES_DIR: './arsenal-rules' },
-      },
-    },
-    tools: [
-      {
-        name: 'search_rules',
-        description: '按关键词检索规范条目。写代码前调用，拿到本次任务相关的约束句。',
-        inputSchema: {
-          type: 'object',
-          properties: {
-            query: { type: 'string', description: '关键词，如「controller 入参」「线程池」「事务」' },
-            severity: { type: 'string', enum: ['MUST', 'NEVER', 'SHOULD', 'MAY'], description: '可选，限定级别' },
-            category: { type: 'string', description: '可选，限定分类' },
-          },
-          required: ['query'],
-        },
-      },
-      {
-        name: 'get_rule',
-        description: '按 ID 取单条规则的完整定义（含反例、正例、检查方式）。',
-        inputSchema: {
-          type: 'object',
-          properties: { id: { type: 'string', description: '规则 ID，如 WEB-CTRL-002' } },
-          required: ['id'],
-        },
-      },
-      {
-        name: 'lint_code',
-        description: '提交代码前自检。返回违规清单（带行号）与合规分。',
-        inputSchema: {
-          type: 'object',
-          properties: {
-            filename: { type: 'string', description: '文件路径，用于匹配 targetGlob' },
-            content: { type: 'string', description: '文件内容' },
-          },
-          required: ['filename', 'content'],
-        },
-      },
-      {
-        name: 'get_prompt',
-        description: '取一份完整的约束提示词，用于把规范注入当前会话。',
-        inputSchema: {
-          type: 'object',
-          properties: {
-            severity: { type: 'string', description: '可选，如 "MUST,NEVER"' },
-          },
-        },
-      },
-    ],
-  };
+  const { server, launcher, tools } = mcpTools;
 
   const L: string[] = [];
   L.push('{');
-  L.push('  "$comment": "MCP Server 配置预览（P1 阶段实现）。规则数据源为 arsenal-rules/**/*.json，无需重复定义。",');
+  L.push(`  "$comment": "${MCP_CONFIG_COMMENT}",`);
   L.push('  "mcpServers": {');
-  L.push('    "arsenal": {');
-  L.push('      "command": "java",');
-  L.push('      "args": ["-jar", "arsenal-server-0.1.0.jar"],');
-  L.push('      "env": { "ARSENAL_RULES_DIR": "./arsenal-rules" },');
+  L.push(`    "${server.name}": {`);
+  L.push(`      "command": ${JSON.stringify(launcher.command)},`);
+  L.push(`      "args": ${JSON.stringify(launcher.args)},`);
+  L.push(`      "env": ${inlineObject(launcher.env)},`);
   L.push('      "disabled": false');
   L.push('    }');
   L.push('  },');
   L.push('');
-  L.push('  "$toolDefinitions": ' + JSON.stringify(toolSchema, null, 2).split('\n').join('\n  '));
+  L.push('  "_availableRules": ' + rules.length + ',');
+  L.push('  "$toolDefinitions": ' + indentBlock(JSON.stringify(tools, null, 2), 2));
   L.push('}');
-
   L.push('');
-  L.push('/*');
-  L.push(` * 当前规则集：${rules.length} 条，可直接被 search_rules 检索。`);
-  L.push(' * 设计意图：让 AI 在写代码的当下主动来查约束，而不是靠人事先粘贴提示词。');
-  L.push(' * 这是「一份数据三种出口」中唯一能形成闭环的一环 —— 其余两处都是被动消费。');
-  L.push(' */');
   return L.join('\n');
 }
 
+/**
+ * 原始规则集。
+ *
+ * 结尾的换行是刻意的：文本文件以换行结束是通用约定。
+ *
+ * 与后端 ExporterService.buildJson 的一致性口径是**逐结构**而不是逐字节：
+ * 对象键无序、数组有序、未设置的字段不出现。JSON 的空白不是内容，
+ * 强行比字节只会因为两边的 pretty-printer 风格不同而永远红。
+ * 一致性由 `npm run verify:parity` 断言，exportedAt 是唯一被容忍的易变字段。
+ */
 function buildJson(rules: Rule[]): string {
-  return JSON.stringify(
-    {
-      ruleset: meta.ruleset,
-      name: meta.name,
-      version: meta.version,
-      exportedAt: new Date().toISOString(),
-      count: rules.length,
-      rules: rules.map(({ _weight, _hasStaticCheck, _checkLayer, _sourceFile, ...r }) => r),
-    },
-    null,
-    2
+  return (
+    JSON.stringify(
+      {
+        ruleset: meta.ruleset,
+        name: meta.name,
+        version: meta.version,
+        exportedAt: new Date().toISOString(),
+        count: rules.length,
+        rules: rules.map(({ _weight, _hasStaticCheck, _checkLayer, _sourceFile, ...r }) => r),
+      },
+      null,
+      2
+    ) + '\n'
   );
 }
 

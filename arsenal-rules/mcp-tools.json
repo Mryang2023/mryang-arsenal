@@ -1,0 +1,89 @@
+{
+  "$comment": "MCP 适配层的工具定义 —— 这里是唯一一份。前端导出中心、后端导出器、MCP Server 三处都读它。早先这份 inputSchema 在前端 exporters.ts 里硬编码，后端只能给一个 _tools 字符串数组，于是「两端不一致」被写进注释当成刻意的妥协；把定义变成数据之后，两端读同一份，不一致就没了存在的理由。改这里之后要重建数据：python tools/build-content.py 不需要动，但 npm run sync:rules 必须跑（prebuild 钩子会自动跑）。",
+
+  "server": {
+    "name": "arsenal",
+    "description": "杨先生的军火库 · 代码规范查询服务。写代码前用它查约束，写完用它验合规。",
+    "transport": "stdio",
+    "protocolVersion": "2024-11-05"
+  },
+
+  "launcher": {
+    "command": "node",
+    "args": ["__ARSENAL_HOME__/arsenal-server/scripts/mcp-stdio.mjs"],
+    "env": {
+      "ARSENAL_RULES_DIR": "__ARSENAL_HOME__/arsenal-rules"
+    }
+  },
+
+  "tools": [
+    {
+      "name": "search_rules",
+      "description": "按关键词检索规范条目。写代码前调用，拿到本次任务相关的约束句。",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "query": {
+            "type": "string",
+            "description": "关键词，如「controller 入参」「线程池」「事务」"
+          },
+          "severity": {
+            "type": "string",
+            "enum": ["MUST", "NEVER", "SHOULD", "MAY"],
+            "description": "可选，限定级别"
+          },
+          "category": {
+            "type": "string",
+            "description": "可选，限定分类"
+          }
+        },
+        "required": ["query"]
+      }
+    },
+    {
+      "name": "get_rule",
+      "description": "按 ID 取单条规则的完整定义（含反例、正例、检查方式）。",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "规则 ID，如 WEB-CTRL-002"
+          }
+        },
+        "required": ["id"]
+      }
+    },
+    {
+      "name": "lint_code",
+      "description": "提交代码前自检。返回违规清单（带行号）与合规分。",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "filename": {
+            "type": "string",
+            "description": "文件路径，用于匹配 targetGlob"
+          },
+          "content": {
+            "type": "string",
+            "description": "文件内容"
+          }
+        },
+        "required": ["filename", "content"]
+      }
+    },
+    {
+      "name": "get_prompt",
+      "description": "取一份完整的约束提示词，用于把规范注入当前会话。",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "severity": {
+            "type": "string",
+            "description": "可选，如 \"MUST,NEVER\""
+          }
+        }
+      }
+    }
+  ]
+}

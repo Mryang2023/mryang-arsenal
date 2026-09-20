@@ -12,10 +12,12 @@
     "prebuild": "npm run sync",
     "build": "next build",
     "start": "next start -p 3010",
+    "preverify": "npm run sync",
     "verify:arch": "tsx .verify/audit-check.ts",
     "verify:project": "tsx .verify/project-check.ts",
-    "verify": "npm run verify:arch && npm run verify:project && npm run verify:engine",
-    "verify:engine": "node .verify/run.cjs",
+    "verify:engine": "tsx .verify/run.ts",
+    "verify:parity": "tsx .verify/parity-check.ts",
+    "verify": "npm run verify:arch && npm run verify:project && npm run verify:engine && npm run verify:parity",
     "lint": "next lint"
   },
   "dependencies": {

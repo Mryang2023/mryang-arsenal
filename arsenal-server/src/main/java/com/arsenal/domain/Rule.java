@@ -1,6 +1,8 @@
 package com.arsenal.domain;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import com.fasterxml.jackson.annotation.JsonInclude;
 
 import java.util.List;
 
@@ -12,7 +14,16 @@ import java.util.List;
  *
  * 「无出处不收录」：sources 不允许为空 —— 没有权威背书的条目只是个人偏好，
  * 不配占用强制级配额。
+ *
+ * <b>@JsonInclude(NON_NULL) 是刻意的，不是图省事。</b>
+ * 前端的「原始规则集」出口是把 arsenal-rules 里的 JSON 原样透传，
+ * 数据里没写的键在产物里就不出现。后端如果按 record 的固定形状吐，
+ * 就会多出一堆 {@code "supersedes": null}、{@code "flags": null}、{@code "pathGlob": null} ——
+ * 同一份数据、同一种载体，两端给出的对象形状不一样。
+ * 现在两边都遵守同一条语义：<b>字段没设置就不出现</b>
+ * （已核对：数据源里不存在任何显式为 null 的值，所以这个映射是精确的）。
  */
+@JsonInclude(JsonInclude.Include.NON_NULL)
 @JsonIgnoreProperties(ignoreUnknown = true)
 public record Rule(
         String id,
@@ -40,15 +51,18 @@ public record Rule(
     }
 
     /** 规则的行业出处。出处即权威背书，也是日后升降级的依据。 */
+    @JsonInclude(JsonInclude.Include.NON_NULL)
     @JsonIgnoreProperties(ignoreUnknown = true)
     public record Source(String ref, String type, String quote) {
     }
 
+    @JsonInclude(JsonInclude.Include.NON_NULL)
     @JsonIgnoreProperties(ignoreUnknown = true)
     public record AppliesTo(List<String> stack, String scope, String pathGlob) {
     }
 
     /** 文本层检测。零成本、可离线、确定性最强，优先执行。 */
+    @JsonInclude(JsonInclude.Include.NON_NULL)
     @JsonIgnoreProperties(ignoreUnknown = true)
     public record RegexCheck(String pattern, String flags, String targetGlob, String expect) {
 
@@ -63,6 +77,7 @@ public record Rule(
     }
 
     /** 语法树层检测。由 JavaParser 执行，文本正则做不了的部分交给它。 */
+    @JsonInclude(JsonInclude.Include.NON_NULL)
     @JsonIgnoreProperties(ignoreUnknown = true)
     public record AstCheck(String engine, String query) {
 
@@ -75,6 +90,7 @@ public record Rule(
      * 检测方式。四层按 regex → ast → llm → manual 降级。
      * 能自动判定的规则才配叫「可执行规范」，其余只是文档。
      */
+    @JsonInclude(JsonInclude.Include.NON_NULL)
     @JsonIgnoreProperties(ignoreUnknown = true)
     public record Check(RegexCheck regex, AstCheck ast, String llm, String manual) {
 
@@ -115,6 +131,15 @@ public record Rule(
         return check == null ? Check.EMPTY : check;
     }
 
+    /**
+     * 是否生效。
+     *
+     * {@code @JsonIgnore}：这个方法名是 {@code isXxx} 形状，Jackson 会把它当成 getter
+     * 序列化出一个多出来的 {@code "active": true} 字段。规则对象的对外形状必须与
+     * arsenal-rules/_schema/rule.schema.json 严格一致 —— 多一个字段，
+     * 前端和自动化两边拿到的对象就不一样了。
+     */
+    @JsonIgnore
     public boolean isActive() {
         return status == null || status == RuleStatus.ACTIVE;
     }

@@ -60,6 +60,10 @@ export interface Rule {
 export interface CategoryMeta {
   key: CategoryKey;
   name: string;
+  /** 分类的英文名，规范书标题用（`工程骨架 · Skeleton`）。 */
+  english?: string;
+  /** 一句话说明这条分类管什么。 */
+  blurb?: string;
   dir: string;
   fileCount: number;
 }
@@ -75,6 +79,7 @@ export interface SourceRegistryEntry {
 export interface RulesetMeta {
   ruleset: string;
   name: string;
+  codename?: string;
   version: string;
   releasedAt: string;
   description: string;
@@ -82,6 +87,13 @@ export interface RulesetMeta {
   severityPolicy: Record<string, string>;
   budget: { mustHardLimit: number; mustCurrent: number; totalCurrent: number };
   sourceRegistry: Record<string, SourceRegistryEntry>;
+  /**
+   * 来源类型 → 中文标签（`industry-standard` → `行业规范`）。
+   *
+   * 与后端 RulesetMeta.sourceTypes 读的是同一份数据。刻意做成数据而不是
+   * TS 常量：后端导出规范书时拿不到 TS，两边各写一份必然会漂。
+   */
+  sourceTypes: Record<string, string>;
   categories: CategoryMeta[];
   changelog: { version: string; date: string; note: string }[];
 }
