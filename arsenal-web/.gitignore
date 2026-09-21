@@ -1,5 +1,6 @@
 node_modules/
-.next/
+# dev 用 .next-dev，build 用 .next，两份产物不许共用一个目录（见 next.config.mjs）
+.next*
 out/
 src/generated/
 
