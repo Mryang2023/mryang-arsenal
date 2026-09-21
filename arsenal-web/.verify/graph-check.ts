@@ -273,16 +273,40 @@ check(
 );
 
 // ═══════════════════════════════════════════════════════════════
-console.log('\n【7】导览：每个焦点都必须是真实槽位');
+console.log('\n【7】导览：焦点真实、且每章各不相同');
 const stories = graphStories(g, standard, auditArchitecture(standard));
 check(`导览章节非空（${stories.length} 章）`, stories.length > 0);
 check(
-  '每章的 focus 都指向画布上真实存在的槽位',
-  stories.every((s) => s.focus.length > 0 && s.focus.every((d) => g.byDim.has(d) && dimSet.has(d))),
+  '每章的 focus 都指向画布上真实存在的槽位（允许为空）',
+  stories.every((s) => s.focus.every((d) => g.byDim.has(d) && dimSet.has(d))),
   stories
     .filter((s) => s.focus.some((d) => !g.byDim.has(d)))
     .map((s) => s.id)
     .join(',')
+);
+// 这一条是补上来的。原来只断言「focus.length > 0」，而四个预设都声明了全部 17 个
+// 维度 —— 按声明取焦点时每章都是 17/17，非空但**全亮**，图上没有任何一格被压暗：
+// 点哪一章图都一模一样，导览等于没生效，而 > 0 的断言照样全绿。
+// 空焦点只有一种合法来历：当前选择就是这套预设，确实没有槽位可指。
+check(
+  '空的 focus 只出现在「当前选择即该预设」的章节上',
+  stories.every((s) => s.focus.length > 0 || s.note.includes('当前选择就是这套预设')),
+  stories.filter((s) => s.focus.length === 0).map((s) => `${s.id}: ${s.note}`).join(' | ')
+);
+check(
+  '任意两章的 focus 不完全相同（否则点哪一章图都一个样）',
+  new Set(stories.map((s) => [...s.focus].sort().join(','))).size === stories.length,
+  stories.map((s) => `${s.id}=${s.focus.length}`).join(' ')
+);
+check(
+  '预设章节的 focus 确实是「与当前选择不同」的那些槽位',
+  stories
+    .filter((s) => s.source === 'preset')
+    .every((s) => {
+      const preset = presets.find((p) => `preset-${p.id}` === s.id);
+      if (!preset) return false;
+      return s.focus.every((d) => standard[d] !== preset.picks[d]);
+    })
 );
 check(
   '手写预设章节数与 presets 一致',

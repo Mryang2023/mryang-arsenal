@@ -141,7 +141,11 @@ export interface LaneComparison {
 export interface Story {
   id: string;
   label: string;
-  /** 要聚焦的槽位 */
+  /**
+   * 要聚焦的槽位。**允许为空** —— 「当前选择就是这套预设」时确实没有槽位可指，
+   * 这时候图不该整片压暗，而是保持原样，由 note 说明原因。
+   * 非空时，焦点必须是画布上真实存在的槽位。
+   */
   focus: string[];
   note: string;
   /**
@@ -420,14 +424,23 @@ export function graphStories(graph: ArchGraph, picks: StackPicks, audit: ArchAud
   const stories: Story[] = [];
 
   // ── 手写预设：作者主张的取舍 ──
+  //
+  // 焦点取「与当前选择**不一样**的槽位」，不取预设声明了哪些维度。
+  // 四个预设都声明了全部 17 个维度：按声明取，每章的 focus 都是 17/17，
+  // 图上没有任何一格被压暗 —— 点哪一章图都一模一样，导览等于没生效。
+  // 差异才是这套主张真正的可看点：想变成它，要动的就是这几格。
   for (const preset of presets) {
-    const focus = Object.keys(preset.picks).filter((d) => graph.byDim.has(d));
-    if (focus.length < 2) continue;
+    const declared = Object.keys(preset.picks).filter((d) => graph.byDim.has(d));
+    if (declared.length < 2) continue;
+    const focus = declared.filter((d) => picks[d] !== preset.picks[d]);
     stories.push({
       id: `preset-${preset.id}`,
       label: preset.name,
       focus,
-      note: preset.summary,
+      note:
+        focus.length === 0
+          ? `当前选择就是这套预设，没有要换的槽位。${preset.summary}`
+          : `相对当前选择要换掉 ${focus.length} 个槽位。${preset.summary}`,
       source: 'preset',
     });
   }

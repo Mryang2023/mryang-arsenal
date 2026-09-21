@@ -53,6 +53,12 @@ LANES = [
         "desc": "决定两件事：线上出问题你知不知道，改完代码你敢不敢发。",
     },
     {
+        "id": "delivery",
+        "name": "交付与运行",
+        "glyph": "⬢",
+        "desc": "代码怎么变成一个正在跑的进程：谁打包、谁重启、谁负责扩容与回滚。",
+    },
+    {
         "id": "base",
         "name": "运行时基座",
         "glyph": "⬡",
@@ -92,6 +98,11 @@ CAP_NAME = {
     "cap.metrics.scrape": "指标外暴露与告警",
     "cap.test": "单元测试能力",
     "cap.test.isolated": "真实依赖的隔离测试",
+    # ── 交付与运行 ─────────────────────────────────────────
+    "cap.packaging": "可执行产物",
+    "cap.image": "容器镜像",
+    "cap.orchestration": "编排调度与自愈",
+    "cap.release.templating": "多环境发布参数化",
 }
 
 # ─────────────────────────────────────────────────────────────
@@ -218,6 +229,18 @@ NODE_ARCH = {
         "recommended": True,
         "missing": "没有测试策略，每次改动都是拿生产环境当测试环境。",
     },
+    # ── 交付与运行 ─────────────────────────────────────────
+    "deploy": {
+        "lane": "delivery",
+        "icon": "⬢",
+        "role": "交付形态",
+        "required": False,
+        "recommended": True,
+        "missing": (
+            "没有选定交付形态，「代码跑在哪台机器上、挂了谁来重启」就没有确定答案。"
+            "能启动不等于能运维 —— 这一格留空，意味着发布与回滚都要现想办法。"
+        ),
+    },
     # ── 运行时基座 ──────────────────────────────────────────
     "jdk": {
         "lane": "base",
@@ -339,6 +362,33 @@ OPTION_ARCH = {
         "testcontainers": {
             "requires": ["cap.jvm"],
             "provides": ["cap.test", "cap.test.isolated"],
+        },
+    },
+    # ── 交付与运行 ─────────────────────────────────────────
+    # 能力链条自下而上：})-可打包 → 能出镜像 → 能编排 → 能参数化多环境。
+    # 后两级各自把前一级的能力一并声明出来，是因为它们本身就含那条链路 ——
+    # 选了 K8s 就等于「镜像由流水线产出」，不需要再单独选一次 Docker。
+    # 反过来，**向自己索要是被明令禁止的**：cap.image 的提供者全都在这个槽位里，
+    # 若写成 requires cap.image，用户就永远拼不出可运行组合（构建期会直接拦下来）。
+    "deploy": {
+        "jar": {
+            "requires": ["cap.build", "cap.http"],
+            "provides": ["cap.packaging"],
+        },
+        "docker": {
+            "requires": ["cap.build", "cap.http"],
+            "provides": ["cap.packaging", "cap.image"],
+        },
+        "k8s": {
+            "requires": ["cap.build", "cap.http"],
+            "provides": ["cap.packaging", "cap.image", "cap.orchestration"],
+        },
+        "helm": {
+            "requires": ["cap.build", "cap.http"],
+            "provides": [
+                "cap.packaging", "cap.image", "cap.orchestration",
+                "cap.release.templating",
+            ],
         },
     },
 }
@@ -742,3 +792,492 @@ POLICY_DETAIL.update({
         "impact": "连接数随实例数线性增长，而数据库上限是固定的。扩容不但没提升容量，反而把整个服务推向不可用。",
     },
 })
+
+
+# ─────────────────────────────────────────────────────────────
+# v0.3 增补 · 容器编排带来的五条隐患
+#
+# 为什么值得专门为「交付与运行」写一批策略：
+#   编排平台是第一个**会替你做决定**的组件 —— 它判断实例是否健康、要不要重启、
+#   要不要扩容。而它做这些决定依赖的信息全部来自应用自己暴露的东西。
+#   信息没给够时，平台不会报错，它会按错误的信息继续做下去：
+#   没配 readiness 就把启动中的实例塞进 Service（发布期随机 502），
+#   没配指标就按 CPU 扩容（IO 密集服务扩了也没用），
+#   多副本照跑 @Scheduled（任务被静默执行 N 次）。
+#   这一批全都属于「单独看每个零件都对」的范畴。
+# ─────────────────────────────────────────────────────────────
+
+POLICIES += [
+    {
+        "id": "ARCH-K8S-NO-PROBE",
+        "level": "risk",
+        "when": {"deploy": ["k8s", "helm"], "observability": ["none"]},
+        "nodes": ["deploy", "observability"],
+        "title": "编排平台要替你重启实例，但它不知道什么叫「活着的」",
+        "text": (
+            "liveness / readiness 探针需要一个 HTTP 端点。没有它，平台唯一能判断的"
+            "只有「进程还在不在」—— 而死锁、线程池耗尽、连接池打满这三种最常见的"
+            "假死状态，进程都还活着。于是该重启的实例不会被重启，"
+            "该摘掉的实例还会继续接流量。"
+        ),
+        "fix": (
+            "至少把 Actuator 打开，只暴露 health 端点即可："
+            "management.endpoints.web.exposure.include=health，"
+            "并把 readiness / liveness 分成两个健康组。"
+        ),
+    },
+    {
+        "id": "ARCH-K8S-SCHEDULER-DUP",
+        "level": "risk",
+        "when": {"deploy": ["k8s", "helm"], "scheduler": ["spring"]},
+        "nodes": ["deploy", "scheduler"],
+        "title": "多副本等于同一个定时任务被执行 N 次",
+        "text": (
+            "编排形态天然是多副本：Deployment 的 replicas 是几个，就有几个进程在跑同一份代码。"
+            "@Scheduled 挂在每个进程各自的线程上，彼此不通气 —— "
+            "到点各跑一遍，数据被处理 N 次。这个过程不抛异常、不打日志报错，"
+            "只在最终的数据里体现出来。"
+        ),
+        "fix": "任务本身做成幂等并加分布式锁（ShedLock），或改用 XXL-Job 这类调度中心统一触发。",
+    },
+    {
+        "id": "ARCH-K8S-POOL-FANOUT",
+        "level": "risk",
+        "when": {"deploy": ["k8s", "helm"], "pool": ["hikari", "druid"]},
+        "nodes": ["deploy", "pool"],
+        "title": "副本数 × 连接池 = 打向数据库的连接数",
+        "text": (
+            "连接池大小是**每个实例**各自的池。副本从 2 扩到 6，数据库看到的连接数就是 4 倍，"
+            "而 max_connections 通常是固定的。更糟的是 HPA 会按负载自动加副本 —— "
+            "扩容这个动作本身可能先把数据库推到连接上限。"
+        ),
+        "fix": (
+            "按「最大副本数 × maximum-pool-size < max_connections × 80%」反推池大小；"
+            "给 HPA 设 maxReplicas 上限，不要让它无限扩。"
+        ),
+    },
+    {
+        "id": "ARCH-COMPOSE-PROD-DB",
+        "level": "note",
+        "when": {"deploy": ["docker"], "database": ["mysql", "postgres"]},
+        "nodes": ["deploy", "database"],
+        "title": "Compose 里的数据库容器不是生产库",
+        "text": (
+            "Compose 能一键拉起依赖，但它解决的是「本机也能跑起来」，"
+            "不是「挂了怎么办」。容器里的数据库没有高可用、没有故障切换、"
+            "备份要你自己导；docker compose down 之后 data 或许还在卷里，"
+            "但你并没有演练过怎么把它恢复出来。"
+        ),
+        "fix": "生产库用独立实例或托管服务；Compose 只负责应用与本地开发依赖。",
+    },
+    {
+        "id": "ARCH-HELM-ROLLBACK-SCHEMA",
+        "level": "risk",
+        "when": {"deploy": ["helm", "k8s"], "migration": ["flyway", "liquibase"]},
+        "nodes": ["deploy", "migration"],
+        "title": "回滚能退回旧镜像，退不回旧数据库",
+        "text": (
+            "helm rollback 或改镜像 tag 只替换容器，已经执行完的迁移脚本不会跟着退版本。"
+            "一旦迁移里有 drop column、改类型、重命名字段这类破坏性变更，"
+            "回滚后的旧代码面对的是新表结构 —— 回滚这一动作会直接把服务打到不可用，"
+            "而它恰恰是在最紧张的时候被执行。"
+        ),
+        "fix": "把每次发布拆成两步：先发布向后兼容的迁移（只增不删），确认稳定后再删旧结构。",
+    },
+]
+
+POLICY_DETAIL.update({
+    "ARCH-K8S-NO-PROBE": {
+        "trigger": "交付形态选了 Kubernetes 或 Helm，同时可观测性选了「不使用」（没有 Actuator 端点）",
+        "symptoms": [
+            "kubectl get pods 状态一直是 Running，但接口全部超时 —— 平台判定它健康",
+            "发布过程中出现随机 502，流量被分到了还在启动的实例上",
+            "死锁或连接池耗尽后实例永远不会被替换，只有人工重启才恢复",
+        ],
+        "impact": "平台基于「进程还在」这一条信息替你做重启与引流决策。假死不可发现、不可自愈，故障只能靠用户投诉暴露。",
+    },
+    "ARCH-K8S-SCHEDULER-DUP": {
+        "trigger": "交付形态选了 Kubernetes 或 Helm（多副本），定时任务用的是 Spring @Scheduled",
+        "symptoms": [
+            "同一批数据在一分钟内被处理多次，次数等于副本数",
+            "通知类任务重复发出：同一条短信 / 邮件 / 推送发到同一个接收方",
+            "统计表的计数或金额随时间被放大，且每次放大倍数等于当时的副本数",
+        ],
+        "impact": "无声的重复执行。不报错、不告警，只在最终数据上体现，发现时通常已积累多日且难以追溯补数范围。",
+    },
+    "ARCH-K8S-POOL-FANOUT": {
+        "trigger": "交付形态选了 Kubernetes 或 Helm（会横向扩容），连接池选了 HikariCP 或 Druid",
+        "symptoms": [
+            "副本数或 HPA 扩容后，日志里出现 Connection is not available, request timed out",
+            "数据库侧连接数逼近 max_connections，且随副本数同步上升",
+            "新扩容出的 Pod 启动失败，报 Too many connections —— 扩容反而导致不可用",
+        ],
+        "impact": "连接需求随副本线性增长而数据库上限固定。扩容不但没提升容量，反而把整个服务推向不可用；取消这种形态尤其糟：故障只在高负载、需要扩容时才出现。",
+    },
+    "ARCH-COMPOSE-PROD-DB": {
+        "trigger": "交付形态选了 Docker Compose，数据库随之跑在容器里",
+        "symptoms": [
+            "docker compose down 之后数据看似还在卷里，但没有恢复演练过",
+            "没有自动备份：数据库的可靠性等同于宿主机那块盘",
+            "宿主机 reboot 之后多个容器争相启动，应用先于数据库就绪而连接失败",
+        ],
+        "impact": "把「能一键拉起来」误当成「有运维保障」。真正出事时只能 pray 最后一次快照可用。",
+    },
+    "ARCH-HELM-ROLLBACK-SCHEMA": {
+        "trigger": "交付形态选了 Helm 或 Kubernetes，同时迁移工具选了 Flyway / Liquibase",
+        "symptoms": [
+            "回滚后立刻大面积报错 Unknown column / column type mismatch",
+            "旧版本日志里出现大量 SQL 异常，而数据库看起来一切正常",
+            "回滚失败后唯一的出路是「继续往前修复」，没有干净的退路",
+        ],
+        "impact": "声称拥有的一键回滚能力只对应用层成立。数据结构是单向的：一旦破坏性变更执行，回滚按钮实际上是坏的。",
+    },
+})
+
+# ─────────────────────────────────────────────────────────────
+# 技术架构图（交付用大图）的画图元信息
+#
+# 前面那些数据回答的是「能不能跑起来」，这一节回答的是**画出来是什么样**。
+# 分开放是刻意的：能力供需模型不该被版式字段污染，反之亦然。
+#
+# 三条硬规矩：
+#   ① 只画**真的会被部署的东西**。Maven、Lombok、JUnit、MapStruct 是构建期/编码期
+#      的东西，把它们画成一个个部署节点，是架构图最常见也最误导人的画法 ——
+#      所以它们写在应用卡里的「工程属性」上，不占一个节点位。
+#   ② 集群形态由数据声明，不在渲染器里 if。选项自己说它有几种部署形态，
+#      渲染器只负责把声明的数量画出来 —— 加一种形态不用碰渲染器。
+#   ③ 连线上的协议与端口也是声明的。图上写 :3306 是因为数据里写了 :3306，
+#      不是渲染器猜的。猜出来的端口号进技术说明书会出事。
+# ─────────────────────────────────────────────────────────────
+
+def CL(name, replicas, note=''):
+    """一种集群形态。replicas = 图上画几个堆叠的卡。"""
+    item = {'name': name, 'replicas': replicas}
+    if note:
+        item['note'] = note
+    return item
+
+
+# ── 分区：自上而下的部署分层 ──────────────────────────────
+#   archifyType  这一层在 Archify 七类组件里的默认归属
+#                （frontend / backend / database / cloud / security / messagebus / external）。
+#                放这里而不是放渲染器里：它是「这一层是什么性质」的事实，
+#                渲染器只负责把它抄进 IR。个别选项要改归属就在选项上覆盖。
+CANVAS_ZONES = [
+    {'id': 'client', 'name': '客户端', 'glyph': '◍', 'archifyType': 'external',
+     'desc': '请求发起方。不属于本次选型，但架构图上不画它，读图的人就得自己脑补。'},
+    {'id': 'app', 'name': '应用服务', 'glyph': '⬢', 'archifyType': 'backend',
+     'desc': 'Spring Boot 进程。横切能力（鉴权 / 文档 / 映射）挂在这一层内部，不单独部署。'},
+    {'id': 'mw', 'name': '中间件', 'glyph': '⇉', 'archifyType': 'cloud',
+     'desc': '每引入一个就多一个需要单独运维的进程。留空是安全的选择。'},
+    {'id': 'data', 'name': '数据存储', 'glyph': '▦', 'archifyType': 'database',
+     'desc': '业务数据的落点。这一层的集群形态直接决定容量与可用性上限。'},
+    {'id': 'ops', 'name': '观测与运维', 'glyph': '⛨', 'archifyType': 'cloud',
+     'desc': '决定线上出问题时你知不知道、改完代码敢不敢发。'},
+    # 交付形态单独一层，排在最后：**加在看图顺序的末尾，但必须真被画出来**。
+    # 早先把它塞进 app 那一层当旁路件，结果在导出给通用绘图器时两处都坏：
+    # 应用卡是整张图的主干锚点，它的宽度一变，跨层连线的走廊就跟着错位，
+    # 对方报「2px 内部段」与「标签压住组件」—— 都是主机 idea 带来的连锁反应。
+    # 单独成层之后，它跟 ops / data 一样落在右列，版式规则与已有分支完全相同。
+    {'id': 'platform', 'name': '交付与运行', 'glyph': '⬢', 'archifyType': 'cloud',
+     'desc': '谁打包、谁重启、谁负责扩容与回滚。这一层替你做的每一个决定，'
+             '都依赖应用自己暴露的信息。'},
+]
+
+# ── 交付给通用绘图器（Archify）时的图注覆盖 ────────────────
+#   Archify 的 `cloud` 类在界面上读作「云服务」。我们这一层装的却是 Nacos /
+#   XXL-Job / Prometheus —— 自托管的支撑组件，不是云上的托管服务。
+#   与其让图例说一句不准确的话，不如把图例文字改准：
+#   类型枚举不动（那是渲染器的词汇表），只覆盖它显示出来的名字。
+CANVAS_LEGEND_OVERRIDES = {
+    'cloud': {'label': '支撑组件'},
+}
+
+# ── 每个维度在图上怎么出现 ────────────────────────────────
+#   place  node    画成一个独立部署节点
+#          appTag 收进应用卡的「工程属性」（构建期 / 编码期的东西）
+#          side   画成挂在主线上的旁路件（发布期才起作用）
+CANVAS_DIMS = {
+    'jdk':        {'place': 'appTag', 'tagLabel': '运行时'},
+    'build':      {'place': 'appTag', 'tagLabel': '构建'},
+    'web':        {'place': 'appTag', 'tagLabel': 'Web 容器'},
+    'persistence': {'place': 'appTag', 'tagLabel': '持久层'},
+    'pool':       {'place': 'appTag', 'tagLabel': '连接池'},
+    'mapping':    {'place': 'appTag', 'tagLabel': '对象映射'},
+    'boilerplate': {'place': 'appTag', 'tagLabel': '样板代码'},
+    'test':       {'place': 'appTag', 'tagLabel': '测试'},
+    'auth':       {'place': 'appTag', 'tagLabel': '鉴权'},
+    'apidoc':     {'place': 'appTag', 'tagLabel': '接口文档'},
+    'migration':  {'place': 'side', 'zone': 'data', 'tagLabel': 'Schema 迁移'},
+    'cache':      {'place': 'node', 'zone': 'data'},
+    'database':   {'place': 'node', 'zone': 'data'},
+    'mq':         {'place': 'node', 'zone': 'mw'},
+    'registry':   {'place': 'node', 'zone': 'mw'},
+    'scheduler':  {'place': 'node', 'zone': 'mw'},
+    'observability': {'place': 'node', 'zone': 'ops'},
+    # 交付形态单独占一层：它确实是一个**会被部署的东西**（systemd unit / 镜像流水线 /
+    # Deployment），不是应用卡里的一行工程属性。放在 app 层当旁路件会让它看起来
+    # 像是跟着应用一起走的某种编译期选择，而实际上它决定的是这个进程怎么被替换。
+    'deploy': {'place': 'node', 'zone': 'platform'},
+}
+
+# ── 每个选项的图标与部署形态 ──────────────────────────────
+#   icon     图标库里的 key（见 arsenal-web/src/lib/tech-icons.ts）
+#   port     默认端口。写进连线标签，供技术说明书直接引用
+#   cluster  这个组件能怎么部署。第一项是默认形态
+#
+#   ── 以下三项是给通用绘图器（Archify）导出用的 ──
+#   brand        Archify 内置矢量商标的 id。**必须**是 `wrench-ai brands --json`
+#                里真实存在的规范 id，编一个会在渲染期直接失败（fail closed）。
+#                没有官方商标的组件（Nacos / RocketMQ / XXL-Job / Tomcat…）就不写，
+#                图上退回按组件类型上色 —— 比硬塞一个不相干的标好。
+#   archifyType  覆盖分区给的默认归属。只在「这一层多数是这个类型、但这个选项不是」
+#                时才写，比如消息队列落在中间件层（那一层默认给 cloud）。
+#   label        交付图上的短名。选项全名太长时用（"Actuator + Prometheus + Grafana"
+#                塞进一个方块会挤成一团）。不写就用选项名。
+CANVAS_OPTIONS = {
+    'jdk': {
+        '17': {'icon': 'jdk'},
+        '21': {'icon': 'jdk'},
+    },
+    'build': {
+        'maven': {'icon': 'maven'},
+        'gradle': {'icon': 'gradle'},
+    },
+    'web': {
+        # 应用卡的名字与图标取自这一维；brand 让应用方块带上 Spring 标 ——
+        # 应用方块本身没有维度，它的品牌只能挂在这里
+        'mvc': {'icon': 'tomcat', 'port': '8080', 'brand': 'spring'},
+        'webflux': {'icon': 'netty', 'port': '8080', 'brand': 'spring'},
+    },
+    'persistence': {
+        'jdbc': {'icon': 'jdbc'},
+        'mybatisplus': {'icon': 'mybatis'},
+        'jpa': {'icon': 'jpa'},
+    },
+    'pool': {
+        'hikari': {'icon': 'hikari'},
+        'druid': {'icon': 'druid'},
+    },
+    'mapping': {
+        'manual': {'icon': 'generic'},
+        'mapstruct': {'icon': 'mapstruct'},
+    },
+    'boilerplate': {
+        'lombok': {'icon': 'lombok'},
+        'plain': {'icon': 'generic'},
+    },
+    'test': {
+        'mockito': {'icon': 'junit'},
+        'testcontainers': {'icon': 'testcontainers'},
+    },
+    'auth': {
+        'securityjwt': {'icon': 'security'},
+        'satoken': {'icon': 'satoken'},
+        'custom': {'icon': 'jwt'},
+    },
+    'apidoc': {
+        'springdoc': {'icon': 'springdoc'},
+        'knife4j': {'icon': 'knife4j'},
+        'none': {'icon': 'none'},
+    },
+    'migration': {
+        # 迁移工具位置在数据层旁边（它是对库动手的），但类型不是 database ——
+        # 说 Flyway 是「数据库」会让图例读起来像是多出来一个库
+        'flyway': {'icon': 'flyway', 'archifyType': 'cloud'},
+        'liquibase': {'icon': 'liquibase', 'archifyType': 'cloud'},
+        'none': {'icon': 'none'},
+    },
+    'database': {
+        'mysql': {
+            'icon': 'mysql', 'port': '3306', 'brand': 'mysql',
+            'cluster': [
+                CL('单实例', 1, '一个库扛全部读写。挂了就没了，只适合原型与内部小系统。'),
+                CL('主从复制', 2, '写走主库、读走从库。容量与可用性都由从库数量决定。'),
+                CL('MGR 集群', 3, '组复制，单节点故障可自动切换。代价是写入延迟上升。'),
+            ],
+        },
+        'postgres': {
+            'icon': 'postgres', 'port': '5432', 'brand': 'postgresql',
+            'cluster': [
+                CL('单实例', 1, '一个实例。备份只能靠快照与 WAL 归档。'),
+                CL('主从流复制', 2, '主库写、备库读。故障切换需要 Patroni 之类组件配合。'),
+                CL('一主多备', 3, '多备库分担读，主库故障需外部选主。'),
+            ],
+        },
+    },
+    'cache': {
+        # 本地缓存跑在应用进程里，不占部署节点位
+        'none': {'icon': 'none'},
+        'caffeine': {'icon': 'caffeine', 'place': 'appTag'},
+        'redis': {
+            'icon': 'redis', 'port': '6379', 'brand': 'redis',
+            'cluster': [
+                CL('单实例', 1, '一个实例。缓存挂了只是穿透，不会丢业务数据。'),
+                CL('主从 + 哨兵', 3, '哨兵负责选主。三节点是哨兵能自洽的最小奇数。'),
+                CL('Cluster 分片', 6, '数据分片到多组。槽位迁移期间部分 key 会短暂不可用。'),
+            ],
+        },
+    },
+    'mq': {
+        'none': {'icon': 'none'},
+        'rocketmq': {
+            # RocketMQ 不在 Archify 的商标库里，留空按类型上色
+            'icon': 'rocketmq', 'port': '9876', 'archifyType': 'messagebus',
+            'cluster': [
+                CL('单 Broker', 1, '一个 Broker。堆积能力受单盘限制。'),
+                CL('主从 Broker', 2, '主写从读，主挂了从只提供读。'),
+                CL('多 Broker 集群', 3, 'Topic 分散到多组 Broker，吞吐随组数增长。'),
+            ],
+        },
+        'rabbitmq': {
+            'icon': 'rabbitmq', 'port': '5672', 'archifyType': 'messagebus',
+            'brand': 'rabbitmq',
+            'cluster': [
+                CL('单节点', 1, '一个节点。队列在该节点上，节点挂了队列就没了。'),
+                CL('普通集群', 2, '队列元数据同步，消息仍在原节点。'),
+                CL('镜像队列', 3, '消息复制到多节点。吞吐下降，但节点故障不丢消息。'),
+            ],
+        },
+        'kafka': {
+            'icon': 'kafka', 'port': '9092', 'archifyType': 'messagebus',
+            'brand': 'apache-kafka',
+            'cluster': [
+                CL('单 Broker', 1, '一个 Broker。分区副本无处可放。'),
+                CL('三节点集群', 3, '最小可用集群，副本数 3 时允许坏 1 台。'),
+                CL('五节点集群', 5, '副本数 3 时允许坏 2 台，同时扛住一次滚动升级。'),
+            ],
+        },
+    },
+    'registry': {
+        'none': {'icon': 'none'},
+        'nacos': {
+            'icon': 'nacos', 'port': '8848',
+            'cluster': [
+                CL('单机模式', 1, '内置 Derby。只适合本地开发，重启丢配置。'),
+                CL('三节点集群', 3, 'Raft 选主的最小奇数。生产最低要求。'),
+                CL('五节点集群', 5, '允许同时坏 2 台，滚动升级不掉注册表。'),
+            ],
+        },
+    },
+    'scheduler': {
+        # @Scheduled 是应用进程内的一个线程，画成独立节点等于谎报了一个部署单元
+        'spring': {'icon': 'scheduler', 'place': 'appTag'},
+        'xxljob': {
+            'icon': 'xxljob', 'port': '8080',
+            'cluster': [
+                CL('单调度中心', 1, '调度中心单点。中心挂了任务不触发，执行器照常跑。'),
+                CL('双调度中心', 2, '调度中心主备，靠数据库锁选主。'),
+                CL('调度 + 执行器集群', 3, '执行器多实例，任务由调度中心分派。'),
+            ],
+        },
+    },
+    # ── 交付形态 ──────────────────────────────────────────
+    # 副本数就是 Deployment 的 replicas（或守护形态下的进程数）——
+    # 图上写 ×N 是因为这里声明了 N，不是渲染器猜的。
+    'deploy': {
+        'jar': {
+            'icon': 'jar',
+            'label': 'Fat JAR + 进程守护',
+            'cluster': [
+                CL('单进程', 1, '一个 JVM 进程。挂了不会自愈，靠守护进程或人发现。'),
+                CL('双机主备', 2, '两台机各一个进程，由负载均衡器判断谁还活着。'),
+                CL('多机多进程', 3, '进程横向分布。扩一台机就是一次全手工部署。'),
+            ],
+        },
+        'docker': {
+            'icon': 'docker',
+            'label': 'Docker + Compose',
+            'cluster': [
+                CL('单容器', 1, '一个容器。Compose 会把 compose file 里声明的东西一并拉起。'),
+                CL('双容器', 2, '应用双副本 + 前置负载。重启策略由 Compose 的 restart 声明。'),
+                CL('多容器编排', 3, '应用多副本连同依赖中间件。上限仍是单机容量。'),
+            ],
+        },
+        'k8s': {
+            'icon': 'k8s',
+            'label': 'Kubernetes',
+            'brand': 'kubernetes',
+            'cluster': [
+                CL('单副本', 1, 'replicas=1。没有滚动更新的余地，发布等于停机。'),
+                CL('三副本滚动', 3, '最小生产形态：更新期间始终有实例在服务。'),
+                CL('六副本 + HPA', 6, '按负载自动扩缩。连接数与下游压力会被同步放大。'),
+            ],
+        },
+        'helm': {
+            'icon': 'helm',
+            'label': 'Helm Chart',
+            'cluster': [
+                CL('单环境', 1, '一份 values。用来验证模板本身写得对不对。'),
+                CL('双环境', 2, 'dev + prod 两份 values，同一份模板渲染出两套清单。'),
+                CL('三环境', 3, 'dev / staging / prod。环境之间的差值全部落在 values 里。'),
+            ],
+        },
+    },
+    'observability': {
+        # 只有 Prometheus 是要单独起进程的；Actuator 只是应用暴露的一个端点
+        'none': {'icon': 'logback', 'place': 'appTag'},
+        'actuator': {'icon': 'actuator', 'place': 'appTag'},
+        'prometheus': {
+            'icon': 'prometheus', 'port': '9090', 'brand': 'prometheus',
+            # 选项全名是「Actuator + Prometheus + Grafana」，塞进一个方块会挤成一团；
+            # 图上只写真正起了进程的两个 —— Actuator 是应用自己暴露的端点
+            'label': 'Prometheus + Grafana',
+            'cluster': [
+                CL('单 Prometheus', 1, '一个实例。它自己挂了，监控就一起瞎。'),
+                CL('双 Prometheus', 2, '两个实例抓同一批目标，告警去重靠外层。'),
+                CL('联邦集群', 3, '边缘 Prometheus 汇总到中心，适合多机房。'),
+            ],
+        },
+    },
+}
+
+# ── 连线：谁连谁、走什么协议 ──────────────────────────────
+#   from / to  维度 id。任一端没选（或选项留空）就不画这条线
+#   label      连线上的协议 / 动作
+#   kind       solid=请求必经   dashed=只在某些阶段起作用
+CANVAS_LINKS = [
+    {'from': 'client', 'to': 'app', 'label': 'HTTPS', 'kind': 'solid'},
+    {'from': 'app', 'to': 'database', 'label': 'JDBC', 'kind': 'solid'},
+    {'from': 'app', 'to': 'cache', 'label': 'RESP', 'kind': 'solid'},
+    {'from': 'app', 'to': 'mq', 'label': '消息生产 / 消费', 'kind': 'solid'},
+    {'from': 'app', 'to': 'registry', 'label': '注册 + 配置拉取', 'kind': 'solid'},
+    {'from': 'app', 'to': 'scheduler', 'label': '任务回调', 'kind': 'dashed'},
+    {'from': 'migration', 'to': 'database', 'label': 'Schema 迁移', 'kind': 'dashed'},
+    {'from': 'observability', 'to': 'app', 'label': '指标拉取', 'kind': 'dashed'},
+    # 交付形态是一条**回边**：方向从平台指向应用 —— 是平台在调度这个进程，
+    # 而不是应用去调用平台。画成 app → deploy 会把管理关系讲成调用关系，
+    # 那是图上最常见的一种读错。
+    #
+    # 标签只有两个字是被约束出来的：跨层连线的标签宽度会直接加宽连线走廊，
+    # 而走廊变宽会让整张图越过「桌面可读性」的门槛（1440 宽视口下每511最小的字要看不清）。
+    # 换句话说，这里多写四个字，导出给通用绘图器的图就过不了最严档校验。
+    {'from': 'deploy', 'to': 'app', 'label': '编排', 'kind': 'dashed'},
+]
+
+# ── 交付给通用绘图器（Archify）时的阅读路径 ────────────────
+#   每条路径回答「这一条链路要经过哪几块」。焦点由**分区 + 维度**声明，
+#   不写死节点 id：没选到的槽位图上根本没有方块，写死了会被对方判成
+#   「引用了不存在的组件」——那是硬失败，不是警告。
+#
+#   两条规矩（第二条是本项目已经踩过一次的坑）：
+#     ① 与图上求交后不足两块的路径整条丢掉 —— 只亮一块的路径点开跟没点一样；
+#     ② **任意两条路径的焦点不许完全相同**。导览四章焦点全是「全部槽位」时，
+#        点哪一章图都一模一样，导览等于没生效。
+CANVAS_VIEWS = [
+    {'id': 'v_ingress', 'label': '请求进入',
+     'zones': ['client', 'app', 'mw'], 'dims': [],
+     'note': '外部请求落到应用进程，中间件是它连出去的第一跳。'},
+    {'id': 'v_state', 'label': '状态落点',
+     'zones': ['app', 'data'], 'dims': [],
+     'note': '业务数据最终写在哪、读在哪 —— 这一步决定容量与可用性的上限。'},
+    {'id': 'v_async', 'label': '异步与调度',
+     'zones': ['app'], 'dims': ['mq', 'scheduler'],
+     'note': '不在请求线程里做的那些事：削峰、解耦、定时。'},
+    {'id': 'v_ops', 'label': '观测与运维',
+     'zones': ['app', 'ops'], 'dims': ['registry'],
+     'note': '决定线上出问题时你知不知道、改完代码敢不敢发。'},
+    {'id': 'v_delivery', 'label': '交付与运行',
+     'zones': ['app'], 'dims': ['deploy'],
+     'note': '这套东西最后由谁打包、谁重启、谁负责扩容与回滚。'},
+]

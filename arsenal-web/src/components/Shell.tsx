@@ -11,6 +11,7 @@ const NAV = [
   { href: '/rules', label: '规则库', glyph: '▦', count: liveStats.total },
   { href: '/blueprints', label: '最佳实践案例库', glyph: '▤', count: cookbookStats.features },
   { href: '/stack', label: '装配台', glyph: '⬡', count: dimensions.length },
+  { href: '/arch', label: '架构图谱', glyph: '▣', count: 6 },
   { href: '/check', label: '校验台', glyph: '⛨', count: 0 },
   { href: '/export', label: '导出中心', glyph: '⎘', count: 0 },
 ];

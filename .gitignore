@@ -33,7 +33,10 @@ arsenal-demo-*.zip
 #    约定：一次性抓取（环境探测、命令日志重定向、临时 runner）一律写
 #    到 .workbuddy/_* —— 下划线前缀 = 不是资产，随手可删。
 #    注意只匹配下划线开头，.workbuddy/memory/ 不受影响。
-.workbuddy/_*
+#    ⚠️ 必须带 **/ 前缀：` .workbuddy/_*` 中间有斜杠，会被锚定到仓库根，
+#    子目录里的 arsenal-web/.workbuddy/ 挡不住（2026-09-20 实测 git check-ignore
+#    对 arsenal-web/.workbuddy/_*.png 返回「未忽略」，探针产物会漏进待提交列表）。
+**/.workbuddy/_*
 
 # ── IDE 本地配置：每台机器、每个人都不一样，不进仓库 ──────────
 #    JetBrains 会在项目根建 .idea/，VS Code 建 .vscode/

@@ -67,3 +67,104 @@ body {
   outline-offset: 2px;
   border-radius: 4px;
 }
+
+/* ── 动效原语 ───────────────────────────────────────────────
+   只给页面层用（SVG 内部的动效走 arch-motion.ts 的内嵌 <style>，
+   那边必须随导出文件一起走，不能依赖外部样式表）。
+   命名一律 ui- 前缀，和 SVG 里的 am- 前缀分开，避免误用。        */
+
+@keyframes ui-rise {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes ui-fade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+@keyframes ui-shimmer {
+  from {
+    background-position: -180% 0;
+  }
+  to {
+    background-position: 180% 0;
+  }
+}
+@keyframes ui-breathe {
+  0%,
+  100% {
+    opacity: 0.5;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+@keyframes ui-drift {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0);
+  }
+  50% {
+    transform: translate3d(0, -5px, 0);
+  }
+}
+@keyframes ui-sweep {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(320%);
+  }
+}
+
+.ui-rise {
+  animation: ui-rise 0.44s cubic-bezier(0.22, 0.8, 0.3, 1) both;
+  animation-delay: calc(var(--i, 0) * 55ms);
+}
+.ui-fade {
+  animation: ui-fade 0.32s ease both;
+}
+.ui-breathe {
+  animation: ui-breathe 2.6s ease-in-out infinite;
+}
+.ui-drift {
+  animation: ui-drift 6s ease-in-out infinite;
+}
+.ui-shimmer {
+  background-image: linear-gradient(
+    90deg,
+    rgba(255, 255, 255, 0.04) 0%,
+    rgba(255, 255, 255, 0.11) 50%,
+    rgba(255, 255, 255, 0.04) 100%
+  );
+  background-size: 220% 100%;
+  animation: ui-shimmer 1.5s linear infinite;
+}
+.ui-sweep {
+  animation: ui-sweep 1.6s ease-in-out infinite;
+}
+
+/* 系统开了「减弱动效」就全部停 —— 无障碍优先于好看 */
+@media (prefers-reduced-motion: reduce) {
+  .ui-rise,
+  .ui-fade,
+  .ui-breathe,
+  .ui-drift,
+  .ui-shimmer,
+  .ui-sweep {
+    animation: none;
+  }
+  .ui-rise,
+  .ui-fade {
+    opacity: 1;
+  }
+}

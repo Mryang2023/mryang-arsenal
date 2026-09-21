@@ -68,6 +68,397 @@
         ]
       },
       {
+        "name": "deploy/",
+        "desc": "部署与运行清单。把「谁打包、谁重启、谁扩容、怎么回滚」落成文件，而不是留在某个人的脑子里",
+        "kind": "dir",
+        "when": {
+          "deploy": [
+            "jar",
+            "docker",
+            "k8s",
+            "helm"
+          ]
+        },
+        "children": [
+          {
+            "name": "Dockerfile",
+            "desc": "多阶段构建：JDK 阶段出 jar，JRE 阶段只装运行时。依赖按变更频率拆层，改一行业务代码不会重下一轮依赖",
+            "kind": "file",
+            "badge": "导出附带",
+            "when": {
+              "deploy": [
+                "docker",
+                "k8s",
+                "helm"
+              ]
+            }
+          },
+          {
+            "name": ".dockerignore",
+            "desc": "排除 target/、.git/、logs/。少了它，构建上下文会把整份历史推给守护进程",
+            "kind": "file",
+            "badge": "导出附带",
+            "when": {
+              "deploy": [
+                "docker",
+                "k8s",
+                "helm"
+              ]
+            }
+          },
+          {
+            "name": "docker-compose.yml",
+            "desc": "应用 + 它依赖的中间件。用于本地与联调，不是生产调度器 —— 生产库的可用性不在它的职责范围内",
+            "kind": "file",
+            "badge": "导出附带",
+            "when": {
+              "deploy": [
+                "docker"
+              ]
+            }
+          },
+          {
+            "name": "Makefile",
+            "desc": "把 build / push / deploy / rollback 四条命令固化成同一种调用方式，发布步骤从此不含口头约定",
+            "kind": "file",
+            "badge": "导出附带",
+            "when": {
+              "deploy": [
+                "docker",
+                "k8s",
+                "helm"
+              ]
+            }
+          },
+          {
+            "name": "systemd/",
+            "desc": "进程守护形态下的服务定义",
+            "kind": "dir",
+            "when": {
+              "deploy": [
+                "jar"
+              ]
+            },
+            "children": [
+              {
+                "name": "app.service",
+                "desc": "systemd unit。KillSignal 必须是 SIGTERM，TimeoutStopSec 必须大于优雅停机超时 —— 两个参数写错就是在每次发布里随机丢请求",
+                "kind": "file",
+                "badge": "导出附带",
+                "when": {
+                  "deploy": [
+                    "jar"
+                  ]
+                }
+              }
+            ]
+          },
+          {
+            "name": "prometheus.yml",
+            "desc": "抓取配置。compose 里挂载了它 —— 少了这个文件，Docker 会挂一个同名目录进去，Prometheus 起不来",
+            "kind": "file",
+            "badge": "导出附带",
+            "when": {
+              "deploy": [
+                "docker"
+              ],
+              "observability": [
+                "prometheus"
+              ]
+            }
+          },
+          {
+            "name": "k8s/",
+            "desc": "Kubernetes 原生清单。按顺序 apply 即可起来一套完整的服务",
+            "kind": "dir",
+            "when": {
+              "deploy": [
+                "k8s"
+              ]
+            },
+            "children": [
+              {
+                "name": "00-namespace.yaml",
+                "desc": "命名空间。隔离资源配额与权限边界的最小单位",
+                "kind": "file",
+                "badge": "导出附带",
+                "when": {
+                  "deploy": [
+                    "k8s"
+                  ]
+                }
+              },
+              {
+                "name": "01-configmap.yaml",
+                "desc": "非敏感配置。镜像与环境解耦的落点：换环境只换它，不重新构建",
+                "kind": "file",
+                "badge": "导出附带",
+                "when": {
+                  "deploy": [
+                    "k8s"
+                  ]
+                }
+              },
+              {
+                "name": "02-secret.yaml",
+                "desc": "敏感配置的占位。**值是空的** —— 真正的凭据只在部署时注入，不进 Git",
+                "kind": "file",
+                "badge": "导出附带",
+                "when": {
+                  "deploy": [
+                    "k8s"
+                  ]
+                }
+              },
+              {
+                "name": "03-serviceaccount.yaml",
+                "desc": "运行身份。不用 default SA，权限才能收紧到这个应用",
+                "kind": "file",
+                "badge": "导出附带",
+                "when": {
+                  "deploy": [
+                    "k8s"
+                  ]
+                }
+              },
+              {
+                "name": "04-deployment.yaml",
+                "desc": "副本数、资源、三个探针、优雅停机。 probes 缺一个就有一类故障没人管",
+                "kind": "file",
+                "badge": "导出附带",
+                "when": {
+                  "deploy": [
+                    "k8s"
+                  ]
+                }
+              },
+              {
+                "name": "05-service.yaml",
+                "desc": "ClusterIP 服务。给 Pod 一个稳定的 DNS 名与负载均衡",
+                "kind": "file",
+                "badge": "导出附带",
+                "when": {
+                  "deploy": [
+                    "k8s"
+                  ]
+                }
+              },
+              {
+                "name": "06-ingress.yaml",
+                "desc": "外部流量入口。TLS 与域名在这里，也可能由网关层统一收走",
+                "kind": "file",
+                "badge": "导出附带",
+                "when": {
+                  "deploy": [
+                    "k8s"
+                  ]
+                }
+              },
+              {
+                "name": "07-hpa.yaml",
+                "desc": "按 CPU / 内存扩缩。maxReplicas 是上限，不设上限的扩容会把数据库先推到连接数上限",
+                "kind": "file",
+                "badge": "导出附带",
+                "when": {
+                  "deploy": [
+                    "k8s"
+                  ]
+                }
+              },
+              {
+                "name": "08-pdb.yaml",
+                "desc": "中断预算。没有它，一次节点排水就能把所有副本同时赶走",
+                "kind": "file",
+                "badge": "导出附带",
+                "when": {
+                  "deploy": [
+                    "k8s"
+                  ]
+                }
+              },
+              {
+                "name": "kustomization.yaml",
+                "desc": "资源清单汇总，也是多环境 overlay 的入口",
+                "kind": "file",
+                "badge": "导出附带",
+                "when": {
+                  "deploy": [
+                    "k8s"
+                  ]
+                }
+              }
+            ]
+          },
+          {
+            "name": "chart/",
+            "desc": "Helm Chart：一份模板 + 多份 values",
+            "kind": "dir",
+            "when": {
+              "deploy": [
+                "helm"
+              ]
+            },
+            "children": [
+              {
+                "name": "Chart.yaml",
+                "desc": "元数据。version 是 chart 的版本，appVersion 是应用的版本 —— 混在一起就答不出「这次变了什么」",
+                "kind": "file",
+                "badge": "导出附带",
+                "when": {
+                  "deploy": [
+                    "helm"
+                  ]
+                }
+              },
+              {
+                "name": "values.yaml",
+                "desc": "所有环境共享的默认值",
+                "kind": "file",
+                "badge": "导出附带",
+                "when": {
+                  "deploy": [
+                    "helm"
+                  ]
+                }
+              },
+              {
+                "name": "values-dev.yaml",
+                "desc": "开发环境的差值。每份 values 只写差异，不复制整份",
+                "kind": "file",
+                "badge": "导出附带",
+                "when": {
+                  "deploy": [
+                    "helm"
+                  ]
+                }
+              },
+              {
+                "name": "values-prod.yaml",
+                "desc": "生产环境的差值：副本数、资源、PDB、Ingress",
+                "kind": "file",
+                "badge": "导出附带",
+                "when": {
+                  "deploy": [
+                    "helm"
+                  ]
+                }
+              },
+              {
+                "name": "templates/",
+                "desc": "模板。所有 Go template 表达式集中在这里，values 只提供数据",
+                "kind": "dir",
+                "when": {
+                  "deploy": [
+                    "helm"
+                  ]
+                },
+                "children": [
+                  {
+                    "name": "_helpers.tpl",
+                    "desc": "命名与标签的统一定义。散着写会出现「标签不一致导致 Service 选不到 Pod」",
+                    "kind": "file",
+                    "badge": "导出附带",
+                    "when": {
+                      "deploy": [
+                        "helm"
+                      ]
+                    }
+                  },
+                  {
+                    "name": "deployment.yaml",
+                    "desc": "Deployment 模板：镜像、资源、探针、优雅停机全部参数化",
+                    "kind": "file",
+                    "badge": "导出附带",
+                    "when": {
+                      "deploy": [
+                        "helm"
+                      ]
+                    }
+                  },
+                  {
+                    "name": "service.yaml",
+                    "desc": "Service 模板",
+                    "kind": "file",
+                    "badge": "导出附带",
+                    "when": {
+                      "deploy": [
+                        "helm"
+                      ]
+                    }
+                  },
+                  {
+                    "name": "ingress.yaml",
+                    "desc": "Ingress 模板，按 values 决定是否创建",
+                    "kind": "file",
+                    "badge": "导出附带",
+                    "when": {
+                      "deploy": [
+                        "helm"
+                      ]
+                    }
+                  },
+                  {
+                    "name": "configmap.yaml",
+                    "desc": "非敏感配置模板",
+                    "kind": "file",
+                    "badge": "导出附带",
+                    "when": {
+                      "deploy": [
+                        "helm"
+                      ]
+                    }
+                  },
+                  {
+                    "name": "secret.yaml",
+                    "desc": "凭据的**键位说明书**：值一律为空，部署时注入。写进 values 就等于把凭据交给了每个能执行 helm get values 的人",
+                    "kind": "file",
+                    "badge": "导出附带",
+                    "when": {
+                      "deploy": [
+                        "helm"
+                      ]
+                    }
+                  },
+                  {
+                    "name": "serviceaccount.yaml",
+                    "desc": "运行身份模板。不用 default SA，权限才能收紧到这个应用",
+                    "kind": "file",
+                    "badge": "导出附带",
+                    "when": {
+                      "deploy": [
+                        "helm"
+                      ]
+                    }
+                  },
+                  {
+                    "name": "hpa.yaml",
+                    "desc": "HPA 模板，默认关闭",
+                    "kind": "file",
+                    "badge": "导出附带",
+                    "when": {
+                      "deploy": [
+                        "helm"
+                      ]
+                    }
+                  },
+                  {
+                    "name": "pdb.yaml",
+                    "desc": "中断预算模板。没有它，一次节点排水就能把所有副本同时赶走",
+                    "kind": "file",
+                    "badge": "导出附带",
+                    "when": {
+                      "deploy": [
+                        "helm"
+                      ]
+                    }
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      {
         "name": "src/",
         "desc": "",
         "kind": "dir",
@@ -757,7 +1148,7 @@
     "liquibaseMaster": "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<!--\n  变更总入口。这个文件只做 include，不写具体变更 ——\n  否则它会随着项目推进膨胀成一个没人敢改的巨型 XML。\n-->\n<databaseChangeLog\n        xmlns=\"http://www.liquibase.org/xml/ns/dbchangelog\"\n        xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\"\n        xsi:schemaLocation=\"http://www.liquibase.org/xml/ns/dbchangelog\n                            http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.24.xsd\">\n\n    <include file=\"db/changelog/changes/001-init.xml\" relativeToChangelogFile=\"false\"/>\n\n</databaseChangeLog>\n",
     "smokeTest": "package com.example;\n\nimport org.junit.jupiter.api.Test;\nimport org.springframework.boot.test.context.SpringBootTest;\n\n/**\n * 上下文冒烟测试。\n *\n * 它只证明一件事：**Spring 容器能起来**。\n * 但这一条比很多业务测试更早地拦住问题 —— 配置写错、Bean 循环依赖、\n * 数据源连不上、Mapper 扫描路径写错，都会在这里直接失败。\n *\n * 注意：这个测试需要能连上数据库。CI 里要么起一个测试库，\n * 要么用 Testcontainers，不要用 H2 假装它是 MySQL。\n */\n@SpringBootTest\nclass ApplicationTests {\n\n    @Test\n    void contextLoads() {\n        // 容器起不来，这个测试就不会通过\n    }\n}\n",
     "gradleSettings": "rootProject.name = 'arsenal-demo'\n",
-    "readmeTemplate": "# arsenal-demo\n\n由「杨先生的军火库 · 架构装配台」按当前选型生成。\n\n__SELECTION_TABLE__\n\n## 架构图\n\n![架构图](architecture.svg)\n\n__ARCH_SUMMARY__\n\n读图方式：横向色带是 6 层，方块是 17 个槽位，方块右上角的「必需 / 建议」表示\n该槽位留空时的性质；左侧竖直箭头表示请求自上而下穿过各层；层内的 `→` 是请求\n真正流经的顺序；竖虚线右侧是旁路件（例如迁移工具，只在发布期起作用，请求不经过它）。\n每层负责什么、每个零件的角色、当前缺口与隐患，见 [ARCHITECTURE.md](ARCHITECTURE.md)。\n\n## 目录结构\n\n```\n__TREE__\n```\n\n__START__\n\n## 这套组合的隐患\n\n__RISKS__\n\n## 上手前必须补齐的类\n\n导出包只包含「结构与配置」层面的文件，不含业务代码 —— 业务代码每个项目都不一样。\n下面这些类被配置类引用了，但不在导出包里，需要自己实现或从案例库复制：\n\n__DANGLING__\n\n## 交付清单\n\n__FILES__\n",
+    "readmeTemplate": "# arsenal-demo\n\n由「杨先生的军火库 · 架构装配台」按当前选型生成。\n\n__SELECTION_TABLE__\n\n## 架构图\n\n![架构图](architecture.svg)\n\n__ARCH_SUMMARY__\n\n读图方式：一条横向色带是一层泳道，方块是一个槽位，方块右上角的「必需 / 建议」表示\n该槽位留空时的性质；左侧竖直箭头表示请求自上而下穿过各层；层内的 `→` 是请求\n真正流经的顺序；竖虚线右侧是旁路件（例如迁移工具，只在发布期起作用，请求不经过它）。\n每层负责什么、每个零件的角色、当前缺口与隐患，见 [ARCHITECTURE.md](ARCHITECTURE.md)。\n\n## 目录结构\n\n```\n__TREE__\n```\n\n__START__\n\n## 这套组合的隐患\n\n__RISKS__\n\n## 上手前必须补齐的类\n\n导出包只包含「结构与配置」层面的文件，不含业务代码 —— 业务代码每个项目都不一样。\n下面这些类被配置类引用了，但不在导出包里，需要自己实现或从案例库复制：\n\n__DANGLING__\n\n## 交付清单\n\n__FILES__\n",
     "readmeStartMaven": "## 本地启动\n\n```bash\n# 1. 准备数据库（先建库，表结构交给迁移工具）\n#    建好之后把连接信息写进环境变量，不要写进 application.yml\nexport DB_URL='jdbc:mysql://127.0.0.1:3306/arsenal_demo?useSSL=false&serverTimezone=Asia/Shanghai'\nexport DB_USERNAME=root\nexport DB_PASSWORD=******\n\n# 2. 启动\nmvn spring-boot:run\n\n# 3. 验证：容器起来了不算成功，能返回数据才算\ncurl -s localhost:8080/actuator/health\n```\n\n启动类跑不起来时，先看这一条：**数据库连不上**占了启动失败的大半。",
     "readmeStartGradle": "## 本地启动\n\n```bash\nexport DB_URL='jdbc:mysql://127.0.0.1:3306/arsenal_demo?useSSL=false&serverTimezone=Asia/Shanghai'\nexport DB_USERNAME=root\nexport DB_PASSWORD=******\n\n./gradlew bootRun\ncurl -s localhost:8080/actuator/health\n```\n\n启动类跑不起来时，先看这一条：**数据库连不上**占了启动失败的大半。"
   },

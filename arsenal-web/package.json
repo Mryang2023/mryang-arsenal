@@ -18,7 +18,8 @@
     "verify:project": "tsx .verify/project-check.ts",
     "verify:engine": "tsx .verify/run.ts",
     "verify:parity": "tsx .verify/parity-check.ts",
-    "verify": "npm run verify:arch && npm run verify:graph && npm run verify:project && npm run verify:engine && npm run verify:parity",
+    "verify:archify": "tsx .verify/archify-check.ts",
+    "verify": "npm run verify:arch && npm run verify:graph && npm run verify:project && npm run verify:engine && npm run verify:parity && npm run verify:archify",
     "lint": "next lint"
   },
   "dependencies": {

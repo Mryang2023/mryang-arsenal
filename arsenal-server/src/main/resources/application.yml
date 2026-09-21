@@ -25,6 +25,23 @@ arsenal:
     # 单次请求允许扫描的总字节上限，防止一个请求把内存打满
     max-scan-bytes: 2097152
 
+  # 通用绘图器（Archify / 扳手AI.Archify）—— 选型 IR 的第二个渲染出口。
+  # 版式引擎是别人那套 Node 渲染器，不在本仓库里；这里是「页面里点一下出图」需要的那个 Node 环境。
+  # 装不装它都不影响军火库其它功能：没装时接口如实报不可用，页面回落到「下载 IR JSON」。
+  archify:
+    # 技能的入口脚本。装了技能就自动可用，不必配。
+    cli: ${ARSENAL_ARCHIFY_CLI:${user.home}/.workbuddy/skills/wrench-ai/bin/wrench-ai.mjs}
+    # node 可执行文件。留空 = 先按 PATH 找，再试几个常见安装位置（实测本机在
+    # C:/Program Files/nodejs/node.exe 命中）；都不行就显式指到这里。
+    node: ${ARSENAL_ARCHIFY_NODE:}
+    # 构图检查档位。showcase 是最严档，九项全查 —— 我们的 IR 在它下面九项全过，
+    # 所以没有理由退到 standard。
+    quality: showcase
+    # 单次渲染的超时。实测一次约 1.6 秒；跑到超时基本意味着那个进程卡住了。
+    timeout-seconds: 60
+    # 单个 IR 的字节上限。实测最大的预设约 12 KB，1 MB 是留足余量的护栏。
+    max-spec-bytes: 1048576
+
   cors:
     allowed-origins: http://localhost:3010,http://127.0.0.1:3010
 

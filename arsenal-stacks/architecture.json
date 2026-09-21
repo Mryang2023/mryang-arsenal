@@ -2,7 +2,7 @@
   "collection": "arsenal-architecture",
   "version": "0.1.0",
   "releasedAt": "2026-09-11",
-  "description": "把 17 个选型维度还原成一张可装配的架构图。每个零件声明它提供什么能力、需要什么能力，校验时求一次能力并集，就能算出这套组合能不能跑起来、缺的是哪一块。",
+  "description": "把 18 个选型维度还原成一张可装配的架构图。每个零件声明它提供什么能力、需要什么能力，校验时求一次能力并集，就能算出这套组合能不能跑起来、缺的是哪一块。",
   "lanes": [
     {
       "id": "entry",
@@ -33,6 +33,12 @@
       "name": "保障与观测",
       "glyph": "⛨",
       "desc": "决定两件事：线上出问题你知不知道，改完代码你敢不敢发。"
+    },
+    {
+      "id": "delivery",
+      "name": "交付与运行",
+      "glyph": "⬢",
+      "desc": "代码怎么变成一个正在跑的进程：谁打包、谁重启、谁负责扩容与回滚。"
     },
     {
       "id": "base",
@@ -68,7 +74,11 @@
     "cap.metrics": "运行指标采集",
     "cap.metrics.scrape": "指标外暴露与告警",
     "cap.test": "单元测试能力",
-    "cap.test.isolated": "真实依赖的隔离测试"
+    "cap.test.isolated": "真实依赖的隔离测试",
+    "cap.packaging": "可执行产物",
+    "cap.image": "容器镜像",
+    "cap.orchestration": "编排调度与自愈",
+    "cap.release.templating": "多环境发布参数化"
   },
   "nodes": {
     "web": {
@@ -180,6 +190,14 @@
       "required": false,
       "recommended": true,
       "missing": "没有测试策略，每次改动都是拿生产环境当测试环境。"
+    },
+    "deploy": {
+      "lane": "delivery",
+      "icon": "⬢",
+      "role": "交付形态",
+      "required": false,
+      "recommended": true,
+      "missing": "没有选定交付形态，「代码跑在哪台机器上、挂了谁来重启」就没有确定答案。能启动不等于能运维 —— 这一格留空，意味着发布与回滚都要现想办法。"
     },
     "jdk": {
       "lane": "base",
@@ -512,6 +530,50 @@
           "cap.test.isolated"
         ]
       }
+    },
+    "deploy": {
+      "jar": {
+        "requires": [
+          "cap.build",
+          "cap.http"
+        ],
+        "provides": [
+          "cap.packaging"
+        ]
+      },
+      "docker": {
+        "requires": [
+          "cap.build",
+          "cap.http"
+        ],
+        "provides": [
+          "cap.packaging",
+          "cap.image"
+        ]
+      },
+      "k8s": {
+        "requires": [
+          "cap.build",
+          "cap.http"
+        ],
+        "provides": [
+          "cap.packaging",
+          "cap.image",
+          "cap.orchestration"
+        ]
+      },
+      "helm": {
+        "requires": [
+          "cap.build",
+          "cap.http"
+        ],
+        "provides": [
+          "cap.packaging",
+          "cap.image",
+          "cap.orchestration",
+          "cap.release.templating"
+        ]
+      }
     }
   },
   "pipelines": {
@@ -798,6 +860,108 @@
       "title": "连接池默认 10，多实例下会打爆数据库",
       "text": "HikariCP 默认 maximum-pool-size=10。服务有 N 个实例时对数据库的总连接数就是 N×10，扩容还会等比放大。而数据库的 max_connections 通常在 150～200 之间，四五个实例就能顶到上限，第六个实例连启动都失败。",
       "fix": "按「实例数 × 池大小 < 数据库 max_connections × 80%」反推池大小，并把 connection-timeout 设成有限值。"
+    },
+    {
+      "id": "ARCH-K8S-NO-PROBE",
+      "level": "risk",
+      "when": {
+        "deploy": [
+          "k8s",
+          "helm"
+        ],
+        "observability": [
+          "none"
+        ]
+      },
+      "nodes": [
+        "deploy",
+        "observability"
+      ],
+      "title": "编排平台要替你重启实例，但它不知道什么叫「活着的」",
+      "text": "liveness / readiness 探针需要一个 HTTP 端点。没有它，平台唯一能判断的只有「进程还在不在」—— 而死锁、线程池耗尽、连接池打满这三种最常见的假死状态，进程都还活着。于是该重启的实例不会被重启，该摘掉的实例还会继续接流量。",
+      "fix": "至少把 Actuator 打开，只暴露 health 端点即可：management.endpoints.web.exposure.include=health，并把 readiness / liveness 分成两个健康组。"
+    },
+    {
+      "id": "ARCH-K8S-SCHEDULER-DUP",
+      "level": "risk",
+      "when": {
+        "deploy": [
+          "k8s",
+          "helm"
+        ],
+        "scheduler": [
+          "spring"
+        ]
+      },
+      "nodes": [
+        "deploy",
+        "scheduler"
+      ],
+      "title": "多副本等于同一个定时任务被执行 N 次",
+      "text": "编排形态天然是多副本：Deployment 的 replicas 是几个，就有几个进程在跑同一份代码。@Scheduled 挂在每个进程各自的线程上，彼此不通气 —— 到点各跑一遍，数据被处理 N 次。这个过程不抛异常、不打日志报错，只在最终的数据里体现出来。",
+      "fix": "任务本身做成幂等并加分布式锁（ShedLock），或改用 XXL-Job 这类调度中心统一触发。"
+    },
+    {
+      "id": "ARCH-K8S-POOL-FANOUT",
+      "level": "risk",
+      "when": {
+        "deploy": [
+          "k8s",
+          "helm"
+        ],
+        "pool": [
+          "hikari",
+          "druid"
+        ]
+      },
+      "nodes": [
+        "deploy",
+        "pool"
+      ],
+      "title": "副本数 × 连接池 = 打向数据库的连接数",
+      "text": "连接池大小是**每个实例**各自的池。副本从 2 扩到 6，数据库看到的连接数就是 4 倍，而 max_connections 通常是固定的。更糟的是 HPA 会按负载自动加副本 —— 扩容这个动作本身可能先把数据库推到连接上限。",
+      "fix": "按「最大副本数 × maximum-pool-size < max_connections × 80%」反推池大小；给 HPA 设 maxReplicas 上限，不要让它无限扩。"
+    },
+    {
+      "id": "ARCH-COMPOSE-PROD-DB",
+      "level": "note",
+      "when": {
+        "deploy": [
+          "docker"
+        ],
+        "database": [
+          "mysql",
+          "postgres"
+        ]
+      },
+      "nodes": [
+        "deploy",
+        "database"
+      ],
+      "title": "Compose 里的数据库容器不是生产库",
+      "text": "Compose 能一键拉起依赖，但它解决的是「本机也能跑起来」，不是「挂了怎么办」。容器里的数据库没有高可用、没有故障切换、备份要你自己导；docker compose down 之后 data 或许还在卷里，但你并没有演练过怎么把它恢复出来。",
+      "fix": "生产库用独立实例或托管服务；Compose 只负责应用与本地开发依赖。"
+    },
+    {
+      "id": "ARCH-HELM-ROLLBACK-SCHEMA",
+      "level": "risk",
+      "when": {
+        "deploy": [
+          "helm",
+          "k8s"
+        ],
+        "migration": [
+          "flyway",
+          "liquibase"
+        ]
+      },
+      "nodes": [
+        "deploy",
+        "migration"
+      ],
+      "title": "回滚能退回旧镜像，退不回旧数据库",
+      "text": "helm rollback 或改镜像 tag 只替换容器，已经执行完的迁移脚本不会跟着退版本。一旦迁移里有 drop column、改类型、重命名字段这类破坏性变更，回滚后的旧代码面对的是新表结构 —— 回滚这一动作会直接把服务打到不可用，而它恰恰是在最紧张的时候被执行。",
+      "fix": "把每次发布拆成两步：先发布向后兼容的迁移（只增不删），确认稳定后再删旧结构。"
     }
   ],
   "policyDetail": {
@@ -939,6 +1103,51 @@
         "数据库侧连接数长期贴着 max_connections 上限"
       ],
       "impact": "连接数随实例数线性增长，而数据库上限是固定的。扩容不但没提升容量，反而把整个服务推向不可用。"
+    },
+    "ARCH-K8S-NO-PROBE": {
+      "trigger": "交付形态选了 Kubernetes 或 Helm，同时可观测性选了「不使用」（没有 Actuator 端点）",
+      "symptoms": [
+        "kubectl get pods 状态一直是 Running，但接口全部超时 —— 平台判定它健康",
+        "发布过程中出现随机 502，流量被分到了还在启动的实例上",
+        "死锁或连接池耗尽后实例永远不会被替换，只有人工重启才恢复"
+      ],
+      "impact": "平台基于「进程还在」这一条信息替你做重启与引流决策。假死不可发现、不可自愈，故障只能靠用户投诉暴露。"
+    },
+    "ARCH-K8S-SCHEDULER-DUP": {
+      "trigger": "交付形态选了 Kubernetes 或 Helm（多副本），定时任务用的是 Spring @Scheduled",
+      "symptoms": [
+        "同一批数据在一分钟内被处理多次，次数等于副本数",
+        "通知类任务重复发出：同一条短信 / 邮件 / 推送发到同一个接收方",
+        "统计表的计数或金额随时间被放大，且每次放大倍数等于当时的副本数"
+      ],
+      "impact": "无声的重复执行。不报错、不告警，只在最终数据上体现，发现时通常已积累多日且难以追溯补数范围。"
+    },
+    "ARCH-K8S-POOL-FANOUT": {
+      "trigger": "交付形态选了 Kubernetes 或 Helm（会横向扩容），连接池选了 HikariCP 或 Druid",
+      "symptoms": [
+        "副本数或 HPA 扩容后，日志里出现 Connection is not available, request timed out",
+        "数据库侧连接数逼近 max_connections，且随副本数同步上升",
+        "新扩容出的 Pod 启动失败，报 Too many connections —— 扩容反而导致不可用"
+      ],
+      "impact": "连接需求随副本线性增长而数据库上限固定。扩容不但没提升容量，反而把整个服务推向不可用；取消这种形态尤其糟：故障只在高负载、需要扩容时才出现。"
+    },
+    "ARCH-COMPOSE-PROD-DB": {
+      "trigger": "交付形态选了 Docker Compose，数据库随之跑在容器里",
+      "symptoms": [
+        "docker compose down 之后数据看似还在卷里，但没有恢复演练过",
+        "没有自动备份：数据库的可靠性等同于宿主机那块盘",
+        "宿主机 reboot 之后多个容器争相启动，应用先于数据库就绪而连接失败"
+      ],
+      "impact": "把「能一键拉起来」误当成「有运维保障」。真正出事时只能 pray 最后一次快照可用。"
+    },
+    "ARCH-HELM-ROLLBACK-SCHEMA": {
+      "trigger": "交付形态选了 Helm 或 Kubernetes，同时迁移工具选了 Flyway / Liquibase",
+      "symptoms": [
+        "回滚后立刻大面积报错 Unknown column / column type mismatch",
+        "旧版本日志里出现大量 SQL 异常，而数据库看起来一切正常",
+        "回滚失败后唯一的出路是「继续往前修复」，没有干净的退路"
+      ],
+      "impact": "声称拥有的一键回滚能力只对应用层成立。数据结构是单向的：一旦破坏性变更执行，回滚按钮实际上是坏的。"
     }
   },
   "presetNotes": {
@@ -946,5 +1155,676 @@
     "standard": "单人/小团队的生产配置。加了缓存与可观测性，够用且不复杂。",
     "cloud": "为多实例与横向扩容准备的形态。注意随之而来的分布式一致性问题。",
     "enterprise": "以合规与可审计优先。Postgres + Liquibase + Druid 监控是这一立场的直接结果。"
+  },
+  "canvas": {
+    "zones": [
+      {
+        "id": "client",
+        "name": "客户端",
+        "glyph": "◍",
+        "archifyType": "external",
+        "desc": "请求发起方。不属于本次选型，但架构图上不画它，读图的人就得自己脑补。"
+      },
+      {
+        "id": "app",
+        "name": "应用服务",
+        "glyph": "⬢",
+        "archifyType": "backend",
+        "desc": "Spring Boot 进程。横切能力（鉴权 / 文档 / 映射）挂在这一层内部，不单独部署。"
+      },
+      {
+        "id": "mw",
+        "name": "中间件",
+        "glyph": "⇉",
+        "archifyType": "cloud",
+        "desc": "每引入一个就多一个需要单独运维的进程。留空是安全的选择。"
+      },
+      {
+        "id": "data",
+        "name": "数据存储",
+        "glyph": "▦",
+        "archifyType": "database",
+        "desc": "业务数据的落点。这一层的集群形态直接决定容量与可用性上限。"
+      },
+      {
+        "id": "ops",
+        "name": "观测与运维",
+        "glyph": "⛨",
+        "archifyType": "cloud",
+        "desc": "决定线上出问题时你知不知道、改完代码敢不敢发。"
+      },
+      {
+        "id": "platform",
+        "name": "交付与运行",
+        "glyph": "⬢",
+        "archifyType": "cloud",
+        "desc": "谁打包、谁重启、谁负责扩容与回滚。这一层替你做的每一个决定，都依赖应用自己暴露的信息。"
+      }
+    ],
+    "dims": {
+      "jdk": {
+        "place": "appTag",
+        "tagLabel": "运行时"
+      },
+      "build": {
+        "place": "appTag",
+        "tagLabel": "构建"
+      },
+      "web": {
+        "place": "appTag",
+        "tagLabel": "Web 容器"
+      },
+      "persistence": {
+        "place": "appTag",
+        "tagLabel": "持久层"
+      },
+      "pool": {
+        "place": "appTag",
+        "tagLabel": "连接池"
+      },
+      "mapping": {
+        "place": "appTag",
+        "tagLabel": "对象映射"
+      },
+      "boilerplate": {
+        "place": "appTag",
+        "tagLabel": "样板代码"
+      },
+      "test": {
+        "place": "appTag",
+        "tagLabel": "测试"
+      },
+      "auth": {
+        "place": "appTag",
+        "tagLabel": "鉴权"
+      },
+      "apidoc": {
+        "place": "appTag",
+        "tagLabel": "接口文档"
+      },
+      "migration": {
+        "place": "side",
+        "zone": "data",
+        "tagLabel": "Schema 迁移"
+      },
+      "cache": {
+        "place": "node",
+        "zone": "data"
+      },
+      "database": {
+        "place": "node",
+        "zone": "data"
+      },
+      "mq": {
+        "place": "node",
+        "zone": "mw"
+      },
+      "registry": {
+        "place": "node",
+        "zone": "mw"
+      },
+      "scheduler": {
+        "place": "node",
+        "zone": "mw"
+      },
+      "observability": {
+        "place": "node",
+        "zone": "ops"
+      },
+      "deploy": {
+        "place": "node",
+        "zone": "platform"
+      }
+    },
+    "options": {
+      "jdk": {
+        "17": {
+          "icon": "jdk"
+        },
+        "21": {
+          "icon": "jdk"
+        }
+      },
+      "build": {
+        "maven": {
+          "icon": "maven"
+        },
+        "gradle": {
+          "icon": "gradle"
+        }
+      },
+      "web": {
+        "mvc": {
+          "icon": "tomcat",
+          "port": "8080",
+          "brand": "spring"
+        },
+        "webflux": {
+          "icon": "netty",
+          "port": "8080",
+          "brand": "spring"
+        }
+      },
+      "persistence": {
+        "jdbc": {
+          "icon": "jdbc"
+        },
+        "mybatisplus": {
+          "icon": "mybatis"
+        },
+        "jpa": {
+          "icon": "jpa"
+        }
+      },
+      "pool": {
+        "hikari": {
+          "icon": "hikari"
+        },
+        "druid": {
+          "icon": "druid"
+        }
+      },
+      "mapping": {
+        "manual": {
+          "icon": "generic"
+        },
+        "mapstruct": {
+          "icon": "mapstruct"
+        }
+      },
+      "boilerplate": {
+        "lombok": {
+          "icon": "lombok"
+        },
+        "plain": {
+          "icon": "generic"
+        }
+      },
+      "test": {
+        "mockito": {
+          "icon": "junit"
+        },
+        "testcontainers": {
+          "icon": "testcontainers"
+        }
+      },
+      "auth": {
+        "securityjwt": {
+          "icon": "security"
+        },
+        "satoken": {
+          "icon": "satoken"
+        },
+        "custom": {
+          "icon": "jwt"
+        }
+      },
+      "apidoc": {
+        "springdoc": {
+          "icon": "springdoc"
+        },
+        "knife4j": {
+          "icon": "knife4j"
+        },
+        "none": {
+          "icon": "none"
+        }
+      },
+      "migration": {
+        "flyway": {
+          "icon": "flyway",
+          "archifyType": "cloud"
+        },
+        "liquibase": {
+          "icon": "liquibase",
+          "archifyType": "cloud"
+        },
+        "none": {
+          "icon": "none"
+        }
+      },
+      "database": {
+        "mysql": {
+          "icon": "mysql",
+          "port": "3306",
+          "brand": "mysql",
+          "cluster": [
+            {
+              "name": "单实例",
+              "replicas": 1,
+              "note": "一个库扛全部读写。挂了就没了，只适合原型与内部小系统。"
+            },
+            {
+              "name": "主从复制",
+              "replicas": 2,
+              "note": "写走主库、读走从库。容量与可用性都由从库数量决定。"
+            },
+            {
+              "name": "MGR 集群",
+              "replicas": 3,
+              "note": "组复制，单节点故障可自动切换。代价是写入延迟上升。"
+            }
+          ]
+        },
+        "postgres": {
+          "icon": "postgres",
+          "port": "5432",
+          "brand": "postgresql",
+          "cluster": [
+            {
+              "name": "单实例",
+              "replicas": 1,
+              "note": "一个实例。备份只能靠快照与 WAL 归档。"
+            },
+            {
+              "name": "主从流复制",
+              "replicas": 2,
+              "note": "主库写、备库读。故障切换需要 Patroni 之类组件配合。"
+            },
+            {
+              "name": "一主多备",
+              "replicas": 3,
+              "note": "多备库分担读，主库故障需外部选主。"
+            }
+          ]
+        }
+      },
+      "cache": {
+        "none": {
+          "icon": "none"
+        },
+        "caffeine": {
+          "icon": "caffeine",
+          "place": "appTag"
+        },
+        "redis": {
+          "icon": "redis",
+          "port": "6379",
+          "brand": "redis",
+          "cluster": [
+            {
+              "name": "单实例",
+              "replicas": 1,
+              "note": "一个实例。缓存挂了只是穿透，不会丢业务数据。"
+            },
+            {
+              "name": "主从 + 哨兵",
+              "replicas": 3,
+              "note": "哨兵负责选主。三节点是哨兵能自洽的最小奇数。"
+            },
+            {
+              "name": "Cluster 分片",
+              "replicas": 6,
+              "note": "数据分片到多组。槽位迁移期间部分 key 会短暂不可用。"
+            }
+          ]
+        }
+      },
+      "mq": {
+        "none": {
+          "icon": "none"
+        },
+        "rocketmq": {
+          "icon": "rocketmq",
+          "port": "9876",
+          "archifyType": "messagebus",
+          "cluster": [
+            {
+              "name": "单 Broker",
+              "replicas": 1,
+              "note": "一个 Broker。堆积能力受单盘限制。"
+            },
+            {
+              "name": "主从 Broker",
+              "replicas": 2,
+              "note": "主写从读，主挂了从只提供读。"
+            },
+            {
+              "name": "多 Broker 集群",
+              "replicas": 3,
+              "note": "Topic 分散到多组 Broker，吞吐随组数增长。"
+            }
+          ]
+        },
+        "rabbitmq": {
+          "icon": "rabbitmq",
+          "port": "5672",
+          "archifyType": "messagebus",
+          "brand": "rabbitmq",
+          "cluster": [
+            {
+              "name": "单节点",
+              "replicas": 1,
+              "note": "一个节点。队列在该节点上，节点挂了队列就没了。"
+            },
+            {
+              "name": "普通集群",
+              "replicas": 2,
+              "note": "队列元数据同步，消息仍在原节点。"
+            },
+            {
+              "name": "镜像队列",
+              "replicas": 3,
+              "note": "消息复制到多节点。吞吐下降，但节点故障不丢消息。"
+            }
+          ]
+        },
+        "kafka": {
+          "icon": "kafka",
+          "port": "9092",
+          "archifyType": "messagebus",
+          "brand": "apache-kafka",
+          "cluster": [
+            {
+              "name": "单 Broker",
+              "replicas": 1,
+              "note": "一个 Broker。分区副本无处可放。"
+            },
+            {
+              "name": "三节点集群",
+              "replicas": 3,
+              "note": "最小可用集群，副本数 3 时允许坏 1 台。"
+            },
+            {
+              "name": "五节点集群",
+              "replicas": 5,
+              "note": "副本数 3 时允许坏 2 台，同时扛住一次滚动升级。"
+            }
+          ]
+        }
+      },
+      "registry": {
+        "none": {
+          "icon": "none"
+        },
+        "nacos": {
+          "icon": "nacos",
+          "port": "8848",
+          "cluster": [
+            {
+              "name": "单机模式",
+              "replicas": 1,
+              "note": "内置 Derby。只适合本地开发，重启丢配置。"
+            },
+            {
+              "name": "三节点集群",
+              "replicas": 3,
+              "note": "Raft 选主的最小奇数。生产最低要求。"
+            },
+            {
+              "name": "五节点集群",
+              "replicas": 5,
+              "note": "允许同时坏 2 台，滚动升级不掉注册表。"
+            }
+          ]
+        }
+      },
+      "scheduler": {
+        "spring": {
+          "icon": "scheduler",
+          "place": "appTag"
+        },
+        "xxljob": {
+          "icon": "xxljob",
+          "port": "8080",
+          "cluster": [
+            {
+              "name": "单调度中心",
+              "replicas": 1,
+              "note": "调度中心单点。中心挂了任务不触发，执行器照常跑。"
+            },
+            {
+              "name": "双调度中心",
+              "replicas": 2,
+              "note": "调度中心主备，靠数据库锁选主。"
+            },
+            {
+              "name": "调度 + 执行器集群",
+              "replicas": 3,
+              "note": "执行器多实例，任务由调度中心分派。"
+            }
+          ]
+        }
+      },
+      "deploy": {
+        "jar": {
+          "icon": "jar",
+          "label": "Fat JAR + 进程守护",
+          "cluster": [
+            {
+              "name": "单进程",
+              "replicas": 1,
+              "note": "一个 JVM 进程。挂了不会自愈，靠守护进程或人发现。"
+            },
+            {
+              "name": "双机主备",
+              "replicas": 2,
+              "note": "两台机各一个进程，由负载均衡器判断谁还活着。"
+            },
+            {
+              "name": "多机多进程",
+              "replicas": 3,
+              "note": "进程横向分布。扩一台机就是一次全手工部署。"
+            }
+          ]
+        },
+        "docker": {
+          "icon": "docker",
+          "label": "Docker + Compose",
+          "cluster": [
+            {
+              "name": "单容器",
+              "replicas": 1,
+              "note": "一个容器。Compose 会把 compose file 里声明的东西一并拉起。"
+            },
+            {
+              "name": "双容器",
+              "replicas": 2,
+              "note": "应用双副本 + 前置负载。重启策略由 Compose 的 restart 声明。"
+            },
+            {
+              "name": "多容器编排",
+              "replicas": 3,
+              "note": "应用多副本连同依赖中间件。上限仍是单机容量。"
+            }
+          ]
+        },
+        "k8s": {
+          "icon": "k8s",
+          "label": "Kubernetes",
+          "brand": "kubernetes",
+          "cluster": [
+            {
+              "name": "单副本",
+              "replicas": 1,
+              "note": "replicas=1。没有滚动更新的余地，发布等于停机。"
+            },
+            {
+              "name": "三副本滚动",
+              "replicas": 3,
+              "note": "最小生产形态：更新期间始终有实例在服务。"
+            },
+            {
+              "name": "六副本 + HPA",
+              "replicas": 6,
+              "note": "按负载自动扩缩。连接数与下游压力会被同步放大。"
+            }
+          ]
+        },
+        "helm": {
+          "icon": "helm",
+          "label": "Helm Chart",
+          "cluster": [
+            {
+              "name": "单环境",
+              "replicas": 1,
+              "note": "一份 values。用来验证模板本身写得对不对。"
+            },
+            {
+              "name": "双环境",
+              "replicas": 2,
+              "note": "dev + prod 两份 values，同一份模板渲染出两套清单。"
+            },
+            {
+              "name": "三环境",
+              "replicas": 3,
+              "note": "dev / staging / prod。环境之间的差值全部落在 values 里。"
+            }
+          ]
+        }
+      },
+      "observability": {
+        "none": {
+          "icon": "logback",
+          "place": "appTag"
+        },
+        "actuator": {
+          "icon": "actuator",
+          "place": "appTag"
+        },
+        "prometheus": {
+          "icon": "prometheus",
+          "port": "9090",
+          "brand": "prometheus",
+          "label": "Prometheus + Grafana",
+          "cluster": [
+            {
+              "name": "单 Prometheus",
+              "replicas": 1,
+              "note": "一个实例。它自己挂了，监控就一起瞎。"
+            },
+            {
+              "name": "双 Prometheus",
+              "replicas": 2,
+              "note": "两个实例抓同一批目标，告警去重靠外层。"
+            },
+            {
+              "name": "联邦集群",
+              "replicas": 3,
+              "note": "边缘 Prometheus 汇总到中心，适合多机房。"
+            }
+          ]
+        }
+      }
+    },
+    "links": [
+      {
+        "from": "client",
+        "to": "app",
+        "label": "HTTPS",
+        "kind": "solid"
+      },
+      {
+        "from": "app",
+        "to": "database",
+        "label": "JDBC",
+        "kind": "solid"
+      },
+      {
+        "from": "app",
+        "to": "cache",
+        "label": "RESP",
+        "kind": "solid"
+      },
+      {
+        "from": "app",
+        "to": "mq",
+        "label": "消息生产 / 消费",
+        "kind": "solid"
+      },
+      {
+        "from": "app",
+        "to": "registry",
+        "label": "注册 + 配置拉取",
+        "kind": "solid"
+      },
+      {
+        "from": "app",
+        "to": "scheduler",
+        "label": "任务回调",
+        "kind": "dashed"
+      },
+      {
+        "from": "migration",
+        "to": "database",
+        "label": "Schema 迁移",
+        "kind": "dashed"
+      },
+      {
+        "from": "observability",
+        "to": "app",
+        "label": "指标拉取",
+        "kind": "dashed"
+      },
+      {
+        "from": "deploy",
+        "to": "app",
+        "label": "编排",
+        "kind": "dashed"
+      }
+    ],
+    "legend": {
+      "cloud": {
+        "label": "支撑组件"
+      }
+    },
+    "views": [
+      {
+        "id": "v_ingress",
+        "label": "请求进入",
+        "zones": [
+          "client",
+          "app",
+          "mw"
+        ],
+        "dims": [],
+        "note": "外部请求落到应用进程，中间件是它连出去的第一跳。"
+      },
+      {
+        "id": "v_state",
+        "label": "状态落点",
+        "zones": [
+          "app",
+          "data"
+        ],
+        "dims": [],
+        "note": "业务数据最终写在哪、读在哪 —— 这一步决定容量与可用性的上限。"
+      },
+      {
+        "id": "v_async",
+        "label": "异步与调度",
+        "zones": [
+          "app"
+        ],
+        "dims": [
+          "mq",
+          "scheduler"
+        ],
+        "note": "不在请求线程里做的那些事：削峰、解耦、定时。"
+      },
+      {
+        "id": "v_ops",
+        "label": "观测与运维",
+        "zones": [
+          "app",
+          "ops"
+        ],
+        "dims": [
+          "registry"
+        ],
+        "note": "决定线上出问题时你知不知道、改完代码敢不敢发。"
+      },
+      {
+        "id": "v_delivery",
+        "label": "交付与运行",
+        "zones": [
+          "app"
+        ],
+        "dims": [
+          "deploy"
+        ],
+        "note": "这套东西最后由谁打包、谁重启、谁负责扩容与回滚。"
+      }
+    ]
   }
 }

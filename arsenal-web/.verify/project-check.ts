@@ -22,6 +22,26 @@ import { filterTree, buildExportPlan, projectDoc, renderAppClass, renderTreeText
 import { buildArchDiagram, archDiagramD2, archDiagramMermaid } from '@/lib/arch-diagram';
 import type { StackPicks } from '@/lib/content-types';
 import { buildZip } from '@/lib/zip';
+import { liveStats, orderedCategories } from '@/lib/rules';
+import { cookbookStats } from '@/lib/cookbook';
+import {
+  APP_ENDPOINTS,
+  APP_ROUTES,
+  ARCH_VIEWS,
+  BUSINESS_DOMAINS,
+  BUSINESS_OUTLETS,
+  DATA_ASSETS,
+  ENGINE_LAYERS,
+  MUST_LIMIT,
+  PROJECT_ROADMAP,
+  SEVERITY_ROWS,
+  VERIFY_CHAIN,
+  VERIFY_TOTAL,
+} from '@/lib/arch-views';
+import { buildTechArch, buildTechArchSvg, emptyEdits } from '@/lib/arch-canvas';
+import { ARCH_GLYPHS } from '@/lib/arch-glyphs';
+import { svgMotionStyle } from '@/lib/arch-motion';
+import { TECH_ICONS } from '@/lib/tech-icons';
 
 let pass = 0;
 let fail = 0;
@@ -361,7 +381,7 @@ for (const preset of presets) {
     drawn.length === slots.length && slots.every((id) => drawn.includes(id)),
     `${drawn.length}/${slots.length}`
   );
-  check(`${preset.name}：6 条泳道齐全`, diagram.model.lanes.length === arch.lanes.length);
+  check(`${preset.name}：${arch.lanes.length} 条泳道齐全`, diagram.model.lanes.length === arch.lanes.length);
 
   // ③ 中文必须真的进了 SVG。早期用错转义时中文会整片消失，而 SVG 依然「合法」。
   const cjkCount = (svg.match(/[\u4e00-\u9fff]/g) ?? []).length;
@@ -406,6 +426,451 @@ for (const preset of presets) {
   check('D2 源码含数据层流水线', d2.includes('data.persistence -> data.database'));
   check('Mermaid 源码含 subgraph', (mmd.match(/subgraph /g) ?? []).length === arch.lanes.length);
   check('Mermaid 源码含流水线箭头', mmd.includes('-->'));
+}
+
+// ═══════════════════════════════════════════════════════════════
+// 【9】六大架构视图数据层 —— 图上的每个数字必须能追溯到真实数据
+// ═══════════════════════════════════════════════════════════════
+console.log('\n【9】六大架构视图数据层');
+{
+  // ① 六视图齐且 id 唯一，技术架构必须在列
+  const ids = ARCH_VIEWS.map((v) => v.id);
+  check(
+    '六大视图：id 齐且唯一',
+    ids.length === 6 && new Set(ids).size === 6 && ids.includes('tech')
+  );
+  check(
+    '六大视图：口径字段齐（定义 / 关注 / 问题 / 产出）',
+    ARCH_VIEWS.every(
+      (v) =>
+        v.definition.length >= 20 &&
+        v.focus.length >= 3 &&
+        v.question.length >= 10 &&
+        v.outputs.length >= 2
+    )
+  );
+
+  // ② 业务视图的能力域度量是算出来的，不是写死的字符串
+  check(
+    '业务视图：规范字典度量引用 liveStats',
+    BUSINESS_DOMAINS[0].metric.includes(String(liveStats.total)) &&
+      BUSINESS_DOMAINS[0].metric.includes(String(orderedCategories.length))
+  );
+  check(
+    '业务视图：蓝图度量引用 cookbookStats',
+    BUSINESS_DOMAINS[1].metric.includes(String(cookbookStats.features))
+  );
+  check(
+    '业务视图：选型度量引用维度数',
+    BUSINESS_DOMAINS[2].metric.includes(String(dimensions.length))
+  );
+  check('业务视图：三种出口齐', BUSINESS_OUTLETS.length === 3);
+
+  // ③ 数据视图：资产路径真实存在（仓库里找得到目录）
+  for (const dir of ['arsenal-rules', 'arsenal-cookbook', 'arsenal-stacks']) {
+    check(
+      `数据视图：${dir}/ 事实源目录存在`,
+      fs.existsSync(path.resolve(here, '../..', dir))
+    );
+  }
+
+  // ④ 应用视图：路由含新增的 /arch，接口全部带方法前缀
+  check(
+    '应用视图：路由含 /arch 且路径唯一',
+    APP_ROUTES.some((r) => r.path === '/arch') &&
+      new Set(APP_ROUTES.map((r) => r.path)).size === APP_ROUTES.length
+  );
+  check(
+    '应用视图：接口声明带 HTTP 方法',
+    APP_ENDPOINTS.every((g) => g.items.every((it) => /^(GET|POST) /.test(it)))
+  );
+
+  // ⑤ 产品视图：严重度计数之和 = 规则总数；引擎 L1 必须是已落地层
+  check(
+    '产品视图：严重度计数与规则总数一致',
+    SEVERITY_ROWS.reduce((n, s) => n + s.count, 0) === liveStats.total
+  );
+  check(
+    '产品视图：引擎 L1 已落地且度量引用可检出数',
+    ENGINE_LAYERS[0].status === 'done' &&
+      ENGINE_LAYERS[0].metric.includes(String(liveStats.regexCapable))
+  );
+  check(
+    '产品视图：MUST+NEVER 之和不超过硬上限',
+    SEVERITY_ROWS.filter((s) => s.name === 'MUST' || s.name === 'NEVER').reduce((n, s) => n + s.count, 0) <=
+      MUST_LIMIT
+  );
+
+  // ⑥ 项目视图：验证链分项之和 = 总数 = 452（与 README 同源，改口径两处一起改）
+  check(
+    '项目视图：验证链分项之和 = 总数',
+    VERIFY_CHAIN.reduce((n, v) => n + v.count, 0) === VERIFY_TOTAL && VERIFY_TOTAL === 452
+  );
+  check('项目视图：里程碑含 MCP 适配层', PROJECT_ROADMAP.some((m) => m.name.includes('MCP')));
+}
+
+// ═══════════════════════════════════════════════════════════════
+// 【10】技术架构画布加料后的结构不变量 —— 加料不能加出坏图
+// ═══════════════════════════════════════════════════════════════
+console.log('\n【10】技术架构画布加料不变量');
+{
+  for (const preset of presets) {
+    const picks = presetPicks(preset.id);
+    const arch = buildTechArch(picks, emptyEdits());
+    for (const theme of ['dark', 'light'] as const) {
+      const svg = buildTechArchSvg(arch, theme, { title: 't', subtitle: 's' });
+      // 高度加了页脚：viewBox 的高必须 ≥ 内容高 + 页脚，否则图例压住内容
+      const vb = svg.match(/viewBox="0 0 (\d+) (\d+)"/);
+      check(
+        `${preset.name}/${theme}：画布含页脚高度`,
+        !!vb && Number(vb[2]) >= arch.height + 62 + 40,
+        vb ? `viewBox 高 ${vb[2]} < ${arch.height + 102}` : 'viewBox 未解析'
+      );
+      // 图例与署名必须在
+      check(`${preset.name}/${theme}：含页脚图例`, svg.includes('调用 / 数据流'));
+      check(`${preset.name}/${theme}：含出处署名`, svg.includes('杨先生的军火库 · arsenal'));
+      // 分区计数 chip：每个分区一个「N 节点」
+      check(
+        `${preset.name}/${theme}：分区计数 chip 数 = 分区数`,
+        (svg.match(/节点<\/text>/g) ?? []).length === arch.zones.length
+      );
+      // 无标题（交互态）签名在页脚而不是标题行
+      const hooksSvg = buildTechArchSvg(arch, theme, {});
+      check(`${preset.name}/${theme}：无标题时页脚署名`, hooksSvg.includes('杨先生的军火库 · arsenal'));
+      break; // 每个预设验 dark 即可，light 抽 cloud 预设已覆盖
+    }
+    break; // 结构断言对预设不敏感，standard 通过即可；下面用 cloud 补 light
+  }
+  const cloudSvg = buildTechArchSvg(buildTechArch(presetPicks('cloud'), emptyEdits()), 'light', {
+    title: 't',
+  });
+  check('cloud/light：加料产物含分区强调色', cloudSvg.includes('#5A9FD4'));
+}
+
+// ═══════════════════════════════════════════════════════════════
+// 【11】图标库与动效 —— 图标 key 拼错会静默回落，动效不许破坏导出
+// ═══════════════════════════════════════════════════════════════
+console.log('\n【11】图标库与动效');
+{
+  // ① 视图层引用的每个图标 key 都必须真的注册过 —— 拼错会静默回落到
+  //    spark，图上就多出一排一模一样的星形，而且没人报错
+  const usedInView = [
+    ...['dict', 'blueprint', 'assemble', 'verify', 'deliver'],
+    ...['human', 'ai', 'lint', 'server'],
+    ...['rulesDb', 'cookDb', 'stackDb', 'pen', 'gear', 'sync'],
+    ...['browser', 'deliver', 'anchor', 'crossCheck', 'flag', 'lock', 'pipe'],
+    ...['lib', 'plug', 'datasource', 'handshake', 'scale'],
+    ...['search', 'compare', 'layers', 'regex', 'tree', 'brain', 'gauge', 'noGo'],
+    ...['folderRules', 'folderCook', 'folderStack', 'folderWeb', 'folderServer', 'folderTools', 'folderDocs'],
+    ...['key', 'clock', 'spark'],
+  ];
+  const missing = usedInView.filter((k) => !(k in ARCH_GLYPHS));
+  check(`架构视图：引用的 ${usedInView.length} 个图标 key 全部注册`, missing.length === 0, `缺: ${missing.join(',')}`);
+  check('图标库：无空图形（每个图标至少一段 path）', Object.values(ARCH_GLYPHS).every((g) => g.includes('<path') || g.includes('<circle') || g.includes('<rect')));
+
+  // ② 技术组件图标库扩充后仍在合法 kind 内
+  const kinds = new Set(['runtime', 'db', 'cache', 'mq', 'registry', 'doc', 'security', 'observe', 'infra', 'tool', 'none']);
+  check(
+    'tech-icons：全部 kind 合法',
+    Object.values(TECH_ICONS).every((t) => kinds.has(t.kind))
+  );
+  check('tech-icons：数量 ≥ 80（本轮从 55 扩到 87）', Object.keys(TECH_ICONS).length >= 80);
+
+  // ③ 动效样式表：内嵌 + 降级两样都在
+  const css = svgMotionStyle();
+  check('arch-motion：样式表含 am- 前缀动画', css.includes('.am-rise') && css.includes('@keyframes am-run'));
+  check('arch-motion：含 prefers-reduced-motion 降级', css.includes('prefers-reduced-motion'));
+
+  // ④ 交付图动效契约：无 hooks（导出）带动画，hooks（交互）不带 ——
+  //    拖拽时元素在动会影响手感，且每次重绘都重放入场
+  const still = buildTechArchSvg(buildTechArch(presetPicks('standard'), emptyEdits()), 'dark', { title: 't' });
+  const live = buildTechArchSvg(buildTechArch(presetPicks('standard'), emptyEdits()), 'dark', { hooks: true });
+  check('画布动效：导出态含 am-run 流光', still.includes('class="am-run"'));
+  check('画布动效：导出态含节点 stagger 入场', still.includes('class="am-rise"'));
+  check('画布动效：交互态不含任何 am- 动画', !live.includes('am-'));
+}
+
+// ═══════════════════════════════════════════════════════════════
+// 【12】交付与运行：结构树画出来的文件，导出包里必须真有
+//
+// 这一条守的是「照图找文件」这条信任链。deploy/ 下的文件名是生成器与结构树
+// 各写一份的 —— 一边多一边少时，界面、zip、构建脚本都不会报错，
+// 只有照着结构图去找文件的人会发现：图上写着 deploy/chart/templates/hpa.yaml，
+// 解出来的包里却没有。这种错不会红，只会消耗信任。
+// ═══════════════════════════════════════════════════════════════
+console.log('\n【12】交付与运行清单');
+{
+  // 目录名以 / 结尾（这是结构树的约定），拼路径时要先把斜杠去掉 ——
+  // 否则会得到 deploy//Dockerfile，看起来像两边不一致，其实是我自己拼错了
+  const flat = (nodes: ReturnType<typeof filterTree>, prefix: string, out: string[]) => {
+    for (const n of nodes) {
+      const here = prefix ? `${prefix}/${n.name}` : n.name;
+      if (n.kind === 'dir') flat(n.children ?? [], here.replace(/\/$/, ''), out);
+      else out.push(here);
+    }
+    return out;
+  };
+
+  for (const opt of ['jar', 'docker', 'k8s', 'helm']) {
+    // 用「只填交付维」之外的标准预设做底盘，只换交付形态，
+    // 这样差出来的文件就只可能是交付形态带来的
+    const base = presetPicks('standard');
+    const picks: StackPicks = { ...base, deploy: opt };
+    const audit = auditArchitecture(picks);
+    const plan = buildExportPlan(picks, audit);
+
+    const inTree = flat(filterTree(projectDoc.tree.children ?? [], picks), '', [])
+      .filter((p) => p.startsWith('deploy/'))
+      .sort();
+    const inPack = plan.files.map((f) => f.path).filter((p) => p.startsWith('deploy/')).sort();
+
+    check(
+      `${opt}：结构树画了 ${inTree.length} 个部署文件`,
+      inTree.length > 0,
+      '结构树里没有 deploy/ —— 交付形态没落进结构层'
+    );
+    check(
+      `${opt}：导出包与结构树逐一对齐`,
+      inTree.join('|') === inPack.join('|'),
+      `树有包没有: ${inTree.filter((p) => !inPack.includes(p)).join('、') || '无'}；` +
+      `包有树没有: ${inPack.filter((p) => !inTree.includes(p)).join('、') || '无'}`
+    );
+    check(
+      `${opt}：每个文件都有内容`,
+      plan.files.filter((f) => f.path.startsWith('deploy/')).every((f) => f.content.trim().length > 80),
+      '有文件短到不像真配置'
+    );
+  }
+
+  // Secret 里不许出现真值 —— 生成带密码的文件交出去，等于教人把密钥提交进 Git
+  const k8s = { ...presetPicks('standard'), deploy: 'k8s' } as StackPicks;
+  const secret = buildExportPlan(k8s, auditArchitecture(k8s))
+    .files.find((f) => f.path.endsWith('02-secret.yaml'));
+  check('Secret 不带真值（只留键与占位符）', !!secret && /:\s*""\s*$/m.test(secret.content),
+    secret ? secret.content.split('\n').slice(-6).join(' / ') : '找不到 secret 文件');
+
+  // 探针端点跟着选型走，不是生成器的固定模板
+  //
+  // Spring Boot 有 /actuator/health 的前提是引入了 Actuator。没选它却写死这个路径，
+  // 产物看着专业、apply 上去 Pod 永远 NotReady —— 那是「生成的清单不能跑」，
+  // 比诚实地说「没有健康端点」糟得多。这条断言守的就是不许伪造端点。
+  const withActuator = { ...presetPicks('standard'), deploy: 'k8s', observability: 'actuator' } as StackPicks;
+  const woActuator = { ...presetPicks('standard'), deploy: 'k8s', observability: 'none' } as StackPicks;
+  const dep = (p: StackPicks) =>
+    buildExportPlan(p, auditArchitecture(p)).files.find((f) => f.path.endsWith('04-deployment.yaml'))!;
+
+  check('有 Actuator → 探针指向 /actuator/health/readiness',
+    dep(withActuator).content.includes('/actuator/health/readiness'));
+  check('没有 Actuator → 不出现未注释的 actuator 探针',
+    !/^\s+readinessProbe:/m.test(dep(woActuator).content) &&
+      !dep(woActuator).content.includes('path: /actuator/health'),
+    dep(woActuator).content.split('\n').filter((l) => l.includes('actuator')).slice(0, 2).join(' / ') || '');
+  check('没有 Actuator → 探针段落留成注释且说明怎么办',
+    /#\s*readinessProbe:/.test(dep(woActuator).content) &&
+      dep(woActuator).content.includes('没有 Actuator'),
+    '要么整段消失（无从下手），要么照旧写死（起不来）');
+
+  // Compose 的健康检查同理：没有端点就别让容器永远 unhealthy。
+  // 注意不能只找 `healthcheck:` —— mysql / redis 这些中间件服务也各自带了一段，
+  // 那条断言会恒真。要看的是端点本身在不在。
+  const composeOf = (p: StackPicks) =>
+    buildExportPlan(p, auditArchitecture(p)).files.find((f) => f.path.endsWith('docker-compose.yml'))!;
+  check('Compose：有 Actuator 时健康检查打在 /actuator/health 上',
+    composeOf({ ...presetPicks('standard'), deploy: 'docker' } as StackPicks).content.includes('/actuator/health'));
+  // 看「生效的那一行」而不是整个文件：说明性注释里也会提到这个路径，
+  // 整文件搜字符串会把注释算进去，断言恒真 —— 那等于没写。
+  check('Compose：没有 Actuator 时不写 actuator 健康检查',
+    !/^\s+test:.*\/actuator\/health/m.test(
+      composeOf({ ...presetPicks('standard'), deploy: 'docker', observability: 'none' } as StackPicks).content
+    ));
+
+  // 端口不许两边写死：清单里的 containerPort 必须与 application.yml 同源。
+  // 生成器读的是 renderYaml 的输出，这里读的是导出包里的 application.yml ——
+  // 两边对不上就说明有人把 8080 抄进了清单，改端口时部署会静默失配。
+  const appYml = buildExportPlan(k8s, auditArchitecture(k8s))
+    .files.find((f) => f.path === 'src/main/resources/application.yml')!.content;
+  const ymlPort = /^\s{2}port:\s*(\d+)\s*$/m.exec(appYml);
+  check(
+    'Deployment 的 containerPort 与 application.yml 同源',
+    !!ymlPort && dep(k8s).content.includes(`containerPort: ${ymlPort[1]}`),
+    ymlPort ? `yml=${ymlPort[1]}` : 'yml 里没找到 server.port'
+  );
+
+  // 交付形态为空时，不产生任何部署文件 —— 没选就是没选，不替用户猜
+  const none = { ...presetPicks('standard'), deploy: '' } as StackPicks;
+  const nonePlan = buildExportPlan(none, auditArchitecture(none));
+  check('未选交付形态时不产出部署文件',
+    nonePlan.files.every((f) => !f.path.startsWith('deploy/')));
+
+  const H = { ...presetPicks('standard'), deploy: 'helm' } as StackPicks;
+
+  // ── Helm 模板必须真的被模板化 ────────────────────────────
+  //
+  // 这一组是那次自检查出来的 P0 的回归围栏：曾经 service.yaml 是拿原生清单
+  // 做 `.replace(/^name: .*$/m, ...)` 生成的，而文件里是带缩进的 `  name:`，
+  // 正则根本没匹配上 —— 于是 Service 名字与 selector 全是写死的，
+  // Deployment 用 fullname、Service 用裸名，装完选不到 Pod、Ingress 指向空后端，
+  // **而且不报任何错**。这类错只有照着资源名一个个比对才能发现，必须机器守。
+  const helmTpl = (name: string) =>
+    buildExportPlan(H, auditArchitecture(H)).files.find((f) => f.path.endsWith(`templates/${name}`))!;
+
+  for (const t of ['deployment.yaml', 'service.yaml', 'ingress.yaml', 'configmap.yaml',
+    'hpa.yaml', 'pdb.yaml', 'secret.yaml', 'serviceaccount.yaml']) {
+    const c = helmTpl(t).content;
+    check(`Helm ${t}：资源名走 fullname，不许写死`,
+      /name:\s*\{\{\s*include\s+"[^"]+\.fullname"/.test(c),
+      c.split('\n').find((l) => /^\s*name:/.test(l)) ?? '找不到 name 行');
+    check(`Helm ${t}：标签走 helpers，不许散着写`,
+      !/^\s{4}app:\s*[a-z0-9-]+\s*$/m.test(c),
+      '标签写死会让 Service 选不到 Pod：Deployment 与 Service 差一个字符就永远不通');
+  }
+
+  // values ↔ 模板双向：模板引用的键必须存在（反向见下面 env 那一条）
+  const valsTxt = buildExportPlan(H, auditArchitecture(H))
+    .files.find((f) => f.path.endsWith('chart/values.yaml'))!.content;
+  // 顶层键是**零缩进**的。写成 `^\s{2}` 会抓到 replicaCount 下面的
+  // repository / pullPolicy 这些嵌套键，于是 replicaCount 反而被判成「不存在」——
+  // 断言自己写错了，跑出来一片红，比没有断言更浪费信任。
+  const keysOf = (txt: string) =>
+    [...txt.matchAll(/^([a-zA-Z][A-Za-z0-9_]*):/gm)].map((m) => m[1]);
+  const topKeys = new Set(keysOf(valsTxt));
+  for (const t of ['deployment.yaml', 'service.yaml', 'ingress.yaml', 'hpa.yaml', 'pdb.yaml']) {
+    for (const m of helmTpl(t).content.matchAll(/\.Values\.([A-Za-z0-9_]+)/g)) {
+      check(`Helm ${t}：.Values.${m[1]} 在 values.yaml 里有定义`, topKeys.has(m[1]),
+        `values.yaml 顶层键: ${[...topKeys].join('、')}`);
+    }
+  }
+
+  // 三份 values 的键必须是主 values 的子集 —— 拼错的键会被 Helm 静默忽略
+  for (const envFile of ['values-dev.yaml', 'values-prod.yaml']) {
+    const txt = buildExportPlan(H, auditArchitecture(H))
+      .files.find((f) => f.path.endsWith(`chart/${envFile}`))!.content;
+    const flat = (t: string) => keysOf(t);
+    const orphan = [...new Set(flat(txt))].filter((k) => !topKeys.has(k));
+    check(`${envFile}：每个键都在主 values 里存在`, orphan.length === 0,
+      orphan.length ? `静默无效的键: ${orphan.join('、')}` : '');
+  }
+
+  // 选型声明的环境变量必须真的进了 chart —— 否则装上去连不上数据库，
+  // 而且要等到运行时才暴露
+  check('Helm values 的 env 段来自选型，不是一行写死',
+    (valsTxt.match(/^\s{2}[A-Z][A-Z0-9_]+:/gm) ?? []).length >= 2,
+    valsTxt.split('\n').filter((l) => /^\s{2}[A-Z][A-Z0-9_]+:/.test(l)).join(' / ') || 'env 段为空');
+
+  // ── Dockerfile 不许依赖导出包里没有的东西 ──────────────────
+  //
+  // ./mvnw 是最典型的一个：导出包只有 pom.xml 与 src，没有 wrapper，
+  // 写 ./mvnw 会让第一次 docker build 就挂在 not found 上。
+  const dockerfileOf = (p: StackPicks) =>
+    buildExportPlan(p, auditArchitecture(p)).files.find((f) => f.path === 'deploy/Dockerfile')!;
+  for (const b of ['maven', 'gradle']) {
+    const p = { ...presetPicks('standard'), deploy: 'docker', build: b } as StackPicks;
+    const c = dockerfileOf(p).content;
+    // 只看**非注释行**：说明里会提到 ./mvnw 这个反例，整文件搜会把注释算成违规
+    const code = c.split('\n').filter((l) => !/^\s*#/.test(l)).join('\n');
+    check(`Dockerfile（${b}）：不依赖导出包里没有的 wrapper`,
+      !/\.\/mvnw|\.\/gradlew/.test(code),
+      code.split('\n').find((l) => /mvnw|gradlew/.test(l)) ?? '');
+    check(`Dockerfile（${b}）：构建阶段有构建工具，运行阶段是纯 JRE`,
+      /AS builder/.test(c) && /-jre-/.test(c),
+      '构建阶段要能编译，运行阶段不许带编译器');
+    // 只约束**运行阶段**的 COPY（--from=builder）。构建阶段本来就是 root，
+    // 给它也加 --chown 只是噪音。
+    // 注意 --chown 与 --from 的顺序：生成器写的是 `COPY --chown=... --from=builder`，
+    // 写成 `^COPY --from` 会一条都匹配不到，断言恒假
+    const runtimeCopies = code.split('\n').filter((l) => /^COPY\b.*--from=builder/.test(l));
+    check(`Dockerfile（${b}）：运行阶段的 COPY 带 --chown，USER 之后还能写文件`,
+      runtimeCopies.length > 0 && runtimeCopies.every((l) => l.includes('--chown')),
+      runtimeCopies.find((l) => !l.includes('--chown')) ?? '没有从 builder 复制产物');
+  }
+
+  // ── Makefile 的 target 必须与交付形态匹配 ──────────────────
+  const mkOf = (deploy: string) =>
+    buildExportPlan({ ...presetPicks('standard'), deploy } as StackPicks,
+      auditArchitecture({ ...presetPicks('standard'), deploy } as StackPicks))
+      .files.find((f) => f.path === 'deploy/Makefile')!.content;
+  const mkDocker = mkOf('docker');
+  const mkK8s = mkOf('k8s');
+  check('Makefile：docker 形态才有 up / down',
+    /^up:/m.test(mkDocker) && !/^up:/m.test(mkK8s),
+    'k8s 形态没有 compose 文件，留着 up 就是一条必然失败的命令');
+  check('Makefile：k8s 形态才有 rollback / status',
+    /^rollback:/m.test(mkK8s) && !/^rollback:/m.test(mkDocker));
+  check('Makefile：k8s 用 apply -k（否则 kustomization 的 namespace 不生效）',
+    /kubectl apply -k/.test(mkK8s),
+    mkK8s.split('\n').find((l) => l.includes('kubectl apply')) ?? '找不到 apply');
+  for (const [name, txt] of [['docker', mkDocker], ['k8s', mkK8s]] as const) {
+    const phony = /\.PHONY:\s*(.+)/.exec(txt)?.[1].split(/\s+/).filter(Boolean) ?? [];
+    const defined = [...txt.matchAll(/^([a-z][a-z-]*):/gm)].map((m) => m[1])
+      .filter((t) => t !== 'help' || true);
+    const missing = defined.filter((t) => !phony.includes(t));
+    check(`Makefile（${name}）：每个 target 都在 .PHONY 里`, missing.length === 0,
+      missing.length ? `漏了: ${missing.join('、')}` : '');
+  }
+  check('Makefile：TAG 在没有 git 的目录里不会变成空',
+    /git rev-parse[^)]*\|\|/.test(mkK8s), 'TAG 空会让镜像 tag 变成 registry/app:');
+
+  // ── Compose：依赖方向与数据源 ────────────────────────────
+  //
+  // 三件事都是自检查出来的、而且都不会报错：
+  //   ① 应用 depends_on 了 prometheus，而 prometheus 又 depends_on 应用 → 成环，起不来
+  //   ② SPRING_DATASOURCE_URL 写死 mysql → 选了 postgres 会连一个不存在的主机
+  //   ③ 挂了 deploy/prometheus.yml 却没生成它 → Docker 挂个同名目录进去
+  const compose = (p: StackPicks) =>
+    buildExportPlan(p, auditArchitecture(p)).files.find((f) => f.path.endsWith('docker-compose.yml'))!
+      .content;
+  const composeFiles = (p: StackPicks) =>
+    buildExportPlan(p, auditArchitecture(p)).files.filter((f) => f.path.startsWith('deploy/'));
+
+  const stdCompose = compose({ ...presetPicks('standard'), deploy: 'docker' } as StackPicks);
+  const appBlock = /^  arsenal-demo:[\s\S]*?(?=^  \S|\Z)/m.exec(stdCompose)![0];
+  check('Compose：应用不等观测组件（否则 应用→prometheus→应用 成环）',
+    !/prometheus/.test(appBlock),
+    '观测组件是来抓应用的，不是应用的下游；成环会让 docker compose 直接报 cycle');
+  check('Compose：等待条件用长语法，等健康而不只是等启动',
+    /condition: service_healthy/.test(appBlock),
+    '短语法只保证容器起来了，不保证能连上');
+
+  for (const db of ['mysql', 'postgres']) {
+    const c = compose({ ...presetPicks('standard'), deploy: 'docker', database: db } as StackPicks);
+    const url = /SPRING_DATASOURCE_URL:\s*(\S+)/.exec(c)?.[1] ?? '';
+    check(`Compose：database=${db} 时 JDBC URL 指向 ${db}`, url.includes(db),
+      `实际是 ${url || '（没写）'} —— 连一个 compose 里不存在的主机`);
+  }
+
+  // 挂载进容器的文件必须真的在导出包里 —— 少一个文件，容器起不来
+  const prom = composeFiles({ ...presetPicks('standard'), deploy: 'docker' } as StackPicks)
+    .map((f) => f.path);
+  check('Compose：选了 prometheus 就一起生成 prometheus.yml',
+    prom.includes('deploy/prometheus.yml'),
+    `实际: ${prom.join('、')}`);
+  for (const m of stdCompose.matchAll(/- (\.\/[A-Za-z0-9_.-]+):/g)) {
+    check(`Compose 挂载的 ${m[1]} 在导出包里存在`,
+      prom.includes(`deploy/${m[1].replace('./', '')}`),
+      '挂不存在的文件时 Docker 会建一个同名目录，容器起不来且报错与真实原因无关');
+  }
+
+  // 优雅停机时长不许写死：必须比 application.yml 里的应用侧超时大
+  const shutdownOf = (p: StackPicks) => {
+    const files = buildExportPlan(p, auditArchitecture(p)).files;
+    const yml = files.find((f) => f.path === 'src/main/resources/application.yml')!.content;
+    const dep = files.find((f) => f.path.endsWith('04-deployment.yaml'))?.content ?? '';
+    return {
+      app: Number(/timeout-per-shutdown-phase:\s*(\d+)s/.exec(yml)?.[1] ?? 0),
+      k8s: Number(/terminationGracePeriodSeconds:\s*(\d+)/.exec(dep)?.[1] ?? 0),
+    };
+  };
+  const sd = shutdownOf({ ...presetPicks('standard'), deploy: 'k8s' } as StackPicks);
+  check('Deployment 的停机总时长大于应用侧超时',
+    sd.app > 0 && sd.k8s > sd.app,
+    `应用侧 ${sd.app}s / 总预算 ${sd.k8s}s —— 相等等于没给信号传播留时间`);
+
+  const unit = buildExportPlan({ ...presetPicks('standard'), deploy: 'jar' } as StackPicks,
+    auditArchitecture({ ...presetPicks('standard'), deploy: 'jar' } as StackPicks))
+    .files.find((f) => f.path.endsWith('app.service'))!.content;
+  const stop = Number(/TimeoutStopSec=(\d+)s/.exec(unit)?.[1] ?? 0);
+  check('systemd 的 TimeoutStopSec 大于应用侧超时', stop > sd.app,
+    `TimeoutStopSec=${stop}s / 应用侧 ${sd.app}s`);
 }
 
 zipChecks().then(() => {

@@ -183,7 +183,7 @@ export default function HomePage() {
               accent: '#D9A441',
               desc:
                 '一个 Spring Boot 项目由哪些零件组成，以及它们能不能拼起来。' +
-                '17 个模块摆成 6 层架构图，每块都声明它提供什么能力、需要什么能力 ——' +
+                `${stackDimCount} 个模块摆成 ${archLaneCount} 层架构图，每块都声明它提供什么能力、需要什么能力 ——` +
                 '拆掉任意一块必需模块，它直接告诉你跑不起来、缺的是哪一块。',
               stats: [
                 `${stackDimCount} 个模块`,

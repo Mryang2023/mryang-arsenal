@@ -121,9 +121,21 @@ RUN_DIR="${RUN_CWD:-$SERVER_ROOT}"
 mkdir -p "$RUN_DIR" 2>/dev/null
 cd "$RUN_DIR" || exit 1
 
+# ── 端口必须用命令行参数钉住，不能只靠 application.yml ──────────
+#
+# 踩过的坑：从托管环境（WorkBuddy / 某些 IDE 的终端）启动时，环境里会带着
+# SERVER__PORT / SERVER__HOST —— 双下划线是 Spring 的「层级分隔」写法，
+# relaxed binding 会把它认成 server.port，优先级**高于** application.yml。
+# 现象是应用跑去抢宿主的端口，报「Port 3743 was already in use」；
+# 报错指向端口，完全看不出是环境变量在作祟。
+#
+# 命令行参数的优先级高于环境变量，所以这一句能压过任何注入值。
+# 需要换端口时用 ARSENAL_PORT，不要去改 application.yml。
+PORT="${ARSENAL_PORT:-3011}"
+
 echo "工作目录 : $(pwd)"
-echo "启动     : com.arsenal.ArsenalApplication  (端口 3011)"
+echo "启动     : com.arsenal.ArsenalApplication  (端口 ${PORT})"
 echo ""
 
 exec "$JAVA" -Dfile.encoding=UTF-8 -cp "$(to_win "$SERVER_ROOT/target/classes")${CP}" \
-  com.arsenal.ArsenalApplication ${SERVER_ARGS:-}
+  com.arsenal.ArsenalApplication "--server.port=${PORT}" ${SERVER_ARGS:-}

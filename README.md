@@ -41,7 +41,7 @@ arsenal/
 │   ├── build-content.py         主入口 + 构建期校验
 │   └── content/*.py             内容源：在 Python 侧原样承载 Java / YAML / XML
 │       ├── skeleton.py crud.py http.py async_tx.py     ← 最佳实践案例（端到端垂直切片）
-│       ├── stack_base.py stack_data.py stack_mw.py
+│       ├── stack_base.py stack_data.py stack_mw.py stack_deploy.py
 │       ├── stack_arch.py stack_cross.py stack_presets.py  ← 装配台选型
 │       └── stack_project.py     项目结构树 / 启动类 / 导出文件模板
 │
@@ -52,17 +52,22 @@ arsenal/
 │
 ├── arsenal-cookbook/            最佳实践案例数据（4 条切片 / 32 文件 / 2214 行）
 ├── arsenal-stacks/              装配台数据
-│   ├── stack.json               17 维度 / 42 选项 / 4 预设
-│   ├── architecture.json        6 泳道 / 27 能力 / 16 条组合策略
+│   ├── stack.json               18 维度 / 46 选项 / 4 预设
+│   ├── architecture.json        7 泳道 / 31 能力 / 21 条组合策略
 │   └── project.json             条件化目录树 / 启动类 / 导出文件模板
 │
 ├── arsenal-web/                 Next.js 前端（3010）
-│   ├── src/app/{rules,check,export,blueprints,stack}/  五个页面
-│   ├── src/lib/{cookbook,stack,arch,project,zip}.ts    纯函数层
-│   └── .verify/                 自检脚本（1129 行，属资产，进 Git）
+│   ├── src/app/{rules,check,export,blueprints,stack,arch}/  六个页面
+│   │                             （arch = 架构图谱：业务 / 数据 / 应用 / 技术 / 产品 / 项目 六大架构，
+│   │                              技术架构沿用装配台选型 —— localStorage 快照，装配台是唯一属主）
+│   ├── src/lib/                 纯函数层（cookbook / stack / arch / arch-canvas /
+│   │                             archify-ir / arch-views / project / zip，都不引绘图库）
+│   │                             + arsenal-api.ts（唯一一处网络请求，调后端出图）
+│   └── .verify/                 自检脚本（属资产，进 Git）
 │
-├── arsenal-server/              Spring Boot 后端（3011，只读规则集）
-│   └── src/main/java/com/arsenal/{loader,engine,exporter,web,domain}
+├── arsenal-server/              Spring Boot 后端（3011）
+│   ├── src/main/java/com/arsenal/{loader,engine,exporter,archify,web,domain}
+│   └── .verify/                 探针（校验工具，不进产品代码目录）
 │
 └── 杨先生的军火库-*.md          计划书 / 规则基线 / 案例库与选型台 说明
 ```
@@ -130,14 +135,22 @@ bash scripts/compile-check.sh      # 26 源文件 → 41 class
 
 | 接口 | 用途 |
 |---|---|
-| `GET /api/health` | 存活 + 规则集版本（62 条 / 50 条强制级） |
+| `GET /api/health` | 存活 + 规则集版本（69 条 / 50 条强制级） |
 | `GET /api/stats` | 按严重度、分类统计 |
 | `GET /api/rules` · `/grouped` · `/sources` · `/{id}` | 规则查询 |
 | `GET /api/export/formats` · `/api/export/{format}` · `/{format}/raw` | 导出六种载体 |
 | `POST /api/lint` | 送代码拿违规清单 + 非正则层的 `skipped` 如实披露 |
+| `GET /api/archify` | 这台机器能不能出图（node / 技能入口 / 看不到时怎么补） |
+| `POST /api/archify/deliver` | 送一份 IR，拿 HTML + 校验收据；画不合格时回诊断而不是报错 |
 
 `POST /api/lint` 的请求体是 `{"files":[{"name":"com/example/UserController.java","content":"..."}]}`。
 `name` 用于匹配规则的 `targetGlob`，所以路径要尽量真实 —— 填裸文件名和填完整包路径，匹配到的规则数量差很多。
+
+`POST /api/archify/deliver` 的请求体**就是 IR 本身**（不套壳），即页面上复制/下载到的那份 JSON。
+两种「没成」刻意用两种状态码：图没过构图检查 → **200 + `delivered:false` + 诊断数组**
+（那是这次调用最有价值的东西，包成错误码只会让人为了读它去解析错误体）；
+环境跑不了（没装技能 / 超时）→ **503 / 504**；请求本身不合规 → **400**。
+
 
 ### 自检（改动后必跑）
 
@@ -145,22 +158,39 @@ bash scripts/compile-check.sh      # 26 源文件 → 41 class
 cd arsenal-web && npm run verify
 ```
 
-一条命令跑完五层、共 **304 项**：
+一条命令跑完六层、共 **452 项**：
 
 | 层 | 项数 | 看什么 |
 |---|---|---|
 | `verify:arch` | 35 | 能力供需 / 槽位必需性 / 三态结论 |
-| `verify:graph` | 56 | 架构图交互层：依赖边与版式边不许混淆、可达/路由自洽、渲染器加法契约 |
-| `verify:project` | 191 | 结构树、启动类、隐患、README、架构图与说明、zip 打包 |
+| `verify:graph` | 59 | 架构图交互层：依赖边与版式边不许混淆、可达/路由自洽、渲染器加法契约 |
+| `verify:project` | 303 | 结构树、启动类、隐患、README、架构图与说明、**部署产物（Dockerfile / Compose / K8s 清单 / Helm Chart 的可应用性与字段一致性）**、zip 打包；**六大架构视图数据层**（每个数字可追溯到真实数据）、技术架构画布加料不变量（页脚 / 署名 / 分区计数）、**图标库与动效**（图标 key 不许静默回落、导出态带动画 / 交互态不带） |
 | `verify:engine` | 14 | 规则池对账、样本检出、误报检查 |
-| `verify:parity` | 8 | 前后端导出逐字节一致性（含后端探针实跑） |
+| `verify:parity` | 12 | 前后端导出逐字节一致性（含后端探针实跑）；**活服务体检** —— 起后端时断言 `/api/stats` 报的条数与分布 == 事实源（防「改了规则忘了重启」的静默漂移），没起服务则明说跳过 |
+| `verify:archify` | 29 | 选型 → 通用绘图器 IR：结构自检 + 对方那九项构图检查 + 后端出图服务实跑 |
 
-改动能力模型、槽位必需性、策略、结构树或架构图渲染之后**必须重跑**：基线在
-`.verify/audit-check.ts`、`.verify/graph-check.ts` 与 `.verify/project-check.ts`。
+改动能力模型、槽位必需性、策略、结构树、架构图渲染或技术架构图（画布 / IR 适配器）之后
+**必须重跑**：基线在 `.verify/audit-check.ts`、`.verify/graph-check.ts`、
+`.verify/project-check.ts` 与 `.verify/archify-check.ts`。
+
+`verify:archify` 需要机器上装了通用绘图器（扳手AI.Archify）。没装时前 19 项
+**明说跳过**并照常退出 0 —— 但那时「通过」里不包含九项构图检查，别当成绿灯。
+默认跑 4 套预设 + 8 种边界组合；想穷举七个节点维度的全部 128 种组合：
+
+```bash
+cd arsenal-web && ARCHIFY_SWEEP=1 npm run verify:archify
+```
+
+它最后 10 项要 `bash` + JDK 17：编译并实跑后端出图服务
+（`arsenal-server/.verify/ArchifyProbe.java`），验的是「页面上那颗按钮真的能用」。
+上面三节走的是对方的命令行，**覆盖不到服务层** —— 找不到 node、临时文件写错、
+子进程输出没被翻译回来，IR 全绿它也照样坏。
 
 > `verify:parity` 需要 `bash` + JDK 17：它要起后端探针实跑一遍导出再逐字节比对。
-> 没有 bash 的环境这一层跑不了（报 `execvpe(/bin/bash) failed`），此时前四层
-> （35 + 56 + 191 + 14 = 296 项）仍然有效，只有最后一层的 8 项缺失。
+> 没有 bash 的环境这一层跑不了（报 `execvpe(/bin/bash) failed`），此时其余五层
+> （35 + 59 + 213 + 14 + 29 = 350 项）仍然有效，只是少了 parity 的 9 项
+> 与 archify 里依赖 bash 的那部分。
+
 
 ---
 
@@ -168,9 +198,10 @@ cd arsenal-web && npm run verify
 
 | 资产 | 回答什么 | 规模 |
 |---|---|---|
-| **规则集** | 不能做什么 | 62 条（MUST 37 + NEVER 13 = 50 条强制级卡满上限，SHOULD 12） |
+| **规则集** | 不能做什么 | 69 条（MUST 37 + NEVER 13 = 50 条强制级卡满上限；SHOULD 18 + MAY 1） |
 | **最佳实践案例库** | 一个功能完整该怎么写，以及**什么时候不要这么写** | 4 条切片 / 32 文件 / 2214 行 / 98 条锚点备注 / 16 条参考出处 |
-| **架构装配台** | 由哪些零件组成、**拼起来能不能跑** | 6 泳道 / 17 模块 / 42 选项 / 27 能力 / 16 策略 |
+| **架构装配台** | 由哪些零件组成、**拼起来能不能跑** | 7 泳道 / 18 维度 / 46 选项 / 31 能力 / 21 策略 |
+| **架构图谱（/arch）** | 六大架构一图讲清：业务 / 数据 / 应用 / 技术 / 产品 / 项目 | 5 张静态视图 + 技术架构（跟随装配台选型）；视图数字全部从真实数据算出。视觉系统：`arch-glyphs`（30+ 概念图标，每域每层一个）、`tech-icons`（87 个技术组件图标）、`arch-motion`（SVG 内嵌动画，导出的 .svg 单独打开照样动）、六张 AI 生成封面插画（`public/arch/*.webp`，共 79KB）。动效克制：实线不因为动画变虚线（语义优先），`prefers-reduced-motion` 下全部停 |
 
 装配台的核心是**能力供需模型**：每个选项声明 `requires` / `provides`，
 所有已装配方块的 `provides` 求并集，未覆盖的 `requires` 即为缺零件，据此给出三态结论
@@ -181,15 +212,43 @@ cd arsenal-web && npm run verify
 配置类、profile、迁移脚本、冒烟测试、README、隐患体检单、架构图与技术说明）。
 
 **架构图是算出来的，不是画出来的。** 装配台「交付 → 架构图」页签把当前组合渲染成
-「6 层泳道 + 请求向下穿过」的图：方块是 17 个槽位，缺必需的描红、缺建议的描黄铜、
+「7 层泳道 + 请求向下穿过」的图：方块是 18 个槽位，缺必需的描红、缺建议的描黄铜、
 参与了组合隐患的带 ⚠，层内 `→` 是请求真正流经的顺序，竖虚线右侧是旁路件。
 导出包里带 `architecture.svg`（浅色，供文档引用）、`ARCHITECTURE.md`（同源的技术说明）、
 以及 `architecture.d2` / `architecture.mermaid` 源码。
 
 这张图没有引任何绘图库，`src/lib/arch-diagram.ts` 一个纯函数直接拼 SVG —— 因为
-层是固定的 6 条、槽位是固定的 17 个，坐标能直接算出来。图引擎解决的是**拓扑**，
+层是固定的 7 条、槽位是固定的 18 个，坐标能直接算出来。图引擎解决的是**拓扑**，
 而这里要的是**版式**：实测把 6 个容器交给 D2，无连线时它横排成一长条，有连线时
 按依赖把容器的框都打散了。既然拓扑固定，就不该为了迁就引擎去扭曲数据。
+
+**「架构图谱 → 技术架构」视图回答的是另一件事：部署出来长什么样。** 与架构图的分工
+是刻意的 —— 那张图给选型时看（谁依赖谁），这张图给技术说明书与客户看。构建期的
+零件（Maven / Lombok / 测试框架）收进应用卡的工程属性，不占部署节点位；Redis、
+Nacos 这类要单独起进程的才画成节点。可以拖动、改名、换集群形态，改动只影响交付
+呈现，不碰选型判定（存在 localStorage，不进 Git）。它在 `/arch` 路由下（2026-09-21
+起装配台不再内嵌此页签），选型快照由装配台写入 localStorage —— 装配台是选型唯一
+属主，这里只读。
+
+出口有五个：复制 PNG、下载 SVG、复制技术说明书 Markdown，**导出通用绘图器的
+IR JSON**（见 `src/lib/archify-ir.ts`），以及**在页面里直接生成 HTML**
+（由后端起对方的 Node 渲染器完成，成品嵌在页面内预览）。IR 那条不是重复劳动：
+我们自己的画布没有「构图质量」这一层，而对方有正交折线 / 标签避让 / 交叉数 /
+折线节奏 / 边框穿越 / 图例净空一整套自检，还带可交互 HTML 交付。
+**一份模型，两个渲染器**：两边都从 `buildTechArch()` 取事实，几何各算各的 ——
+改了选型数据，两张图一起变。
+
+手工拖出来的坐标**不带过去**：那份图有自己的版式引擎，而正是那个引擎在管
+「标签会不会压线」。喂扰动过的坐标只会让它报到我们头上；改名、集群形态、手加的
+连线都跟着走。
+
+「直接生成 HTML」需要后端（`arsenal-server`，3011）活着 —— 那份渲染器是 Node 的，
+浏览器跑不了（见 `arsenal-server/.../archify/ArchifyService.java`）。
+后端不在时按钮灰掉、通道那一行说清缺什么，**其余四个出口照常可用**：
+「能脱离服务器活着」这条原则没有被打破。后端要能找到技能（默认
+`~/.workbuddy/skills/wrench-ai/bin/wrench-ai.mjs`）与 node，两者任一缺失都如实报出来，
+用 `ARSENAL_ARCHIFY_CLI` / `ARSENAL_ARCHIFY_NODE` 可以指到实际位置。
+
 
 ---
 
@@ -198,10 +257,10 @@ cd arsenal-web && npm run verify
 | 项 | 说明 |
 |---|---|
 | **MCP Server 适配层** | **项目成败关键** —— 让 AI 写代码时主动来查规范，才能真的治本 |
-| 后端接入案例库与装配台 | 目前后端只读规则集，前端已完整可用 |
-| AST 层校验 | 62 条里 32 条需要语法树判定，前端只跑正则层的 30 条 |
+| 后端接入案例库与装配台 | 后端已能出图（`/api/archify`）与校验（`/api/lint`），但装配台、蓝图、案例库仍只在前端算 |
+| AST 层校验 | 69 条里 20 条需要语法树判定，前端只跑正则层的 30 条 |
 | LLM 语义层 | 仅 MUST / SHOULD，强制要求行号定位 |
-| **62 条规则逐条过目** | 需 mryang 标记「同意 / 改 / 删」。没过目就不算军火库 |
+| **69 条规则逐条过目** | 需 mryang 标记「同意 / 改 / 删」。没过目就不算军火库 |
 
 ---
 

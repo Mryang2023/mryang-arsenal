@@ -1,6 +1,7 @@
 'use client';
 
-import { Fragment, useMemo, useRef, useState } from 'react';
+import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
+import Link from 'next/link';
 import CodeBlock from '@/components/CodeBlock';
 import CopyButton from '@/components/CopyButton';
 import {
@@ -59,7 +60,7 @@ import { TONE } from './palette';
 type TabId =
   | 'build' | 'yaml' | 'env'
   | 'app' | 'config' | 'code'
-  | 'tree' | 'arch'
+  | 'tree' | 'arch' | 'tech'
   | 'risk' | 'ops' | 'prompt';
 
 interface TabSpec {
@@ -139,6 +140,7 @@ export default function StackComposer() {
       group: '交付',
       tabs: [
         { id: 'arch', glyph: '⊞', label: '架构图' },
+        { id: 'tech', glyph: '⬡', label: '技术架构图' },
         { id: 'risk', glyph: '⚠', label: '隐患体检单', count: hazardCount },
         { id: 'ops', glyph: '▥', label: '运维清单' },
         { id: 'prompt', glyph: '⎘', label: '给 AI 的约束' },
@@ -288,11 +290,19 @@ export default function StackComposer() {
               background: 'rgba(217,164,65,0.12)',
               color: '#D9A441',
             }}
-            title="把这套组合画成 6 层架构图：缺什么、请求怎么穿过、哪块有隐患，一眼看到；可下载 SVG / PNG 或复制 D2 / Mermaid 源码"
+            title="把这套组合画成架构图：缺什么、请求怎么穿过、哪块有隐患，一眼看到；可下载 SVG / PNG 或复制 D2 / Mermaid 源码"
           >
             <span className="mono text-[12px] leading-none">⊞</span>
             看架构图
           </button>
+          <Link
+            href="/arch"
+            className="flex items-center gap-1.5 rounded-md border border-line px-2.5 py-1 text-[11px] text-fgMuted transition-colors hover:border-lineHi hover:text-fg"
+            title="六大架构图谱：业务 / 数据 / 应用 / 技术 / 产品 / 项目"
+          >
+            <span className="mono text-[12px] leading-none">▣</span>
+            六大架构
+          </Link>
         </div>
       </div>
 

@@ -21,6 +21,17 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
 CONTENT = os.path.join(HERE, 'content')
 
+# 选型维度的来源模块。三处装配（选型台 / 架构图 / 项目结构）必须读同一份列表 ——
+# 早先是三处各写一遍元组，加一个维度要改三行，漏一处就变成「选型台里有、
+# 架构图里没有」这种只在运行时才暴露的不一致。
+STACK_MODULES = ('stack_base', 'stack_data', 'stack_mw', 'stack_cross', 'stack_deploy')
+
+# Archify（通用绘图器）的组件类型枚举。写在这里是因为它是**对方**的词汇表：
+# 我们只能往里映射，不能自己加第八类 —— 加了会在导出期被它的 JSON Schema 拒掉。
+ARCHIFY_TYPES = {
+    'frontend', 'backend', 'database', 'cloud', 'security', 'messagebus', 'external',
+}
+
 
 def load_module(name):
     path = os.path.join(CONTENT, name + '.py')
@@ -33,7 +44,8 @@ def load_module(name):
 def write_json(rel_path, doc):
     full = os.path.join(ROOT, rel_path)
     os.makedirs(os.path.dirname(full), exist_ok=True)
-    with open(full, 'w', encoding='utf-8') as f:
+    # newline='\n'：Windows 上默认文本模式会写成 CRLF，整文件假变更污染 diff
+    with open(full, 'w', encoding='utf-8', newline='\n') as f:
         json.dump(doc, f, ensure_ascii=False, indent=2)
         f.write('\n')
     size = os.path.getsize(full)
@@ -115,7 +127,7 @@ def build_stacks():
     print('[2/4] arsenal-stacks —— 技术选型')
     base = load_module('stack_base')
     dimensions = []
-    for name in ('stack_base', 'stack_data', 'stack_mw', 'stack_cross'):
+    for name in STACK_MODULES:
         dimensions.extend(load_module(name).DIMENSIONS)
 
     presets = load_module('stack_presets').PRESETS
@@ -148,7 +160,7 @@ def build_stacks():
         'version': '0.1.0',
         'releasedAt': '2026-09-11',
         'description': (
-            '把一个 Spring Boot 项目拆成 17 个选型维度。勾选组合后，'
+            f'把一个 Spring Boot 项目拆成 {len(dimensions)} 个选型维度。勾选组合后，'
             '实时合成 pom 依赖、application.yml、必需的配置类与联动代码，'
             '并给出运维清单与冲突提示。'
         ),
@@ -173,7 +185,7 @@ def build_architecture():
     print('[3/4] arsenal-architecture —— 架构装配图')
     arch = load_module('stack_arch')
     dimensions = []
-    for name in ('stack_base', 'stack_data', 'stack_mw', 'stack_cross'):
+    for name in STACK_MODULES:
         dimensions.extend(load_module(name).DIMENSIONS)
     dim_ids = {d['id'] for d in dimensions}
     opt_ids = {d['id']: {o['id'] for o in d['options']} for d in dimensions}
@@ -240,6 +252,99 @@ def build_architecture():
                         '%s/%s 索要能力 %s，而该能力的唯一提供者就是它自己所在的槽位 %s'
                         ' —— 向自己索要，用户永远拼不出可运行组合' % (dim, oid, c, dim))
 
+    # ③·五 画图元信息：维度 / 选项 / 连线端点都必须真实存在
+    #
+    # 守的是「图上的东西都是真的」：连线端点写错一个字母，图上就多一条
+    # 谁也连不上的线；选项表里漏一个维度，那个槽位就会掉成通用灰块 ——
+    # 两种都不会报错，只有看图的人会发现。所以必须在构建期拦。
+    zone_ids = set(z['id'] for z in arch.CANVAS_ZONES)
+    # 每个分区都要说清自己属于哪一类 —— 不给默认值，是为了让「这一层算什么」
+    # 成为一个必须被写下来的判断，而不是渲染器里一个有朝一日会被改错的分支。
+    for zone in arch.CANVAS_ZONES:
+        if zone.get('archifyType') not in ARCHIFY_TYPES:
+            problems.append('CANVAS_ZONES/%s 的 archifyType %r 不在 %s 里'
+                            % (zone.get('id'), zone.get('archifyType'),
+                               '/'.join(sorted(ARCHIFY_TYPES))))
+    # 图例覆盖只能改**已有类型**的文字，不能凭空造一个类型
+    for kind, entry in getattr(arch, 'CANVAS_LEGEND_OVERRIDES', {}).items():
+        if kind not in ARCHIFY_TYPES:
+            problems.append('CANVAS_LEGEND_OVERRIDES 里的 %r 不是组件类型' % kind)
+        if not entry.get('label'):
+            problems.append('CANVAS_LEGEND_OVERRIDES/%s 没有给 label' % kind)
+
+    # 阅读路径：焦点只能声明真实存在的分区与维度 —— 写错一个字母，
+    # 那条路径会静默地少亮一块，或者整条消失，而没有任何东西报错。
+    seen_views = set()
+    for view in getattr(arch, 'CANVAS_VIEWS', []):
+        vid = view.get('id')
+        if not re.match(r'^[a-zA-Z][a-zA-Z0-9_-]*$', str(vid)):
+            problems.append('CANVAS_VIEWS 里的 id %r 不符合规范' % vid)
+        if vid in seen_views:
+            problems.append('CANVAS_VIEWS 里有重复的 id %s' % vid)
+        seen_views.add(vid)
+        if not view.get('label'):
+            problems.append('CANVAS_VIEWS/%s 没有 label' % vid)
+        if not view.get('zones') and not view.get('dims'):
+            problems.append('CANVAS_VIEWS/%s 既没声明分区也没声明维度 —— 它的焦点永远是空的'
+                            % vid)
+        for z in view.get('zones', []):
+            if z not in zone_ids:
+                problems.append('CANVAS_VIEWS/%s 引用了不存在的分区 %s' % (vid, z))
+        for d in view.get('dims', []):
+            if d not in dim_ids:
+                problems.append('CANVAS_VIEWS/%s 引用了不存在的维度 %s' % (vid, d))
+        # 对方的 schema 把 note 卡在 140 字
+        if len(view.get('note') or '') > 140:
+            problems.append('CANVAS_VIEWS/%s 的 note 超过 140 字' % vid)
+    # 'client' 与 'app' 是固定节点，不属于任何选型维度
+    link_ok = set(opt_ids) | {'client', 'app'}
+
+    for dim_id, spec in arch.CANVAS_DIMS.items():
+        if dim_id not in opt_ids:
+            problems.append('CANVAS_DIMS 里有不存在的维度 %s' % dim_id)
+        if spec.get('place') == 'node' and spec.get('zone') not in zone_ids:
+            problems.append('CANVAS_DIMS/%s 的 zone %r 不在 CANVAS_ZONES 里'
+                            % (dim_id, spec.get('zone')))
+    for dim_id in opt_ids:
+        if dim_id not in arch.CANVAS_DIMS:
+            problems.append('维度 %s 没有声明在图上怎么出现（CANVAS_DIMS 缺它）' % dim_id)
+
+    for dim_id, opts in arch.CANVAS_OPTIONS.items():
+        if dim_id not in opt_ids:
+            problems.append('CANVAS_OPTIONS 里有不存在的维度 %s' % dim_id)
+            continue
+        for oid, spec in opts.items():
+            if oid not in opt_ids[dim_id]:
+                problems.append('CANVAS_OPTIONS/%s 里有不存在的选项 %s' % (dim_id, oid))
+            if not spec.get('icon'):
+                problems.append('CANVAS_OPTIONS/%s/%s 没有指定图标' % (dim_id, oid))
+            for mode in spec.get('cluster', []):
+                if not isinstance(mode.get('replicas'), int) or mode['replicas'] < 1:
+                    problems.append('CANVAS_OPTIONS/%s/%s 的集群形态 %r 副本数不是正整数'
+                                    % (dim_id, oid, mode.get('name')))
+            # archifyType 是封闭枚举 —— 渲染器的词汇表就这么七个，编第八个会在
+            # 导出期被 JSON Schema 拒掉。这里提前拦，报错能指到具体哪个选项。
+            atype = spec.get('archifyType')
+            if atype is not None and atype not in ARCHIFY_TYPES:
+                problems.append('CANVAS_OPTIONS/%s/%s 的 archifyType %r 不在 %s 里'
+                                % (dim_id, oid, atype, '/'.join(sorted(ARCHIFY_TYPES))))
+            # brand 必须是 Archify 商标库里的规范 id 形状。**是否真实存在**由
+            # `npm run verify:archify` 拿真实商标库核对 —— 构建脚本不该依赖那个技能。
+            brand = spec.get('brand')
+            if brand is not None and not re.match(r'^[a-z0-9][a-z0-9-]*$', str(brand)):
+                problems.append('CANVAS_OPTIONS/%s/%s 的 brand %r 不是规范 id 形状'
+                                '（小写字母 / 数字 / 连字符，如 apache-kafka）'
+                                % (dim_id, oid, brand))
+    for dim_id in opt_ids:
+        if dim_id not in arch.CANVAS_OPTIONS:
+            problems.append('维度 %s 没有画图元信息（CANVAS_OPTIONS 缺它）' % dim_id)
+
+    for link in arch.CANVAS_LINKS:
+        for side in ('from', 'to'):
+            if link[side] not in link_ok:
+                problems.append('CANVAS_LINKS 的 %s 端 %r 不是维度也不是固定节点'
+                                % (side, link[side]))
+
     # ④ 策略引用完整性
     for pol in arch.POLICIES:
         for dim, opts in pol.get('when', {}).items():
@@ -287,9 +392,9 @@ def build_architecture():
         'version': '0.1.0',
         'releasedAt': '2026-09-11',
         'description': (
-            '把 17 个选型维度还原成一张可装配的架构图。每个零件声明它提供什么能力、'
+            '把 %d 个选型维度还原成一张可装配的架构图。每个零件声明它提供什么能力、'
             '需要什么能力，校验时求一次能力并集，就能算出这套组合能不能跑起来、缺的是哪一块。'
-        ),
+        ) % len(dim_ids),
         'lanes': arch.LANES,
         'capNames': arch.CAP_NAME,
         'nodes': arch.NODE_ARCH,
@@ -300,6 +405,19 @@ def build_architecture():
         # 界面上一张卡片要用到两边，所以都发出去。
         'policyDetail': arch.POLICY_DETAIL,
         'presetNotes': arch.PRESET_NOTES,
+        # 交付用技术架构图的画图元信息。与能力模型分开存：前者回答「能不能跑」，
+        # 这个回答「画出来是什么样」。混在一起会让版式字段污染判定逻辑。
+        'canvas': {
+            'zones': arch.CANVAS_ZONES,
+            'dims': arch.CANVAS_DIMS,
+            'options': arch.CANVAS_OPTIONS,
+            'links': arch.CANVAS_LINKS,
+            # 导出给通用绘图器时的图例文字覆盖。带上它是为了不让图例说错话：
+            # Archify 的 cloud 类显示成「云服务」，而我们这一层装的是自托管组件。
+            'legend': getattr(arch, 'CANVAS_LEGEND_OVERRIDES', {}),
+            # 阅读路径。焦点用分区 / 维度声明，不写死节点 id
+            'views': getattr(arch, 'CANVAS_VIEWS', []),
+        },
     }
     write_json('arsenal-stacks/architecture.json', doc)
 
@@ -325,7 +443,7 @@ def build_project():
     arch = load_module('stack_arch')
     proj = load_module('stack_project')
     dimensions = []
-    for name in ('stack_base', 'stack_data', 'stack_mw', 'stack_cross'):
+    for name in STACK_MODULES:
         dimensions.extend(load_module(name).DIMENSIONS)
     dim_ids = {d['id'] for d in dimensions}
     opt_ids = {d['id']: {o['id'] for o in d['options']} for d in dimensions}

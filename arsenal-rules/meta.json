@@ -21,7 +21,7 @@
   "budget": {
     "mustHardLimit": 50,
     "mustCurrent": 50,
-    "totalCurrent": 62
+    "totalCurrent": 69
   },
   "sourceRegistry": {
     "ali-spec": {

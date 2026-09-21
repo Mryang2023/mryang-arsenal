@@ -72,6 +72,91 @@ TREE = D('arsenal-demo/', '项目根目录，名字与 artifactId 一致', child
           badge='导出附带'),
     ]),
 
+    # ── 交付与运行 ──────────────────────────────────────────
+    # 这里的文件与导出包里的文件**逐一对齐**：结构树画出来的，导出包就必须有，
+    # 反过来也一样。两边一旦分叉，用户照着图建目录却拿不到文件 ——
+    # 那张结构图的可信度就没了。所以文件名保持一模一样。
+    D('deploy/', '部署与运行清单。把「谁打包、谁重启、谁扩容、怎么回滚」落成文件，'
+                 '而不是留在某个人的脑子里',
+      when={'deploy': ['jar', 'docker', 'k8s', 'helm']}, children=[
+        F('Dockerfile', '多阶段构建：JDK 阶段出 jar，JRE 阶段只装运行时。'
+                        '依赖按变更频率拆层，改一行业务代码不会重下一轮依赖',
+          badge='导出附带', when={'deploy': ['docker', 'k8s', 'helm']}),
+        F('.dockerignore', '排除 target/、.git/、logs/。少了它，构建上下文会把整份历史推给守护进程',
+          badge='导出附带', when={'deploy': ['docker', 'k8s', 'helm']}),
+        F('docker-compose.yml', '应用 + 它依赖的中间件。用于本地与联调，不是生产调度器 —— '
+                                '生产库的可用性不在它的职责范围内',
+          badge='导出附带', when={'deploy': ['docker']}),
+        F('Makefile', '把 build / push / deploy / rollback 四条命令固化成同一种调用方式，'
+                      '发布步骤从此不含口头约定',
+          badge='导出附带', when={'deploy': ['docker', 'k8s', 'helm']}),
+
+        D('systemd/', '进程守护形态下的服务定义', when={'deploy': ['jar']}, children=[
+            F('app.service', 'systemd unit。KillSignal 必须是 SIGTERM，'
+                             'TimeoutStopSec 必须大于优雅停机超时 —— 两个参数写错就是在每次发布里随机丢请求',
+              badge='导出附带', when={'deploy': ['jar']}),
+        ]),
+
+        F('prometheus.yml', '抓取配置。compose 里挂载了它 —— 少了这个文件，'
+                            'Docker 会挂一个同名目录进去，Prometheus 起不来',
+          badge='导出附带', when={'deploy': ['docker'], 'observability': ['prometheus']}),
+
+        D('k8s/', 'Kubernetes 原生清单。按顺序 apply 即可起来一套完整的服务',
+          when={'deploy': ['k8s']}, children=[
+            F('00-namespace.yaml', '命名空间。隔离资源配额与权限边界的最小单位',
+              badge='导出附带', when={'deploy': ['k8s']}),
+            F('01-configmap.yaml', '非敏感配置。镜像与环境解耦的落点：换环境只换它，不重新构建',
+              badge='导出附带', when={'deploy': ['k8s']}),
+            F('02-secret.yaml', '敏感配置的占位。**值是空的** —— 真正的凭据只在部署时注入，'
+                                '不进 Git',
+              badge='导出附带', when={'deploy': ['k8s']}),
+            F('03-serviceaccount.yaml', '运行身份。不用 default SA，权限才能收紧到这个应用',
+              badge='导出附带', when={'deploy': ['k8s']}),
+            F('04-deployment.yaml', '副本数、资源、三个探针、优雅停机。 probes 缺一个就有一类故障没人管',
+              badge='导出附带', when={'deploy': ['k8s']}),
+            F('05-service.yaml', 'ClusterIP 服务。给 Pod 一个稳定的 DNS 名与负载均衡',
+              badge='导出附带', when={'deploy': ['k8s']}),
+            F('06-ingress.yaml', '外部流量入口。TLS 与域名在这里，也可能由网关层统一收走',
+              badge='导出附带', when={'deploy': ['k8s']}),
+            F('07-hpa.yaml', '按 CPU / 内存扩缩。maxReplicas 是上限，'
+                             '不设上限的扩容会把数据库先推到连接数上限',
+              badge='导出附带', when={'deploy': ['k8s']}),
+            F('08-pdb.yaml', '中断预算。没有它，一次节点排水就能把所有副本同时赶走',
+              badge='导出附带', when={'deploy': ['k8s']}),
+            F('kustomization.yaml', '资源清单汇总，也是多环境 overlay 的入口',
+              badge='导出附带', when={'deploy': ['k8s']}),
+        ]),
+
+        D('chart/', 'Helm Chart：一份模板 + 多份 values', when={'deploy': ['helm']}, children=[
+            F('Chart.yaml', '元数据。version 是 chart 的版本，appVersion 是应用的版本 —— 混在一起就答不出「这次变了什么」',
+              badge='导出附带', when={'deploy': ['helm']}),
+            F('values.yaml', '所有环境共享的默认值', badge='导出附带', when={'deploy': ['helm']}),
+            F('values-dev.yaml', '开发环境的差值。每份 values 只写差异，不复制整份',
+              badge='导出附带', when={'deploy': ['helm']}),
+            F('values-prod.yaml', '生产环境的差值：副本数、资源、PDB、Ingress',
+              badge='导出附带', when={'deploy': ['helm']}),
+            D('templates/', '模板。所有 Go template 表达式集中在这里，values 只提供数据',
+              when={'deploy': ['helm']}, children=[
+                F('_helpers.tpl', '命名与标签的统一定义。散着写会出现「标签不一致导致 Service 选不到 Pod」',
+                  badge='导出附带', when={'deploy': ['helm']}),
+                F('deployment.yaml', 'Deployment 模板：镜像、资源、探针、优雅停机全部参数化',
+                  badge='导出附带', when={'deploy': ['helm']}),
+                F('service.yaml', 'Service 模板', badge='导出附带', when={'deploy': ['helm']}),
+                F('ingress.yaml', 'Ingress 模板，按 values 决定是否创建',
+                  badge='导出附带', when={'deploy': ['helm']}),
+                F('configmap.yaml', '非敏感配置模板', badge='导出附带', when={'deploy': ['helm']}),
+                F('secret.yaml', '凭据的**键位说明书**：值一律为空，部署时注入。'
+                                 '写进 values 就等于把凭据交给了每个能执行 helm get values 的人',
+                  badge='导出附带', when={'deploy': ['helm']}),
+                F('serviceaccount.yaml', '运行身份模板。不用 default SA，权限才能收紧到这个应用',
+                  badge='导出附带', when={'deploy': ['helm']}),
+                F('hpa.yaml', 'HPA 模板，默认关闭', badge='导出附带', when={'deploy': ['helm']}),
+                F('pdb.yaml', '中断预算模板。没有它，一次节点排水就能把所有副本同时赶走',
+                  badge='导出附带', when={'deploy': ['helm']}),
+            ]),
+        ]),
+    ]),
+
     D('src/', '', children=[
         D('main/', '生产代码与运行时资源。这里的每个文件都会进最终产物', children=[
             D('java/com/example/', '根包。只放启动类，其他类一律进子包', children=[
@@ -463,7 +548,7 @@ __SELECTION_TABLE__
 
 __ARCH_SUMMARY__
 
-读图方式：横向色带是 6 层，方块是 17 个槽位，方块右上角的「必需 / 建议」表示
+读图方式：一条横向色带是一层泳道，方块是一个槽位，方块右上角的「必需 / 建议」表示
 该槽位留空时的性质；左侧竖直箭头表示请求自上而下穿过各层；层内的 `→` 是请求
 真正流经的顺序；竖虚线右侧是旁路件（例如迁移工具，只在发布期起作用，请求不经过它）。
 每层负责什么、每个零件的角色、当前缺口与隐患，见 [ARCHITECTURE.md](ARCHITECTURE.md)。

@@ -1,0 +1,175 @@
+{
+  "category": "reliability",
+  "name": "可靠性",
+  "description": "容器与编排场景下的可靠性：优雅停机、健康探针、无状态、配置外置。这一组决定编排平台替你做的每一个决定是不是基于正确的信息。",
+  "rules": [
+    {
+      "id": "REL-CTNR-001",
+      "category": "reliability",
+      "subcategory": "container",
+      "title": "容器环境下必须开启优雅停机，且终止等待时长要大于它",
+      "severity": "SHOULD",
+      "sources": [
+        { "ref": "Spring Boot Reference · Graceful Shutdown", "type": "framework-doc", "quote": "Graceful shutdown…allows existing requests to complete before the application context is closed." },
+        { "ref": "Kubernetes Docs · Pods / Termination of Pods", "type": "framework-doc", "quote": "The kubelet sends a TERM signal…the default grace period is 30 seconds." }
+      ],
+      "rationale": "编排平台不会等你的请求处理完才放 SIGKILL，它等的是自己那份倒计时。两个时长各自独立的默认值（Spring Boot 30s graceful、K8s terminationGracePeriodSeconds 30s）凑在一起，恰好让 ready的请求在最后 1~2 秒被砍掉。表现为每次滚动更新随机丢几十笔请求，而谁都复现不了 —— 因为它取决于那一刻有多少请求在飞。两个数字必须显式写出大小关系。",
+      "appliesTo": { "stack": ["spring-boot-3"], "scope": "server" },
+      "bad": "# application.yml —— 没开优雅停机，SIGTERM 直接进 closing context\nserver:\n  port: 8080\n\n# deployment.yaml —— 用了默认的 30s，而它一旦和停机超时相等就没有余量\nspec:\n  template:\n    spec:\n      containers:\n        - name: app\n          image: app:1.0.0",
+      "good": "# application.yml —— ① 交给应用层一个明确的宽限期\nserver:\n  port: 8080\n  shutdown: graceful\nspring:\n  lifecycle:\n    timeout-per-shutdown-phase: 30s\n\n# deployment.yaml —— ② 平台侧的宽限期必须**大于**应用层的那个数，\n# 差值留给「摘 endpoint → 传播 → 存量请求收尾」这一段\nspec:\n  template:\n    spec:\n      terminationGracePeriodSeconds: 45\n      containers:\n        - name: app\n          image: app:1.0.0\n          lifecycle:\n            preStop:\n              exec:\n                command: [ \"sh\", \"-c\", \"sleep 5\" ]",
+      "check": {
+        "manual": "同时核对三处：application.yml 的 server.shutdown=graceful、spring.lifecycle.timeout-per-shutdown-phase 的值、以及清单里的 terminationGracePeriodSeconds —— 后者必须严格大于前者。",
+        "llm": "这段代码的运行环境中，进程收到 SIGTERM 后能否先摘流量、再处理完进行中的请求才退出？如果有容器/编排清单，请一并核对 terminationGracePeriodSeconds 是否大于应用侧的停机超时 —— 只回答 是/否/不适用，并给出具体数字。"
+      },
+      "promptFragment": "运行在容器/编排环境中的服务必须开启优雅停机（server.shutdown=graceful），并显式设置 spring.lifecycle.timeout-per-shutdown-phase；容器清单里的 terminationGracePeriodSeconds 必须严格大于该值，并配 preStop 等待，给 endpoint 摘除留出传播时间。",
+      "tags": ["container", "deploy", "kubernetes", "高频踩坑"],
+      "status": "active",
+      "version": 1,
+      "updatedAt": "2026-09-21"
+    },
+    {
+      "id": "REL-CTNR-002",
+      "category": "reliability",
+      "subcategory": "container",
+      "title": "镜像必须与部署环境无关：环境相关的配置一律在运行时注入",
+      "severity": "SHOULD",
+      "sources": [
+        { "ref": "The Twelve-Factor App · III. Config", "type": "spec", "quote": "Store config in the environment." },
+        { "ref": "Kubernetes Docs · Configure a Pod to Use a ConfigMap", "type": "framework-doc", "quote": "ConfigMaps allow you to decouple environment-specific configuration from your container images." }
+      ],
+      "rationale": "把 application-prod.yml 打进镜像之后，同一个镜像 tag 在测试环境和生产环境就是两个不同的东西。回滚时你回不到那一版配置，排查时也无从确认「这台上跑的到底是哪份连接串」。更现实的问题是：镜像是可以被拉下来反解的，写进镜像的生产地址也拦不住谁拉一下。环境相关内容必须走环境变量 / ConfigMap，换环境只换注入值，不重新构建。",
+      "appliesTo": { "stack": ["spring-boot-3"], "scope": "server" },
+      "bad": "# Dockerfile —— 把生产配置打进镜像，同一个 tag 在不同环境是两份不同的东西\nCOPY target/classes/application-prod.yml ./config/\nENTRYPOINT [ \"java\", \"-jar\", \"app.jar\", \"--spring.profiles.active=prod\" ]\n\n// 兜底值里写死生产地址：忘了配 env 时它会静默连到生产\n@Value(\"${spring.datasource.url:jdbc:mysql://prod-db.internal:3306/app}\")\nprivate String url;",
+      "good": "# Dockerfile —— 镜像里只有中性的默认键，没有环境信息\nCOPY target/classes/application.yml ./config/\nENTRYPOINT [ \"java\", \"-jar\", \"app.jar\" ]\n\n# deployment.yaml —— 环境差异在 ConfigMap / Secret 里，换环境不重新构建\nenvFrom:\n  - configMapRef:\n      name: app\n  - secretRef:\n      name: app\n\n// Java 侧：不留生产兜底值。缺失就让它启动失败 —— 早失败远好过静默连错库\n@Value(\"${spring.datasource.url}\")\nprivate String url;",
+      "check": {
+        "manual": "检查容器清单/Dockerfile 里是否出现带环境后缀的配置文件（application-prod.yml 等），以及 @Value 的默认值里是否含具体主机名或 IP。",
+        "llm": "这份配置里是否存在「只在某个环境才正确」的字面量（主机名、IP、路径、profile 名）？这些值应当改由环境变量注入吗？只回答 是/否/不适用，指出具体位置。"
+      },
+      "promptFragment": "镜像必须与部署环境无关：禁止把 application-xxx.yml 或任何含环境地址、端口号、主机名的配置打进镜像；环境差异一律通过环境变量 / ConfigMap / Secret 在运行时注入。@Value 的默认值里不得出现具体的生产主机或 IP —— 缺失时应当启动失败，而不是静默连到别处。",
+      "tags": ["container", "config", "kubernetes"],
+      "status": "active",
+      "version": 1,
+      "updatedAt": "2026-09-21"
+    },
+    {
+      "id": "REL-CTNR-003",
+      "category": "reliability",
+      "subcategory": "container",
+      "title": "容器内日志写 stdout / stderr，不写本地文件",
+      "severity": "SHOULD",
+      "sources": [
+        { "ref": "The Twelve-Factor App · XI. Logs", "type": "spec", "quote": "A twelve-factor app never concerns itself with routing or storage of its output stream." },
+        { "ref": "Kubernetes Docs · Logging Architecture", "type": "framework-doc", "quote": "The kubelet…writes everything the containerized application writes to stdout and stderr." }
+      ],
+      "rationale": "容器文件系统随容器一起消失是设计如此，不是故障。日志落到 /app/logs 之后：一是没人采集，二是堆积会写满容器的可写层，三是 pod 被驱逐后事件无法回溯 —— 你最想看的那一段日志，恰好在被删除的那个容器里。往 stdout 写则由节点侧的采集组件统一收走，这也保证了本地与线上走的是同一条采集链路。",
+      "appliesTo": { "stack": ["spring-boot-3"], "scope": "server" },
+      "bad": "<!-- logback-spring.xml：把日志写进容器内 -->\n<appender name=\"FILE\" class=\"ch.qos.logback.core.FileAppender\">\n    <file>/app/logs/app.log</file>\n    <encoder><pattern>%d %-5level %logger - %msg%n</pattern></encoder>\n</appender>\n<root level=\"INFO\">\n    <appender-ref ref=\"FILE\" />\n</root>",
+      "good": "<!-- logback-spring.xml：只用 ConsoleAppender，交给节点侧采集 -->\n<appender name=\"STDOUT\" class=\"ch.qos.logback.core.ConsoleAppender\">\n    <encoder class=\"net.logstash.logback.encoder.LogstashEncoder\" />\n</appender>\n<root level=\"INFO\">\n    <appender-ref ref=\"STDOUT\" />\n</root>\n<!-- 确有必要落文件时挂载 emptyDir / PVC，并且要有配套的清理与采集，\n     那属于「知道自己在做什么」的选择，不是默认形态 -->",
+      "check": {
+        "manual": "检查 logback/Log4j2 配置里是否只存在 Console 类 appender，以及是否有 File/RollingFile 指向容器内的路径。",
+        "llm": "这份日志配置的输出目标是 stdout/stderr 吗？是否存在写本地文件、且没有配套采集与清理的 appender？只回答 是/否/不适用，指出 appender 名与路径。"
+      },
+      "promptFragment": "容器内的日志必须输出到 stdout / stderr（只使用 ConsoleAppender），由节点侧统一采集；禁止把日志写进容器可写层。确需落文件时必须挂载 volume 并配套清理，且在注释里写明理由。",
+      "tags": ["container", "logging"],
+      "status": "active",
+      "version": 1,
+      "updatedAt": "2026-09-21"
+    },
+    {
+      "id": "REL-CTNR-004",
+      "category": "reliability",
+      "subcategory": "container",
+      "title": "多副本运行时，本地定时任务必须有幂等保护或改用分布式调度",
+      "severity": "SHOULD",
+      "sources": [
+        { "ref": "Kubernetes Docs · Running Automated Tasks with a CronJob", "type": "framework-doc", "quote": "A CronJob creates Jobs on a repeating schedule." },
+        { "ref": "Spring Boot Reference · Scheduling", "type": "framework-doc", "quote": "Tasks are executed on the local JVM's single scheduler thread by default." }
+      ],
+      "rationale": "@Scheduled 挂在进程自己的线程上，而编排形态下进程数量是 replicas 决定的。三个副本就是三份线程在同一时刻各跑一遍：数据被处理三次、短信被发出三次，且每次都不报错。这种失败没有任何日志线索 —— 只有最终数据会说话。所以在容器里使用 @Scheduled，要么任务本身幂等并持分布式锁，要么交给调度中心统一触发。",
+      "appliesTo": { "stack": ["spring-boot-3"], "scope": "server" },
+      "bad": "// 多副本下会被执行 N 次 —— N 等于 replicas，且不报错\n@Scheduled(cron = \"0 0/5 * * * ?\")\npublic void syncOrders() {\n    List<Order> pending = orderMapper.selectPending();\n    for (Order o : pending) {\n        remote.push(o);      // 每个副本都推一遍\n        orderMapper.markSynced(o.getId());\n    }\n}",
+      "good": "// 方案一：持分布式锁，谁拿到谁跑（ShedLock）\n@Scheduled(cron = \"0 0/5 * * * ?\")\n@SchedulerLock(name = \"syncOrders\", lockAtMostFor = \"4m\", lockAtLeastFor = \"1m\")\npublic void syncOrders() {\n    orderMapper.selectPending().forEach(this::pushOnce);\n}\n\n// 方案二：把触发权交给调度中心（XXL-Job），应用只负责执行\n@XxlJob(\"syncOrders\")\npublic void syncOrders() {\n    orderMapper.selectPending().forEach(this::pushOnce);\n}\n\n// 无论哪种，处理逻辑本身要幂等 —— 锁只降低并发概率，不能消除重复投递\nprivate void pushOnce(Order o) {\n    if (!stateService.tryClaim(o.getId())) return;\n    remote.push(o);\n}",
+      "check": {
+        "manual": "在容器/编排形态下清点所有 @Scheduled 方法：是否有分布式锁或由调度中心触发，处理逻辑是否幂等。",
+        "llm": "这个定时任务若同时在多个实例上运行会造成重复执行或数据重复吗？是否有分布式锁、幂等判定或外部统一触发来防止它？只回答 是/否/不适用，指出保护手段。"
+      },
+      "promptFragment": "在会横向扩容的运行环境中，禁止使用无保护的 @Scheduled：任务必须幂等并持有分布式锁（如 ShedLock），或交由调度中心（如 XXL-Job）统一触发。新增定时任务时必须同时说明它在多副本下的执行策略。",
+      "tags": ["container", "scheduler", "kubernetes", "高频踩坑"],
+      "status": "active",
+      "version": 1,
+      "updatedAt": "2026-09-21"
+    },
+    {
+      "id": "REL-CTNR-005",
+      "category": "reliability",
+      "subcategory": "container",
+      "title": "不允许把会话、上传文件、缓存等状态放在容器本地",
+      "severity": "SHOULD",
+      "sources": [
+        { "ref": "The Twelve-Factor App · VI. Processes", "type": "spec", "quote": "Twelve-factor processes are stateless and share-nothing." },
+        { "ref": "Kubernetes Docs · Volumes", "type": "framework-doc", "quote": "A Kubernetes volume…has an explicit lifetime — the same as the Pod that encloses it." }
+      ],
+      "rationale": "编排平台有权在任何时刻替换任意一个实例：节点排水、滚动更新、OOM 驱逐、抢占。存在进程内存或容器本地盘里的状态，会在这些时刻凭空消失，而平台的行为完全正常 —— 这不是它的 bug。于是「用户刚上传的文件不见了」「偶发的重复登录」这类问题无法归因：日志里没有任何错误，只有丢失的数据。",
+      "appliesTo": { "stack": ["spring-boot-3"], "scope": "server" },
+      "bad": "// ① 会话放进程内存：Pod 重启就要全员重新登录\n@PostMapping(\"/login\")\npublic void login(HttpSession session, LoginCmd cmd) {\n    session.setAttribute(\"userId\", cmd.getUserId());\n}\n\n// ② 上传文件写容器本地盘：容器文件系统随容器一起消失\npublic String save(MultipartFile file) throws Exception {\n    Path p = Paths.get(\"/app/upload/\" + file.getOriginalFilename());\n    file.transferTo(p);\n    return p.toString();\n}",
+      "good": "// ① 会话进 Redis —— 实例被替换不影响登录态\n@PostMapping(\"/login\")\npublic void login(LoginCmd cmd, HttpServletResponse resp) {\n    String token = tokenService.issue(cmd.getUserId());\n    resp.setHeader(HttpHeaders.AUTHORIZATION, \"Bearer \" + token);\n}\n\n// ② 上传文件进对象存储，库里只留 key\npublic String save(MultipartFile file) throws Exception {\n    String key = \"upload/\" + UUID.randomUUID() + suffixOf(file);\n    objectStorage.put(key, file.getInputStream());\n    return key;\n}",
+      "check": {
+        "manual": "排查 HttpSession 直接使用、本地磁盘写入（new File / Paths.get / transferTo）、进程内缓存承载跨请求状态的情况，确认它们是否外置。",
+        "llm": "这段代码是否把会话状态、上传文件或跨请求的缓存存在了进程内存/本地磁盘上？这些信息在实例被重建后会丢失吗？只回答 是/否/不适用，指出具体位置。"
+      },
+      "promptFragment": "禁止把会话状态、上传文件、跨请求缓存写入进程内存或容器本地磁盘 —— 实例随时可能被重建，这些内容会一并消失。会话走 Redis 或令牌，文件走对象存储，缓存走集中式组件，本地只允许保留可重建的只读数据。",
+      "tags": ["container", "stateless", "kubernetes", "高频踩坑"],
+      "status": "active",
+      "version": 1,
+      "updatedAt": "2026-09-21"
+    },
+    {
+      "id": "REL-CTNR-006",
+      "category": "reliability",
+      "subcategory": "container",
+      "title": "声明容器资源上下限，并让 JVM 按容器内存算堆",
+      "severity": "MAY",
+      "sources": [
+        { "ref": "Kubernetes Docs · Resource Management for Pods and Containers", "type": "framework-doc", "quote": "If you do not specify a limit…the container can use as much resource as the node allows." },
+        { "ref": "Eclipse Temurin / OpenJDK · UseContainerSupport", "type": "framework-doc", "quote": "The JVM detects cgroup limits and sizes the default heap accordingly." }
+      ],
+      "rationale": "两个常见的断裂点：一是只写 limits 不写 requests，调度器按 request 记账，于是会把 Pod 放到其实装不下它的节点，内存压力下整机开始 OOMKill 一个接一个容器；二是 JVM 侧，MaxRAMPercentage 不显式给值时，堆大小取决于默认策略，而它被 kill 的原因通常正是吃到了 limit 之外。两者都不是立刻出问题 —— 它们只在负载上来之后才显现。",
+      "appliesTo": { "stack": ["spring-boot-3"], "scope": "server" },
+      "bad": "# 只写 limits 不写 requests：调度器记账时它是「零需求」，塞哪儿都合法\nresources:\n  limits:\n    cpu: \"2\"\n    memory: 2Gi\n# ENV 也没给 MaxRAMPercentage：堆多大由默认策略决定，可能与 2Gi 无关",
+      "good": "resources:\n  requests:            # 调度依据：先按这个把位置占住\n    cpu: 500m\n    memory: 1Gi\n  limits:              # 天花板：超过就被限流或 OOMKill\n    cpu: \"2\"\n    memory: 2Gi\n# JVM 按容器内存的百分比算堆，留出堆外（元空间/线程栈/直接内存）\n# ENV JAVA_TOOL_OPTIONS=\"-XX:MaxRAMPercentage=75.0 -XX:+UseG1GC\"",
+      "check": {
+        "manual": "核对容器清单里的 requests 与 limits 是否成对出现，以及 JVM 是否设置了 MaxRAMPercentage 或显式的 -Xmx（后者必须小于 limits）。",
+        "llm": "这个容器的资源声明是否成对（同时有 requests 与 limits）？JVM 的堆上限是否会被限制在容器内存限制之内？只回答 是/否/不适用，指出缺失的一项。"
+      },
+      "promptFragment": "容器运行建议同时声明 resources.requests 与 resources.limits（前者决定调度、后者决定上限），并给 JVM 设置 -XX:MaxRAMPercentage（通常 70~75），使堆大小明确落在容器限制之内；不要只写 limits。",
+      "tags": ["container", "resource", "kubernetes"],
+      "status": "active",
+      "version": 1,
+      "updatedAt": "2026-09-21"
+    },
+    {
+      "id": "REL-CTNR-007",
+      "category": "reliability",
+      "subcategory": "container",
+      "title": "健康探针只反映自身可用性，不得把外部依赖的故障算进去",
+      "severity": "SHOULD",
+      "sources": [
+        { "ref": "Kubernetes Docs · Configure Liveness, Readiness and Startup Probes", "type": "framework-doc", "quote": "Liveness probes do not wait for readiness probes to succeed…keep them simple." },
+        { "ref": "Spring Boot Reference · Kubernetes Probes", "type": "framework-doc", "quote": "Spring Boot manages your Application Availability State…Liveness and Readiness groups." }
+      ],
+      "rationale": "探针是编排平台唯一的决策依据。把数据库或 Redis 的检查放进 liveness，一旦下游抖一下，判定会作用在每一个副本上：全部同时重启，重启后它们又一起去连那个还没恢复的下游 —— 单点的抖动就这样被放大成全集群雪崩，而且恢复不了，因为每轮重启都会重演。liveness 只回答「我这个进程还活着吗」，外部依赖的故障应该由 readiness 或熔断处理，而不是靠重启来表达。",
+      "appliesTo": { "stack": ["spring-boot-3"], "scope": "server" },
+      "bad": "management:\n  endpoint:\n    health:\n      probes:\n        enabled: false\n  health:\n    # 数据库也算进默认健康判定的结果里\n    defaults: on\n\n# 自定义 liveness 里直接查库 —— 库抖一下，全集群一起重启\n@RestController\nclass Probe {\n    @GetMapping(\"/live\")\n    boolean live() { return jdbc.execute(\"select 1\") == 1; }\n}",
+      "good": "management:\n  endpoint:\n    health:\n      probes:\n        enabled: true        # 分出 liveness / readiness 两个健康组\n\n# readiness：不就绪就摘流量，允许含轻量依赖的组\nreadinessProbe:\n  httpGet: { path: /actuator/health/readiness, port: 8080 }\n# liveness：只反映进程自身，绝不带下游\nlivenessProbe:\n  httpGet: { path: /actuator/health/liveness, port: 8080 }\n\n# 确实需要表达「下游不通」时，用就绪态而不是重启：\n@Component\nclass CacheHealthIndicator implements HealthIndicator {\n    public Health health() {\n        return cacheReachable ? Health.up().build() : Health.down().build();\n    }\n}",
+      "check": {
+        "manual": "分别请求 /actuator/health/liveness 与 /actuator/health/readiness，确认 liveness 的响应里不含数据库、Redis 等外部依赖的健康项。",
+        "llm": "这个健康检查端点是否把外部依赖（数据库、缓存、下游服务）的检查纳入了 liveness？外部依赖失败会导致实例被重启吗？只回答 是/否/不适用，指出被纳入的依赖。"
+      },
+      "promptFragment": "健康探针必须区分 liveness 与 readiness：liveness 只反映进程自身是否存活，禁止把数据库、缓存、下游接口等外部依赖的检查纳入其中；外部依赖的故障应通过 readiness 摘流量或熔断降级表达，不得依赖重启来处理。",
+      "tags": ["container", "probe", "kubernetes", "高频踩坑"],
+      "status": "active",
+      "version": 1,
+      "updatedAt": "2026-09-21"
+    }
+  ]
+}

@@ -106,7 +106,7 @@ export const liveStats = (() => {
 
 /**
  * 关键词检索。命中字段按权重排序：ID > 标题 > 标签 > 约束句 > 正文。
- * 纯内存实现，62 条规模下无需索引结构。
+ * 纯内存实现，百条以内规模下无需索引结构 —— 不写具体条数，那个数字只会过期。
  */
 export function searchRules(
   query: string,

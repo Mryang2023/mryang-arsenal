@@ -25,6 +25,7 @@ PRESETS = [
             "mapping": "manual",
             "boilerplate": "lombok",
             "test": "mockito",
+            "deploy": "jar",
         },
     },
     {
@@ -50,6 +51,7 @@ PRESETS = [
             "mapping": "manual",
             "boilerplate": "lombok",
             "test": "testcontainers",
+            "deploy": "docker",
         },
     },
     {
@@ -75,6 +77,7 @@ PRESETS = [
             "mapping": "mapstruct",
             "boilerplate": "lombok",
             "test": "testcontainers",
+            "deploy": "k8s",
         },
     },
     {
@@ -100,6 +103,7 @@ PRESETS = [
             "mapping": "mapstruct",
             "boilerplate": "lombok",
             "test": "testcontainers",
+            "deploy": "helm",
         },
     },
 ]

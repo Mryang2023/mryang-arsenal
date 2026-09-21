@@ -300,6 +300,72 @@ function readBoth(format: string): { be: string; fe: string } | null {
   }
 }
 
-console.log(`\n${'─'.repeat(56)}`);
-console.log(`通过 ${pass} 项，失败 ${fail} 项`);
-process.exitCode = fail === 0 ? 0 : 1;
+// ═══════════════════════════════════════════════════════════════
+// 【5】活服务体检（可选）—— 上面全是「同一份数据被两套代码编译」，
+//       这一节管的是那个正在跑、可能已经过期的进程
+// ═══════════════════════════════════════════════════════════════
+//
+// 为什么必须有这一节：【2】编的是独立 ParityProbe，它**直读规则目录**，
+// 完全不碰 HTTP 层。于是「改了规则忘了重启后端」会让 3011 上的进程
+// 长期拿着一份启动时的内存索引，而 /api/stats 会一脸正常地报旧条数。
+// 实测过一次 62 条 vs 事实源 69 条 —— 六层校验全绿，没有任何东西发现。
+//
+// 没起服务时明说跳过并讲清怎么补，**不计入通过** —— 不乐观地报一切正常。
+console.log('\n【5】活服务体检（可选）');
+
+const API_BASE = process.env.ARSENAL_API ?? 'http://127.0.0.1:3011';
+
+const tally = <T extends string>(get: (r: (typeof rules)[number]) => T) => {
+  const out: Record<string, number> = {};
+  for (const r of rules) out[get(r)] = (out[get(r)] ?? 0) + 1;
+  return out;
+};
+
+async function probeLive(): Promise<void> {
+  type Stats = {
+    total?: number;
+    bySeverity?: Record<string, number>;
+    byCategory?: Record<string, number>;
+  };
+  let stats: Stats | null = null;
+  try {
+    const ac = new AbortController();
+    const timer = setTimeout(() => ac.abort(), 3000);
+    const res = await fetch(`${API_BASE}/api/stats`, { signal: ac.signal });
+    clearTimeout(timer);
+    if (res.ok) {
+      const body = (await res.json()) as { data?: unknown };
+      stats = (body.data ?? null) as Stats | null;
+    }
+  } catch {
+    stats = null;
+  }
+
+  if (!stats || typeof stats.total !== 'number') {
+    console.log(`  · ${API_BASE} 上没检测到服务，跳过本节`);
+    console.log('    起服务后复跑：bash arsenal-server/scripts/run.sh && npm run verify:parity');
+    return;
+  }
+
+  check(
+    `活服务规则数 == 事实源（服务 ${stats.total} / 本地 ${rules.length}）`,
+    stats.total === rules.length,
+    '服务用的是启动那一刻的内存索引。改完 arsenal-rules/ 没重启，它会一直报旧条数 —— 重启再复跑'
+  );
+
+  const localSev = tally((r) => r.severity);
+  const localCat = tally((r) => r.category);
+  const mapEqual = (a?: Record<string, number>, b?: Record<string, number>) =>
+    JSON.stringify(Object.entries(a ?? {}).sort()) === JSON.stringify(Object.entries(b ?? {}).sort());
+
+  check('活服务按严重度的分布 == 事实源', mapEqual(stats.bySeverity, localSev),
+    `服务 ${JSON.stringify(stats.bySeverity)} / 本地 ${JSON.stringify(localSev)}`);
+  check('活服务按分类的分布 == 事实源', mapEqual(stats.byCategory, localCat),
+    `服务 ${JSON.stringify(stats.byCategory)} / 本地 ${JSON.stringify(localCat)}`);
+}
+
+probeLive().then(() => {
+  console.log(`\n${'─'.repeat(56)}`);
+  console.log(`通过 ${pass} 项，失败 ${fail} 项`);
+  process.exitCode = fail === 0 ? 0 : 1;
+});

@@ -42,7 +42,7 @@ import { TONE } from './palette';
  *   · 路由会走层内流水线箭头，但那种边是**版式主张**，界面上单独标注，绝不混着说
  * 没有运行时探测、没有推测影响，屏幕上不会出现任何数据里没有的关系。
  *
- * 没有引任何绘图库：层是固定的 6 条、槽位是固定的 17 个，坐标能直接算出来。
+ * 没有引任何绘图库：泳道与槽位数都由数据决定（现在 7 条 / 18 个），坐标能直接算出来。
  * 引擎解决的是拓扑，而这里要的是版式。
  */
 
@@ -187,7 +187,7 @@ export default function ArchDiagram({ picks, audit }: { picks: StackPicks; audit
         tone: 'lens',
       };
     }
-    if (mode === 'story' && story) {
+    if (mode === 'story' && story && story.focus.length) {
       return { focus: story.focus[0], lit: story.focus, tone: 'story' };
     }
     return focus ? { focus } : {};
@@ -217,10 +217,11 @@ export default function ArchDiagram({ picks, audit }: { picks: StackPicks; audit
       if (mode === 'lens') {
         const laneId = graph.byDim.get(dimId)?.laneId;
         if (!laneId) return;
-        // 交替设置 A / B，保持"两块比一比"的操作感
-        if (lensA === laneId) setLensB(laneId);
-        else if (lensB === laneId) setLensA(laneId);
-        else setLensA(laneId);
+        // 点方块 = 把 B 换成它所在的泳道（A 是锚，要改 A 用左边的下拉）。
+        // 绝不把两边设成同一条：同一条比同一条，三个差异面必然全空，
+        // 面板会退化成两列一模一样的标题 —— 那是"看起来在比，其实没在比"。
+        if (laneId === lensA || laneId === lensB) return;
+        setLensB(laneId);
         return;
       }
       setFocus(dimId);
@@ -362,7 +363,7 @@ export default function ArchDiagram({ picks, audit }: { picks: StackPicks; audit
   return (
     <div className="space-y-4">
       <p className="text-xs leading-relaxed text-fgMuted">
-        横向色带是 6 层，方块是 17 个槽位；左侧竖直箭头表示请求自上而下穿过各层，
+        横向色带是 {model.lanes.length} 层，方块是 {slotCount} 个槽位；左侧竖直箭头表示请求自上而下穿过各层，
         层内的 <span className="mono">→</span> 是请求真正流经的顺序，竖虚线右侧是旁路件
         （只在发布期起作用，请求不经过它）。方块右上角的「必需 / 建议」是该槽位
         <span className="text-fg">留空时的性质</span>，不是当前状态。
@@ -560,10 +561,10 @@ export default function ArchDiagram({ picks, audit }: { picks: StackPicks; audit
             <span className="text-xs text-fg">角色透镜</span>
             {(
               [
-                ['A', lensA, setLensA],
-                ['B', lensB, setLensB],
+                ['A', lensA, setLensA, lensB],
+                ['B', lensB, setLensB, lensA],
               ] as const
-            ).map(([slot, value, set]) => (
+            ).map(([slot, value, set, other]) => (
               <select
                 key={slot}
                 value={value ?? ''}
@@ -571,30 +572,34 @@ export default function ArchDiagram({ picks, audit }: { picks: StackPicks; audit
                 className="mono rounded border border-line bg-surfaceHi px-1.5 py-1 text-2xs text-fg"
               >
                 {lanes.map((l) => (
-                  <option key={l.id} value={l.id}>
+                  // 对面那侧已经占着的泳道在这里禁掉：同一条跟同一条比没有差异面
+                  <option key={l.id} value={l.id} disabled={l.id === other}>
                     {slot} · {l.glyph} {l.name}
                   </option>
                 ))}
               </select>
             ))}
-            <span className="text-2xs text-fgFaint">也可以直接点方块，切换到它所在的泳道</span>
+            <span className="text-2xs text-fgFaint">也可以直接点方块，把 B 换成它所在的泳道</span>
           </div>
 
           {lens && (
             <div className="mt-3 grid gap-3 md:grid-cols-3">
               {(
                 [
-                  ['两边都提供', lens.providesShared, 'ok'],
-                  [`只有 ${lens.a.laneName} 提供`, lens.providesOnlyA, 'info'],
-                  [`只有 ${lens.b.laneName} 提供`, lens.providesOnlyB, 'info'],
-                ] as [string, string[], 'ok' | 'info'][]
-              ).map(([label, caps, tone]) => (
-                <div key={label}>
+                  // key 用固定槽位名，不用列标题 —— 列标题里嵌着泳道名，
+                  // 两条泳道同名时（A 与 B 被设成同一条）标题会撞成同一个 key，
+                  // React 会把其中一列丢掉或画重，面板看起来"少了一块"却没有任何报错。
+                  ['both', '两边都提供', lens.providesShared, 'ok'],
+                  ['a', `只有 ${lens.a.laneName} 提供`, lens.providesOnlyA, 'info'],
+                  ['b', `只有 ${lens.b.laneName} 提供`, lens.providesOnlyB, 'info'],
+                ] as [string, string, string[], 'ok' | 'info'][]
+              ).map(([key, label, caps, tone]) => (
+                <div key={key}>
                   <div className="mb-1 text-2xs text-fgFaint">{label}</div>
                   <div className="flex flex-wrap gap-1">
                     {caps.length ? (
-                      caps.map((c) => (
-                        <Chip key={c} tone={tone}>
+                      caps.map((c, i) => (
+                        <Chip key={`${key}-${i}-${c}`} tone={tone}>
                           {capLabel(c)}
                         </Chip>
                       ))
@@ -611,26 +616,26 @@ export default function ArchDiagram({ picks, audit }: { picks: StackPicks; audit
                   {lens.requiresShared.length} 项
                 </div>
                 <div className="flex flex-wrap gap-1">
-                  {lens.requiresOnlyA.map((c) => (
-                    <Chip key={`a-${c}`} tone="idle">
+                  {lens.requiresOnlyA.map((c, i) => (
+                    <Chip key={`a-${i}-${c}`} tone="idle">
                       {lens.a.laneName} ← {capLabel(c)}
                     </Chip>
                   ))}
-                  {lens.requiresOnlyB.map((c) => (
-                    <Chip key={`b-${c}`} tone="idle">
+                  {lens.requiresOnlyB.map((c, i) => (
+                    <Chip key={`b-${i}-${c}`} tone="idle">
                       {lens.b.laneName} ← {capLabel(c)}
                     </Chip>
                   ))}
                 </div>
                 {(lens.a.unmet.length > 0 || lens.b.unmet.length > 0) && (
                   <div className="mt-2 flex flex-wrap gap-1">
-                    {lens.a.unmet.map((c) => (
-                      <Chip key={`ua-${c}`} tone="bad">
+                    {lens.a.unmet.map((c, i) => (
+                      <Chip key={`ua-${i}-${c}`} tone="bad">
                         {lens.a.laneName} 缺 {capLabel(c)}
                       </Chip>
                     ))}
-                    {lens.b.unmet.map((c) => (
-                      <Chip key={`ub-${c}`} tone="bad">
+                    {lens.b.unmet.map((c, i) => (
+                      <Chip key={`ub-${i}-${c}`} tone="bad">
                         {lens.b.laneName} 缺 {capLabel(c)}
                       </Chip>
                     ))}
@@ -671,7 +676,9 @@ export default function ArchDiagram({ picks, audit }: { picks: StackPicks; audit
                 <Chip tone={story.source === 'preset' ? 'ok' : 'warn'}>
                   {story.source === 'preset' ? '手写预设' : '按当前选择算出'}
                 </Chip>
-                <Chip tone="idle">{story.focus.length} 个槽位</Chip>
+                <Chip tone={story.focus.length ? 'idle' : 'ok'}>
+                  {story.focus.length ? `${story.focus.length} 个槽位` : '无需更换'}
+                </Chip>
               </div>
               <p className="text-2xs text-fgMuted">{story.note}</p>
             </div>
@@ -732,7 +739,7 @@ export default function ArchDiagram({ picks, audit }: { picks: StackPicks; audit
       {/*
         图是文本拼出来的 SVG，内容全部由本仓库数据生成并按 XML 转义，没有外部输入。
         只在最外层容器上挂一个 click，靠 data-slot 事件委托定位方块 ——
-        不给 17 个方块各挂一个 handler，也不必把 SVG 拆成 React 元素。
+        不给每个方块各挂一个 handler，也不必把 SVG 拆成 React 元素。
       */}
       <div
         className="grid-bg overflow-x-auto rounded-lg border border-line p-3"

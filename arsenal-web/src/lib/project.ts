@@ -3,6 +3,7 @@ import { capLabel, STATUS_META, type ArchAudit, type ArchGap } from './arch';
 import type { ComposedStack, StackPicks } from './content-types';
 import { composeStack, dimensionById, dimensions, renderPom, renderYaml } from './stack';
 import { buildArchDiagram, archDiagramD2, archDiagramMermaid } from './arch-diagram';
+import { buildDeployPlan } from './deploy';
 
 /**
  * 项目结构层。
@@ -441,7 +442,7 @@ export interface ExportFile {
   path: string;
   content: string;
   /** 界面分组用 */
-  group: '构建' | '源码' | '配置' | '数据' | '文档' | '测试';
+  group: '构建' | '源码' | '配置' | '数据' | '文档' | '测试' | '部署';
   /** 这一份是哪个模块带来的（空 = 基础文件） */
   from?: string;
 }
@@ -632,7 +633,7 @@ export function architectureDocMarkdown(picks: StackPicks, audit: ArchAudit, nam
   // ── 五、图例 ──
   out.push('## 五、怎么读那张图', '');
   out.push(
-    '- **横向色带 = 6 层**，色带名字左边写着这一层有几个槽位',
+    '- **一条横向色带 = 一层泳道**，色带名字左边写着这一层有几个槽位',
     '- **实线方块 = 已选**；**虚线方块 = 未选** —— 可选件留空是正常状态，不是问题',
     '- **红色虚线 = 缺必需**（项目起不来）；**黄铜虚线 = 缺建议**（能跑，但少能力）',
     '- **黄铜实线 + ⚠ = 已选，但它参与了某个组合隐患** —— 单独看每个零件都对，拼起来才出问题',
@@ -727,6 +728,14 @@ export function buildExportPlan(picks: StackPicks, audit: ArchAudit): ExportPlan
       group: '数据',
       from: '持久层 · MyBatis-Plus',
     });
+  }
+
+  // ── 交付与运行清单 ──
+  // 文件名与结构树里的节点逐一对齐：结构图画出 deploy/k8s/04-deployment.yaml，
+  // 导出包就必须真有它。两边任何一边多了少了，用户照着图会找不到文件 ——
+  // 这个一致性由 npm run verify:project 断言。
+  for (const f of buildDeployPlan(picks, composed, { appName: projectDoc.artifactId })) {
+    files.push({ path: f.path, content: f.content, group: '部署', from: f.from });
   }
 
   // ── 测试 ──
