@@ -501,10 +501,15 @@ console.log('\n【9】六大架构视图数据层');
       MUST_LIMIT
   );
 
-  // ⑥ 项目视图：验证链分项之和 = 总数 = 452（与 README 同源，改口径两处一起改）
+  // ⑥ 项目视图：验证链分项之和 = 总数 = 464（与 README 同源，改口径两处一起改）
+  //
+  // 注意前半句是恒等式 —— VERIFY_TOTAL 的定义就是那个 reduce，永远相等。
+  // 真正起作用的只有后半句那个手写的 464，所以「各层实际跑了多少项」没有守门：
+  // 这次给引擎加了 3 项断言，实测 17 而 VERIFY_CHAIN 仍写着 14，整套 verify 照样全绿。
+  // 要让这个数字有约束力，得让各层把自己的实测项数写出来再比 —— 尚未做。
   check(
     '项目视图：验证链分项之和 = 总数',
-    VERIFY_CHAIN.reduce((n, v) => n + v.count, 0) === VERIFY_TOTAL && VERIFY_TOTAL === 452
+    VERIFY_CHAIN.reduce((n, v) => n + v.count, 0) === VERIFY_TOTAL && VERIFY_TOTAL === 464
   );
   check('项目视图：里程碑含 MCP 适配层', PROJECT_ROADMAP.some((m) => m.name.includes('MCP')));
 }
@@ -871,6 +876,117 @@ console.log('\n【12】交付与运行清单');
   const stop = Number(/TimeoutStopSec=(\d+)s/.exec(unit)?.[1] ?? 0);
   check('systemd 的 TimeoutStopSec 大于应用侧超时', stop > sd.app,
     `TimeoutStopSec=${stop}s / 应用侧 ${sd.app}s`);
+}
+
+// ═══════════════════════════════════════════════════════════════
+// 【13】导航与页签契约 —— 源码级，守「按钮在、点进去是空的」这类错
+//
+// 这一节存在的理由是一个真实事故：装配台「拆菜单」时把技术架构图迁到了
+// /arch，但 TabId 与页签条里那一项漏删，渲染分支又没有 —— 页签按钮留在
+// 那儿，点进去一片空白，控制台一个错都不报，六层校验全绿。
+//
+// 同样这类错还有：新增路由忘了进 NAV（页面存在但没人找得到）、
+// 定义了 savePicksSnapshot 却从没调用（跨页契约无声断开）。
+// 全是「代码语法完全正确、功能不存在」，只有把源码本身当数据来断言才抓得住。
+// ═══════════════════════════════════════════════════════════════
+console.log('\n【13】导航与页签契约');
+{
+  const src = (rel: string) => fs.readFileSync(path.resolve(here, '..', 'src', rel), 'utf8');
+
+  // 断言读的是源码文本，注释里出现的 `tab === 'x'`（文档举例）会被当成真分支 ——
+  // 这一节自己就踩过：第一版把注释里的示例算成了一个「无法被点亮的页签」。
+  // 解析前一律去注释，注释不算代码。
+  const code = (rel: string) =>
+    src(rel)
+      .replace(/\/\*[\s\S]*?\*\//g, '')
+      .replace(/^[ \t]*\/\/.*$/gm, '');
+
+  // ① 导航 ↔ 路由：NAV 里指过去的每个地址都得真有一个页面
+  const shell = code('components/Shell.tsx');
+  const navHrefs = [...shell.matchAll(/\{\s*href:\s*'([^']+)'/g)].map((m) => m[1]);
+  const pageExists = (href: string) =>
+    href === '/'
+      ? fs.existsSync(path.resolve(here, '../src/app/page.tsx'))
+      : fs.existsSync(path.resolve(here, '../src/app', href.replace(/^\//, ''), 'page.tsx'));
+  const dangling = navHrefs.filter((h) => !pageExists(h));
+  check(`导航：${navHrefs.length} 个入口都指向真实页面`, dangling.length === 0, `指向空地址: ${dangling.join('、')}`);
+
+  // ② 反向：页面目录不许成为孤儿（动态段与「有意不进导航」的除外）
+  const ORPHAN_OK = new Set<string>([]);
+  const appDir = path.resolve(here, '../src/app');
+  const orphans = fs
+    .readdirSync(appDir, { withFileTypes: true })
+    .filter((d) => d.isDirectory() && !d.name.startsWith('_') && !d.name.includes('['))
+    .map((d) => `/${d.name}`)
+    .filter((h) => !navHrefs.includes(h) && !ORPHAN_OK.has(h));
+  check('导航：没有孤儿页面（页面存在但导航里没有入口）', orphans.length === 0, `孤儿: ${orphans.join('、')}`);
+
+  // ③ 装配台页签三处必须同时成立：TabId 类型、页签条数组、渲染分支
+  const composer = code('app/stack/StackComposer.tsx');
+  const idUnion = [
+    ...(
+      /type TabId\s*=([\s\S]*?);/.exec(composer)?.[1] ?? ''
+    ).matchAll(/'([a-z]+)'/g),
+  ].map((m) => m[1]);
+  const tabBar = [...composer.matchAll(/\{\s*id:\s*'([a-z]+)',\s*glyph:/g)].map((m) => m[1]);
+  const branches = [...composer.matchAll(/tab === '([a-z]+)'/g)].map((m) => m[1]);
+  const uniq = (xs: string[]) => [...new Set(xs)].sort();
+
+  check(
+    `装配台：TabId 与页签条一致（各 ${idUnion.length} / ${tabBar.length} 项）`,
+    uniq(idUnion).join(',') === uniq(tabBar).join(','),
+    `只在类型里: ${uniq(idUnion).filter((x) => !tabBar.includes(x)).join('、') || '无'}；` +
+      `只在页签条里: ${uniq(tabBar).filter((x) => !idUnion.includes(x)).join('、') || '无'}`
+  );
+  const noBranch = idUnion.filter((id) => !branches.includes(id));
+  check(
+    `装配台：${idUnion.length} 个页签都有渲染分支`,
+    noBranch.length === 0,
+    `按钮在、点进去空白: ${noBranch.join('、')}`
+  );
+  const noType = branches.filter((b) => !idUnion.includes(b));
+  check('装配台：渲染分支都在 TabId 里', noType.length === 0, `分支无法被点亮: ${noType.join('、')}`);
+
+  // ④ 跨页选型契约：写入点与读取点必须成对存在（写过没人读 = 白写；读没人写 = 永远回落到默认）
+  const picksStore = src('lib/picks-store.ts');
+  const callers = (fn: string) =>
+    ['lib', 'app', 'components']
+      .flatMap((dir) => {
+        const walk = (p: string): string[] =>
+          fs.readdirSync(p, { withFileTypes: true }).flatMap((e) => {
+            const full = path.join(p, e.name);
+            if (e.isDirectory()) return walk(full);
+            return /\.tsx?$/.test(e.name) ? [full] : [];
+          });
+        return walk(path.resolve(here, '../src', dir));
+      })
+      .filter((f) => !f.endsWith('picks-store.ts'))
+      .filter((f) =>
+        fs
+          .readFileSync(f, 'utf8')
+          .replace(/\/\*[\s\S]*?\*\//g, '')
+          .replace(/^[ \t]*\/\/.*$/gm, '')
+          .includes(`${fn}(`)
+      );
+  const writers = callers('savePicksSnapshot');
+  const readers = callers('loadPicksSnapshot');
+  check('选型快照：有写入点（装配台写）', writers.length > 0, '没人写等于 /arch 永远按 standard 预设出图');
+  check('选型快照：有读取点（架构图谱读）', readers.length > 0, '没人读等于白写');
+  check(
+    '选型快照：localStorage key 只在一处定义',
+    (picksStore.match(/['"]arsenal-stack-picks-v1['"]/g) ?? []).length === 1,
+    `实际出现 ${(picksStore.match(/['"]arsenal-stack-picks-v1['"]/g) ?? []).length} 处 —— 两处各自为政时读写会静默对不上`
+  );
+
+  // ⑤ 六大架构页签同样守一遍（同一类错在 /arch 也犯得起）
+  const gallery = code('app/arch/ArchGallery.tsx');
+  const viewIds = [...gallery.matchAll(/\{tab === '([a-z]+)' &&/g)].map((m) => m[1]);
+  const metaIds = ARCH_VIEWS.map((v) => v.id);
+  check(
+    `架构图谱：${metaIds.length} 个视图都有渲染分支`,
+    uniq(metaIds).every((id) => viewIds.includes(id)),
+    `缺分支: ${metaIds.filter((id) => !viewIds.includes(id)).join('、') || '无'}`
+  );
 }
 
 zipChecks().then(() => {

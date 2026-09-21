@@ -23,8 +23,8 @@ export type ArchViewId = 'business' | 'data' | 'app' | 'tech' | 'product' | 'pro
 export const VERIFY_CHAIN: { name: string; count: number; desc: string }[] = [
   { name: '架构判定', count: 35, desc: '能力并集 / 缺口 / 组合策略' },
   { name: '图与交互', count: 59, desc: '依赖边 / 版式边 / 交互钩子' },
-  { name: '结构与导出', count: 303, desc: '目录树 / 部署产物 / 导出包 / zip 解压复验' },
-  { name: '引擎样本', count: 14, desc: '正则层真检出与 skipped 披露' },
+  { name: '结构与导出', count: 312, desc: '目录树 / 部署产物 / 导出包 / zip 解压复验 / 导航与页签契约' },
+  { name: '引擎样本', count: 17, desc: '正则层真检出与 skipped 披露' },
   { name: '前后端一致性', count: 12, desc: '探针实跑导出比对 + 活服务体检' },
   { name: 'Archify 链路', count: 29, desc: 'IR 适配 / 出图 / 护栏' },
 ];

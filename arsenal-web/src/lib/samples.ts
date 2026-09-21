@@ -158,6 +158,57 @@ jwt:
   expire-seconds: 7200
 `;
 
+/**
+ * 编排清单靶子。
+ *
+ * 前几版这里没有 yaml 样本 —— 于是「容器 / 编排」那一组规则写着 check.manual，
+ * 看着很完整，实际跑起来一条都执行不到。靶子是规则的验收标准：
+ * 写不出能命中的样本，等于这条规则还不存在。
+ */
+const badDeployment = `apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: smarthub-api
+spec:
+  replicas: 1
+  template:
+    spec:
+      containers:
+        - name: api
+          image: registry.local/smarthub-api:2.3.0
+          args:
+            - --spring.profiles.additional-location=file:/config/application-prod.yml
+          env:
+            - name: SPRING_PROFILES_ACTIVE
+              value: prod
+          readinessProbe:
+            httpGet:
+              path: /actuator/health
+              port: 8080
+          livenessProbe:
+            httpGet:
+              path: /actuator/health
+              port: 8080
+`;
+
+const badLogback = `<?xml version="1.0" encoding="UTF-8"?>
+<configuration>
+    <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
+        <encoder><pattern>%d %-5level %logger - %msg%n</pattern></encoder>
+    </appender>
+    <appender name="FILE" class="ch.qos.logback.core.rolling.RollingFileAppender">
+        <file>/var/log/smarthub/app.log</file>
+        <rollingPolicy class="ch.qos.logback.core.rolling.TimeBasedRollingPolicy">
+            <fileNamePattern>/var/log/smarthub/app.%d{yyyy-MM-dd}.log</fileNamePattern>
+        </rollingPolicy>
+    </appender>
+    <root level="INFO">
+        <appender-ref ref="CONSOLE"/>
+        <appender-ref ref="FILE"/>
+    </root>
+</configuration>
+`;
+
 export const SAMPLES: Sample[] = [
   {
     key: 'controller',
@@ -198,5 +249,21 @@ export const SAMPLES: Sample[] = [
     desc: '数据库密码与 JWT 密钥明文写进配置文件（命中 2 处）。',
     expected: 2,
     content: badConfig,
+  },
+  {
+    key: 'deploy',
+    name: 'deploy/k8s/04-deployment.yaml',
+    label: '违规 K8s 清单',
+    desc: '编排层最常漏的四条：没有 terminationGracePeriodSeconds、把 application-prod.yml 打进镜像、不声明 resources、liveness 探针指向总健康端点。',
+    expected: 4,
+    content: badDeployment,
+  },
+  {
+    key: 'logback',
+    name: 'src/main/resources/logback-spring.xml',
+    label: '违规日志配置',
+    desc: 'RollingFileAppender 把日志写进容器内的 /var/log —— 容器一被替换，那段日志就没了。',
+    expected: 1,
+    content: badLogback,
   },
 ];

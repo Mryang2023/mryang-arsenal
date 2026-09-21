@@ -41,7 +41,7 @@ const rules = ruleset.rules;
  */
 const BASELINE = {
   /** 至少要被命中的规则条数 —— 这是引擎检出能力的下限，跌下来就是正则失效 */
-  hitRules: 19,
+  hitRules: 24,
   /** 写法规范的样本允许出现的违规数。0 是硬要求：假阳性会让人不再信报告 */
   cleanViolations: 0,
 };
@@ -72,7 +72,7 @@ const withPattern = rules.filter(
 
 check(`规则总数与 active 数一致（共 ${rules.length} 条）`, activeCount === rules.length,
   `active ${activeCount} / 共 ${rules.length}`);
-check(`带正则层的规则 ${withPattern} 条`, withPattern === 30, `实际 ${withPattern}`);
+check(`带正则层的规则 ${withPattern} 条`, withPattern === 35, `实际 ${withPattern}`);
 
 // ═══════════════════════════════════════════════════════════════
 // 【2】每个样本的实际命中数必须等于 samples.ts 里标注的 expected
@@ -187,6 +187,74 @@ check(
   cleanReport.violations.length === 0
     ? ''
     : '这是假阳性。要改的是规则或这个样本，不是这条断言'
+);
+
+/**
+ * 编排清单单独再验一次。
+ *
+ * 容器那组规则里有两条是 `expect: "present"`（缺字段即违规），
+ * 这类断言最容易翻车的地方不是漏报，而是**报文本身**：
+ * 只要 targetGlob 稍微宽一点，configmap、helm values 就会一起被要求带 resources，
+ * 那就会变成每次校验都报一堆假阳性 —— 报一次假阳性的代价，是之后所有报告都没人看。
+ */
+const cleanDeploy = `apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: smarthub-api
+spec:
+  replicas: 3
+  template:
+    spec:
+      terminationGracePeriodSeconds: 45
+      containers:
+        - name: api
+          image: registry.local/smarthub-api:2.3.0
+          env:
+            - name: SPRING_PROFILES_ACTIVE
+              value: prod
+          resources:
+            requests:
+              cpu: "500m"
+              memory: 768Mi
+            limits:
+              cpu: "2"
+              memory: 1Gi
+          readinessProbe:
+            httpGet:
+              path: /actuator/health/readiness
+              port: 8080
+          livenessProbe:
+            httpGet:
+              path: /actuator/health/liveness
+              port: 8080
+`;
+
+const cleanLogback = `<?xml version="1.0" encoding="UTF-8"?>
+<configuration>
+    <appender name="STDOUT" class="ch.qos.logback.core.ConsoleAppender">
+        <encoder class="net.logstash.logback.encoder.LogstashEncoder"/>
+    </appender>
+    <root level="INFO">
+        <appender-ref ref="STDOUT"/>
+    </root>
+</configuration>
+`;
+
+const cleanCtnrReport = lint(
+  [
+    { name: 'deploy/k8s/04-deployment.yaml', content: cleanDeploy },
+    { name: 'src/main/resources/logback-spring.xml', content: cleanLogback },
+  ],
+  rules
+);
+console.log(`\n  规范编排清单：违规 ${cleanCtnrReport.violations.length} 处`);
+for (const v of cleanCtnrReport.violations) {
+  console.log(`  L${v.line} [${v.severity}] ${v.ruleId}  ${v.title.slice(0, 40)}`);
+}
+check(
+  '规范编排清单零违规（present 型断言最容易在这里翻车）',
+  cleanCtnrReport.violations.length === 0,
+  cleanCtnrReport.violations.map((v) => `${v.ruleId}@L${v.line}`).join('、')
 );
 
 // ═══════════════════════════════════════════════════════════════

@@ -42,6 +42,7 @@ import Inspector from './Inspector';
 import ProjectTree from './ProjectTree';
 import SlotBlock from './SlotBlock';
 import ArchDiagram from './ArchDiagram';
+import { savePicksSnapshot } from '@/lib/picks-store';
 import { TONE } from './palette';
 
 /**
@@ -57,10 +58,15 @@ import { TONE } from './palette';
  * 最后一组是这次新增的重点 —— 结构图与一键导出。
  */
 
+/**
+ * 页签 id。**加了这里就必须在下面渲染区补一个 `tab === 'x'` 分支** ——
+ * 只加 id 不加分支的后果是页签按钮在、点进去一片空白，而且没有任何东西会报错
+ * （「技术架构图」就这么空了一段时间）。结构层断言守这条。
+ */
 type TabId =
   | 'build' | 'yaml' | 'env'
   | 'app' | 'config' | 'code'
-  | 'tree' | 'arch' | 'tech'
+  | 'tree' | 'arch'
   | 'risk' | 'ops' | 'prompt';
 
 interface TabSpec {
@@ -80,6 +86,17 @@ export default function StackComposer() {
   const [exported, setExported] = useState<{ name: string; bytes: number; files: number } | null>(
     null
   );
+
+  /**
+   * 选型快照写回 localStorage —— 「架构图谱」页的技术架构视图从这里取数。
+   *
+   * 少了这一句，那边 loadPicksSnapshot() 永远读不到东西、静默回落到 standard
+   * 预设：装配台换一套选型，架构图谱那张图纹丝不动，而且两边都不报错。
+   * 这是一条跨页契约，只有这一处写、只有 TechArch 一处读。
+   */
+  useEffect(() => {
+    savePicksSnapshot(picks);
+  }, [picks]);
 
   const audit = useMemo(() => auditArchitecture(picks), [picks]);
   const composed = useMemo(() => composeStack(picks), [picks]);
@@ -140,7 +157,6 @@ export default function StackComposer() {
       group: '交付',
       tabs: [
         { id: 'arch', glyph: '⊞', label: '架构图' },
-        { id: 'tech', glyph: '⬡', label: '技术架构图' },
         { id: 'risk', glyph: '⚠', label: '隐患体检单', count: hazardCount },
         { id: 'ops', glyph: '▥', label: '运维清单' },
         { id: 'prompt', glyph: '⎘', label: '给 AI 的约束' },

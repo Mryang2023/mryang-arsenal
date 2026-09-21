@@ -123,6 +123,17 @@ export interface ArchifyIr {
   cards?: ArchifyCard[];
 }
 
+/**
+ * 一份 IR 的必填顶层字段。顺序即说明书顺序 —— 页面的「IR 长什么样」直接渲染它，
+ * 构建期也借它做一次存在性检查：字段名改了而这里没改，构建就红，不留到运行时。
+ */
+export const ARCHIFY_SHAPE_FIELDS = [
+  { key: 'components', type: '数组 · 必填', desc: '要被画出来的东西：id / type（七类）/ label / pos / size' },
+  { key: 'boundaries', type: '数组 · 可省', desc: '分区框：kind（region|security-group）/ label / wraps[]' },
+  { key: 'connections', type: '数组 · 可省', desc: '连线：from / to / label / 可选 via 折点与 fromSide·toSide' },
+  { key: 'meta', type: '对象 · 必填', desc: 'title / locale / views[]（每条阅读路径的 focus 不许空、不许重复）' },
+] as const;
+
 export interface ArchifyIrOptions {
   title?: string;
   subtitle?: string;
@@ -956,10 +967,60 @@ function buildCards(model: TechArch, byId: Map<string, CanvasNode>): ArchifyCard
 // ─────────────────────────────────────────────────────────────
 
 /**
+ * 外部 IR 的结构预检 —— 第一道闸门。
+ *
+ * `archifyIrIssues()` 假定 IR 是良构的（直接读 `ir.components` / `ir.meta.views`），
+ * 它是为我们自己生成的 IR 写的。输入口一旦开放给「粘贴 / 上传任意 JSON」，
+ * 直接喂过去会抛 `TypeError: Cannot read properties of undefined` ——
+ * 报错栈指向我们的行号，看着像我们的 bug，其实是对方那份文件根本不是 IR。
+ *
+ * 所以先过这一关：**形状不对就在这里拦下，并说清哪一层不对**；
+ * 形状对了再交给 `archifyIrIssues()` 挑深层毛病。
+ */
+export function archifyIrShapeIssues(raw: unknown): string[] {
+  const issues: string[] = [];
+  if (raw === null || typeof raw !== 'object' || Array.isArray(raw)) {
+    return ['顶层必须是一个 JSON 对象（IR 不是数组，也不是字符串）'];
+  }
+  const ir = raw as Record<string, unknown>;
+
+  if (!Array.isArray(ir.components)) issues.push('缺少 components 数组');
+  else if (ir.components.length === 0) issues.push('components 是空数组 —— 没有组件就没有图');
+  else {
+    (ir.components as unknown[]).forEach((c, i) => {
+      if (c === null || typeof c !== 'object') {
+        issues.push(`components[${i}] 不是对象`);
+        return;
+      }
+      const k = c as Record<string, unknown>;
+      if (typeof k.id !== 'string' || !k.id) issues.push(`components[${i}] 缺少 id`);
+      if (typeof k.label !== 'string' || !k.label) issues.push(`components[${i}] 缺少 label`);
+      if (!asType(k.type as string)) issues.push(`components[${i}] 的 type「${String(k.type)}」不在七类里`);
+      if (!Array.isArray(k.pos) || k.pos.length !== 2) issues.push(`components[${i}] 的 pos 必须是 [x, y]`);
+      if (!Array.isArray(k.size) || k.size.length !== 2) issues.push(`components[${i}] 的 size 必须是 [w, h]`);
+    });
+  }
+
+  if (ir.meta === null || typeof ir.meta !== 'object') issues.push('缺少 meta 对象');
+  else if (!Array.isArray((ir.meta as Record<string, unknown>).views)) {
+    issues.push('meta.views 必须是数组（阅读路径）');
+  }
+
+  for (const key of ['boundaries', 'connections'] as const) {
+    const v = ir[key];
+    if (v !== undefined && v !== null && !Array.isArray(v)) issues.push(`${key} 必须是数组或省略`);
+  }
+
+  return issues;
+}
+
+/**
  * 结构自检。**不是** Archify 的九项构图检查 —— 那九项只有它的渲染器算得出来。
  * 这里只拦我们自己写错的那类：id 撞车、端点指向不存在的东西、空焦点、
  * 枚举写出界、两条阅读路径一样、回边折点退化。这些错了会把一张本来能过的图
  * 卡在门外，而报错信息指向对方，查起来更费劲。
+ *
+ * 前置：形状得先过 `archifyIrShapeIssues()`，本函数不重复做形状兜底。
  */
 export function archifyIrIssues(ir: ArchifyIr): string[] {
   const issues: string[] = [];
