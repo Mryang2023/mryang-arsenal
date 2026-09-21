@@ -3,34 +3,19 @@
 import { ARCH_GLYPHS } from '@/lib/arch-glyphs';
 import { svgMotionStyle } from '@/lib/arch-motion';
 import type { CSSProperties, ReactNode } from 'react';
-import {
-  APP_CONTRACTS,
-  APP_LAYERS,
-  BUSINESS_CONSUMERS,
-  BUSINESS_DOMAINS,
-  BUSINESS_OUTLETS,
-  DATA_ASSETS,
-  DATA_CONSUMERS,
-  DATA_GOVERNANCE,
-  DATA_PIPELINE,
-  ENGINE_LAYERS,
-  MUST_LIMIT,
-  PRODUCT_NON_GOALS,
-  PRODUCT_SURFACES,
-  PROJECT_DIRS,
-  PROJECT_PIPELINE,
-  PROJECT_ROADMAP,
-  SEVERITY_ROWS,
-  VERIFY_CHAIN,
-  VERIFY_TOTAL,
-} from '@/lib/arch-views';
+import type { ArchViewData } from '@/lib/arch-views';
 
 /**
  * 五张架构视图（业务 / 数据 / 应用 / 产品 / 项目）的 SVG 渲染。
  *
+ * 这几张图**不认军火库**：它们只认一份 `ArchViewData`。所以同一个渲染器
+ * 换个项目的档案就能画出别家的六张图 —— 数据从 props 进来，
+ * 不在模块顶层读常量（读常量的话，换档案要等一次重新构建）。
+ *
  * 技术架构走 arch-canvas（可编辑、可导出），这五张是「讲清楚」用的静态图：
- * 数据全部从 arch-views.ts 取 —— 那里的数字又是从真实数据算出来的，
- * 规则增删后图会自己跟上，不存在「图上写 62 条、库里 63 条」这种事。
+ * 数据全部来自项目档案（`arsenal-profiles/*.json`）—— 档案里的数字又是
+ * 从真实数据算出来的，规则增删后图会自己跟上，不存在「图上写 62 条、
+ * 库里 63 条」这种事；也没有「换个项目就无从下手」这种事。
  *
  * 画布约定与站点一致：暗色底、卡片 #141F1D、文字 #EAF2F0。
  * 文字一律先按像素估宽（CJK≈1em / ASCII≈0.55em）再裁剪或换行。
@@ -273,7 +258,8 @@ const OUTLET_ICONS = ['human', 'ai', 'lint'];
 /** 三类消费者的图标 */
 const CONSUMER_ICONS = ['human', 'ai', 'server'];
 
-export function BusinessDiagram() {
+export function BusinessDiagram({ data }: { data: ArchViewData }) {
+  const { businessDomains: BUSINESS_DOMAINS, businessOutlets: BUSINESS_OUTLETS, businessConsumers: BUSINESS_CONSUMERS } = data;
   const W = 1160;
   const cardW = 216;
   const gap = (W - 20 - cardW * 5) / 4;
@@ -367,7 +353,8 @@ const DATA_CONSUMER_ICONS = ['browser', 'server', 'deliver'];
 /** 治理三道闸的图标 */
 const GOVERNANCE_ICONS = ['anchor', 'crossCheck', 'flag'];
 
-export function DataDiagram() {
+export function DataDiagram({ data }: { data: ArchViewData }) {
+  const { dataAssets: DATA_ASSETS, dataPipeline: DATA_PIPELINE, dataConsumers: DATA_CONSUMERS, dataGovernance: DATA_GOVERNANCE } = data;
   const W = 1160;
   const aw = 370;
   const pw = 250;
@@ -462,7 +449,8 @@ export function DataDiagram() {
 /** 五层的图标（顺序与 APP_LAYERS 对应） */
 const APP_LAYER_ICONS = ['browser', 'lib', 'plug', 'server', 'datasource'];
 
-export function AppDiagram() {
+export function AppDiagram({ data }: { data: ArchViewData }) {
+  const { appLayers: APP_LAYERS, appContracts: APP_CONTRACTS } = data;
   const W = 1160;
   const bandH = 96;
   const bandGap = 22;
@@ -547,12 +535,19 @@ export function AppDiagram() {
 // 产品架构：功能面 × 引擎三层 × 严重度配额 × 不做清单
 // ═══════════════════════════════════════════════════════════════
 
-/** 六个功能面的图标（顺序与 PRODUCT_SURFACES 对应） */
-const PRODUCT_SURFACE_ICONS = ['search', 'compare', 'assemble', 'layers', 'lint', 'deliver'];
+/** 功能面的图标（顺序与档案里的 product.surfaces 对应） */
+const PRODUCT_SURFACE_ICONS = ['search', 'compare', 'assemble', 'layers', 'blueprint', 'lint', 'deliver'];
 /** 引擎三层的图标 */
 const ENGINE_ICONS = ['regex', 'tree', 'brain'];
 
-export function ProductDiagram() {
+export function ProductDiagram({ data }: { data: ArchViewData }) {
+  const {
+    severityRows: SEVERITY_ROWS,
+    productSurfaces: PRODUCT_SURFACES,
+    engineLayers: ENGINE_LAYERS,
+    mustLimit: MUST_LIMIT,
+    productNonGoals: PRODUCT_NON_GOALS,
+  } = data;
   const W = 1160;
   const sw = 292;
   const engineX = 650;
@@ -678,11 +673,12 @@ export function ProductDiagram() {
 
 const TONE_COLOR: Record<string, string> = {
   key: '#E5B45A',
+  done: '#56C596',
   next: '#7FA8D9',
   later: '#6A7F80',
 };
 
-/** 七个仓库分区的图标（顺序与 PROJECT_DIRS 对应） */
+/** 仓库分区的图标（顺序与档案里的 project.dirs 对应） */
 const PROJECT_DIR_ICONS = [
   'folderRules',
   'folderCook',
@@ -691,15 +687,23 @@ const PROJECT_DIR_ICONS = [
   'folderServer',
   'folderTools',
   'folderDocs',
+  'folderProfiles',
 ];
 /** 构建链四步的图标 */
 const PIPELINE_STEP_ICONS = ['pen', 'gear', 'crossCheck', 'verify'];
 /** 里程碑按紧急度的图标 */
-const TONE_ICON: Record<string, string> = { key: 'key', next: 'flag', later: 'clock' };
+const TONE_ICON: Record<string, string> = { key: 'key', done: 'verify', next: 'flag', later: 'clock' };
 /** 验证链六段的图标 */
 const VERIFY_ICONS = ['assemble', 'layers', 'verify', 'regex', 'crossCheck', 'spark'];
 
-export function ProjectDiagram() {
+export function ProjectDiagram({ data }: { data: ArchViewData }) {
+  const {
+    verifyTotal: VERIFY_TOTAL,
+    projectDirs: PROJECT_DIRS,
+    projectPipeline: PROJECT_PIPELINE,
+    verifyChain: VERIFY_CHAIN,
+    projectRoadmap: PROJECT_ROADMAP,
+  } = data;
   const W = 1160;
   const dirX = 20;
   const dirW = 350;
@@ -808,7 +812,7 @@ export function ProjectDiagram() {
               {clip(mItem.desc, rightW - 52, 9)}
             </text>
             <text x={rightX + rightW - 14} y={y + 19} textAnchor="end" fontFamily={FONT} fontSize={9} fill={color}>
-              {mItem.tone === 'key' ? '关键' : mItem.tone === 'next' ? '下一步' : '待定'}
+              {mItem.tone === 'key' ? '关键' : mItem.tone === 'done' ? '已落地' : mItem.tone === 'next' ? '下一步' : '待定'}
             </text>
           </g>
         );

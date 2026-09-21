@@ -28,15 +28,19 @@ import {
   APP_ENDPOINTS,
   APP_ROUTES,
   ARCH_VIEWS,
+  ARCH_VIEW_IDS,
   BUSINESS_DOMAINS,
   BUSINESS_OUTLETS,
   DATA_ASSETS,
   ENGINE_LAYERS,
   MUST_LIMIT,
+  PROFILE_ORDER,
+  PROFILE_SUMMARIES,
   PROJECT_ROADMAP,
   SEVERITY_ROWS,
   VERIFY_CHAIN,
   VERIFY_TOTAL,
+  profileIssues,
 } from '@/lib/arch-views';
 import { buildTechArch, buildTechArchSvg, emptyEdits } from '@/lib/arch-canvas';
 import { ARCH_GLYPHS } from '@/lib/arch-glyphs';
@@ -501,15 +505,15 @@ console.log('\n【9】六大架构视图数据层');
       MUST_LIMIT
   );
 
-  // ⑥ 项目视图：验证链分项之和 = 总数 = 464（与 README 同源，改口径两处一起改）
+  // ⑥ 项目视图：验证链分项之和 = 总数 = 473（与 README 同源，改口径两处一起改）
   //
   // 注意前半句是恒等式 —— VERIFY_TOTAL 的定义就是那个 reduce，永远相等。
-  // 真正起作用的只有后半句那个手写的 464，所以「各层实际跑了多少项」没有守门：
+  // 真正起作用的只有后半句那个手写的 473，所以「各层实际跑了多少项」没有守门：
   // 这次给引擎加了 3 项断言，实测 17 而 VERIFY_CHAIN 仍写着 14，整套 verify 照样全绿。
   // 要让这个数字有约束力，得让各层把自己的实测项数写出来再比 —— 尚未做。
   check(
     '项目视图：验证链分项之和 = 总数',
-    VERIFY_CHAIN.reduce((n, v) => n + v.count, 0) === VERIFY_TOTAL && VERIFY_TOTAL === 464
+    VERIFY_CHAIN.reduce((n, v) => n + v.count, 0) === VERIFY_TOTAL && VERIFY_TOTAL === 473
   );
   check('项目视图：里程碑含 MCP 适配层', PROJECT_ROADMAP.some((m) => m.name.includes('MCP')));
 }
@@ -566,7 +570,7 @@ console.log('\n【11】图标库与动效');
     ...['browser', 'deliver', 'anchor', 'crossCheck', 'flag', 'lock', 'pipe'],
     ...['lib', 'plug', 'datasource', 'handshake', 'scale'],
     ...['search', 'compare', 'layers', 'regex', 'tree', 'brain', 'gauge', 'noGo'],
-    ...['folderRules', 'folderCook', 'folderStack', 'folderWeb', 'folderServer', 'folderTools', 'folderDocs'],
+    ...['folderRules', 'folderCook', 'folderStack', 'folderWeb', 'folderServer', 'folderTools', 'folderDocs', 'folderProfiles'],
     ...['key', 'clock', 'spark'],
   ];
   const missing = usedInView.filter((k) => !(k in ARCH_GLYPHS));
@@ -989,7 +993,117 @@ console.log('\n【13】导航与页签契约');
   );
 }
 
+// ═══════════════════════════════════════════════════════════════
+// 【14】项目档案契约 —— 六张图讲的是「哪个项目」，换项目只许换档案
+//
+// 这一节守的是「泛化」这件事本身。它拦的是三类无声的退化：
+//   ① 档案与代码又长回一起 —— 有人图省事把文案写回 arch-views.ts，
+//      于是「换项目」变成「改代码」，功能看似还在，能力已经没了；
+//   ② 档案里手抄数字 —— 「69 条」写进 JSON，改一次事实源就变成一句自信的错话；
+//   ③ 渲染器偷偷读默认档案 —— 切了档案图上还是老项目的数据。
+// ═══════════════════════════════════════════════════════════════
+function profileChecks() {
+console.log('\n【14】项目档案契约');
+{
+  const srcFile = (rel: string) => fs.readFileSync(path.resolve(here, '..', 'src', rel), 'utf8');
+  const stripComments = (s: string) =>
+    s.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^[ \t]*\/\/.*$/gm, '');
+
+  const profilesDir = path.resolve(here, '..', '..', 'arsenal-profiles');
+  const files = fs
+    .readdirSync(profilesDir)
+    .filter((f) => f.endsWith('.json'))
+    .sort();
+
+  check('档案：至少一份内置档案', files.length >= 1, '没有档案 /arch 只能讲一份故事');
+
+  const docs = files.map((f) => ({
+    file: f,
+    id: f.replace(/\.json$/, ''),
+    doc: JSON.parse(fs.readFileSync(path.join(profilesDir, f), 'utf8')) as Record<string, any>,
+  }));
+
+  // ① 文件名 = 档案 id。不一致时按名字找它的人（脚本、?profile=、别人的笔记）会找不到
+  const mismatch = docs.filter((d) => d.doc.id !== d.id).map((d) => `${d.file} → id=${String(d.doc.id)}`);
+  check('档案：文件名与 id 一致', mismatch.length === 0, mismatch.join('；'));
+
+  // ② 形状 + token 全可解（缺字段、写错 token 都在这拦下）
+  const issues = docs.flatMap((d) => profileIssues(d.doc).map((m) => `${d.file}: ${m}`));
+  check(`档案：${docs.length} 份形状与 token 全部可解`, issues.length === 0, issues.join('；'));
+
+  // ③ 六视图齐备，且键就是渲染器认识的那六个
+  const missingViews = docs.flatMap((d) =>
+    ARCH_VIEW_IDS.filter((v) => !d.doc.views?.[v]).map((v) => `${d.file}/${v}`)
+  );
+  check('档案：六视图齐备', missingViews.length === 0, `缺: ${missingViews.join('、')}`);
+
+  // ④ 能算的数字不许手抄：metric 里出现阿拉伯数字，就必须同时出现 {{token}}
+  //    （'未启动'、'工程 zip · prompt · 图谱' 这类没有数字的描述不受约束）
+  const handCopy: string[] = [];
+  const scanMetrics = (node: unknown, at: string) => {
+    if (Array.isArray(node)) {
+      node.forEach((v, i) => scanMetrics(v, `${at}[${i}]`));
+      return;
+    }
+    if (!node || typeof node !== 'object') return;
+    for (const [k, v] of Object.entries(node as Record<string, unknown>)) {
+      if (k === 'metric' && typeof v === 'string' && /\d/.test(v) && !v.includes('{{')) {
+        handCopy.push(`${at}.metric = ${JSON.stringify(v)}`);
+      } else {
+        scanMetrics(v, `${at}.${k}`);
+      }
+    }
+  };
+  docs.forEach((d) => scanMetrics(d.doc, d.id));
+  check(
+    '档案：metric 里的数字一律来自 token（不许手抄）',
+    handCopy.length === 0,
+    `手抄的数字会过期还不报错: ${handCopy.join('；')}`
+  );
+
+  // ⑤ 文案真的搬出去了：这些句子只许出现在档案里
+  const viewsSrc = stripComments(srcFile('lib/arch-views.ts'));
+  const leaked = ['规范字典', 'Rule as Data', 'Spring Boot 只读服务', '三种出口链路'].filter((s) =>
+    viewsSrc.includes(s)
+  );
+  check(
+    '档案：视图文案已搬出 arch-views.ts',
+    leaked.length === 0,
+    `文案写回代码 = 换项目要改代码: ${leaked.join('、')}`
+  );
+
+  // ⑥ 渲染器不认默认档案：只能从 arch-views 引类型
+  const diaSrc = stripComments(srcFile('app/arch/diagrams.tsx'));
+  check(
+    '渲染器：五张图只从 arch-views 引类型',
+    /import type \{[^}]*ArchViewData[^}]*\} from '@\/lib\/arch-views'/.test(diaSrc) &&
+      !/import \{[^}]*\} from '@\/lib\/arch-views'/.test(diaSrc),
+    '渲染器读常量的话，切档案要等一次重新构建'
+  );
+
+  // ⑦ 页签 ↔ 渲染分支 ↔ 传参：五个静态图都必须收到当前档案
+  const gallerySrc = stripComments(srcFile('app/arch/ArchGallery.tsx'));
+  const withData = [...gallerySrc.matchAll(/<(Business|Data|App|Product|Project)Diagram data=\{data\} \/>/g)].map(
+    (m) => m[1]
+  );
+  check(
+    `架构图谱：${withData.length} 张静态图都拿到当前档案`,
+    withData.length === 5,
+    `没传 data 的图会渲染成空 —— 五个都传: ${['Business', 'Data', 'App', 'Product', 'Project'].filter((x) => !withData.includes(x)).join('、')}`
+  );
+
+  // ⑧ 档案选择器与页面元信息同源
+  check(
+    '架构图谱：档案清单来自内置同步结果',
+    PROFILE_SUMMARIES.length === PROFILE_ORDER.length && PROFILE_SUMMARIES.every((p) => p.builtin),
+    '清单来源不一致时，界面上会列出切不过去的档案'
+  );
+}
+
+} // profileChecks
+
 zipChecks().then(() => {
+  profileChecks();
   console.log(`\n${'─'.repeat(56)}`);
   console.log(`通过 ${pass} 项，失败 ${fail} 项`);
   process.exit(fail === 0 ? 0 : 1);

@@ -1,35 +1,80 @@
-import { cookbookStats } from '@/lib/cookbook';
-import { liveStats, meta, orderedCategories } from '@/lib/rules';
-import { dimensions, presets } from '@/lib/stack';
+import generated from '@/generated/profiles.json';
+import { liveStats } from '@/lib/rules';
+import {
+  ARCH_VIEW_IDENTITY,
+  ARCH_VIEW_IDS,
+  archProfileShapeIssues,
+  buildMetrics,
+  resolveProfile,
+  unknownTokens,
+  type ArchProfile,
+  type ArchViewId,
+  type ProfileSummary,
+  type ResolvedProfile,
+} from './arch-profile';
 
 /**
- * 六大架构视图的数据层。
+ * 六大架构视图的数据层 —— 现在是**档案的解析结果**，不是写死的文案。
  *
- * 对应「一图讲清 6 大架构」的口径：业务 / 数据 / 应用 / 技术 / 产品 / 项目。
- * 硬约定与整个军火库一致 —— **每个数字都从真实数据算出来**，不写死
- * 「62 条」这种会过期的常量；只有「验证链分项」这类工程事实（与 README
- * 同源）才允许落在唯一一处常量里，改口径时两处一起改。
+ * 口径：业务 / 数据 / 应用 / 技术 / 产品 / 项目。
+ * 三件事分得很清楚：
+ *   · 视图身份（中文名 / 英文名 / 图标 / 主题色）—— 代码里的契约，六个 id 固定；
+ *   · 每个视图写什么话 —— `arsenal-profiles/<id>.json`，换项目只换这一份；
+ *   · 数字 —— 一律 `{{token}}`，由 `arch-profile.ts` 从真实数据算出。
+ *
+ * 页面切档案走 `composeArchViews(profile)`，模块级那几个常量是「默认档案」
+ * 的解析结果，给不需要切换的消费方（自检脚本）用。
  */
 
-// ── 视图元数据（页签 + 六宫格头卡共用） ─────────────────────────
+export type { ArchViewId } from './arch-profile';
+export { ARCH_VIEW_IDS } from './arch-profile';
 
-export type ArchViewId = 'business' | 'data' | 'app' | 'tech' | 'product' | 'project';
+// ── 档案装载 ────────────────────────────────────────────────
 
-/**
- * 验证链分项。工程事实，与 README「自检」表同源 —— 改口径时两处一起改。
- * 定义在文件最前面：视图定义文案里要引用 VERIFY_TOTAL，const 有暂时性死区，
- * 放后面会让 ARCH_VIEWS 在模块初始化时直接 ReferenceError。
- */
-export const VERIFY_CHAIN: { name: string; count: number; desc: string }[] = [
-  { name: '架构判定', count: 35, desc: '能力并集 / 缺口 / 组合策略' },
-  { name: '图与交互', count: 59, desc: '依赖边 / 版式边 / 交互钩子' },
-  { name: '结构与导出', count: 312, desc: '目录树 / 部署产物 / 导出包 / zip 解压复验 / 导航与页签契约' },
-  { name: '引擎样本', count: 17, desc: '正则层真检出与 skipped 披露' },
-  { name: '前后端一致性', count: 12, desc: '探针实跑导出比对 + 活服务体检' },
-  { name: 'Archify 链路', count: 29, desc: 'IR 适配 / 出图 / 护栏' },
-];
+interface ProfilesDoc {
+  order: string[];
+  profiles: Record<string, ArchProfile>;
+}
 
-export const VERIFY_TOTAL = VERIFY_CHAIN.reduce((n, v) => n + v.count, 0);
+const DOC = generated as unknown as ProfilesDoc;
+
+/** 全部内置档案，解析完毕。键为档案 id，顺序同 `PROFILE_ORDER`。 */
+export const PROFILE_ORDER: string[] = DOC.order ?? [];
+
+const RESOLVED: Record<string, ResolvedProfile> = Object.fromEntries(
+  PROFILE_ORDER.map((id) => [id, resolveProfile(DOC.profiles[id], buildMetrics())])
+);
+
+export const DEFAULT_PROFILE_ID = PROFILE_ORDER[0];
+
+if (!DEFAULT_PROFILE_ID) {
+  // 构建期就炸，别等到页面上出现六张空图 —— 空图不会报错，只会显得项目没做完
+  throw new Error('arsenal-profiles/ 里一份档案都没有，/arch 无从渲染');
+}
+
+export function getProfile(id: string): ResolvedProfile {
+  return RESOLVED[id] ?? RESOLVED[DEFAULT_PROFILE_ID];
+}
+
+export const PROFILE_SUMMARIES: ProfileSummary[] = PROFILE_ORDER.map((id) => {
+  const p = RESOLVED[id];
+  return { id, name: p.name, subtitle: p.subtitle, note: p.note, builtin: true };
+});
+
+/** 一份档案的自检问题（形状 + token 能否解析）。自检脚本与页面导入口都用它。 */
+export function profileIssues(raw: unknown): string[] {
+  const shape = archProfileShapeIssues(raw);
+  if (shape.length) return shape;
+  const p = raw as ArchProfile;
+  const verifyTotal = (p.project?.verifyChain ?? []).reduce((n, v) => n + (v.count ?? 0), 0);
+  const metrics = buildMetrics(verifyTotal);
+  const unknown = unknownTokens(p, metrics);
+  return unknown.length
+    ? [`档案里有解不开的 token：${unknown.map((t) => `{{${t}}}`).join('、')}（注册表见 arch-profile.ts 的 buildMetrics）`]
+    : [];
+}
+
+// ── 一份档案 → 渲染器要的全部数组 ───────────────────────────
 
 export interface ArchViewMeta {
   id: ArchViewId;
@@ -47,131 +92,12 @@ export interface ArchViewMeta {
   outputs: string[];
 }
 
-export const ARCH_VIEWS: ArchViewMeta[] = [
-  {
-    id: 'business',
-    name: '业务架构',
-    english: 'Business',
-    glyph: '⬢',
-    accent: '#3E9B4F',
-    definition: '定义军火库为谁创造什么价值：把个人工程规范收敛成机器可校验的数据，服务「人查、给 AI 用、拿代码验」三种消费方式。',
-    focus: ['规范字典', '能力域', '三种出口', '单人 + 小团队'],
-    question: '军火库提供什么能力？为谁服务、经什么渠道消费？',
-    outputs: ['能力地图', '三种出口链路', '服务边界（不做什么）'],
-  },
-  {
-    id: 'data',
-    name: '数据架构',
-    english: 'Data',
-    glyph: '▤',
-    accent: '#2F6FBA',
-    definition: '规划规范数据如何被定义、构建、分发与治理：arsenal-{rules,cookbook,stacks} 是唯一事实源，JSON 是载体，管道是脚本。',
-    focus: ['Rule as Data', '事实源唯一', '构建管道', '锚点治理'],
-    question: '数据从哪里来、经谁加工、被谁消费、怎么防漂移？',
-    outputs: ['数据资产清单', '构建链路图', '治理规则（锚点 / 换行 / 交叉校验）'],
-  },
-  {
-    id: 'app',
-    name: '应用架构',
-    english: 'Application',
-    glyph: '⬡',
-    accent: '#D97B29',
-    definition: '定义系统如何分层、集成与协作：Next.js 静态站 + Spring Boot 只读服务的双层单体，前端渲染、后端出图与校验。',
-    focus: ['系统分层', '路由 × 接口', '前后端契约', '降级策略'],
-    question: '有哪些系统、怎么连接、功能如何承载？',
-    outputs: ['分层地图', '接口清单', '一致性与降级约定'],
-  },
-  {
-    id: 'tech',
-    name: '技术架构',
-    english: 'Technology',
-    glyph: '▣',
-    accent: '#7C5CBF',
-    definition: '定义应用运行所依赖的技术底座：按选型装配出会被部署的东西 —— 客户端、应用进程、中间件、数据存储与观测运维。',
-    focus: ['云平台', '中间件', '数据库', '开发与运维技术'],
-    question: '系统在什么技术底座上、如何稳定高效扩展？',
-    outputs: ['技术栈图', '部署架构图', '技术说明书（三张表）'],
-  },
-  {
-    id: 'product',
-    name: '产品架构',
-    english: 'Product',
-    glyph: '◈',
-    accent: '#0F9B8E',
-    definition: '从用户需求出发规划产品功能与演进路线：六个功能面覆盖「写规则 → 装配 → 校验 → 交付」全流程，引擎三层按台阶演进。',
-    focus: ['功能结构', '校验引擎三层', '严重度配额', '演进路线'],
-    question: '产品提供什么能力、如何满足「让 AI 守规矩」、如何迭代？',
-    outputs: ['功能地图', '引擎分层视图', '不做清单'],
-  },
-  {
-    id: 'project',
-    name: '项目架构',
-    english: 'Project',
-    glyph: '▦',
-    accent: '#C4453C',
-    definition: `围绕目标交付组织项目实施方式：仓库分区、构建链、${VERIFY_TOTAL} 项验证链与里程碑，保证单人也能持续安全地改。`,
-    focus: ['仓库分区', '构建链', '验证链', '里程碑'],
-    question: '怎么推进、谁验证、何时交付、风险在哪？',
-    outputs: ['仓库结构树', '验证链分解', '待推进清单'],
-  },
-];
-
-export function archViewMeta(id: ArchViewId): ArchViewMeta {
-  return ARCH_VIEWS.find((v) => v.id === id) ?? ARCH_VIEWS[0];
-}
-
-// ── 业务架构：能力域 × 三种出口 ─────────────────────────────────
-
 export interface CapabilityDomain {
   name: string;
   desc: string;
-  /** 从真实数据算出的度量（展示用） */
+  /** 从真实数据算出的度量（展示用）。档案没写就是空 */
   metric: string;
 }
-
-export const BUSINESS_DOMAINS: CapabilityDomain[] = [
-  {
-    name: '规范字典',
-    desc: `${orderedCategories.length} 大类工程规范，每条必须带 bad/good 示例，写不出的不收录`,
-    metric: `${liveStats.total} 条 · ${orderedCategories.length} 类`,
-  },
-  {
-    name: '最佳实践蓝图',
-    desc: '按功能切片的真实代码案例，备注用片段锚点钉在代码上',
-    metric: `${cookbookStats.features} 切片 · ${cookbookStats.lines} 行`,
-  },
-  {
-    name: '选型装配',
-    desc: '选项声明 provides/requires，能力并集求解缺口 —— 可运行性由数据决定',
-    metric: `${dimensions.length} 个维度 · ${presets.length} 套预设`,
-  },
-  {
-    name: '合规校验',
-    desc: 'Level 1 正则可真检出；正则之外的层一律如实报 skipped，绝不伪造判定',
-    metric: `${liveStats.regexCapable} 条可真检出`,
-  },
-  {
-    name: '交付出口',
-    desc: '同一份选型导出可运行工程、约束 prompt、架构图与技术说明书',
-    metric: '工程 zip · prompt · 图谱',
-  },
-];
-
-export const BUSINESS_OUTLETS = [
-  { name: '人查', desc: '规则库 / 蓝图库 / 装配台页面，人直接翻', glyph: '☼' },
-  { name: '给 AI 用', desc: '约束 prompt 片段、导出数据，贴给任何 AI', glyph: '✦' },
-  { name: '拿代码验', desc: 'POST /api/lint，上传代码按规范逐条判', glyph: '⛨' },
-] as const;
-
-export const BUSINESS_CONSUMERS = ['mryang 本人', 'AI 编码助手', 'CI / 校验台'] as const;
-
-export const PRODUCT_NON_GOALS = [
-  '不做 auto-fix —— 判定与修复分离，越权修复比报错更危险',
-  '不绑定某家 AI 的代理 —— 规范属于人，不属于某个模型',
-  '不做规则市场 / 多租户 SaaS —— 上限单人 + 小团队（≤10 人）',
-] as const;
-
-// ── 数据架构：资产 → 构建 → 分发 ───────────────────────────────
 
 export interface DataAsset {
   path: string;
@@ -180,159 +106,140 @@ export interface DataAsset {
   desc: string;
 }
 
-export const DATA_ASSETS: DataAsset[] = [
-  {
-    path: 'arsenal-rules/**/*.json',
-    name: '规则集',
-    metric: `${liveStats.total} 条 · ${liveStats.mustClass}/${liveStats.mustHardLimit} 强制配额`,
-    desc: `${orderedCategories.length} 大类，MUST+NEVER 硬上限 ${liveStats.mustHardLimit}，schema 约束字段`,
-  },
-  {
-    path: 'arsenal-cookbook/*.json',
-    name: '蓝图库',
-    metric: `${cookbookStats.features} 切片 · ${cookbookStats.files} 文件 · ${cookbookStats.lines} 行`,
-    desc: `${cookbookStats.highlights} 处高亮备注，全部用片段锚点定位，不用行号`,
-  },
-  {
-    path: 'arsenal-stacks/*.json',
-    name: '选型数据',
-    metric: `${dimensions.length} 维 · ${presets.length} 预设 · 画布 / 依赖图声明`,
-    desc: '选项声明 provides/requires，装配判定全部由数据驱动',
-  },
-];
+export interface ArchViewData {
+  profileId: string;
+  profileName: string;
+  profileSubtitle?: string;
+  profileNote?: string;
 
-export const DATA_PIPELINE = [
-  { name: 'tools/content/*.py', desc: '内容源：改内容改这里，不改 JSON', glyph: '✎' },
-  { name: 'build-content.py', desc: '构建：写 JSON 必须 newline=\\n，防 CRLF 假变更', glyph: '⚙' },
-  { name: '*.json（事实源）', desc: 'Git 化的唯一事实源，三种出口都读它', glyph: '▤' },
-  { name: 'sync-content.mjs', desc: '同步：构建期校验锚点存在性，找不到即失败', glyph: '⇄' },
-] as const;
+  views: ArchViewMeta[];
+  verifyChain: { name: string; count: number; desc: string }[];
+  verifyTotal: number;
 
-export const DATA_CONSUMERS = [
-  '前端静态导入（构建期读取，缺失即构建失败）',
-  'arsenal-server 启动只读（规则 / 导出 / lint）',
-  '导出 zip（README 只报「算出来的」缺失类）',
-] as const;
+  businessDomains: CapabilityDomain[];
+  businessOutlets: { name: string; desc: string; glyph: string }[];
+  businessConsumers: string[];
+  productNonGoals: string[];
 
-export const DATA_GOVERNANCE = [
-  '片段锚点替代行号 —— 代码一动行号就废，锚点找不到直接构建失败',
-  '双向交叉校验 —— 结构树与选型数据互相核对，两个脚本各跑一遍',
-  '非正则层如实 skipped —— 宁可少判，不伪造判定结果',
-] as const;
+  dataAssets: DataAsset[];
+  dataPipeline: { name: string; desc: string; glyph: string }[];
+  dataConsumers: string[];
+  dataGovernance: string[];
 
-// ── 应用架构：路由 × 接口 × 分层 ───────────────────────────────
+  appRoutes: { path: string; name: string; desc: string }[];
+  appEndpoints: { group: string; items: string[] }[];
+  appLayers: { name: string; desc: string; items: string[] }[];
+  appContracts: string[];
 
-export const APP_ROUTES: { path: string; name: string; desc: string }[] = [
-  { path: '/', name: '概览', desc: '军火库全景与统计' },
-  { path: '/rules', name: '规则库', desc: `${liveStats.total} 条规范，按类检索` },
-  { path: '/blueprints', name: '最佳实践案例库', desc: `${cookbookStats.features} 切片 · ${cookbookStats.lines} 行真实代码` },
-  { path: '/stack', name: '装配台', desc: `${dimensions.length} 维选型 + 产物生成` },
-  { path: '/arch', name: '架构图谱', desc: '六大架构视图' },
-  { path: '/check', name: '校验台', desc: '上传代码按规范判定' },
-  { path: '/export', name: '导出中心', desc: '规则集多格式导出' },
-];
+  productSurfaces: { name: string; desc: string }[];
+  engineLayers: { name: string; status: 'done' | 'todo'; metric: string; desc: string }[];
+  severityRows: { name: string; count: number; tone: 'bad' | 'warn' | 'info' }[];
+  mustLimit: number;
 
-export const APP_ENDPOINTS: { group: string; items: string[] }[] = [
-  { group: '系统', items: ['GET /api/health', 'GET /api/stats'] },
-  {
-    group: '规则',
-    items: ['GET /api/rules', 'GET /api/rules/grouped', 'GET /api/rules/sources', 'GET /api/rules/{id}'],
-  },
-  { group: '导出', items: ['GET /api/export/formats', 'GET /api/export/{format}', 'GET /api/export/{format}/raw'] },
-  { group: '校验 / 出图', items: ['POST /api/lint', 'GET /api/archify', 'POST /api/archify/deliver'] },
-];
+  projectDirs: { path: string; role: string }[];
+  projectPipeline: string[];
+  projectRoadmap: { name: string; desc: string; tone: string }[];
+}
 
-export const APP_LAYERS = [
-  { name: '页面层', desc: 'Next.js 14 静态导出（output: export），无服务端运行时', items: APP_ROUTES.map((r) => r.name) },
-  { name: '领域库层', desc: 'src/lib —— 检索 / 装配 / 画布 / 引擎 / 导出，全部构建期可用', items: ['rules', 'cookbook', 'stack', 'arch-canvas', 'archify-ir', 'engine', 'exporters'] },
-  { name: 'API 客户端', desc: 'arsenal-api.ts —— 全站唯一的 fetch 收口，后端不可达时逐功能降级', items: ['probeArchify', 'deliverArchify'] },
-  { name: '服务层', desc: 'Spring Boot 3.2 只读服务（3011），控制器零 try-catch，全局异常收口', items: ['RulesController', 'ExportController', 'LintController', 'ArchifyController'] },
-  { name: '数据源', desc: '启动期只读仓库 JSON，不持久化、无数据库', items: ['arsenal-rules', 'arsenal-cookbook', 'arsenal-stacks'] },
-] as const;
+/** 图标回落的兜底 glyph 名。档案少写一个 glyph 时用它，不静默给空字符串。 */
+const DEFAULT_GLYPH = 'spark';
 
-export const APP_CONTRACTS = [
-  '导航双登记：前端 NAV 与侧栏共用一份 NAV 数组，新增路由只改一处',
-  'ApiResponse 统一信封：错误码收口在 GlobalExceptionHandler，控制器不写 try-catch',
-  '后端不可达不白屏：出图按钮置灰、说明替代，下载 IR 仍可离线走 CLI',
-] as const;
+export function composeArchViews(p: ResolvedProfile): ArchViewData {
+  const views: ArchViewMeta[] = ARCH_VIEW_IDS.map((id) => {
+    const identity = ARCH_VIEW_IDENTITY[id];
+    const text = p.views[id];
+    return {
+      id,
+      ...identity,
+      definition: text.definition,
+      focus: text.focus,
+      question: text.question,
+      outputs: text.outputs,
+    };
+  });
 
-// ── 产品架构：功能面 × 引擎三层 ─────────────────────────────────
+  const appRoutes = p.app.routes.map((r) => ({ path: r.path, name: r.name, desc: r.desc }));
+  const routeNames = appRoutes.map((r) => r.name);
 
-export const PRODUCT_SURFACES: { name: string; desc: string }[] = [
-  { name: '规则库', desc: '规范的查与审：严重度 / 分类 / 来源过滤' },
-  { name: '最佳实践案例库', desc: '规范的代码化呈现：bad/good 可对照' },
-  { name: '装配台', desc: '选型 → 可运行性判定 → 工程产物' },
-  { name: '架构图谱', desc: '六大架构一图讲清：业务到项目' },
-  { name: '校验台', desc: '拿代码验：上传即判，如实披露 skipped' },
-  { name: '导出中心', desc: '三种出口的批量出口：MD / JSON / zip' },
-];
+  return {
+    profileId: p.id,
+    profileName: p.name,
+    profileSubtitle: p.subtitle,
+    profileNote: p.note,
 
-export const ENGINE_LAYERS = [
-  {
-    name: 'L1 正则',
-    status: 'done' as const,
-    metric: `${liveStats.regexCapable} 条可真检出`,
-    desc: '能真判定的都在这层：模式精确、误报可控',
-  },
-  {
-    name: 'L2 AST',
-    status: 'todo' as const,
-    metric: `${liveStats.astCapable} 条待接入`,
-    desc: 'JavaParser 查询已写进规则数据，引擎未做 —— 全部如实 skipped',
-  },
-  {
-    name: 'L3 LLM 语义',
-    status: 'todo' as const,
-    metric: '未启动',
-    desc: '语义层只做辅助判定，结论必须可核对，不替人拍板',
-  },
-];
+    views,
+    verifyChain: p.project.verifyChain,
+    verifyTotal: p.verifyTotal,
 
-export const SEVERITY_ROWS = [
-  { name: 'MUST', count: liveStats.sev.MUST, tone: 'bad' as const },
-  { name: 'NEVER', count: liveStats.sev.NEVER, tone: 'bad' as const },
-  { name: 'SHOULD', count: liveStats.sev.SHOULD, tone: 'warn' as const },
-  { name: 'MAY', count: liveStats.sev.MAY, tone: 'info' as const },
-];
+    businessDomains: p.business.domains.map((d) => ({ name: d.name, desc: d.desc, metric: d.metric ?? '' })),
+    businessOutlets: p.business.outlets.map((o) => ({ name: o.name, desc: o.desc, glyph: o.glyph ?? DEFAULT_GLYPH })),
+    businessConsumers: p.business.consumers,
+    productNonGoals: p.business.nonGoals,
 
-export const MUST_LIMIT = liveStats.mustHardLimit;
+    dataAssets: p.data.assets,
+    dataPipeline: p.data.pipeline.map((s) => ({ name: s.name, desc: s.desc, glyph: s.glyph ?? DEFAULT_GLYPH })),
+    dataConsumers: p.data.consumers,
+    dataGovernance: p.data.governance,
 
-// ── 项目架构：仓库分区 × 构建链 × 验证链 × 里程碑 ────────────────
+    appRoutes,
+    appEndpoints: p.app.endpoints,
+    // `@routes` 是保留值：写它等于「这一层的 items 就是上面那些页面的名字」。
+    // 手抄一遍迟早会漏掉新加的路由，而这个漏不会报错。
+    appLayers: p.app.layers.map((l) => ({
+      name: l.name,
+      desc: l.desc,
+      items: l.items === '@routes' ? routeNames : (l.items as string[]),
+    })),
+    appContracts: p.app.contracts,
 
-export const PROJECT_DIRS: { path: string; role: string }[] = [
-  { path: 'arsenal-rules/', role: '规则事实源（11 文件）' },
-  { path: 'arsenal-cookbook/', role: '蓝图事实源（4 切片）' },
-  { path: 'arsenal-stacks/', role: '选型与画布声明' },
-  { path: 'arsenal-web/', role: 'Next.js 前端 + 全部自检脚本' },
-  { path: 'arsenal-server/', role: 'Spring Boot 只读服务（3011）' },
-  { path: 'tools/', role: '内容构建脚本（改内容改这里）' },
-  { path: 'docs/', role: '交付样例与说明' },
-];
+    productSurfaces: p.product.surfaces,
+    engineLayers: p.product.engineLayers,
+    severityRows: [
+      { name: 'MUST', count: liveStats.sev.MUST, tone: 'bad' as const },
+      { name: 'NEVER', count: liveStats.sev.NEVER, tone: 'bad' as const },
+      { name: 'SHOULD', count: liveStats.sev.SHOULD, tone: 'warn' as const },
+      { name: 'MAY', count: liveStats.sev.MAY, tone: 'info' as const },
+    ],
+    mustLimit: liveStats.mustHardLimit,
 
-export const PROJECT_PIPELINE = [
-  'tools/content/*.py（改内容）',
-  'python tools/build-content.py（生成 JSON）',
-  'node scripts/sync-content.mjs（锚点校验 + 同步）',
-  `npm run verify（${VERIFY_TOTAL} 项自检）`,
-] as const;
+    projectDirs: p.project.dirs,
+    projectPipeline: p.project.pipeline,
+    projectRoadmap: p.project.roadmap,
+  };
+}
 
-export const PROJECT_ROADMAP = [
-  { name: 'MCP Server 适配层', desc: '接口全就绪，只差协议层 —— 项目成败关键', tone: 'key' as const },
-  { name: '装配台 / 蓝图接后端 API', desc: '前端已完整可用，后端目前只读规则集', tone: 'next' as const },
-  {
-    name: 'AST 引擎层',
-    desc: `JavaParser，${liveStats.astCapable} 条 ast 规则已备好数据`,
-    tone: 'next' as const,
-  },
-  {
-    name: 'LLM 语义层',
-    desc: `辅助判定，结论可核对；${liveStats.llmCapable} 条规则已声明 llm check`,
-    tone: 'later' as const,
-  },
-  {
-    name: `${liveStats.total} 条规则逐条过目`,
-    desc: '没过目就不算军火库',
-    tone: 'key' as const,
-  },
-  { name: '结构层 2 条规则缺口', desc: '界面如实标注，不挂假 id，补不补待定', tone: 'later' as const },
-] as const;
+// ── 默认档案的展开（消费方不改也能用） ──────────────────────
+
+const DEFAULT_DATA = composeArchViews(getProfile(DEFAULT_PROFILE_ID));
+
+export const VERIFY_CHAIN = DEFAULT_DATA.verifyChain;
+export const VERIFY_TOTAL = DEFAULT_DATA.verifyTotal;
+export const ARCH_VIEWS = DEFAULT_DATA.views;
+
+export function archViewMeta(id: ArchViewId): ArchViewMeta {
+  return ARCH_VIEWS.find((v) => v.id === id) ?? ARCH_VIEWS[0];
+}
+
+export const BUSINESS_DOMAINS = DEFAULT_DATA.businessDomains;
+export const BUSINESS_OUTLETS = DEFAULT_DATA.businessOutlets;
+export const BUSINESS_CONSUMERS = DEFAULT_DATA.businessConsumers;
+export const PRODUCT_NON_GOALS = DEFAULT_DATA.productNonGoals;
+
+export const DATA_ASSETS = DEFAULT_DATA.dataAssets;
+export const DATA_PIPELINE = DEFAULT_DATA.dataPipeline;
+export const DATA_CONSUMERS = DEFAULT_DATA.dataConsumers;
+export const DATA_GOVERNANCE = DEFAULT_DATA.dataGovernance;
+
+export const APP_ROUTES = DEFAULT_DATA.appRoutes;
+export const APP_ENDPOINTS = DEFAULT_DATA.appEndpoints;
+export const APP_LAYERS = DEFAULT_DATA.appLayers;
+export const APP_CONTRACTS = DEFAULT_DATA.appContracts;
+
+export const PRODUCT_SURFACES = DEFAULT_DATA.productSurfaces;
+export const ENGINE_LAYERS = DEFAULT_DATA.engineLayers;
+export const SEVERITY_ROWS = DEFAULT_DATA.severityRows;
+export const MUST_LIMIT = DEFAULT_DATA.mustLimit;
+
+export const PROJECT_DIRS = DEFAULT_DATA.projectDirs;
+export const PROJECT_PIPELINE = DEFAULT_DATA.projectPipeline;
+export const PROJECT_ROADMAP = DEFAULT_DATA.projectRoadmap;

@@ -56,10 +56,15 @@ arsenal/
 │   ├── architecture.json        7 泳道 / 31 能力 / 21 条组合策略
 │   └── project.json             条件化目录树 / 启动类 / 导出文件模板
 │
+├── arsenal-profiles/            六视图项目档案（换项目只加这里，代码零改动）
+│   └── <id>.json                与文件名同 id；数字一律写 {{token}}，不许手抄
+│
 ├── arsenal-web/                 Next.js 前端（3010）
-│   ├── src/app/{rules,check,export,blueprints,stack,arch}/  六个页面
+│   ├── src/app/{rules,check,export,blueprints,stack,arch,archify}/  七个页面
 │   │                             （arch = 架构图谱：业务 / 数据 / 应用 / 技术 / 产品 / 项目 六大架构，
-│   │                              技术架构沿用装配台选型 —— localStorage 快照，装配台是唯一属主）
+│   │                              讲哪个项目由项目档案决定；技术架构沿用装配台选型 ——
+│   │                              localStorage 快照，装配台是唯一属主。
+│   │                              archify = 出图服务：任意 IR 进城，HTML 出城）
 │   ├── src/lib/                 纯函数层（cookbook / stack / arch / arch-canvas /
 │   │                             archify-ir / arch-views / project / zip，都不引绘图库）
 │   │                             + arsenal-api.ts（唯一一处网络请求，调后端出图）
@@ -78,7 +83,7 @@ arsenal/
 tools/content/*.py            内容源（改内容改这里，不要改 JSON）
         │  python tools/build-content.py          含构建期校验，失败即中断
         ▼
-arsenal-rules/ · arsenal-cookbook/ · arsenal-stacks/     source of truth，进 Git
+arsenal-rules/ · arsenal-cookbook/ · arsenal-stacks/ · arsenal-profiles/   source of truth，进 Git
         │  node scripts/sync-content.mjs          构建前自动执行，含锚点校验
         ▼
 arsenal-web/src/generated/*.json              编译期快照（gitignore，可重建）
@@ -158,13 +163,13 @@ bash scripts/compile-check.sh      # 26 源文件 → 41 class
 cd arsenal-web && npm run verify
 ```
 
-一条命令跑完六层、共 **464 项**：
+一条命令跑完六层、共 **473 项**：
 
 | 层 | 项数 | 看什么 |
 |---|---|---|
 | `verify:arch` | 35 | 能力供需 / 槽位必需性 / 三态结论 |
 | `verify:graph` | 59 | 架构图交互层：依赖边与版式边不许混淆、可达/路由自洽、渲染器加法契约 |
-| `verify:project` | 312 | 结构树、启动类、隐患、README、架构图与说明、**部署产物（Dockerfile / Compose / K8s 清单 / Helm Chart 的可应用性与字段一致性）**、zip 打包；**六大架构视图数据层**（每个数字可追溯到真实数据）、技术架构画布加料不变量（页脚 / 署名 / 分区计数）、**图标库与动效**（图标 key 不许静默回落、导出态带动画 / 交互态不带）、**导航与页签契约**（导航不许指向空地址、页面不许成孤儿、页签 id 必须有渲染分支） |
+| `verify:project` | 321 | 结构树、启动类、隐患、README、架构图与说明、**部署产物（Dockerfile / Compose / K8s 清单 / Helm Chart 的可应用性与字段一致性）**、zip 打包；**六大架构视图数据层**（每个数字可追溯到真实数据）、技术架构画布加料不变量（页脚 / 署名 / 分区计数）、**图标库与动效**（图标 key 不许静默回落、导出态带动画 / 交互态不带）、**导航与页签契约**（导航不许指向空地址、页面不许成孤儿、页签 id 必须有渲染分支） |
 | `verify:engine` | 17 | 规则池对账、样本检出、误报检查 |
 | `verify:parity` | 12 | 前后端导出逐字节一致性（含后端探针实跑）；**活服务体检** —— 起后端时断言 `/api/stats` 报的条数与分布 == 事实源（防「改了规则忘了重启」的静默漂移），没起服务则明说跳过 |
 | `verify:archify` | 29 | 选型 → 通用绘图器 IR：结构自检 + 对方那九项构图检查 + 后端出图服务实跑 |
@@ -201,7 +206,8 @@ cd arsenal-web && ARCHIFY_SWEEP=1 npm run verify:archify
 | **规则集** | 不能做什么 | 69 条（MUST 37 + NEVER 13 = 50 条强制级卡满上限；SHOULD 18 + MAY 1） |
 | **最佳实践案例库** | 一个功能完整该怎么写，以及**什么时候不要这么写** | 4 条切片 / 32 文件 / 2214 行 / 98 条锚点备注 / 16 条参考出处 |
 | **架构装配台** | 由哪些零件组成、**拼起来能不能跑** | 7 泳道 / 18 维度 / 46 选项 / 31 能力 / 21 策略 |
-| **架构图谱（/arch）** | 六大架构一图讲清：业务 / 数据 / 应用 / 技术 / 产品 / 项目 | 5 张静态视图 + 技术架构（跟随装配台选型）；视图数字全部从真实数据算出。视觉系统：`arch-glyphs`（30+ 概念图标，每域每层一个）、`tech-icons`（87 个技术组件图标）、`arch-motion`（SVG 内嵌动画，导出的 .svg 单独打开照样动）、六张 AI 生成封面插画（`public/arch/*.webp`，共 79KB）。动效克制：实线不因为动画变虚线（语义优先），`prefers-reduced-motion` 下全部停 |
+| **架构图谱（/arch）** | 六大架构一图讲清：业务 / 数据 / 应用 / 技术 / 产品 / 项目 | 由项目档案驱动：换一份 `arsenal-profiles/<id>.json`（或就地导入）就换一个项目，渲染代码零改动。5 张静态视图 + 技术架构（跟随装配台选型）；视图数字全部从真实数据算出。视觉系统：`arch-glyphs`（30+ 概念图标，每域每层一个）、`tech-icons`（87 个技术组件图标）、`arch-motion`（SVG 内嵌动画，导出的 .svg 单独打开照样动）、六张 AI 生成封面插画（`public/arch/*.webp`，共 79KB）。动效克制：实线不因为动画变虚线（语义优先），`prefers-reduced-motion` 下全部停 |
+| **出图服务（/archify）** | 把任意项目的架构 IR 变成一张合格的 HTML 交付图 | 与选型无关：粘贴 / 上传任意 IR → 本地两道预检（形状 + 已知结构坑）→ 后端渲染 → HTML 预览与下载 + 逐条构图诊断。输入不限于军火库自己生成的 IR |
 
 装配台的核心是**能力供需模型**：每个选项声明 `requires` / `provides`，
 所有已装配方块的 `provides` 求并集，未覆盖的 `requires` 即为缺零件，据此给出三态结论
@@ -229,6 +235,44 @@ Nacos 这类要单独起进程的才画成节点。可以拖动、改名、换�
 呈现，不碰选型判定（存在 localStorage，不进 Git）。它在 `/arch` 路由下（2026-09-21
 起装配台不再内嵌此页签），选型快照由装配台写入 localStorage —— 装配台是选型唯一
 属主，这里只读。
+
+### 给别的项目出这六张图
+
+`/arch` 不是「军火库的一个功能页」，它是**对某个项目的六面展示** —— 六张图讲的从来是
+「哪个项目」。所以输入口是数据，不是代码：
+
+```
+写一份 arsenal-profiles/<你的项目>.json
+        │  npm run sync:content        （校验六视图齐备 / id 与文件名一致 / token 写法合法）
+        ▼
+src/generated/profiles.json           编译期快照
+        │
+        ▼
+/arch 的「项目档案」选择器            点一下切过去，或就地粘贴 / 上传一份临时档案
+```
+
+两条硬规矩（构建期与自检期各拦一次，手改 JSON 绕不过去）：
+
+1. **能算的数字不许手抄。** 档案里出现阿拉伯数字的 `metric` 必须写成 `{{rules.total}}`
+   这种 token，由 `arch-profile.ts` 的 `buildMetrics()` 从真实数据解出来。抄一个「69 条」
+   进去，改一次事实源它就变成一句自信的错话 —— 而错话不会报错，只会一直显示。
+2. **六视图必须齐。** 每个视图要有 `definition / focus / question / outputs`，缺了构建期直接失败。
+   视图的中文名 / 图标 / 主题色留在代码里（渲染器的契约），档案只负责「这个项目在这个面上写了什么」。
+
+导入的档案只活在本机浏览器里（localStorage），**不进仓库** —— 别的项目的架构资料不该因为
+我们想看一眼就被提交进来。要长期保留就落成 `arsenal-profiles/<id>.json` 再同步一次。
+技术架构那张图例外：它讲「你要部署的东西」，跟着装配台选型走，不跟档案走。
+
+### 出图服务（/archify）
+
+通用绘图器（扳手 AI）的能力一旦只能从装配台触发，看起来就只是军火库自己的一个按钮。
+`/archify` 把输入口解耦，契约只剩一条：**IR 进，HTML 出**。
+
+三类结果分开显示，因为处置方式完全不同：**形状不对**（文件本身不是 IR —— 送来后端只会
+拿到一个指向我们代码行的 `TypeError`，所以在本地就拦下并说清哪一层不对）、**构图没过**
+（图的问题，逐条列出对方的诊断）、**后端不可达**（不是错误是常态，给离线出路：把 IR
+复制走，用 CLI 出图）。本地只拦「形状」与「我们已知会踩的结构坑」，九项构图检查在前端
+算不出来 —— 那只有对方的渲染器算得出，如实交给它回报。
 
 出口有五个：复制 PNG、下载 SVG、复制技术说明书 Markdown，**导出通用绘图器的
 IR JSON**（见 `src/lib/archify-ir.ts`），以及**在页面里直接生成 HTML**

@@ -1,7 +1,16 @@
 'use client';
 
-import { useState, type ReactNode } from 'react';
-import { ARCH_VIEWS, archViewMeta, VERIFY_TOTAL, type ArchViewId } from '@/lib/arch-views';
+import { useCallback, useMemo, useState, type ReactNode } from 'react';
+import {
+  archViewMeta,
+  composeArchViews,
+  DEFAULT_PROFILE_ID,
+  getProfile,
+  PROFILE_SUMMARIES,
+  type ArchViewData,
+  type ArchViewId,
+} from '@/lib/arch-views';
+import { buildMetrics, resolveProfile, type ArchProfile } from '@/lib/arch-profile';
 import {
   AppDiagram,
   BusinessDiagram,
@@ -10,14 +19,18 @@ import {
   ProjectDiagram,
 } from './diagrams';
 import TechArch from '../stack/TechArch';
+import ProfilePicker from './ProfilePicker';
+import { loadCustomProfiles } from './profile-store';
 import { CountUp, Glyph, GraphSkeleton, Reveal, useStageLoad } from './motion';
 
 /**
  * 架构图谱 —— 六大架构一图讲清。
  *
- * 业务 / 数据 / 应用 / 产品 / 项目五张是「讲清楚」的静态视图，
- * 数据全部从真实数据算出；技术架构是唯一可编辑的交付图，沿用装配台
- * 的选型（localStorage 快照），在装配台改选型，这里自动跟上。
+ * 这一页不是「军火库的一个功能」，是**对某个项目的六面展示**：
+ * 换一份项目档案（`arsenal-profiles/<id>.json` 或就地导入），六张图跟着换。
+ * 五张静态图的数据全部来自档案 + 构建期算出的 token；技术架构是唯一
+ * 可编辑的交付图，沿用装配台的选型（localStorage 快照），在装配台改选型，
+ * 这里自动跟上 —— 它讲的是「你要部署的东西」，天然属于当前选型。
  *
  * 动效约定：切换页签先给骨架屏（技术架构图真的要读 localStorage + 重算
  * 画布，那段时间不是装的），图就位后淡入；封面插画缓浮，头卡逐格浮现。
@@ -46,14 +59,34 @@ const VIEW_IMG: Record<ArchViewId, string> = {
 
 export default function ArchGallery() {
   const [tab, setTab] = useState<ArchViewId>('business');
-  const view = archViewMeta(tab);
+  const [activeId, setActiveId] = useState<string>(DEFAULT_PROFILE_ID);
+  /** 导入的档案：首屏从 localStorage 读，不参与构建快照 */
+  const [custom, setCustom] = useState<Record<string, ArchProfile>>(() => loadCustomProfiles());
+
+  const data: ArchViewData = useMemo(() => {
+    const doc = custom[activeId];
+    // 导入档案当场解析。档案不大（几 KB），每次切换重建一遍比缓存省心 ——
+    // 缓存会带来「改了档案没生效」这类查半天的问题。
+    return composeArchViews(doc ? resolveProfile(doc, buildMetrics()) : getProfile(activeId));
+  }, [activeId, custom]);
+
+  const view = archViewMetaIn(data, tab);
+  const isBuiltin = PROFILE_SUMMARIES.some((p) => p.id === activeId);
+
+  const onPick = useCallback((id: string, doc?: ArchProfile) => {
+    if (doc) setCustom((prev) => ({ ...prev, [doc.id]: doc }));
+    setActiveId(id);
+  }, []);
 
   return (
     <div className="space-y-4">
+      {/* 档案选择：这一页讲的是哪个项目 */}
+      <ProfilePicker builtin={PROFILE_SUMMARIES} activeId={activeId} onPick={onPick} />
+
       {/* 页签 */}
       <div className="panel flex flex-wrap items-center gap-1.5 px-3 py-2.5">
         <span className="mono mr-1 text-[10px] uppercase tracking-wider text-fgFaint">六大架构</span>
-        {ARCH_VIEWS.map((v, i) => {
+        {data.views.map((v, i) => {
           const on = tab === v.id;
           return (
             <Reveal key={v.id} i={i} as="span">
@@ -76,12 +109,12 @@ export default function ArchGallery() {
         })}
         <span className="ml-auto flex items-center gap-1.5 text-[10px] text-fgFaint">
           <Glyph name="scale" size={12} color="#D9A441" />
-          自检 <CountUp text={String(VERIFY_TOTAL)} className="text-[10.5px] text-[#D9A441]" /> 项 · 从战略到落地
+          {data.profileName} · 自检 <CountUp text={String(data.verifyTotal)} className="text-[10.5px] text-[#D9A441]" /> 项 · 从战略到落地
         </span>
       </div>
 
       {/* 视图头卡：定义 / 核心关注 / 回答问题 / 常见产出（沿用「一图讲清」的口径） */}
-      <div className="panel overflow-hidden" key={tab} style={{ borderColor: `${view.accent}44` }}>
+      <div className="panel overflow-hidden" key={`${activeId}-${tab}`} style={{ borderColor: `${view.accent}44` }}>
         <div className="relative flex items-center gap-3 border-b border-line px-4 py-3" style={{ background: `${view.accent}0D` }}>
           <span
             className="mono ui-rise flex h-8 w-8 items-center justify-center rounded-md"
@@ -94,6 +127,9 @@ export default function ArchGallery() {
               {view.name}
               <span className="mono ml-2 text-[10px] font-normal uppercase tracking-[0.14em] text-fgFaint">
                 {view.english}
+              </span>
+              <span className="ml-2 rounded px-1.5 py-0.5 text-[9.5px] font-normal" style={{ background: 'rgba(217,164,65,0.12)', color: '#D9A441' }}>
+                {data.profileName}
               </span>
             </h2>
             <p className="mt-0.5 max-w-[820px] text-[10.5px] leading-[16px] text-fgMuted">{view.definition}</p>
@@ -116,21 +152,35 @@ export default function ArchGallery() {
         </div>
       </div>
 
+      {/* 技术架构图是唯一一张跟着「选型」而不是「档案」走的图，说清楚免得误会 */}
+      {tab === 'tech' && !isBuiltin && (
+        <p className="panel px-3 py-2 text-[10.5px] leading-[16px] text-fgMuted">
+          技术架构图讲的是<strong className="font-semibold text-fg">你要部署的东西</strong>，它跟着装配台的选型走，
+          不跟项目档案走 —— 换档案不会换掉这张图。要出这个项目的技术架构，把它的选型在装配台拼出来，
+          或到「出图服务」直接粘一份 IR。
+        </p>
+      )}
+
       {/* 视图主体：切换时先骨架后淡入 */}
-      <ViewPane tab={tab} accent={view.accent}>
-        {tab === 'business' && <BusinessDiagram />}
-        {tab === 'data' && <DataDiagram />}
-        {tab === 'app' && <AppDiagram />}
-        {tab === 'product' && <ProductDiagram />}
-        {tab === 'project' && <ProjectDiagram />}
+      <ViewPane tab={`${activeId}-${tab}`} accent={view.accent}>
+        {tab === 'business' && <BusinessDiagram data={data} />}
+        {tab === 'data' && <DataDiagram data={data} />}
+        {tab === 'app' && <AppDiagram data={data} />}
+        {tab === 'product' && <ProductDiagram data={data} />}
+        {tab === 'project' && <ProjectDiagram data={data} />}
         {tab === 'tech' && <TechArch />}
       </ViewPane>
     </div>
   );
 }
 
+/** 按当前档案取视图元信息。不用 archViewMeta()，那个只认默认档案。 */
+function archViewMetaIn(data: ArchViewData, id: ArchViewId) {
+  return data.views.find((v) => v.id === id) ?? data.views[0];
+}
+
 /** 视图容器：骨架屏 → 内容淡入。骨架不是装饰，技术架构图确实要现场算 */
-function ViewPane({ tab, accent, children }: { tab: ArchViewId; accent: string; children: ReactNode }) {
+function ViewPane({ tab, accent, children }: { tab: string; accent: string; children: ReactNode }) {
   const loading = useStageLoad(tab);
   if (loading) {
     return (

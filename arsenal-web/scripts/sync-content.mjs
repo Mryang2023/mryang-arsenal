@@ -317,3 +317,74 @@ console.log(
   `         ${projDirs} 个目录 / ${projFiles} 个文件节点 / ${switchCount} 条开关归属` +
   `｜结构树与选型数据交叉校验通过（${realConfigClasses.size} 个配置类全部有落位）`
 );
+
+// ── ⑤ 项目档案（六视图） ────────────────────────────────────
+// 六张架构图讲的是「哪个项目」。档案一旦抽出去，换项目就只是加一份 JSON，
+// 代码零改动 —— 所以这里守的是「档案能读、六视图齐、id 不撞车」。
+// 深层校验（token 能否解析、数字与真实数据对不对得上）在 TS 侧的
+// arch-profile.ts + project-check.ts，因为注册表在那里。
+const profilesDir = path.join(root, 'arsenal-profiles');
+if (!fs.existsSync(profilesDir)) {
+  fail('找不到 arsenal-profiles/ —— 六视图的档案源，缺了它 /arch 只能讲一份故事');
+}
+
+const profileFiles = fs
+  .readdirSync(profilesDir)
+  .filter((f) => f.endsWith('.json'))
+  .sort();
+if (!profileFiles.length) fail('arsenal-profiles/ 里一份 JSON 都没有');
+
+const VIEW_IDS = ['business', 'data', 'app', 'tech', 'product', 'project'];
+const profileOrder = [];
+const profiles = {};
+const profileProblems = [];
+
+for (const file of profileFiles) {
+  const doc = readJson(path.join(profilesDir, file));
+  const at = `arsenal-profiles/${file}`;
+
+  if (typeof doc.id !== 'string' || !doc.id.trim()) profileProblems.push(`${at} 缺少 id`);
+  if (typeof doc.name !== 'string' || !doc.name.trim()) profileProblems.push(`${at} 缺少 name`);
+  if (doc.id && profiles[doc.id]) profileProblems.push(`${at} 的 id「${doc.id}」与前面某份重复`);
+  // 文件名即 id：两者不一致时，`?profile=` 之类的引用会指向一个没人认识的名字
+  if (doc.id && doc.id !== file.replace(/\.json$/, '')) {
+    profileProblems.push(`${at} 的 id「${doc.id}」与文件名不一致 —— 按文件名找它的人会找不到`);
+  }
+
+  for (const vid of VIEW_IDS) {
+    const v = doc.views?.[vid];
+    if (!v) {
+      profileProblems.push(`${at} 缺少 views.${vid}`);
+      continue;
+    }
+    if (!v.definition) profileProblems.push(`${at} views.${vid}.definition 为空`);
+    if (!v.question) profileProblems.push(`${at} views.${vid}.question 为空`);
+    if (!Array.isArray(v.focus) || !v.focus.length) profileProblems.push(`${at} views.${vid}.focus 为空`);
+    if (!Array.isArray(v.outputs) || !v.outputs.length) profileProblems.push(`${at} views.${vid}.outputs 为空`);
+  }
+
+  // token 语法闸门：写错成 `{rules.total}` 或 `{{Rules.Total}}` 时，
+  // 解析器会原样留着，界面上就出现一串花括号字面量 —— 在这里先拦一道。
+  const badTokens = [...JSON.stringify(doc).matchAll(/\{\{([^}]*)\}\}/g)]
+    .map((m) => m[1])
+    .filter((k) => !/^[A-Za-z][A-Za-z0-9.]*$/.test(k));
+  if (badTokens.length) {
+    profileProblems.push(`${at} token 写法不合法：${[...new Set(badTokens)].join('、')}`);
+  }
+
+  profileOrder.push(doc.id);
+  profiles[doc.id] = doc;
+}
+
+if (profileProblems.length) fail(profileProblems.join('\n  - '));
+
+fs.writeFileSync(
+  path.join(outDir, 'profiles.json'),
+  JSON.stringify({ order: profileOrder, profiles }, null, 2),
+  'utf8'
+);
+
+console.log(
+  `[arsenal] 已同步 ${profileOrder.length} 份项目档案 → src/generated/profiles.json\n` +
+  `         ${profileOrder.join(' / ')}（六视图齐备，id 与文件名一致，token 写法合法）`
+);
