@@ -4,12 +4,16 @@
 > 具体某一晚的棒次表、时间硬线、任务清单**不在这里** —— 那些写在每棒的 prompt 里。
 > 本文件只管「一棒怎么干才算干完」。
 >
-> **工作目录**：`D:\workspace\2026\mryang-arsenal`
-> **状态目录**：`D:\workspace\2026\mryang-arsenal\.workbuddy\night-chain\`
-> **计划文件夹惯例**：`docs\hy4-night-plans\`
+> ⚠️ **2026-09-22 起本文件已迁址**：现行版在 **`docs\开发计划-2026-09-22\NIGHT-RUN.md`**
+> （含本晚棒次表 §八、项目附录 §六、`0N-done.json` schema §九）。**夜间 agent 读那一份**，本副本只作历史。
+>
+> **工作目录**：`D:\mryang\workspace\2026\arsenal`（⚠️ 2026-09-22 修正：原写 `D:\workspace\2026\mryang-arsenal`，**该路径不存在**）
+> **状态目录**：`D:\mryang\workspace\2026\arsenal\.workbuddy\night-chain\`
+> **计划文件夹惯例**：`docs\开发计划-2026-09-22\`（原 `docs\hy4-night-plans\` 只剩历史方案，见其 00-index 顶部横幅）
 >
 > 立规：2026-09-22（依据 2026-09-21 首次夜跑的实测结果）。
 > 章程权威版在技能 `night-run` 的 `references/charter.md`；本文件是它在本项目的实例。
+> 编排（哪一晚跑几棒、每棒做什么、备选池）：`docs\开发计划-2026-09-22\00-index.md` §二/§三/§九。
 
 ---
 
@@ -185,19 +189,27 @@ npm run verify                                     # 八层全量（preverify �
 bash ../arsenal-server/scripts/compile-check.sh     # 改动后端时
 ```
 
-八层基线（2026-09-22 实测 **620 项全绿**）：
-`arch 35 / graph 59 / cases 25 / project 406 / engine 17 / parity 12 / archify 31 / scan 35`
+八层分项（**以 `arsenal-web/src/generated/profiles.json` 的 `verifyChain` 为唯一权威**，2026-09-22 11:2x 实测）：
+`arch 35 / graph 59 / project 406 / cases 33 / engine 17 / parity 12 / archify 31 / scan 69 = 662`
+> 2026-09-21 夜跑时报的「620 全绿」是**当夜的实测值**，此后又加了断言（cases 25→33、scan 35→69），
+> 620 与旧层序（把 cases 排第 3、scan 记 35）**已作废**。`project-check.ts:512` 注释里的 628 同样是过期记录。
+> ⚠️ **上面这个 662 仍是「四处同步过」而不是「八层真跑出来的」** —— 这正是 2026-09-22 夜跑棒 4 要修的（各层报实测项数）。
 
 > 已知现象：单次会话内累计删除操作达阈值后，`build` 与 `parity` 的清理步骤会被沙箱守卫拦截。
 > **那是环境问题不是代码问题**，换个新会话即恢复正常。报告里要写清"哪一层被拦"。
 
-### 当前遗留（2026-09-22 夜跑后，详见 `night-chain\REVIEW.md` §六）
+### 当前遗留（**2026-09-22 11:2x 复核，已覆盖前一晚的结论**）
 
-- **P0-1**：`facts → 图` 的三张链路全为零。
-  阻塞点：`arch-canvas.ts` 的 `CanvasTheme` 只有 `'dark' | 'light'`，缺 `doc / slide / blueprint` 三态。
-- **P0-2**：装配台 UI 零改动。`topology.ts` 引擎已能算副本数，但没有页面消费。
-  接法：`SlotBlock.tsx` 渲染 `topologyChoices()`，写进 `meta.topology[dimId]`。
-- **P1**：0 张位图 / 案例只剩 2/6 场景 / `ScanGuard` 四闸门无断言 / fixture 只有 20 文件。
+前一晚 `REVIEW.md` §六 的七条里五条已被今早的并发会话做掉（facts→图三链路、`CanvasTheme` 五态、
+装配台形态 UI、场景 2→6、ScanGuard 四闸门、fixture 20→30）。**此刻真实状态**：
+
+- ✅ `tsc --noEmit` **退出码 0**（前一晚记的两个 `topology.ts:619/664` 类型错已修，实测 11:2x）。
+- ✅ 6 个场景 × 8 切片 = 48 切片；scan 层 69 项；fixture 30 文件。
+- ❌ **位图 18/81**（`find public/icons -type f | wc -l` = 18）。矢量 81/81 已全量可用，不阻塞功能。
+- ❌ **验证体系仍在说谎**（skip 算通过、项数手写、AST 解析失败报满分）→ 今晚棒 1/2/4。
+- ❌ 10 个页面从未逐页浏览器走查 → 今晚棒 3（多模态）。
+- 完整的剩余账：`.workbuddy/night-chain/REMAINING-PLAN.md`（前一晚盘点）+
+  `docs/开发计划-2026-09-22/00-index.md` §五 统一台账（**以后者为准**，前者含已翻篇项）。
 
 ---
 

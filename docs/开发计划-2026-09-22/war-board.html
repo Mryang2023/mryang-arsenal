@@ -1,0 +1,293 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>军火库 · 夜跑作战板 · 2026-09-22</title>
+<style>
+  :root{
+    --bg:#f5f6f4; --panel:#ffffff; --ink:#1c2320; --ink2:#4a5750; --ink3:#78847d;
+    --line:#dfe4df; --line2:#eceeeb;
+    --gold:#a9781f; --goldbg:#fbf3e0;
+    --green:#2f7a4f; --greenbg:#eaf5ee;
+    --blue:#2b5f97; --bluebg:#eaf1f8;
+    --amber:#a15c12; --amberbg:#fdf1e3;
+    --red:#a8322c; --redbg:#fbeceb;
+    --violet:#6b4a97; --violetbg:#f2edf9;
+  }
+  *{box-sizing:border-box}
+  body{
+    margin:0;padding:32px 28px 56px;
+    background:var(--bg);color:var(--ink);
+    font:15px/1.6 "Segoe UI","Microsoft YaHei",system-ui,sans-serif;
+    -webkit-font-smoothing:antialiased;
+  }
+  .wrap{max-width:1180px;margin:0 auto}
+  h1{font-size:26px;margin:0 0 6px;letter-spacing:.5px;font-weight:700}
+  .sub{color:var(--ink3);font-size:13px;margin-bottom:22px}
+  .sub code{background:#fff;border:1px solid var(--line);border-radius:4px;padding:1px 5px;font-size:12px}
+
+  .kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:12px;margin-bottom:24px}
+  .kpi{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:14px 16px}
+  .kpi .lab{font-size:11.5px;color:var(--ink3);letter-spacing:.6px;text-transform:uppercase}
+  .kpi .val{font-size:26px;font-weight:700;margin:4px 0 2px;font-variant-numeric:tabular-nums}
+  .kpi .note{font-size:12.5px;color:var(--ink2)}
+  .kpi.hot{border-color:#e7cf9a;background:var(--goldbg)}
+  .kpi.hot .val{color:var(--gold)}
+
+  h2{font-size:15px;margin:30px 0 12px;padding-bottom:7px;border-bottom:1px solid var(--line);
+     letter-spacing:.5px;color:var(--ink)}
+  h2 span{font-weight:400;color:var(--ink3);font-size:12.5px;margin-left:8px}
+
+  .track{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:18px 18px 14px}
+  .axis{display:flex;justify-content:space-between;font-size:11.5px;color:var(--ink3);
+        font-variant-numeric:tabular-nums;margin-bottom:8px;padding:0 2px}
+  .bar{display:flex;height:44px;border-radius:7px;overflow:hidden;border:1px solid var(--line2)}
+  .bar > div{display:flex;align-items:center;justify-content:center;font-size:12.5px;font-weight:600;
+             color:#fff;position:relative;white-space:nowrap;overflow:hidden}
+  .seg1{flex:118;background:#2b5f97}
+  .seg2{flex:118;background:#a8322c}
+  .seg3{flex:118;background:#6b4a97}
+  .seg4{flex:119;background:#2f7a4f}
+  .seg5{flex:40;background:#5f5e5a}
+  .bar > div + div{border-left:1px solid rgba(255,255,255,.35)}
+  .pct{font-size:11px;color:var(--ink3);margin-top:8px}
+
+  .legs{display:grid;gap:12px;margin-top:14px}
+  .leg{background:var(--panel);border:1px solid var(--line);border-left-width:4px;border-radius:9px;
+       padding:13px 16px;display:grid;grid-template-columns:150px 1fr;gap:16px}
+  .leg.l1{border-left-color:#2b5f97}
+  .leg.l2{border-left-color:#a8322c}
+  .leg.l3{border-left-color:#6b4a97}
+  .leg.l4{border-left-color:#2f7a4f}
+  .leg.l5{border-left-color:#5f5e5a}
+  .leg .when{font-size:12px;color:var(--ink2);font-variant-numeric:tabular-nums;line-height:1.55}
+  .leg .when b{display:block;font-size:14.5px;color:var(--ink);margin-bottom:2px}
+  .leg .when em{font-style:normal;color:var(--ink3);font-size:11.5px}
+  .leg .when .id{display:block;font-family:ui-monospace,Consolas,monospace;font-size:10.5px;
+                 color:var(--ink3);margin-top:3px;word-break:break-all}
+  .leg h3{margin:0 0 6px;font-size:14px;font-weight:650}
+  .chips{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:7px}
+  .chip{font-size:11.5px;padding:2px 8px;border-radius:20px;background:#f1f3f1;border:1px solid var(--line);
+        color:var(--ink2);font-variant-numeric:tabular-nums}
+  .chip.p0{background:var(--redbg);border-color:#eec7c4;color:var(--red);font-weight:600}
+  .chip.core{background:var(--goldbg);border-color:#e7cf9a;color:var(--gold);font-weight:600}
+  .done{font-size:12.5px;color:var(--ink2);padding-left:10px;border-left:2px solid var(--line2)}
+  .done b{color:var(--ink)}
+
+  .cols{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:4px}
+  @media(max-width:940px){.cols{grid-template-columns:1fr}}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:14px 16px}
+  .card h4{margin:0 0 9px;font-size:13px;letter-spacing:.3px}
+  .card h4 .tag{font-size:11px;font-weight:400;color:var(--ink3);margin-left:6px}
+  table{width:100%;border-collapse:collapse;font-size:12.5px}
+  th,td{text-align:left;padding:6px 8px;border-bottom:1px solid var(--line2);vertical-align:top}
+  th{color:var(--ink3);font-weight:500;font-size:11.5px;letter-spacing:.3px}
+  tr:last-child td{border-bottom:none}
+  td.num{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+  ul{margin:0;padding-left:18px}
+  .pool li{margin-bottom:6px;font-size:12.5px}
+  .pool li b{font-weight:650}
+  .warn{background:var(--amberbg);border:1px solid #eccfa4;border-radius:10px;padding:13px 16px;
+        font-size:13px;color:#6d3f0c}
+  .warn b{color:#8a4d09}
+  .no{background:#f4f5f4;border:1px dashed var(--line);border-radius:10px;padding:13px 16px;
+      font-size:12.5px;color:var(--ink2)}
+  .no b{color:var(--ink)}
+  footer{margin-top:28px;font-size:11.5px;color:var(--ink3);border-top:1px solid var(--line);padding-top:12px}
+  footer code{font-size:11.5px}
+  @media print{
+    body{background:#fff;padding:0}
+    .leg,.card,.kpi,.track{break-inside:avoid}
+    .warn,.no,.kpi.hot{background:#fff}
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <h1>军火库 · 夜跑作战板</h1>
+  <div class="sub">
+    2026-09-22 夜 · HY4（多模态）· 窗口 <code>23:10 → 07:55</code>（525 分钟）· 硬停 <code>07:55</code><br>
+    5 条定时任务已建（id 见每棒卡片）· 规程 <code>docs/开发计划-2026-09-22/NIGHT-RUN.md</code>
+  </div>
+
+  <div class="kpis">
+    <div class="kpi hot">
+      <div class="lab">后备工作量</div>
+      <div class="val">40 条</div>
+      <div class="note">开发口径 19.5–25.5 h；折算整棒（含自检/review/收尾）30–38 h</div>
+    </div>
+    <div class="kpi">
+      <div class="lab">今晚容量</div>
+      <div class="val">7 条</div>
+      <div class="note">≈ 255 分钟开发（按章程公式倒算，见右侧账）</div>
+    </div>
+    <div class="kpi">
+      <div class="lab">棒次</div>
+      <div class="val">4 + 终检</div>
+      <div class="note">串行接力：前一棒不交棒，后一棒不许开工</div>
+    </div>
+    <div class="kpi">
+      <div class="lab">单棒预算</div>
+      <div class="val">118 min</div>
+      <div class="note">开发 65 / 自检 22 / review 22 / 收尾 20</div>
+    </div>
+  </div>
+
+  <h2>一、时间轴 <span>公式：可用 525 − 终检 40 − 交接 12 − 缓冲 10 = 463 → 4 棒各 118 分钟；准入体量 ≤ 65 分钟开发</span></h2>
+  <div class="track">
+    <div class="axis">
+      <span>23:10</span><span>01:08</span><span>03:09</span><span>05:10</span><span>07:12</span><span>07:55</span>
+    </div>
+    <div class="bar">
+      <div class="seg1">棒1 · 验证闸门</div>
+      <div class="seg2">棒2 · 引擎诚实</div>
+      <div class="seg3">棒3 · 视觉走查</div>
+      <div class="seg4">棒4 · 项数实测</div>
+      <div class="seg5">终检</div>
+    </div>
+    <div class="pct">每棒之间留 3 分钟交接（由前一棒把下一棒的 scheduledAt 改成「现在 + 3 分钟」）· 全部串行</div>
+  </div>
+
+  <div class="legs">
+    <div class="leg l1">
+      <div class="when"><b>棒 1</b>23:10 → 交棒硬线 01:08<em>计划 1 · 开发 65'</em>
+        <span class="id">11c096ce-134e-42ae-bc16-a00d46a5759e</span></div>
+      <div>
+        <h3>先把「跳过算通过」关掉 —— 它是唯一的地基</h3>
+        <div class="chips">
+          <span class="chip core">A-2 skip 语义独立化</span>
+          <span class="chip">A-1 typecheck 进闸门</span>
+        </div>
+        <div class="done"><b>闭环物：</b>「跳过」不再算通过、造个跳过场景真能拿到退出码 <b>2</b>；`tsc` 进了闸门（实测 <code>.verify</code> 下 0 个文件在 tsc 视野内 —— 这是要补的洞）。
+        <br><b>为什么第一：</b>后面四棒的收尾都拿 <code>npm run verify</code> 当证据 —— 不先修，后面所有「全绿」都不可信。
+        <br><b>备选池：</b>A-5 串行 runner ｜ A-3 parity 解耦</div>
+      </div>
+    </div>
+
+    <div class="leg l2">
+      <div class="when"><b>棒 2</b>01:11（兜底）→ 交棒硬线 03:09<em>计划 2 · 开发 65'</em>
+        <span class="id">ddb6a1f4-eee8-4174-b99f-91746f97c4d8</span></div>
+      <div>
+        <h3>把「假的 100 分」堵掉</h3>
+        <div class="chips">
+          <span class="chip p0">B-4 AST 解析失败不静默（P0-2）</span>
+          <span class="chip">B-1 MCP 4 个字段名</span>
+        </div>
+        <div class="done"><b>闭环物：</b>喂一个语法坏掉的 <code>.java</code> → 报告里出现「解析失败」<b>而不是 100 分</b>（<code>AstEngine.parse</code> 拿着 <code>DiagnosticCollector</code> 却从不读它）。
+        <br><b>为什么第二：</b>P0-2 是唯一会直接骗到用户的 bug；未修时计划 3 的头号功能（<code>lintRemote()</code>）是负资产。
+        <br><b>备选池：</b>B-2/B-3 MCP 评分与 expect ｜ B-10 + D-3 JavaParser 同批纠偏</div>
+      </div>
+    </div>
+
+    <div class="leg l3">
+      <div class="when"><b>棒 3</b>03:12（兜底）→ 交棒硬线 05:10<em>计划 5 · 多模态 · 开发 65'</em>
+        <span class="id">5546f84e-4148-4d2f-951d-31000416d829</span></div>
+      <div>
+        <h3>睁眼看一遍：45 张截图 + 逐张判读</h3>
+        <div class="chips">
+          <span class="chip core">V-1 截图矩阵台</span>
+          <span class="chip core">V-2 逐张看图</span>
+        </div>
+        <div class="done"><b>闭环物：</b>15 URL × 3 视口 = 45 张 + <code>findings.md</code>（≥10 条，每条锚到真实 PNG）+ 注入一处明显坏样式<b>真的被抓到</b>。
+        <br><b>为什么中段：</b>不依赖前两棒，却最耗时；让多模态那段独处一棒不被打断。
+        <br><b>备选池：</b>V-2 剩余判读 ｜ V-3 <code>assert.mjs</code>（终检棒负责挂链）</div>
+      </div>
+    </div>
+
+    <div class="leg l4">
+      <div class="when"><b>棒 4</b>05:13（兜底）→ 交棒硬线 07:12<em>计划 1 · 开发 65'</em>
+        <span class="id">5777414f-bdf8-4a15-8d0e-de62bbc7c624</span></div>
+      <div>
+        <h3>把「手写的 662」换成「八层各自报实测值」</h3>
+        <div class="chips">
+          <span class="chip p0">A-4 各层报实测项数</span>
+        </div>
+        <div class="done"><b>闭环物：</b>把 <code>verifyChain</code> 里一层数字改掉 1 → <b>必红</b>并打印「声明 X / 实测 Y」。
+        <br><b>为什么单独成棒：</b>要改八层的输出格式，是五份计划里最重的单件；塞进棒 1 必然半成品。
+        <br><b>备选池：</b>A-9 记账「刻意未跑」 ｜ A-zip 删 <code>zip-lite.ts</code></div>
+      </div>
+    </div>
+
+    <div class="leg l5">
+      <div class="when"><b>终检</b>07:15 → <b>硬停 07:55</b><em>不写新功能 · 40'</em>
+        <span class="id">83ff7856-f621-4b7e-83d6-5cbe6767217a</span></div>
+      <div>
+        <h3>谁说的都不算，独立跑一遍才算</h3>
+        <div class="chips">
+          <span class="chip">真跑 build + verify</span>
+          <span class="chip">闸门故意写坏确认真会红</span>
+          <span class="chip">复核本晚三条重点</span>
+          <span class="chip">REVIEW.md</span>
+        </div>
+        <div class="done"><b>产出：</b><code>night-chain/REVIEW.md</code> —— 逐棒「自述 vs 独立验证」+ 差异逐条点名 + 剩余工作量按离闭环的距离排 P0/P1/P2。
+        <br><b>红线：</b>不许为了让报告好看改结论、把「没做」写成「做了」、删掉挂红的断言。</div>
+      </div>
+    </div>
+  </div>
+
+  <h2>二、账与取舍</h2>
+  <div class="cols">
+    <div class="card">
+      <h4>工作量账 <span class="tag">为什么说「够，而且过剩」</span></h4>
+      <table>
+        <tr><th>计划</th><th class="num">条数</th><th class="num">开发估时</th><th class="num">今晚</th></tr>
+        <tr><td>1 · 验证体系</td><td class="num">10</td><td class="num">5.5–7.0 h</td><td class="num">3 条</td></tr>
+        <tr><td>2 · 引擎与 MCP</td><td class="num">10</td><td class="num">5.5–7.0 h</td><td class="num">2 条</td></tr>
+        <tr><td>3 · 前端可达性</td><td class="num">7</td><td class="num">3.0–4.0 h</td><td class="num">—</td></tr>
+        <tr><td>4 · 事实一致性</td><td class="num">7</td><td class="num">2.5–3.5 h</td><td class="num">—</td></tr>
+        <tr><td>5 · 视觉与图形</td><td class="num">6</td><td class="num">3.0–4.0 h</td><td class="num">2 条</td></tr>
+        <tr><td><b>合计</b></td><td class="num"><b>40</b></td><td class="num"><b>19.5–25.5 h</b></td><td class="num"><b>7 条</b></td></tr>
+      </table>
+      <div style="font-size:12px;color:var(--ink3);margin-top:8px">
+        8 小时 = 255 分钟开发 ≈ 7 条；余下的 208 分钟全花在自检、review、收尾与交接上。
+      </div>
+    </div>
+
+    <div class="card pool">
+      <h4>明确不做 <span class="tag">移入下一夜，不是遗忘</span></h4>
+      <ul>
+        <li><b>计划 3 全部</b>（C-1…C-7）—— 头号功能必须等棒 2 的 P0-2 落地，否则是把假 100 分端给用户。</li>
+        <li><b>D-1 / D-2 文档与档案全量纠偏</b> —— 要改的总数得等棒 4 的 A-4 定口径，反序做＝返工。</li>
+        <li><b>V-4 / V-5 / V-6</b> —— 素材依赖 V-1 的产出，只能顺延。</li>
+        <li><b>位图铺满 63 张</b> —— 唯一花钱项，今晚限 1 批（2 类 ≈18 张 ≈90–180 credits）。</li>
+        <li><b>只有人能做的</b> —— 69 条规则过目、5 条 AST 规则处置、<code>SVC-LAYR-003</code>、两类未覆盖。</li>
+      </ul>
+    </div>
+  </div>
+
+  <h2>三、红线</h2>
+  <div class="cols">
+    <div class="warn">
+      <b>四条红线（每条都对应一次真实事故）</b>
+      <ul>
+        <li>同一文件的改动必须<b>串行</b>发 —— 并行 Edit 必丢，且不报错。</li>
+        <li>构建前 <code>mv .next ".next-bak-$(date +%H%M%S)"</code>（rename 不计删除，绕开守卫）。</li>
+        <li><code>next dev/build</code> 必须走 <code>node scripts/next-run.mjs</code>。</li>
+        <li>不许为了「跑通」放宽断言、把跳过算通过、把没做写成做了。</li>
+      </ul>
+    </div>
+    <div class="no">
+      <b>你要在客户端手动做的三件事</b>
+      <ul>
+        <li><b>逐条选模型</b> —— 创建接口没有 model 字段，每条任务都要在界面里手动选 HY4。</li>
+        <li><b>电脑不关机 + 客户端保持登录</b> —— 关机即不执行、不补跑。</li>
+        <li><b>锁屏设置</b> —— 「允许锁屏运行」设为<b>熄屏后继续运行</b>。</li>
+      </ul>
+      <div style="margin-top:8px;font-size:12px;color:var(--ink3)">
+        想换窗口（例：22:10 开工）→ 5 条 <code>scheduledAt</code> 整体平移；各棒 prompt 里的交棒硬线要一起改。
+      </div>
+    </div>
+  </div>
+
+  <footer>
+    权威真值在 <code>.workbuddy/night-chain/REVIEW.md</code>（终检棒产出）；本板是排期视图，不是进度看板。<br>
+    规程与状态目录：<code>docs/开发计划-2026-09-22/NIGHT-RUN.md</code> · <code>.workbuddy/night-chain/</code>。
+    旧夜跑文档 <code>docs/hy4-night-plans/</code> 已标为历史 —— 它的工作目录写的是
+    <code>D:\workspace\2026\mryang-arsenal</code>（不存在），照做会整棒空转。
+  </footer>
+
+</div>
+</body>
+</html>

@@ -1,5 +1,15 @@
 # HY4 夜间任务 · 四份升级方案总览
 
+> ⚠️ **已被取代（2026-09-22 11:1x）**：本目录是 2026-09-21 首次夜跑的方案。
+> 新的五份计划与 8 小时编排在 **`docs/开发计划-2026-09-22/00-index.md`**，以它为准。
+> 本文件仍可读，但**下面这三处是错的，照它做会卡死**：
+>
+> | 本文件写的 | 实际 |
+> |---|---|
+> | 工作目录 `D:\workspace\2026\mryang-arsenal`（见 §六 prompt 模板） | **该路径不存在**。真实路径 `D:\mryang\workspace\2026\arsenal` |
+> | 无头浏览器 `C:/Program Files/Google/Chrome/Application/chrome.exe`（见 §四） | **本机无 Chrome**，只有 Edge：`C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe`，用 `channel:'msedge'` |
+> | verify 总数（§三 写 620，此处与 `NIGHT-RUN.md` §六 不一致） | 以 `arsenal-web/src/generated/profiles.json` 的 `verifyChain` 实测为准（此刻 662） |
+
 > 生成时间：2026-09-21
 > 用途：夜间免费时段（23:00 后）由 HY4 执行的四条独立任务线。
 > 每份方案都是**自包含**的：执行者从零开始读它就能干活，不依赖本对话上下文。
