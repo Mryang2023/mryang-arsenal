@@ -68,6 +68,7 @@
 | A-3 | 首页「可自动检出 **35** 条」是**前端正则层**口径；后端实测可执行规则是 **42/69**（35 正则 + 7 AST，见第 2 棒 B-4）。两个数都对，但页面上没有一处说明口径差异 | 第 2 棒 `02-done.json`「给下一棒的话」 |
 | A-4 | 侧栏「案例 / 代码行 **4 / 2214 行**」把两个不同量纲挤进一个 value，读不出「4 个案例」还是「4 什么」 | `src/components/Shell.tsx:136` |
 | A-5 | 图标网格里**同一类目内也存在多种明度**（`actor` 类：74,85,104 / 60,74,92 / 90,100,114；`compute` 类：62,155,79 / 55,111,66 / 46,125,69）。三种明度没有任何可见规则 —— 若这是「重要性」编码，页面上没有图例 | DOM 计算色扫描（V2-08 的同一次探针） |
+| A-6 | **`npm run verify` 的退出码会被沙箱删除守卫污染**：`前后端一致性` 层在 `.verify/parity-check.ts:118` 用 `fs.rmSync(arsenal-server/target/parity-be, {recursive:true})` 清探针产物（实测该目录 2598 个文件），被 `NODE_OPTIONS` 注入的 guard 以 `SAFE_DELETE_BULK_CONFIRM_REQUIRED {count:2598, threshold:50, scope:"turn"}` 抛异常打断 → 该层进程 **退出码 1**，而它已经/残留的 `layer-parity.json` 仍写 `exitCode 2 / fail 0` ⇒ runner 报「层自报退出码 2 / 进程实际 1 —— 记账不可信」，整链 `verify` 从 **2 变 1**。**内容零变化**（都是 628 实测 / 34 跳过 / 0 失败）。**不是本棒引入**：本棒两笔提交只碰 `arsenal-web/visual/**` + `arsenal-web/.gitignore`，`parity-check.ts` 最后一次改动是 `333edd8`（前几棒）。 | 同一条命令跑两次：`npm run verify` → 退出码 1 + 上述「记账不可信」；`CODEBUDDY_SAFE_DELETE_ENABLED=0 npm run verify` → 退出码 **2**，parity 层耗时 1.2s→11.8s（真跑起来做完了探针） |
 
 ## 附 · 反向验证（**本计划唯一不能省的动作**）
 
@@ -90,3 +91,55 @@ node visual/shoot.mjs
 # 关键反例：单独量 390px 下的越界元凶
 node -e "const m=JSON.parse(require('fs').readFileSync('visual/manifest.json','utf8'));const s=m.shots.find(x=>x.file==='home__mobile.png');console.log(s.metrics.horizontalOverflowPx, JSON.stringify(s.metrics.topOverflowOffenders[0]))"
 ```
+
+## 附 · 收尾实测撞到的一件事（A-6 的完整原文，给下一棒省 20 分钟）
+
+**症状**（本棒收尾第一次跑全量 `npm run verify`）：
+
+```
+前后端一致性      9       3       0       1       1.3s      12
+verify: 628 项实测 / 34 项跳过 / 0 项失败  → 退出码 1（有失败）
+问题清单
+  [失败] 前后端一致性：层自报退出码 2 / 进程实际 1 —— 记账不可信
+  [失败] 前后端一致性：有失败项（退出码 1）
+```
+
+**为什么会被吓到**：第 2 棒交棒时记的基线是「631 实测 / 31 跳过 / 0 失败 → 退出码 2」，
+本次（因后端已停，parity 少 3 项、archify 多出整层 31 项）应为「628 / 34 / 0 → 退出码 2」。
+**退出码从 2 变 1 看起来就是回归**，但逐项数字一个没变。
+
+**根因**（`npm run verify` 全量日志里 parity 段落的原始堆栈）：
+
+```
+【2】后端探针
+D:\mryang\WorkBuddy\...\cli\vendor\shim\node-safe-delete-shim.cjs:220
+            throw new Error(detail);
+Error: [safe-delete][SAFE_DELETE_BULK_CONFIRM_REQUIRED] {"count":2598,"threshold":50,"scope":"turn",
+      "targets":["D:\\mryang\\workspace\\2026\\arsenal\\arsenal-server\\target\\parity-be"],"targetCount":1}
+    at ... wrappedRmSync [as rmSync] (...shim.cjs:759:15)
+    at fs (...arsenal-web\.verify\parity-check.ts:118:4)
+```
+
+i.e. 全量 verify 一次工具调用里，前六层累计删除量先耗掉了 guard 的 per-turn 额度，
+轮到 parity 层清 `target/parity-be`（2598 个文件）时直接爆表 → **层进程被杀死**（退出码 1），
+而 `.verify/tmp/layer-parity.json` 里留下的还是上一次 `exitCode 2 / fail 0` ⇒ runner 判「记账不可信」。
+
+**隔离证据**（唯一变量 = 给子进程关掉守卫）：
+
+```bash
+export PATH="/usr/bin:/bin:/c/Windows/System32:/c/Windows:$PATH"
+cd /d/mryang/workspace/2026/arsenal/arsenal-web
+npm run verify                            # → 退出码 1，parity 1.2s（没跑完就死）
+CODEBUDDY_SAFE_DELETE_ENABLED=0 npm run verify   # → 退出码 2，parity 11.8s（真跑完），628/34/0
+```
+
+**结论 / 给下一棒的三句话**：
+
+1. 看到 `verify` 退出码 1 且问题清单里只有「记账不可信」这四个字 → **先看 `628 实测 / 34 跳过 / 0 失败` 那行**，
+   数字没变就不是回归，是本机沙箱守卫；用 `CODEBUDDY_SAFE_DELETE_ENABLED=0` 复跑拿真退出码。
+2. 这是**仓库的潜在缺陷**（不自报、能伪绿也能伪红）：层把 `layer-*.json` 写在删除动作之后/之前不一致，
+   加上 runner 的 `cleanOldStatus()` 删不掉旧文件时只吞异常 → 旧状态会被当成本轮状态读。
+   建议（未做）`parity-check.ts` 把 `fs.rmSync` 换成「先 rename 成 `.trash-<ts>`，由 shell/python 清理」，
+   或在层里 `try/catch` 后如实写 `fail` 而不是让进程崩。
+3. 本棒**没有**去修它：文件所有权只给了 `arsenal-web/visual/**`，`.verify/**` 明令不许碰。
+
