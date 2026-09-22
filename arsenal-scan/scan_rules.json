@@ -1,0 +1,934 @@
+{
+  "collection": "arsenal-scan",
+  "name": "军火库 · 代码扫描映射表",
+  "version": "0.1.0",
+  "description": "依赖坐标 → 技术 key 的映射。扫描器只读坐标，不猜技术栈；命中的必须带 evidence（文件路径 + 行号），没命中的进 UNMAPPED_DEPENDENCY note —— 不许静默丢弃。dim/opt 指向架构画布的真实维度与选项，命中即出现在部署图上；只有 tech 没有 dim 的表示「认得出来但不单独部署」（工具库 / 编码期依赖）。",
+  "count": 108,
+  "onCanvas": 47,
+  "kinds": {
+    "maven": "Maven 依赖",
+    "gradle": "Gradle 依赖",
+    "npm": "前端依赖"
+  },
+  "rules": [
+    {
+      "kind": "maven",
+      "group": "ch.qos.logback",
+      "artifact": "*",
+      "tech": "logback",
+      "icon": "logback",
+      "dim": "logging",
+      "opt": "logback",
+      "name": "Logback"
+    },
+    {
+      "kind": "maven",
+      "group": "cn.dev33",
+      "artifact": "*",
+      "tech": "satoken",
+      "icon": "satoken",
+      "dim": "auth",
+      "opt": "satoken",
+      "name": "Sa-Token"
+    },
+    {
+      "kind": "maven",
+      "group": "cn.hutool",
+      "artifact": "*",
+      "tech": "hutool",
+      "name": "Hutool"
+    },
+    {
+      "kind": "maven",
+      "group": "co.elastic.clients",
+      "artifact": "*",
+      "tech": "elasticsearch",
+      "icon": "elasticsearch",
+      "dim": "search",
+      "opt": "es",
+      "name": "ES Java Client"
+    },
+    {
+      "kind": "maven",
+      "group": "com.alibaba",
+      "artifact": "druid",
+      "tech": "druid",
+      "icon": "druid",
+      "name": "Druid"
+    },
+    {
+      "kind": "maven",
+      "group": "com.alibaba",
+      "artifact": "druid-spring-boot-starter",
+      "tech": "druid",
+      "icon": "druid",
+      "dim": "pool",
+      "opt": "druid",
+      "name": "Druid"
+    },
+    {
+      "kind": "maven",
+      "group": "com.alibaba",
+      "artifact": "easyexcel",
+      "tech": "easyexcel",
+      "name": "EasyExcel"
+    },
+    {
+      "kind": "maven",
+      "group": "com.alibaba",
+      "artifact": "fastjson",
+      "tech": "fastjson",
+      "name": "FastJSON"
+    },
+    {
+      "kind": "maven",
+      "group": "com.alibaba.cloud",
+      "artifact": "spring-cloud-starter-alibaba-nacos-config",
+      "tech": "nacos",
+      "icon": "nacos",
+      "dim": "secret",
+      "opt": "configcenter",
+      "name": "Nacos 配置中心"
+    },
+    {
+      "kind": "maven",
+      "group": "com.alibaba.cloud",
+      "artifact": "spring-cloud-starter-alibaba-nacos-discovery",
+      "tech": "nacos",
+      "icon": "nacos",
+      "dim": "registry",
+      "opt": "nacos",
+      "name": "Nacos 注册中心"
+    },
+    {
+      "kind": "maven",
+      "group": "com.alibaba.cloud",
+      "artifact": "spring-cloud-starter-alibaba-sentinel",
+      "tech": "sentinel",
+      "icon": "sentinel",
+      "name": "Sentinel 流控"
+    },
+    {
+      "kind": "maven",
+      "group": "com.alibaba.fastjson2",
+      "artifact": "*",
+      "tech": "fastjson",
+      "name": "FastJSON2"
+    },
+    {
+      "kind": "maven",
+      "group": "com.aliyun.oss",
+      "artifact": "*",
+      "tech": "oss",
+      "icon": "minio",
+      "dim": "objectstore",
+      "opt": "oss",
+      "name": "阿里云 OSS"
+    },
+    {
+      "kind": "maven",
+      "group": "com.auth0",
+      "artifact": "java-jwt",
+      "tech": "jwt",
+      "icon": "jwt",
+      "name": "Auth0 JWT"
+    },
+    {
+      "kind": "maven",
+      "group": "com.baomidou",
+      "artifact": "dynamic-datasource-spring-boot-starter",
+      "tech": "dynamicdatasource",
+      "name": "动态数据源"
+    },
+    {
+      "kind": "maven",
+      "group": "com.baomidou",
+      "artifact": "mybatis-plus-boot-starter",
+      "tech": "mybatisplus",
+      "icon": "mybatis",
+      "dim": "persistence",
+      "opt": "mybatisplus",
+      "name": "MyBatis-Plus"
+    },
+    {
+      "kind": "maven",
+      "group": "com.clickhouse",
+      "artifact": "*",
+      "tech": "clickhouse",
+      "icon": "clickhouse",
+      "dim": "analytics",
+      "opt": "clickhouse",
+      "name": "ClickHouse"
+    },
+    {
+      "kind": "maven",
+      "group": "com.fasterxml.jackson.core",
+      "artifact": "*",
+      "tech": "jackson",
+      "name": "Jackson"
+    },
+    {
+      "kind": "maven",
+      "group": "com.github.ben-manes.caffeine",
+      "artifact": "*",
+      "tech": "caffeine",
+      "icon": "caffeine",
+      "dim": "cache",
+      "opt": "caffeine",
+      "name": "Caffeine 本地缓存"
+    },
+    {
+      "kind": "maven",
+      "group": "com.github.pagehelper",
+      "artifact": "*",
+      "tech": "pagehelper",
+      "name": "PageHelper"
+    },
+    {
+      "kind": "maven",
+      "group": "com.github.tomakehurst",
+      "artifact": "*",
+      "tech": "wiremock",
+      "icon": "junit",
+      "dim": "testing",
+      "opt": "wiremock",
+      "name": "WireMock"
+    },
+    {
+      "kind": "maven",
+      "group": "com.github.ulisesbocchio",
+      "artifact": "*",
+      "tech": "jasypt",
+      "name": "Jasypt 加密配置"
+    },
+    {
+      "kind": "maven",
+      "group": "com.github.xiaoymin",
+      "artifact": "*",
+      "tech": "knife4j",
+      "icon": "knife4j",
+      "dim": "apidoc",
+      "opt": "knife4j",
+      "name": "Knife4j"
+    },
+    {
+      "kind": "maven",
+      "group": "com.google.guava",
+      "artifact": "*",
+      "tech": "guava",
+      "name": "Guava"
+    },
+    {
+      "kind": "maven",
+      "group": "com.google.protobuf",
+      "artifact": "*",
+      "tech": "protobuf",
+      "name": "Protobuf"
+    },
+    {
+      "kind": "maven",
+      "group": "com.mysql",
+      "artifact": "*",
+      "tech": "mysql",
+      "icon": "mysql",
+      "dim": "database",
+      "opt": "mysql",
+      "name": "MySQL"
+    },
+    {
+      "kind": "maven",
+      "group": "com.oracle.database.jdbc",
+      "artifact": "*",
+      "tech": "oracle",
+      "icon": "oracle",
+      "name": "Oracle"
+    },
+    {
+      "kind": "maven",
+      "group": "com.xuxueli",
+      "artifact": "*",
+      "tech": "xxljob",
+      "icon": "xxljob",
+      "dim": "scheduler",
+      "opt": "xxljob",
+      "name": "XXL-Job"
+    },
+    {
+      "kind": "maven",
+      "group": "com.zaxxer",
+      "artifact": "HikariCP",
+      "tech": "hikari",
+      "icon": "hikari",
+      "dim": "pool",
+      "opt": "hikari",
+      "name": "HikariCP"
+    },
+    {
+      "kind": "maven",
+      "group": "io.grpc",
+      "artifact": "*",
+      "tech": "grpc",
+      "name": "gRPC"
+    },
+    {
+      "kind": "maven",
+      "group": "io.jsonwebtoken",
+      "artifact": "*",
+      "tech": "jwt",
+      "icon": "jwt",
+      "name": "JJWT"
+    },
+    {
+      "kind": "maven",
+      "group": "io.micrometer",
+      "artifact": "*",
+      "tech": "prometheus",
+      "icon": "prometheus",
+      "dim": "observability",
+      "opt": "prometheus",
+      "name": "Micrometer / Prometheus"
+    },
+    {
+      "kind": "maven",
+      "group": "io.minio",
+      "artifact": "*",
+      "tech": "minio",
+      "icon": "minio",
+      "dim": "objectstore",
+      "opt": "minio",
+      "name": "MinIO"
+    },
+    {
+      "kind": "maven",
+      "group": "io.netty",
+      "artifact": "*",
+      "tech": "netty",
+      "icon": "netty",
+      "name": "Netty"
+    },
+    {
+      "kind": "maven",
+      "group": "io.swagger.core.v3",
+      "artifact": "*",
+      "tech": "swagger",
+      "icon": "springdoc",
+      "name": "Swagger"
+    },
+    {
+      "kind": "maven",
+      "group": "io.undertow",
+      "artifact": "*",
+      "tech": "undertow",
+      "name": "Undertow"
+    },
+    {
+      "kind": "maven",
+      "group": "mysql",
+      "artifact": "*",
+      "tech": "mysql",
+      "icon": "mysql",
+      "name": "MySQL（旧坐标）"
+    },
+    {
+      "kind": "maven",
+      "group": "net.logstash.logback",
+      "artifact": "*",
+      "tech": "elk",
+      "icon": "logback",
+      "dim": "logging",
+      "opt": "elk",
+      "name": "Logstash Encoder"
+    },
+    {
+      "kind": "maven",
+      "group": "net.spy",
+      "artifact": "*",
+      "tech": "memcached",
+      "icon": "memcached",
+      "name": "Memcached"
+    },
+    {
+      "kind": "maven",
+      "group": "org.apache.commons",
+      "artifact": "commons-lang3",
+      "tech": "commons",
+      "name": "Commons Lang"
+    },
+    {
+      "kind": "maven",
+      "group": "org.apache.curator",
+      "artifact": "*",
+      "tech": "curator",
+      "icon": "zookeeper",
+      "name": "Curator"
+    },
+    {
+      "kind": "maven",
+      "group": "org.apache.dubbo",
+      "artifact": "*",
+      "tech": "dubbo",
+      "name": "Dubbo"
+    },
+    {
+      "kind": "maven",
+      "group": "org.apache.kafka",
+      "artifact": "*",
+      "tech": "kafka",
+      "icon": "kafka",
+      "dim": "mq",
+      "opt": "kafka",
+      "name": "Kafka 客户端"
+    },
+    {
+      "kind": "maven",
+      "group": "org.apache.poi",
+      "artifact": "*",
+      "tech": "poi",
+      "name": "Apache POI"
+    },
+    {
+      "kind": "maven",
+      "group": "org.apache.pulsar",
+      "artifact": "*",
+      "tech": "pulsar",
+      "icon": "pulsar",
+      "name": "Pulsar"
+    },
+    {
+      "kind": "maven",
+      "group": "org.apache.rocketmq",
+      "artifact": "*",
+      "tech": "rocketmq",
+      "icon": "rocketmq",
+      "dim": "mq",
+      "opt": "rocketmq",
+      "name": "RocketMQ"
+    },
+    {
+      "kind": "maven",
+      "group": "org.apache.shardingsphere",
+      "artifact": "*",
+      "tech": "shardingsphere",
+      "name": "ShardingSphere"
+    },
+    {
+      "kind": "maven",
+      "group": "org.apache.skywalking",
+      "artifact": "*",
+      "tech": "skywalking",
+      "icon": "grafana",
+      "dim": "monitoring",
+      "opt": "skywalking",
+      "name": "SkyWalking"
+    },
+    {
+      "kind": "maven",
+      "group": "org.apache.tomcat.embed",
+      "artifact": "*",
+      "tech": "tomcat",
+      "icon": "tomcat",
+      "name": "Tomcat"
+    },
+    {
+      "kind": "maven",
+      "group": "org.apache.zookeeper",
+      "artifact": "*",
+      "tech": "zookeeper",
+      "icon": "zookeeper",
+      "name": "ZooKeeper"
+    },
+    {
+      "kind": "maven",
+      "group": "org.bouncycastle",
+      "artifact": "*",
+      "tech": "bouncycastle",
+      "name": "BouncyCastle"
+    },
+    {
+      "kind": "maven",
+      "group": "org.elasticsearch.client",
+      "artifact": "*",
+      "tech": "elasticsearch",
+      "icon": "elasticsearch",
+      "dim": "search",
+      "opt": "es",
+      "name": "ES REST Client"
+    },
+    {
+      "kind": "maven",
+      "group": "org.flywaydb",
+      "artifact": "*",
+      "tech": "flyway",
+      "icon": "flyway",
+      "dim": "migration",
+      "opt": "flyway",
+      "name": "Flyway"
+    },
+    {
+      "kind": "maven",
+      "group": "org.hibernate.orm",
+      "artifact": "*",
+      "tech": "hibernate",
+      "icon": "jpa",
+      "name": "Hibernate"
+    },
+    {
+      "kind": "maven",
+      "group": "org.jacoco",
+      "artifact": "*",
+      "tech": "jacoco",
+      "icon": "junit",
+      "dim": "qualitygate",
+      "opt": "jacoco",
+      "name": "JaCoCo"
+    },
+    {
+      "kind": "maven",
+      "group": "org.junit.jupiter",
+      "artifact": "*",
+      "tech": "junit5",
+      "icon": "junit",
+      "dim": "testing",
+      "opt": "junit5",
+      "name": "JUnit 5"
+    },
+    {
+      "kind": "maven",
+      "group": "org.liquibase",
+      "artifact": "*",
+      "tech": "liquibase",
+      "icon": "liquibase",
+      "dim": "migration",
+      "opt": "liquibase",
+      "name": "Liquibase"
+    },
+    {
+      "kind": "maven",
+      "group": "org.mapstruct",
+      "artifact": "*",
+      "tech": "mapstruct",
+      "icon": "mapstruct",
+      "dim": "mapping",
+      "opt": "mapstruct",
+      "name": "MapStruct"
+    },
+    {
+      "kind": "maven",
+      "group": "org.mockito",
+      "artifact": "*",
+      "tech": "mockito",
+      "icon": "junit",
+      "dim": "testing",
+      "opt": "mockito",
+      "name": "Mockito"
+    },
+    {
+      "kind": "maven",
+      "group": "org.mybatis",
+      "artifact": "*",
+      "tech": "mybatis",
+      "icon": "mybatis",
+      "name": "MyBatis 内核"
+    },
+    {
+      "kind": "maven",
+      "group": "org.mybatis.spring.boot",
+      "artifact": "*",
+      "tech": "mybatis",
+      "icon": "mybatis",
+      "dim": "persistence",
+      "opt": "mybatisplus",
+      "name": "MyBatis"
+    },
+    {
+      "kind": "maven",
+      "group": "org.postgresql",
+      "artifact": "*",
+      "tech": "postgres",
+      "icon": "postgres",
+      "dim": "database",
+      "opt": "postgres",
+      "name": "PostgreSQL"
+    },
+    {
+      "kind": "maven",
+      "group": "org.projectlombok",
+      "artifact": "*",
+      "tech": "lombok",
+      "icon": "lombok",
+      "dim": "boilerplate",
+      "opt": "lombok",
+      "name": "Lombok"
+    },
+    {
+      "kind": "maven",
+      "group": "org.quartz-scheduler",
+      "artifact": "*",
+      "tech": "quartz",
+      "icon": "scheduler",
+      "name": "Quartz 内核"
+    },
+    {
+      "kind": "maven",
+      "group": "org.redisson",
+      "artifact": "*",
+      "tech": "redisson",
+      "icon": "redis",
+      "name": "Redisson"
+    },
+    {
+      "kind": "maven",
+      "group": "org.springdoc",
+      "artifact": "*",
+      "tech": "springdoc",
+      "icon": "springdoc",
+      "dim": "apidoc",
+      "opt": "springdoc",
+      "name": "SpringDoc / OpenAPI"
+    },
+    {
+      "kind": "maven",
+      "group": "org.springframework.boot",
+      "artifact": "spring-boot-starter-actuator",
+      "tech": "actuator",
+      "icon": "actuator",
+      "dim": "observability",
+      "opt": "actuator",
+      "name": "Actuator"
+    },
+    {
+      "kind": "maven",
+      "group": "org.springframework.boot",
+      "artifact": "spring-boot-starter-amqp",
+      "tech": "rabbitmq",
+      "icon": "rabbitmq",
+      "dim": "mq",
+      "opt": "rabbitmq",
+      "name": "RabbitMQ"
+    },
+    {
+      "kind": "maven",
+      "group": "org.springframework.boot",
+      "artifact": "spring-boot-starter-batch",
+      "tech": "batch",
+      "name": "Spring Batch"
+    },
+    {
+      "kind": "maven",
+      "group": "org.springframework.boot",
+      "artifact": "spring-boot-starter-cache",
+      "tech": "springcache",
+      "name": "Spring Cache 抽象"
+    },
+    {
+      "kind": "maven",
+      "group": "org.springframework.boot",
+      "artifact": "spring-boot-starter-data-elasticsearch",
+      "tech": "elasticsearch",
+      "icon": "elasticsearch",
+      "dim": "search",
+      "opt": "es",
+      "name": "Elasticsearch"
+    },
+    {
+      "kind": "maven",
+      "group": "org.springframework.boot",
+      "artifact": "spring-boot-starter-data-jpa",
+      "tech": "jpa",
+      "icon": "jpa",
+      "dim": "persistence",
+      "opt": "jpa",
+      "name": "Spring Data JPA"
+    },
+    {
+      "kind": "maven",
+      "group": "org.springframework.boot",
+      "artifact": "spring-boot-starter-data-mongodb",
+      "tech": "mongodb",
+      "icon": "mongodb",
+      "name": "MongoDB"
+    },
+    {
+      "kind": "maven",
+      "group": "org.springframework.boot",
+      "artifact": "spring-boot-starter-data-redis",
+      "tech": "redis",
+      "icon": "redis",
+      "dim": "cache",
+      "opt": "redis",
+      "name": "Redis"
+    },
+    {
+      "kind": "maven",
+      "group": "org.springframework.boot",
+      "artifact": "spring-boot-starter-freemarker",
+      "tech": "freemarker",
+      "name": "FreeMarker"
+    },
+    {
+      "kind": "maven",
+      "group": "org.springframework.boot",
+      "artifact": "spring-boot-starter-jdbc",
+      "tech": "jdbc",
+      "icon": "jdbc",
+      "dim": "persistence",
+      "opt": "jdbc",
+      "name": "Spring JDBC"
+    },
+    {
+      "kind": "maven",
+      "group": "org.springframework.boot",
+      "artifact": "spring-boot-starter-mail",
+      "tech": "mail",
+      "name": "JavaMail"
+    },
+    {
+      "kind": "maven",
+      "group": "org.springframework.boot",
+      "artifact": "spring-boot-starter-oauth2-resource-server",
+      "tech": "oauth2",
+      "icon": "security",
+      "name": "OAuth2 资源服务"
+    },
+    {
+      "kind": "maven",
+      "group": "org.springframework.boot",
+      "artifact": "spring-boot-starter-quartz",
+      "tech": "quartz",
+      "icon": "scheduler",
+      "dim": "scheduler",
+      "opt": "spring",
+      "name": "Quartz"
+    },
+    {
+      "kind": "maven",
+      "group": "org.springframework.boot",
+      "artifact": "spring-boot-starter-security",
+      "tech": "security",
+      "icon": "security",
+      "dim": "auth",
+      "opt": "securityjwt",
+      "name": "Spring Security"
+    },
+    {
+      "kind": "maven",
+      "group": "org.springframework.boot",
+      "artifact": "spring-boot-starter-test",
+      "tech": "junit5",
+      "icon": "junit",
+      "dim": "testing",
+      "opt": "junit5",
+      "name": "Spring Boot Test"
+    },
+    {
+      "kind": "maven",
+      "group": "org.springframework.boot",
+      "artifact": "spring-boot-starter-thymeleaf",
+      "tech": "thymeleaf",
+      "name": "Thymeleaf"
+    },
+    {
+      "kind": "maven",
+      "group": "org.springframework.boot",
+      "artifact": "spring-boot-starter-validation",
+      "tech": "validation",
+      "name": "Bean Validation"
+    },
+    {
+      "kind": "maven",
+      "group": "org.springframework.boot",
+      "artifact": "spring-boot-starter-web",
+      "tech": "spring",
+      "icon": "spring",
+      "dim": "web",
+      "opt": "mvc",
+      "name": "Spring MVC"
+    },
+    {
+      "kind": "maven",
+      "group": "org.springframework.boot",
+      "artifact": "spring-boot-starter-webflux",
+      "tech": "webflux",
+      "icon": "webflux",
+      "dim": "web",
+      "opt": "webflux",
+      "name": "Spring WebFlux"
+    },
+    {
+      "kind": "maven",
+      "group": "org.springframework.boot",
+      "artifact": "spring-boot-starter-websocket",
+      "tech": "websocket",
+      "name": "WebSocket"
+    },
+    {
+      "kind": "maven",
+      "group": "org.springframework.cloud",
+      "artifact": "spring-cloud-starter-consul-discovery",
+      "tech": "consul",
+      "icon": "consul",
+      "name": "Consul"
+    },
+    {
+      "kind": "maven",
+      "group": "org.springframework.cloud",
+      "artifact": "spring-cloud-starter-gateway",
+      "tech": "gateway",
+      "icon": "gateway",
+      "dim": "gateway",
+      "opt": "scg",
+      "name": "Spring Cloud Gateway"
+    },
+    {
+      "kind": "maven",
+      "group": "org.springframework.cloud",
+      "artifact": "spring-cloud-starter-loadbalancer",
+      "tech": "loadbalancer",
+      "name": "Spring Cloud LoadBalancer"
+    },
+    {
+      "kind": "maven",
+      "group": "org.springframework.cloud",
+      "artifact": "spring-cloud-starter-openfeign",
+      "tech": "openfeign",
+      "icon": "spring",
+      "name": "OpenFeign"
+    },
+    {
+      "kind": "maven",
+      "group": "org.springframework.kafka",
+      "artifact": "*",
+      "tech": "kafka",
+      "icon": "kafka",
+      "dim": "mq",
+      "opt": "kafka",
+      "name": "Kafka"
+    },
+    {
+      "kind": "maven",
+      "group": "org.testcontainers",
+      "artifact": "*",
+      "tech": "testcontainers",
+      "icon": "testcontainers",
+      "dim": "testing",
+      "opt": "testcontainers",
+      "name": "Testcontainers"
+    },
+    {
+      "kind": "maven",
+      "group": "org.yaml",
+      "artifact": "snakeyaml",
+      "tech": "snakeyaml",
+      "name": "SnakeYAML"
+    },
+    {
+      "kind": "maven",
+      "group": "redis.clients",
+      "artifact": "*",
+      "tech": "jedis",
+      "icon": "redis",
+      "name": "Jedis / Lettuce"
+    },
+    {
+      "kind": "maven",
+      "group": "software.amazon.awssdk",
+      "artifact": "s3",
+      "tech": "s3",
+      "icon": "minio",
+      "dim": "objectstore",
+      "opt": "s3",
+      "name": "AWS S3"
+    },
+    {
+      "kind": "npm",
+      "group": "npm",
+      "artifact": "antd",
+      "tech": "antd",
+      "name": "Ant Design"
+    },
+    {
+      "kind": "npm",
+      "group": "npm",
+      "artifact": "axios",
+      "tech": "axios",
+      "name": "Axios"
+    },
+    {
+      "kind": "npm",
+      "group": "npm",
+      "artifact": "echarts",
+      "tech": "echarts",
+      "name": "ECharts"
+    },
+    {
+      "kind": "npm",
+      "group": "npm",
+      "artifact": "element-plus",
+      "tech": "elementplus",
+      "name": "Element Plus"
+    },
+    {
+      "kind": "npm",
+      "group": "npm",
+      "artifact": "next",
+      "tech": "next",
+      "name": "Next.js"
+    },
+    {
+      "kind": "npm",
+      "group": "npm",
+      "artifact": "pinia",
+      "tech": "pinia",
+      "name": "Pinia"
+    },
+    {
+      "kind": "npm",
+      "group": "npm",
+      "artifact": "react",
+      "tech": "react",
+      "name": "React"
+    },
+    {
+      "kind": "npm",
+      "group": "npm",
+      "artifact": "react-dom",
+      "tech": "react",
+      "name": "React DOM"
+    },
+    {
+      "kind": "npm",
+      "group": "npm",
+      "artifact": "tailwindcss",
+      "tech": "tailwind",
+      "name": "Tailwind CSS"
+    },
+    {
+      "kind": "npm",
+      "group": "npm",
+      "artifact": "typescript",
+      "tech": "typescript",
+      "name": "TypeScript"
+    },
+    {
+      "kind": "npm",
+      "group": "npm",
+      "artifact": "vite",
+      "tech": "vite",
+      "name": "Vite"
+    },
+    {
+      "kind": "npm",
+      "group": "npm",
+      "artifact": "vue",
+      "tech": "vue",
+      "name": "Vue"
+    },
+    {
+      "kind": "npm",
+      "group": "npm",
+      "artifact": "vuex",
+      "tech": "vuex",
+      "name": "Vuex"
+    }
+  ]
+}

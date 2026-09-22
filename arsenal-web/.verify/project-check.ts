@@ -46,6 +46,7 @@ import { buildTechArch, buildTechArchSvg, emptyEdits } from '@/lib/arch-canvas';
 import { ARCH_GLYPHS } from '@/lib/arch-glyphs';
 import { svgMotionStyle } from '@/lib/arch-motion';
 import { TECH_ICONS } from '@/lib/tech-icons';
+import { ICON_CATEGORIES, iconAssets } from '@/lib/icon-assets';
 
 let pass = 0;
 let fail = 0;
@@ -505,15 +506,15 @@ console.log('\n【9】六大架构视图数据层');
       MUST_LIMIT
   );
 
-  // ⑥ 项目视图：验证链分项之和 = 总数 = 473（与 README 同源，改口径两处一起改）
+  // ⑥ 项目视图：验证链分项之和 = 总数 = 620（与 README 同源，改口径两处一起改）
   //
   // 注意前半句是恒等式 —— VERIFY_TOTAL 的定义就是那个 reduce，永远相等。
-  // 真正起作用的只有后半句那个手写的 473，所以「各层实际跑了多少项」没有守门：
+  // 真正起作用的只有后半句那个手写的 620，所以「各层实际跑了多少项」没有守门：
   // 这次给引擎加了 3 项断言，实测 17 而 VERIFY_CHAIN 仍写着 14，整套 verify 照样全绿。
   // 要让这个数字有约束力，得让各层把自己的实测项数写出来再比 —— 尚未做。
   check(
     '项目视图：验证链分项之和 = 总数',
-    VERIFY_CHAIN.reduce((n, v) => n + v.count, 0) === VERIFY_TOTAL && VERIFY_TOTAL === 473
+    VERIFY_CHAIN.reduce((n, v) => n + v.count, 0) === VERIFY_TOTAL && VERIFY_TOTAL === 620
   );
   check('项目视图：里程碑含 MCP 适配层', PROJECT_ROADMAP.some((m) => m.name.includes('MCP')));
 }
@@ -578,12 +579,25 @@ console.log('\n【11】图标库与动效');
   check('图标库：无空图形（每个图标至少一段 path）', Object.values(ARCH_GLYPHS).every((g) => g.includes('<path') || g.includes('<circle') || g.includes('<rect')));
 
   // ② 技术组件图标库扩充后仍在合法 kind 内
-  const kinds = new Set(['runtime', 'db', 'cache', 'mq', 'registry', 'doc', 'security', 'observe', 'infra', 'tool', 'none']);
+  // actor / topology 是第二批加的两类：角色与外部系统、集群形态。
+  // 不塞进 infra/tool 是因为图例会把它们混进技术组件堆里，看不出「谁在用」和「几个」。
+  const kinds = new Set(['runtime', 'db', 'cache', 'mq', 'registry', 'doc', 'security', 'observe', 'infra', 'tool', 'none', 'actor', 'topology']);
   check(
     'tech-icons：全部 kind 合法',
-    Object.values(TECH_ICONS).every((t) => kinds.has(t.kind))
+    Object.values(TECH_ICONS).every((t) => kinds.has(t.kind)),
+    `非法 kind: ${[...new Set(Object.values(TECH_ICONS).map((t) => t.kind))].filter((k) => !kinds.has(k)).join('、')}`
   );
-  check('tech-icons：数量 ≥ 80（本轮从 55 扩到 87）', Object.keys(TECH_ICONS).length >= 80);
+  check(
+    `tech-icons：数量 ≥ 168（89 个技术件 + 81 个架构概念，实到 ${Object.keys(TECH_ICONS).length}）`,
+    Object.keys(TECH_ICONS).length >= 168
+  );
+  // 每个图标都得有图形：空 svg 在图上就是一个看不见的点，同样不报错
+  const emptyIcons = Object.entries(TECH_ICONS).filter(([, v]) => !v.svg || !v.svg.includes('<'));
+  check(
+    'tech-icons：无空图形',
+    emptyIcons.length === 0,
+    `空: ${emptyIcons.map(([k]) => k).join('、')}`
+  );
 
   // ③ 动效样式表：内嵌 + 降级两样都在
   const css = svgMotionStyle();
@@ -597,6 +611,135 @@ console.log('\n【11】图标库与动效');
   check('画布动效：导出态含 am-run 流光', still.includes('class="am-run"'));
   check('画布动效：导出态含节点 stagger 入场', still.includes('class="am-rise"'));
   check('画布动效：交互态不含任何 am- 动画', !live.includes('am-'));
+
+  // ⑤ 图标资产库（第二批：81 个「非技术组件」+ 一条新的事实源链路）
+  //
+  // 这一组守的是同一件事的两头：**清单 ↔ 磁盘 ↔ 矢量表**。
+  // 三者任一处脱节，界面上都不会报错 —— 页面照样列出 81 行，
+  // 只是其中几行的图标是个灰方块（iconSvg 查不到就静默回落到 generic）。
+  const webRoot = path.resolve(here, '..');
+  const iconsDir = path.join(webRoot, 'public', 'icons');
+  const iconIds = iconAssets.map((i) => i.key);
+
+  // ① key 唯一：复制粘贴忘改 key 是最常见的一种，且不会有任何提示
+  const dupIconKeys = iconIds.filter((k, idx) => iconIds.indexOf(k) !== idx);
+  check(
+    `图标库：${iconAssets.length} 个 key 无重复`,
+    dupIconKeys.length === 0,
+    `重复: ${[...new Set(dupIconKeys)].join('、')}`
+  );
+
+  // ② 登记了位图 → 磁盘上必须有（页面破图就出在这一步）
+  const missingBitmap = iconAssets.filter((i) => i.bitmap && !fs.existsSync(path.join(iconsDir, i.bitmap)));
+  check(
+    `图标库：${iconAssets.filter((i) => i.bitmap).length} 张已登记位图都在盘上`,
+    missingBitmap.length === 0,
+    `缺: ${missingBitmap.map((i) => `public/icons/${i.bitmap}`).join('、')}`
+  );
+
+  // ③ 反向：盘上的图必须都被登记（生成了却没人用 = 白生成）
+  const walkIcons = (dir: string, prefix: string): string[] =>
+    fs.existsSync(dir)
+      ? fs.readdirSync(dir, { withFileTypes: true }).flatMap((e) => {
+          const rel = prefix ? `${prefix}/${e.name}` : e.name;
+          return e.isDirectory() ? walkIcons(path.join(dir, e.name), rel) : [rel];
+        })
+      : [];
+  const onDisk = walkIcons(iconsDir, '');
+  const registered = new Set(iconAssets.map((i) => i.bitmap).filter(Boolean));
+  const orphanBitmaps = onDisk.filter((rel) => !registered.has(rel));
+  check(
+    `图标库：public/icons 下 ${onDisk.length} 个文件全部已登记`,
+    orphanBitmaps.length === 0,
+    `孤儿: ${orphanBitmaps.join('、')}`
+  );
+
+  // ④ 矢量 key 必须真的在 TECH_ICONS 里 —— 这是「灰方块」的唯一来源
+  const badVector = iconAssets.filter((i) => !(i.vector in TECH_ICONS));
+  check(
+    `图标库：${iconAssets.length} 条矢量 key 全部命中 TECH_ICONS`,
+    badVector.length === 0,
+    `查不到（页面会静默回落 generic）: ${badVector.map((i) => `${i.key}→${i.vector}`).join('、')}`
+  );
+
+  // ⑤ 分类必须落在九大类内，且九大类不许空着
+  const catIds = new Set(ICON_CATEGORIES.map((c) => c.id));
+  const badCat = iconAssets.filter((i) => !catIds.has(i.category));
+  check('图标库：分类全部合法', badCat.length === 0, `非法分类: ${badCat.map((i) => `${i.key}→${i.category}`).join('、')}`);
+  const emptyCats = ICON_CATEGORIES.filter((c) => !iconAssets.some((i) => i.category === c.id));
+  check(
+    `图标库：${ICON_CATEGORIES.length} 个分类都非空`,
+    emptyCats.length === 0,
+    `空分类（侧栏点了没反应）: ${emptyCats.map((c) => c.id).join('、')}`
+  );
+
+  // ⑥ 渲染器里写死的图标 key 也必须查得到 —— 与 ④ 是同一个坑的两侧：
+  //    ④ 查的是数据（icons.json），⑥ 查的是代码。`iconSvg('ngnix')` 这种
+  //    拼写错误编译得过、跑得起来、控制台一个错都没有，只会多一个灰方块。
+  const srcRoots = ['lib', 'app', 'components'].map((d) => path.join(webRoot, 'src', d));
+  const iconRefs = new Map<string, string>();
+  const walkSrc = (p: string) => {
+    for (const e of fs.readdirSync(p, { withFileTypes: true })) {
+      const full = path.join(p, e.name);
+      if (e.isDirectory()) walkSrc(full);
+      else if (/\.tsx?$/.test(e.name)) {
+        const text = fs
+          .readFileSync(full, 'utf8')
+          .replace(/\/\*[\s\S]*?\*\//g, '')
+          .replace(/^[ \t]*\/\/.*$/gm, '');
+        for (const m of text.matchAll(/icon(?:Svg|Name|Color)?\(\s*'([a-z0-9-]+)'/g)) {
+          iconRefs.set(m[1], path.relative(webRoot, full));
+        }
+        for (const m of text.matchAll(/\bicon:\s*'([a-z0-9-]+)'/g)) {
+          iconRefs.set(m[1], path.relative(webRoot, full));
+        }
+      }
+    }
+  };
+  for (const r of srcRoots) walkSrc(r);
+  const unresolvable = [...iconRefs.keys()].filter((k) => !(k in TECH_ICONS));
+  check(
+    `图标库：代码里引用的 ${iconRefs.size} 个 key 全部可解析`,
+    unresolvable.length === 0,
+    `拼错或已删（会静默变灰方块）: ${unresolvable.map((k) => `${k}@${iconRefs.get(k)}`).join('、')}`
+  );
+
+  // ⑦ 架构图数据里声明的 icon 同样要能解析（数据在 JSON 里，上面那条扫不到）
+  const archDoc = JSON.parse(
+    fs.readFileSync(path.join(here, '..', 'src', 'generated', 'architecture.json'), 'utf8')
+  );
+  const archIcons = new Set<string>();
+  // 图标挂在 canvas.options 下（不是 options）—— 早先按 options 去取，
+  // 取到 0 条，断言「0 个引用全部可解析」绿得毫无意义。
+  const canvasOpts = (archDoc.canvas?.options ?? {}) as Record<string, Record<string, { icon?: string }>>;
+  for (const opts of Object.values(canvasOpts)) {
+    for (const spec of Object.values(opts)) if (spec.icon) archIcons.add(spec.icon);
+  }
+  const badArchIcons = [...archIcons].filter((k) => !(k in TECH_ICONS));
+  check(
+    `架构图数据：${archIcons.size} 个 icon 引用全部可解析`,
+    badArchIcons.length === 0,
+    `查不到: ${badArchIcons.join('、')}`
+  );
+  // 下限闸门：只取到 0 条时上面那条会「0 个引用全部可解析」地绿过去，
+  // 等于什么都没验。这条保证我们确实读到了图标表，而不是读了个空对象。
+  check(
+    `架构图数据：确实取到了图标表（实到 ${archIcons.size} 个 key）`,
+    archIcons.size >= 40,
+    '取不到说明读错了字段位置，上面的「全部可解析」就成了空话'
+  );
+
+  // ⑧ 位图体积闸门：二进制最容易悄悄把仓库顶大
+  const totalBytes = onDisk.reduce((n, rel) => n + fs.statSync(path.join(iconsDir, rel)).size, 0);
+  check(
+    `图标库：位图总 ${(totalBytes / 1024).toFixed(0)}KB ≤ 6MB`,
+    totalBytes <= 6 * 1024 * 1024
+  );
+
+  // ⑨ 页面与菜单成对存在（和【13】分工：那条防「菜单指向空地址」，这条防「图标库页面被忘挂」）
+  check('图标库：/icons 页面存在', fs.existsSync(path.join(webRoot, 'src', 'app', 'icons', 'page.tsx')));
+  const shellNav = fs.readFileSync(path.join(webRoot, 'src', 'components', 'Shell.tsx'), 'utf8');
+  check('图标库：侧栏有入口', /href:\s*'\/icons'/.test(shellNav));
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -1097,6 +1240,50 @@ console.log('\n【14】项目档案契约');
     '架构图谱：档案清单来自内置同步结果',
     PROFILE_SUMMARIES.length === PROFILE_ORDER.length && PROFILE_SUMMARIES.every((p) => p.builtin),
     '清单来源不一致时，界面上会列出切不过去的档案'
+  );
+}
+
+
+// ═══════════════════════════════════════════════════════════════
+// 【15】代码扫描映射表契约 —— 坐标映射到图上哪一位，错了不报错只会少一个节点
+// ═══════════════════════════════════════════════════════════════
+console.log('\n【15】代码扫描映射表契约');
+{
+  const repoRoot = path.resolve(here, '..', '..');
+  const doc = JSON.parse(fs.readFileSync(path.join(repoRoot, 'arsenal-scan', 'scan_rules.json'), 'utf8'));
+  const gen = JSON.parse(fs.readFileSync(path.join(here, '..', 'src', 'generated', 'scan_rules.json'), 'utf8'));
+  const canvas = JSON.parse(fs.readFileSync(path.join(here, '..', 'src', 'generated', 'architecture.json'), 'utf8')).canvas;
+  const dims = new Set(Object.keys(canvas.dims ?? {}));
+  const opts = canvas.options ?? {};
+
+  check('扫描映射表：同步产物与仓库事实源条数一致', gen.rules.length === doc.rules.length,
+    `${gen.rules.length} vs ${doc.rules.length}`);
+
+  const badSlot = doc.rules.filter((r: any) => r.dim && (!dims.has(r.dim) || !(r.opt in (opts[r.dim] ?? {}))));
+  check('扫描映射表：每条 dim/opt 都在架构画布里真存在', badSlot.length === 0,
+    `落不到图上的：${badSlot.slice(0, 3).map((r: any) => `${r.group}:${r.artifact}`).join('、')}`);
+
+  check('扫描映射表：规模达标（≥80 条，且至少 40 条会落节点）',
+    doc.rules.length >= 80 && doc.rules.filter((r: any) => r.dim).length >= 40,
+    `${doc.rules.length} 条 / ${doc.rules.filter((r: any) => r.dim).length} 条落图`);
+
+  check('扫描映射表：坐标不重复（同一依赖命中两条规则会画出两个节点）',
+    new Set(doc.rules.map((r: any) => `${r.kind}|${r.group}|${r.artifact}`)).size === doc.rules.length);
+
+  // 扫描器与映射表是两处代码，规则里写的 icon 必须在图标库里真存在 ——
+  // 否则图上是灰方块，而扫描本身一切正常
+  const icons = new Set(
+    [...fs.readFileSync(path.join(here, '..', 'src', 'lib', 'tech-icons.ts'), 'utf8')
+      .matchAll(/^ {2}(?:'([a-z0-9-]+)'|([a-z0-9]+)): \{$/gm)].map((m: any) => m[1] ?? m[2])
+  );
+  const badIcon = doc.rules.filter((r: any) => r.icon && !icons.has(r.icon));
+  check('扫描映射表：icon 全部命中 tech-icons.ts', badIcon.length === 0,
+    `对不上的：${badIcon.slice(0, 3).map((r: any) => r.icon).join('、')}`);
+
+  check('扫描引擎：后端 com/arsenal/scan 包齐备（五个子 Scanner + 闸门 + 输入解析）',
+    ['ProjectScanner', 'BuildScanner', 'ConfigScanner', 'DeployScanner', 'CodeScanner', 'CiScanner',
+      'ScanGuard', 'SourceResolver', 'ScanRulesLoader', 'TechStackResolver', 'ScanException']
+      .every((f) => fs.existsSync(path.join(repoRoot, 'arsenal-server', 'src', 'main', 'java', 'com', 'arsenal', 'scan', `${f}.java`)))
   );
 }
 

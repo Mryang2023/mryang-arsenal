@@ -1,5 +1,6 @@
 import type { ComposedStack, StackPicks } from './content-types';
 import { renderYaml } from './stack';
+import { appReplicas, type StackPicksMeta } from './topology';
 
 /**
  * 部署清单生成器：把「交付形态」这一维的选型落成可以直接 kubectl apply / docker compose up 的文件。
@@ -1060,7 +1061,7 @@ appVersion: "1.0.0"
  * 选了消息队列才有 broker 地址。写死一行 SPRING_PROFILES_ACTIVE 的话，
  * chart 装上去也连不上任何中间件，而错误要等到运行时才暴露。
  */
-function values(app: string, port: number, plain: { key: string; desc: string }[], grace: number): string {
+function values(app: string, port: number, plain: { key: string; desc: string }[], grace: number, replicas: number): string {
   const env = [
     '  # 由选型生成：每一项都能追溯到某个选中的中间件',
     '  SPRING_PROFILES_ACTIVE: prod',
@@ -1068,7 +1069,9 @@ function values(app: string, port: number, plain: { key: string; desc: string }[
   ].join('\n');
   return `# 所有环境共享的默认值。每份 values-<env>.yaml 只写在它之上的**差值**，
 # 不要复制整份再改 —— 那样改一处要改三处，迟早有一处忘掉。
-replicaCount: 2
+# 默认副本数来自装配台上选的集群形态（当前为 ${replicas}），
+# 低于 2 时抬到 2：一份副本没有滚动更新的余地，发布等于停机。
+replicaCount: ${Math.max(2, replicas)}
 
 image:
   repository: registry.example.com/${app}
@@ -1187,8 +1190,10 @@ spec:
 `;
 }
 
-function valuesDev(app: string): string {
+function valuesDev(app: string, replicas: number): string {
   return `# 开发环境：一份资源、不开扩缩、latest 也能接受
+# 副本数刻意压到 1 —— 开发要的是「改完立刻看到」，不是高可用。
+# 生产那份（values-prod.yaml）才是形态真正生效的地方（当前形态给出 ${replicas} 副本）。
 replicaCount: 1
 
 image:
@@ -1206,9 +1211,11 @@ env:
 `;
 }
 
-function valuesProd(): string {
+function valuesProd(replicas: number): string {
   return `# 生产环境：多副本、有 PDB、有扩缩上限、启用外部 Ingress
-replicaCount: 3
+# replicaCount 来自装配台选的集群形态（当前 ${replicas}）。
+# 低于 2 时抬到 2：单副本的 Deployment 无法滚动更新，一次发布就是一次停机。
+replicaCount: ${Math.max(2, replicas)}
 
 resources:
   requests: { cpu: 500m, memory: 1Gi }
@@ -1401,6 +1408,8 @@ spec:
 export interface DeployOpts {
   /** 应用名，同时用作镜像名、Deployment 名与命名空间名 */
   appName?: string;
+  /** 集群形态与参数。不给则按「未做形态表态」处理，副本数回落到 1 */
+  meta?: StackPicksMeta;
 }
 
 /**
@@ -1421,8 +1430,10 @@ export function buildDeployPlan(
     app,
     port,
     image: `registry.example.com/${app}:1.0.0`,
-    // 默认给 2 副本：replicas=1 没有滚动更新的余地，发布等于停机
-    replicas: 2,
+    // 副本数一律由集群形态算出来 —— 这里写死一个数字，就意味着
+    // 「用户在装配台上选了三节点，导出的清单里还是单副本」。
+    // 没做形态表态时 appReplicas 给 1：那是用户没说话，不是我们替他选了。
+    replicas: appReplicas(picks, opts.meta),
     grace: gracePeriod(composed),
     probes: probeEndpoints(picks),
     plain,
@@ -1467,9 +1478,9 @@ export function buildDeployPlan(
   if (picks.deploy === 'helm') {
     const h = '交付形态 · Helm';
     push('deploy/chart/Chart.yaml', chartYaml(app), h);
-    push('deploy/chart/values.yaml', values(app, port, ctx.plain, ctx.grace), h);
-    push('deploy/chart/values-dev.yaml', valuesDev(app), h);
-    push('deploy/chart/values-prod.yaml', valuesProd(), h);
+    push('deploy/chart/values.yaml', values(app, port, ctx.plain, ctx.grace, ctx.replicas), h);
+    push('deploy/chart/values-dev.yaml', valuesDev(app, ctx.replicas), h);
+    push('deploy/chart/values-prod.yaml', valuesProd(ctx.replicas), h);
     push('deploy/chart/templates/_helpers.tpl', helpersTpl(app), h);
     push('deploy/chart/templates/deployment.yaml', chartDeployment(port, ctx.probes).replace(/%APP%/g, app), h);
     push('deploy/chart/templates/service.yaml', chartService().replace(/%APP%/g, app), h);

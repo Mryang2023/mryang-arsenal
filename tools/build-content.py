@@ -24,7 +24,17 @@ CONTENT = os.path.join(HERE, 'content')
 # 选型维度的来源模块。三处装配（选型台 / 架构图 / 项目结构）必须读同一份列表 ——
 # 早先是三处各写一遍元组，加一个维度要改三行，漏一处就变成「选型台里有、
 # 架构图里没有」这种只在运行时才暴露的不一致。
-STACK_MODULES = ('stack_base', 'stack_data', 'stack_mw', 'stack_cross', 'stack_deploy')
+STACK_MODULES = ('stack_base', 'stack_data', 'stack_mw', 'stack_cross', 'stack_deploy',
+                 # 全栈扩展：运行基石 / 数据生态 / 质量工程 / 运维安全 / 部署形态
+                 'stack_runtime', 'stack_datax', 'stack_quality', 'stack_ops',
+                 'stack_topology')
+
+# 只提供画图元信息、不提供维度的模块（CANVAS_*_EXTRA 由 build_architecture 合并）
+CANVAS_MODULES = ('stack_canvas_extra',)
+
+# 场景案例库的来源模块（与 STACK_MODULES 同一套写法：加一个场景就在这里加一行，
+# 漏了等于没写 —— 生成器不会去找目录里「碰巧存在」的文件）
+CASES_MODULES = ('cases/huge_rowcount', 'cases/genomic_sequence')
 
 # Archify（通用绘图器）的组件类型枚举。写在这里是因为它是**对方**的词汇表：
 # 我们只能往里映射，不能自己加第八类 —— 加了会在导出期被它的 JSON Schema 拒掉。
@@ -154,6 +164,49 @@ def build_stacks():
             print('  - ' + p)
         sys.exit(1)
 
+    # 分组：各扩展模块自带的组追加在基础组之后
+    groups = list(base.GROUPS)
+    seen_groups = {g['id'] for g in groups}
+    for name in STACK_MODULES:
+        mod = load_module(name)
+        for g in getattr(mod, 'GROUPS_EXTRA', []):
+            if g['id'] in seen_groups:
+                problems.append('模块 %s 重复声明了分组 %s' % (name, g['id']))
+                continue
+            seen_groups.add(g['id'])
+            groups.append(g)
+    if problems:
+        print('\n[arsenal] 选型数据校验失败：')
+        for p in problems:
+            print('  - ' + p)
+        sys.exit(1)
+
+    # 集群形态：把 stack_topology.TOPOLOGY 挂到对应维度上。
+    # 形态是**组件级**的（MySQL 和 PostgreSQL 都能跑主从），所以挂在维度上；
+    # 个别选项想换默认形态，就在选项自己身上写 topologyDefault 覆盖。
+    # "*" 表示该维度所有选项通用的形态表。
+    topo_mod = load_module('stack_topology')
+    topology_table = getattr(topo_mod, 'TOPOLOGY', {})
+    for dim in dimensions:
+        spec = topology_table.get(dim['id'])
+        if not spec:
+            continue
+        for key, body in spec.items():
+            if key == '*':
+                dim['topology'] = body
+                for opt in dim['options']:
+                    opt.setdefault('topologyDefault', body['default'])
+            else:
+                for opt in dim['options']:
+                    if opt['id'] == key:
+                        opt['topology'] = body
+                        opt.setdefault('topologyDefault', body['default'])
+    # 形态表引用了不存在的维度 = 白写，直接炸
+    for dim_id in topology_table:
+        if dim_id not in dim_ids:
+            print('\n[arsenal] 集群形态表引用了不存在的维度 %s' % dim_id)
+            sys.exit(1)
+
     stack = {
         'collection': 'arsenal-stacks',
         'name': '军火库 · 技术选型与架构装配',
@@ -164,7 +217,7 @@ def build_stacks():
             '实时合成 pom 依赖、application.yml、必需的配置类与联动代码，'
             '并给出运维清单与冲突提示。'
         ),
-        'groups': base.GROUPS,
+        'groups': groups,
         'dimensions': dimensions,
         'presets': presets,
     }
@@ -189,6 +242,43 @@ def build_architecture():
         dimensions.extend(load_module(name).DIMENSIONS)
     dim_ids = {d['id'] for d in dimensions}
     opt_ids = {d['id']: {o['id'] for o in d['options']} for d in dimensions}
+
+    # ── 扩展层合并 ──────────────────────────────────────────
+    # 全栈维度（runtime / datax / quality / ops / topology）的能力字典、槽位定义、
+    # 能力供需、画图元信息都在各自的模块里，这里并进同一张表再校验。
+    # 用「叠加」而不是改 stack_arch.py，是为了让两条工作线能同时演进而不冲突。
+    for name in list(STACK_MODULES) + list(CANVAS_MODULES):
+        mod = load_module(name)
+        for cap_id, cap_name in getattr(mod, 'CAP_EXTRA', {}).items():
+            if cap_id in arch.CAP_NAME:
+                print('\n[arsenal] 模块 %s 重复登记了能力 %s' % (name, cap_id))
+                sys.exit(1)
+            arch.CAP_NAME[cap_id] = cap_name
+        for dim_id, node in getattr(mod, 'NODE_ARCH_EXTRA', {}).items():
+            if dim_id in arch.NODE_ARCH:
+                print('\n[arsenal] 模块 %s 重复登记了槽位 %s' % (name, dim_id))
+                sys.exit(1)
+            arch.NODE_ARCH[dim_id] = node
+        for dim_id, opts in getattr(mod, 'OPTION_ARCH_EXTRA', {}).items():
+            if dim_id in arch.OPTION_ARCH:
+                print('\n[arsenal] 模块 %s 重复登记了维度 %s 的能力声明' % (name, dim_id))
+                sys.exit(1)
+            arch.OPTION_ARCH[dim_id] = opts
+        arch.CANVAS_DIMS.update(getattr(mod, 'CANVAS_DIMS_EXTRA', {}))
+        arch.CANVAS_OPTIONS.update(getattr(mod, 'CANVAS_OPTIONS_EXTRA', {}))
+
+    # 集群形态索要的能力也必须真有人提供 —— 否则用户切到那个形态就永远「跑不起来」，
+    # 而界面上只会显示一句含糊的「缺零件」。
+    topo_mod = load_module('stack_topology')
+    for dim_id, spec in getattr(topo_mod, 'TOPOLOGY', {}).items():
+        for body in spec.values():
+            for mode in body['modes']:
+                for cap_id in mode.get('requires', []):
+                    if cap_id not in arch.CAP_NAME:
+                        print('\n[arsenal] 集群形态 %s/%s 引用了未登记的能力 %s'
+                              % (dim_id, mode['id'], cap_id))
+                        sys.exit(1)
+
     lane_ids = {l['id'] for l in arch.LANES}
     cap_ids = set(arch.CAP_NAME)
 
@@ -611,11 +701,418 @@ def build_project():
           % (stats['dir'], stats['file'], len(proj.STRUCTURE_NOTES), len(proj.SWITCH_OWNERS)))
 
 
+def build_icons():
+    """产出图标资产库索引。
+
+    这一层守的是「登记的东西真的存在」—— 图标库最容易烂成一本目录册：
+    JSON 里写着 81 个，页面能列出 81 行，点开一半是灰方块。所以这里
+    三条硬校验一条都不能省：
+
+      ① vector key 必须在 tech-icons.ts 里真有一段图形（拼错 = 静默回落 generic）
+      ② bitmap 非空时，文件必须在 public/icons/ 下真的存在（拼错 = 页面破图）
+      ③ bitmap 不许绝对路径、不许 `..`（这类路径会被当成文件遍历用）
+
+    反过来「public/icons 下的孤儿文件」由 sync-content.mjs 抓：
+    生成器这侧看得到图标清单，看不到磁盘上多出来的图。
+    """
+    print('[5/5] arsenal-icons —— 图标资产库')
+    mod = load_module('icons')
+    icons = mod.ICONS
+    cats = mod.CATEGORIES
+    problems = []
+
+    # ① 矢量 key 必须在 tech-icons.ts 里真有一段图形
+    ts_path = os.path.join(ROOT, 'arsenal-web', 'src', 'lib', 'tech-icons.ts')
+    if not os.path.exists(ts_path):
+        problems.append('找不到 arsenal-web/src/lib/tech-icons.ts —— 矢量图标的事实源')
+        vector_keys = set()
+    else:
+        with open(ts_path, encoding='utf-8') as f:
+            ts_src = f.read()
+        # 只认两层缩进的顶层条目，避免把 name/color/kind 这些字段也算成图标
+        vector_keys = set()
+        for m in re.finditer(r'^ {2}(\'([a-z0-9-]+)\'|([a-z0-9]+)): \{$', ts_src, re.M):
+            vector_keys.add(m.group(2) or m.group(3))
+
+    cat_ids = [c['id'] for c in cats]
+    accent_of = {c['id']: c['accent'] for c in cats}
+    public_icons = os.path.join(ROOT, 'arsenal-web', 'public', 'icons')
+
+    seen = {}
+    for ic in icons:
+        at = '图标 %s' % ic.get('key')
+        key = ic.get('key') or ''
+        if not re.match(r'^[a-z][a-z0-9-]*$', key):
+            problems.append('%s 的 key 不合法（只允许小写字母/数字/横线，且字母开头）' % at)
+        if key in seen:
+            problems.append('%s 的 key 与前面某条重复' % at)
+        seen[key] = True
+
+        if ic.get('category') not in cat_ids:
+            problems.append('%s 的 category「%s」不在九大类内' % (at, ic.get('category')))
+        if not ic.get('name') or not ic.get('en'):
+            problems.append('%s 缺少中文名或英文名' % at)
+        if not ic.get('tags'):
+            problems.append('%s 没有标签 —— 搜不到等于没有' % at)
+
+        vec = ic.get('vector') or ''
+        if not vec:
+            problems.append('%s 没有矢量 key —— 架构图上会是一个灰方块' % at)
+        elif vec not in vector_keys:
+            problems.append('%s 指向的矢量 key「%s」在 tech-icons.ts 里不存在' % (at, vec))
+
+        bmp = ic.get('bitmap') or ''
+        if bmp:
+            if bmp.startswith('/') or '..' in bmp or re.match(r'^[A-Za-z]:', bmp):
+                problems.append('%s 的 bitmap 路径不合法（不许绝对路径或 ..）：%s' % (at, bmp))
+            elif not bmp.endswith(('.png', '.webp')):
+                problems.append('%s 的 bitmap 必须是 .png/.webp：%s' % (at, bmp))
+            else:
+                full = os.path.join(public_icons, bmp.replace('/', os.sep))
+                if not os.path.exists(full):
+                    problems.append('%s 登记了位图但磁盘上没有：public/icons/%s' % (at, bmp))
+
+    # ② 九大类不能空着 —— 空分类在侧栏上就是一个点了没反应的按钮
+    for cid in cat_ids:
+        if not [x for x in icons if x.get('category') == cid]:
+            problems.append('分类 %s 一个图标都没有' % cid)
+
+    if problems:
+        print('\n[arsenal] 图标资产库数据校验失败：')
+        for p in problems:
+            print('  - ' + p)
+        sys.exit(1)
+
+    with_bitmap = [x for x in icons if x.get('bitmap')]
+    write_json('arsenal-icons/icons.json', {
+        'collection': 'arsenal-icons',
+        'name': '军火库 · 图标资产库',
+        'version': '0.1.0',
+        'description': (
+            '画架构图会用到的图标。矢量（tech-icons.ts）供架构图节点、装配台与 IR 组件使用，'
+            '位图（public/icons/**）供卡片配图与文档插图使用 —— 两套分工固定，不互相替代。'
+        ),
+        'stylePrefix': mod.STYLE_PREFIX,
+        'categories': cats,
+        'count': len(icons),
+        'bitmapCount': len(with_bitmap),
+        'icons': icons,
+    })
+    print('  %d 个图标 / %d 类 / %d 张位图已落盘 / 矢量 key 全部命中 tech-icons.ts'
+          % (len(icons), len(cats), len(with_bitmap)))
+
+
+def strip_java_comments(code):
+    """剥掉 Java 注释，只留下会被编译的部分。
+
+    为什么只按行首判断 // 和 *：URL 里的 https:// 中间也有 //，
+    从行中间切会把它切碎。真正的注释一定以空白 + // 或 * 开头。
+    """
+    code = re.sub(r'/\*.*?\*/', '', code, flags=re.S)
+    return '\n'.join(l for l in code.split('\n')
+                     if not re.match(r'^\s*(//|\*|/\*)', l))
+
+
+def rule_ids():
+    """扫描 arsenal-rules/**/*.json 里真实存在的规则 id。
+
+    场景案例的 relatedRules 必须引用真实 id —— 猜的 id 会让「案例 ↔ 规则」
+    这条反向链接在页面上一个字都显示不出来，而且不报错。
+    """
+    import glob as _glob
+    ids = set()
+
+    def walk(o):
+        if isinstance(o, dict):
+            if isinstance(o.get('id'), str) and o.get('severity'):
+                ids.add(o['id'])
+            for v in o.values():
+                walk(v)
+        elif isinstance(o, list):
+            for v in o:
+                walk(v)
+
+    for f in _glob.glob(os.path.join(ROOT, 'arsenal-rules', '**', '*.json'), recursive=True):
+        try:
+            with open(f, encoding='utf-8') as fh:
+                walk(json.load(fh))
+        except Exception as ex:
+            print('  [warn] 规则文件读不动，跳过：%s (%s)' % (f, ex))
+    return ids
+
+
+def build_cases():
+    """产出场景案例库。
+
+    这里守的三条线，本质上都是同一个问题的不同侧面：**不许给出假的确定感**。
+      · 切片没命中必须能说出原因（否则读者以为「不需要做」）
+      · 锚点必须真的在代码里（否则备注会挂在错的地方，给出自信的错误结论）
+      · 规则 id 必须真实存在（否则反向链接是空的）
+    """
+    print('[6/6] arsenal-cases —— 场景案例库')
+    cases = []
+    problems = []
+    known_rules = rule_ids()
+
+    def check_when(where, when, driver_levels):
+        """when 只能引用已声明的 driver 与 level。拼错一个 id，条件就是恒假 ——
+        切片永远不激活，页面上表现为「这个案例只有 3 个切片」，没人知道是拼错了。"""
+        for did, levels in (when or {}).items():
+            if did not in driver_levels:
+                problems.append('%s 的 when 引用了未声明的 driver：%s' % (where, did))
+                continue
+            for lv in levels:
+                if lv not in driver_levels[did]:
+                    problems.append('%s 的 when 引用了 driver %s 未声明的档位：%s' % (where, did, lv))
+
+    for name in CASES_MODULES:
+        kase = load_module(name).CASE
+        cid = kase.get('id', name)
+
+        # ① 驱动参数：id 唯一、档位 id 唯一、至少 4 个驱动、每驱动至少 2 档
+        driver_levels = {}
+        seen_driver = set()
+        for d in kase.get('drivers') or []:
+            if d['id'] in seen_driver:
+                problems.append('%s 的 driver id 重复：%s' % (cid, d['id']))
+            seen_driver.add(d['id'])
+            lids = set()
+            for lv in d.get('levels') or []:
+                if lv['id'] in lids:
+                    problems.append('%s/%s 的档位 id 重复：%s' % (cid, d['id'], lv['id']))
+                lids.add(lv['id'])
+            if len(lids) < 2:
+                problems.append('%s/%s 只有 %d 个档位 —— 驱动参数必须离散且可选'
+                                % (cid, d['id'], len(lids)))
+            driver_levels[d['id']] = lids
+        if len(seen_driver) < 4:
+            problems.append('%s 只有 %d 个驱动参数 —— 少于 4 个就退化成静态文案了'
+                            % (cid, len(seen_driver)))
+
+        # ② 切片：id 唯一、order 连续、when 合法、锚点命中、规则真实
+        seen_slice = set()
+        orders = []
+        for s in kase.get('slices') or []:
+            where = '%s/%s' % (cid, s['id'])
+            if s['id'] in seen_slice:
+                problems.append('%s 的切片 id 重复' % where)
+            seen_slice.add(s['id'])
+            orders.append(s.get('order'))
+
+            check_when(where, s.get('when'), driver_levels)
+
+            code = s.get('code') or ''
+            hl = s.get('highlights') or []
+            if len(hl) < 2:
+                problems.append('%s 只有 %d 条 highlights —— 少于 2 条说明这段代码没人真的读过'
+                                % (where, len(hl)))
+            seen_mark = set()
+            for h in hl:
+                mark = h.get('mark')
+                if not mark:
+                    problems.append('%s 有 highlight 缺少 mark 锚点' % where)
+                    continue
+                if mark in seen_mark:
+                    problems.append('%s 的锚点重复：%s' % (where, mark[:40]))
+                seen_mark.add(mark)
+                if mark not in code:
+                    problems.append('%s 锚点找不到目标：%s' % (where, mark[:60]))
+
+            for r in s.get('relatedRules') or []:
+                if r not in known_rules:
+                    problems.append('%s 引用了不存在的规则 id：%s' % (where, r))
+
+            if len(s.get('pitfalls') or []) < 2:
+                problems.append('%s 的 pitfalls 少于 2 条' % where)
+            if len(s.get('notSuitable') or []) < 2:
+                problems.append('%s 的 notSuitable 少于 2 条' % where)
+            if len(s.get('refs') or []) < 2:
+                problems.append('%s 的 refs 少于 2 条 —— 无出处不收录' % where)
+            # 反模式扫描：这几行出现在案例里等于在教人怎么写错。
+            # 必须先剥注释 —— 「绝不要碰 ForkJoinPool.commonPool」这种正确的告诫
+            # 会被当成示范，逼着人把话删掉，最后连警告都没了。
+            for bad in ('newCachedThreadPool', 'ForkJoinPool.commonPool', 'TODO'):
+                if bad in strip_java_comments(code):
+                    problems.append('%s 的代码里出现了反模式/占位：%s' % (where, bad))
+
+        if orders != list(range(1, len(orders) + 1)):
+            problems.append('%s 的切片 order 不连续：%s' % (cid, orders))
+
+        # ③ 矛盾与不适用：when 同样要合法
+        for i, c in enumerate(kase.get('conflicts') or []):
+            check_when('%s/conflict[%d]' % (cid, i), c.get('when'), driver_levels)
+            if not c.get('text'):
+                problems.append('%s/conflict[%d] 没有说明矛盾在哪' % (cid, i))
+        for i, n in enumerate(kase.get('notSuitableFor') or []):
+            check_when('%s/notSuitableFor[%d]' % (cid, i), n.get('when'), driver_levels)
+            if not n.get('reason'):
+                problems.append('%s/notSuitableFor[%d] 没有给出该看什么的理由' % (cid, i))
+
+        # ④ 架构图节点只能来自场景数据，且连线两端必须都有节点
+        arch = kase.get('architecture') or {}
+        node_ids = [n['id'] for n in arch.get('nodes') or []]
+        for ln in arch.get('links') or []:
+            if ln['from'] not in node_ids or ln['to'] not in node_ids:
+                problems.append('%s 的架构连线指向了不存在的节点：%s -> %s'
+                                % (cid, ln['from'], ln['to']))
+        for n in arch.get('nodes') or []:
+            check_when('%s/arch/%s' % (cid, n['id']), n.get('whenAny'), driver_levels)
+
+        cases.append({
+            **kase,
+            'sliceCount': len(kase.get('slices') or []),
+            'driverCount': len(seen_driver),
+            'ruleCount': len({r for s in kase.get('slices') or []
+                              for r in s.get('relatedRules') or []}),
+            'lines': sum(len((s.get('code') or '').split('\n'))
+                         + len((s.get('sql') or '').split('\n'))
+                         for s in kase.get('slices') or []),
+        })
+
+    if problems:
+        print('\n[arsenal] 场景案例库数据校验失败：')
+        for p in problems:
+            print('  - ' + p)
+        sys.exit(1)
+
+    cases.sort(key=lambda c: c['order'])
+    ids = [c['id'] for c in cases]
+    if len(set(ids)) != len(ids):
+        sys.exit('[arsenal] 场景 id 重复：%s' % ids)
+
+    for c in cases:
+        write_json('arsenal-cases/%s.json' % c['id'], {'case': c})
+
+    write_json('arsenal-cases/meta.json', {
+        'collection': 'arsenal-cases',
+        'name': '军火库 · 场景案例库',
+        'version': '0.1.0',
+        'releasedAt': '2026-09-22',
+        'description': (
+            '按问题与参数出方案。每个场景声明一组驱动参数（并发量 / 数据规模 / 读写比 / '
+            '一致性 / P99 / 增长预期），每个代码切片带 when 条件：命中的给出建表 DDL 与生产级 Java，'
+            '没命中的必须显式说明为什么在这个参数下不适用 —— 不许静默省略。'
+            '与 arsenal-cookbook 的分工：cookbook 讲「一个功能标准该怎么写」，cases 讲「在这些约束下该怎么设计」。'
+        ),
+        'order': ids,
+        'count': len(cases),
+    })
+
+    total_slices = sum(c['sliceCount'] for c in cases)
+    total_lines = sum(c['lines'] for c in cases)
+    print('  %d 个场景 / %d 个切片 / %d 行代码 / 锚点与规则 id 全部命中'
+          % (len(cases), total_slices, total_lines))
+
+
+def _tech_icon_keys():
+    """tech-icons.ts 里真实存在的矢量图标 key。
+
+    与 build_icons 里同一套正则：只认两层缩进的顶层条目，
+    否则会把 name/color/svg 这些字段也算成图标。
+    """
+    ts_path = os.path.join(ROOT, 'arsenal-web', 'src', 'lib', 'tech-icons.ts')
+    if not os.path.exists(ts_path):
+        return set(), '找不到 arsenal-web/src/lib/tech-icons.ts'
+    with open(ts_path, encoding='utf-8') as f:
+        src = f.read()
+    keys = set()
+    for m in re.finditer(r'^ {2}(\'([a-z0-9-]+)\'|([a-z0-9]+)): \{$', src, re.M):
+        keys.add(m.group(2) or m.group(3))
+    return keys, None
+
+
+def build_scan():
+    """产出代码扫描的技术栈映射表。
+
+    这一层守的三件事，都是「静默失效」类：
+      ① dim/opt 必须在 architecture.json 的画布选项里真存在 ——
+         写错的后果不是报错，是扫描出来的技术栈**不画进架构图**，页面一片正常。
+      ② icon 必须在 tech-icons.ts 里有一段图形 —— 否则节点落成灰方块。
+      ③ 坐标不许重复 —— 同一条依赖命中两条规则，图上会出现两个节点。
+    """
+    print('[7/7] arsenal-scan —— 代码扫描映射表')
+    mod = load_module('scan_rules')
+    rules = mod.RULES
+    problems = []
+
+    icon_keys, icon_err = _tech_icon_keys()
+    if icon_err:
+        problems.append(icon_err)
+
+    arch_path = os.path.join(ROOT, 'arsenal-stacks', 'architecture.json')
+    dims, options = {}, {}
+    if os.path.exists(arch_path):
+        with open(arch_path, encoding='utf-8') as f:
+            arch = json.load(f)
+        canvas = arch.get('canvas') or {}
+        dims = canvas.get('dims') or {}
+        options = canvas.get('options') or {}
+    else:
+        problems.append('找不到 arsenal-stacks/architecture.json —— 无法校验 dim/opt')
+
+    seen = {}
+    for r in rules:
+        at = '%s:%s' % (r.get('group'), r.get('artifact'))
+        if r.get('kind') not in mod.KIND_LABEL:
+            problems.append('%s 的 kind「%s」不合法' % (at, r.get('kind')))
+        if not r.get('group') or not r.get('artifact'):
+            problems.append('%s 缺少 group 或 artifact' % at)
+        tech = r.get('tech') or ''
+        if not re.match(r'^[a-z][a-z0-9-]*$', tech):
+            problems.append('%s 的 tech「%s」不合法（小写字母开头）' % (at, tech))
+        if not r.get('name'):
+            problems.append('%s 没有中文名 —— 页面上只能显示坐标' % at)
+        key = (r.get('kind'), r.get('group'), r.get('artifact'))
+        if key in seen:
+            problems.append('%s 重复登记（kind=%s）' % (at, r.get('kind')))
+        seen[key] = True
+
+        icon = r.get('icon')
+        if icon and icon_keys and icon not in icon_keys:
+            problems.append('%s 的 icon「%s」在 tech-icons.ts 里不存在' % (at, icon))
+
+        dim, opt = r.get('dim'), r.get('opt')
+        if dim and dim not in dims:
+            problems.append('%s 的 dim「%s」不在架构画布的维度里' % (at, dim))
+        elif dim and opt not in (options.get(dim) or {}):
+            problems.append('%s 的 opt「%s」不在维度「%s」的选项里' % (at, opt, dim))
+        if opt and not dim:
+            problems.append('%s 只写了 opt 没写 dim —— 落不到架构图上' % at)
+
+    if problems:
+        print('\n[arsenal] 扫描映射表校验失败：')
+        for p in problems:
+            print('  - ' + p)
+        sys.exit(1)
+
+    rows = sorted(rules, key=lambda r: (r.get('kind') or '', r.get('group') or '', r.get('artifact') or ''))
+    on_canvas = len([r for r in rows if r.get('dim')])
+    write_json('arsenal-scan/scan_rules.json', {
+        'collection': 'arsenal-scan',
+        'name': '军火库 · 代码扫描映射表',
+        'version': '0.1.0',
+        'description': (
+            '依赖坐标 → 技术 key 的映射。扫描器只读坐标，不猜技术栈；'
+            '命中的必须带 evidence（文件路径 + 行号），没命中的进 UNMAPPED_DEPENDENCY note —— '
+            '不许静默丢弃。dim/opt 指向架构画布的真实维度与选项，命中即出现在部署图上；'
+            '只有 tech 没有 dim 的表示「认得出来但不单独部署」（工具库 / 编码期依赖）。'
+        ),
+        'count': len(rows),
+        'onCanvas': on_canvas,
+        'kinds': mod.KIND_LABEL,
+        'rules': rows,
+    })
+    print('  %d 条映射 / 其中 %d 条落架构图' % (len(rows), on_canvas))
+
+
 def main():
     build_cookbook()
     build_stacks()
     build_architecture()
     build_project()
+    build_icons()
+    build_cases()
+    build_scan()
 
 
 if __name__ == '__main__':

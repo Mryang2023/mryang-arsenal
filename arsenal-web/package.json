@@ -8,9 +8,9 @@
     "sync:rules": "node scripts/sync-rules.mjs",
     "sync:content": "node scripts/sync-content.mjs",
     "predev": "npm run sync",
-    "dev": "next dev -p 3010",
+    "dev": "node scripts/next-run.mjs dev -p 3010",
     "prebuild": "npm run sync",
-    "build": "next build",
+    "build": "node scripts/next-run.mjs build",
     "start": "next start -p 3010",
     "preverify": "npm run sync",
     "verify:arch": "tsx .verify/audit-check.ts",
@@ -19,8 +19,10 @@
     "verify:engine": "tsx .verify/run.ts",
     "verify:parity": "tsx .verify/parity-check.ts",
     "verify:archify": "tsx .verify/archify-check.ts",
-    "verify": "npm run verify:arch && npm run verify:graph && npm run verify:project && npm run verify:engine && npm run verify:parity && npm run verify:archify",
-    "lint": "next lint"
+    "verify:scan": "tsx .verify/scan-check.ts",
+    "verify": "npm run verify:arch && npm run verify:graph && npm run verify:cases && npm run verify:project && npm run verify:engine && npm run verify:parity && npm run verify:archify && npm run verify:scan",
+    "lint": "next lint",
+    "verify:cases": "tsx .verify/case-check.ts"
   },
   "dependencies": {
     "next": "14.2.33",

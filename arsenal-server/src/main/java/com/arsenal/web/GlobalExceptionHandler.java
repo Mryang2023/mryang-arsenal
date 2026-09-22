@@ -1,7 +1,9 @@
 package com.arsenal.web;
 
 import com.arsenal.archify.ArchifyUnavailableException;
+import com.arsenal.scan.ScanException;
 import org.slf4j.Logger;
+import org.springframework.web.multipart.MaxUploadSizeExceededException;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -77,6 +79,32 @@ public class GlobalExceptionHandler {
         HttpStatus status = timeout ? HttpStatus.GATEWAY_TIMEOUT : HttpStatus.SERVICE_UNAVAILABLE;
         log.warn("通用绘图器不可用（{}）：{}", e.code(), e.getMessage());
         return ResponseEntity.status(status).body(ApiResponse.fail(e.code(), e.getMessage()));
+    }
+
+    /**
+     * 扫描失败。三种语义必须分开：
+     * 输入不合法 400（改输入）、规模超限 413（缩小范围）、超时 504（重试或分批）。
+     *
+     * 不接住它们会落到最下面的兜底 —— Spring 自己的 415/400 被兜底吃成 500 这个坑
+     * 项目里踩过五次，这里是同一类问题的另一面：业务的失败码也要自己声明落点。
+     */
+    @ExceptionHandler(ScanException.class)
+    public ResponseEntity<ApiResponse<Void>> handleScan(ScanException e) {
+        HttpStatus status = switch (e.code()) {
+            case ScanException.TOO_LARGE -> HttpStatus.PAYLOAD_TOO_LARGE;
+            case ScanException.TIMEOUT -> HttpStatus.GATEWAY_TIMEOUT;
+            default -> HttpStatus.BAD_REQUEST;
+        };
+        log.info("扫描失败（{} → {}）：{}", e.code(), status.value(), e.getMessage());
+        return ResponseEntity.status(status).body(ApiResponse.fail(e.code(), e.getMessage()));
+    }
+
+    /** 上传体积超过限制。413 与 400 的处置动作不同：前者要分片，后者要改请求 */
+    @ExceptionHandler(MaxUploadSizeExceededException.class)
+    @ResponseStatus(HttpStatus.PAYLOAD_TOO_LARGE)
+    public ApiResponse<Void> handleTooBigUpload(MaxUploadSizeExceededException e) {
+        log.info("上传超出限制：{}", e.getMessage());
+        return ApiResponse.fail("UPLOAD_TOO_LARGE", "上传文件超过限制");
     }
 
     @ExceptionHandler(Exception.class)

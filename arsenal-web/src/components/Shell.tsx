@@ -4,14 +4,18 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { liveStats, meta } from '@/lib/rules';
 import { cookbookStats } from '@/lib/cookbook';
+import { casesStats } from '@/lib/case-cases';
 import { dimensions } from '@/lib/stack';
+import { iconStats } from '@/lib/icon-assets';
 
 const NAV = [
   { href: '/', label: '概览', glyph: '◈', count: 0 },
   { href: '/rules', label: '规则库', glyph: '▦', count: liveStats.total },
   { href: '/blueprints', label: '最佳实践案例库', glyph: '▤', count: cookbookStats.features },
+  { href: '/cases', label: '场景案例库', glyph: '◫', count: casesStats.cases },
   { href: '/stack', label: '装配台', glyph: '⬡', count: dimensions.length },
   { href: '/arch', label: '架构图谱', glyph: '▣', count: 6 },
+  { href: '/icons', label: '图标库', glyph: '❖', count: iconStats.total },
   { href: '/archify', label: '出图服务', glyph: '⚒', count: 0 },
   { href: '/check', label: '校验台', glyph: '⛨', count: 0 },
   { href: '/export', label: '导出中心', glyph: '⎘', count: 0 },

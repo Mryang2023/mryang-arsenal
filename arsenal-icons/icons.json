@@ -1,0 +1,1201 @@
+{
+  "collection": "arsenal-icons",
+  "name": "军火库 · 图标资产库",
+  "version": "0.1.0",
+  "description": "画架构图会用到的图标。矢量（tech-icons.ts）供架构图节点、装配台与 IR 组件使用，位图（public/icons/**）供卡片配图与文档插图使用 —— 两套分工固定，不互相替代。",
+  "stylePrefix": "flat vector icon, software architecture diagram symbol, thin uniform 2px stroke, single accent color {accent}, plain white background, centered, no text, no letters, no numbers, no watermark, minimal, technical, 512x512",
+  "categories": [
+    {
+      "id": "actor",
+      "name": "角色与外部",
+      "accent": "#4A5568",
+      "desc": "谁在用系统：人、终端、外部系统、AI"
+    },
+    {
+      "id": "compute",
+      "name": "计算与运行",
+      "accent": "#3E9B4F",
+      "desc": "东西跑在哪：物理机、虚机、容器、函数、边缘、GPU"
+    },
+    {
+      "id": "network",
+      "name": "网络与入口",
+      "accent": "#2F6FBA",
+      "desc": "请求怎么进来：DNS、CDN、网关、防火墙、专线、专网"
+    },
+    {
+      "id": "storage",
+      "name": "存储",
+      "accent": "#0F9B8E",
+      "desc": "东西放哪：库、仓、湖、对象、归档、目录"
+    },
+    {
+      "id": "middleware",
+      "name": "中间件",
+      "accent": "#7C5CBF",
+      "desc": "组件之间怎么说话：RPC、事务、网格、配置同步、流"
+    },
+    {
+      "id": "observe",
+      "name": "观测与运维",
+      "accent": "#D97B29",
+      "desc": "出事怎么知道：日志、链路、告警、看板、备份、体检"
+    },
+    {
+      "id": "security",
+      "name": "安全",
+      "accent": "#C4453C",
+      "desc": "怎么证明你是谁：认证、授权、密钥、证书、审计"
+    },
+    {
+      "id": "delivery",
+      "name": "交付与工程",
+      "accent": "#55606E",
+      "desc": "怎么发出去：流水线、仓库、IaC、灰度、回滚"
+    },
+    {
+      "id": "topology",
+      "name": "形态",
+      "accent": "#2F6FBA",
+      "desc": "一个还是多个：单实例、副本、主从、分片、双活"
+    }
+  ],
+  "count": 81,
+  "bitmapCount": 0,
+  "icons": [
+    {
+      "key": "user",
+      "name": "用户",
+      "en": "End User",
+      "category": "actor",
+      "tags": [
+        "人",
+        "使用者",
+        "终端用户"
+      ],
+      "vector": "user",
+      "bitmap": "",
+      "subject": "a single person bust silhouette"
+    },
+    {
+      "key": "admin",
+      "name": "管理员",
+      "en": "Administrator",
+      "category": "actor",
+      "tags": [
+        "人",
+        "权限",
+        "后台"
+      ],
+      "vector": "admin",
+      "bitmap": "",
+      "subject": "a person bust with a small shield badge"
+    },
+    {
+      "key": "operator",
+      "name": "运维人员",
+      "en": "Operator",
+      "category": "actor",
+      "tags": [
+        "人",
+        "运维",
+        "值班"
+      ],
+      "vector": "operator",
+      "bitmap": "",
+      "subject": "a person bust beside a small gear"
+    },
+    {
+      "key": "auditor",
+      "name": "审计 / 审核方",
+      "en": "Auditor",
+      "category": "actor",
+      "tags": [
+        "人",
+        "审计",
+        "合规"
+      ],
+      "vector": "auditor",
+      "bitmap": "",
+      "subject": "a clipboard with a check mark"
+    },
+    {
+      "key": "mobile",
+      "name": "移动端",
+      "en": "Mobile Client",
+      "category": "actor",
+      "tags": [
+        "终端",
+        "手机",
+        "APP"
+      ],
+      "vector": "mobile",
+      "bitmap": "",
+      "subject": "a smartphone in portrait"
+    },
+    {
+      "key": "bigscreen",
+      "name": "大屏 / 看板",
+      "en": "Wall Dashboard",
+      "category": "actor",
+      "tags": [
+        "终端",
+        "大屏",
+        "看板"
+      ],
+      "vector": "bigscreen",
+      "bitmap": "",
+      "subject": "a large wall-mounted screen with a chart"
+    },
+    {
+      "key": "thirdparty",
+      "name": "第三方系统",
+      "en": "Third-party System",
+      "category": "actor",
+      "tags": [
+        "外部",
+        "对接",
+        "接口"
+      ],
+      "vector": "thirdparty",
+      "bitmap": "",
+      "subject": "a server box with an outgoing arrow"
+    },
+    {
+      "key": "legacy",
+      "name": "遗留系统",
+      "en": "Legacy System",
+      "category": "actor",
+      "tags": [
+        "外部",
+        "遗留",
+        "老系统"
+      ],
+      "vector": "legacy",
+      "bitmap": "",
+      "subject": "an old tower computer case"
+    },
+    {
+      "key": "ai",
+      "name": "AI / 模型服务",
+      "en": "AI Service",
+      "category": "actor",
+      "tags": [
+        "外部",
+        "AI",
+        "模型"
+      ],
+      "vector": "ai",
+      "bitmap": "",
+      "subject": "a microchip with radiating pins"
+    },
+    {
+      "key": "devops",
+      "name": "DevOps / 平台工程",
+      "en": "DevOps",
+      "category": "actor",
+      "tags": [
+        "人",
+        "平台",
+        "协作"
+      ],
+      "vector": "devops",
+      "bitmap": "",
+      "subject": "a ring with two opposite arrows"
+    },
+    {
+      "key": "vm",
+      "name": "虚拟机",
+      "en": "Virtual Machine",
+      "category": "compute",
+      "tags": [
+        "运行",
+        "虚机",
+        "宿主"
+      ],
+      "vector": "vm",
+      "bitmap": "",
+      "subject": "two stacked server trays"
+    },
+    {
+      "key": "baremetal",
+      "name": "物理机",
+      "en": "Bare Metal",
+      "category": "compute",
+      "tags": [
+        "运行",
+        "物理机",
+        "宿主机"
+      ],
+      "vector": "baremetal",
+      "bitmap": "",
+      "subject": "a tall tower server with slots"
+    },
+    {
+      "key": "pod",
+      "name": "Pod / 容器组",
+      "en": "Container Pod",
+      "category": "compute",
+      "tags": [
+        "运行",
+        "容器",
+        "K8s"
+      ],
+      "vector": "pod",
+      "bitmap": "",
+      "subject": "a hexagon containing a small square"
+    },
+    {
+      "key": "serverless",
+      "name": "Serverless / 函数",
+      "en": "Serverless Function",
+      "category": "compute",
+      "tags": [
+        "运行",
+        "函数",
+        "FaaS"
+      ],
+      "vector": "serverless",
+      "bitmap": "",
+      "subject": "a lambda symbol over a dashed line"
+    },
+    {
+      "key": "edge",
+      "name": "边缘节点",
+      "en": "Edge Node",
+      "category": "compute",
+      "tags": [
+        "运行",
+        "边缘",
+        "就近"
+      ],
+      "vector": "edge",
+      "bitmap": "",
+      "subject": "a globe with a horizontal band"
+    },
+    {
+      "key": "gpu",
+      "name": "GPU 节点",
+      "en": "GPU Node",
+      "category": "compute",
+      "tags": [
+        "运行",
+        "GPU",
+        "算力"
+      ],
+      "vector": "gpu",
+      "bitmap": "",
+      "subject": "a card with cooling fins"
+    },
+    {
+      "key": "batch",
+      "name": "批处理 / 离线任务",
+      "en": "Batch Job",
+      "category": "compute",
+      "tags": [
+        "运行",
+        "批处理",
+        "离线"
+      ],
+      "vector": "batch",
+      "bitmap": "",
+      "subject": "queued blocks moving right through a gate"
+    },
+    {
+      "key": "cloud",
+      "name": "云平台",
+      "en": "Cloud Platform",
+      "category": "compute",
+      "tags": [
+        "运行",
+        "云",
+        "托管"
+      ],
+      "vector": "cloud",
+      "bitmap": "",
+      "subject": "a simple cloud outline"
+    },
+    {
+      "key": "rack",
+      "name": "机柜",
+      "en": "Server Rack",
+      "category": "compute",
+      "tags": [
+        "运行",
+        "机柜",
+        "机房"
+      ],
+      "vector": "rack",
+      "bitmap": "",
+      "subject": "a tall rack cabinet with shelves"
+    },
+    {
+      "key": "zone",
+      "name": "可用区",
+      "en": "Availability Zone",
+      "category": "compute",
+      "tags": [
+        "运行",
+        "可用区",
+        "AZ"
+      ],
+      "vector": "zone",
+      "bitmap": "",
+      "subject": "two dashed circles side by side"
+    },
+    {
+      "key": "autoscale",
+      "name": "弹性伸缩",
+      "en": "Auto Scaling",
+      "category": "compute",
+      "tags": [
+        "运行",
+        "伸缩",
+        "扩容"
+      ],
+      "vector": "autoscale",
+      "bitmap": "",
+      "subject": "a block with up and down arrows"
+    },
+    {
+      "key": "cdn",
+      "name": "CDN 加速",
+      "en": "CDN",
+      "category": "network",
+      "tags": [
+        "入口",
+        "加速",
+        "边缘"
+      ],
+      "vector": "cdn",
+      "bitmap": "",
+      "subject": "a center node with four edge nodes around it"
+    },
+    {
+      "key": "waf",
+      "name": "WAF 防火墙",
+      "en": "WAF",
+      "category": "network",
+      "tags": [
+        "入口",
+        "防护",
+        "安全"
+      ],
+      "vector": "waf",
+      "bitmap": "",
+      "subject": "a shield with horizontal grid lines"
+    },
+    {
+      "key": "dns",
+      "name": "DNS 解析",
+      "en": "DNS",
+      "category": "network",
+      "tags": [
+        "入口",
+        "域名",
+        "解析"
+      ],
+      "vector": "dns",
+      "bitmap": "",
+      "subject": "a name box linked to an address box"
+    },
+    {
+      "key": "reverseproxy",
+      "name": "反向代理",
+      "en": "Reverse Proxy",
+      "category": "network",
+      "tags": [
+        "入口",
+        "代理",
+        "转发"
+      ],
+      "vector": "reverseproxy",
+      "bitmap": "",
+      "subject": "two bars with opposite arrows between them"
+    },
+    {
+      "key": "firewall",
+      "name": "防火墙",
+      "en": "Firewall",
+      "category": "network",
+      "tags": [
+        "入口",
+        "防护",
+        "边界"
+      ],
+      "vector": "firewall",
+      "bitmap": "",
+      "subject": "a brick wall with staggered joints"
+    },
+    {
+      "key": "vpc",
+      "name": "VPC 私有网络",
+      "en": "VPC",
+      "category": "network",
+      "tags": [
+        "网络",
+        "私网",
+        "隔离"
+      ],
+      "vector": "vpc",
+      "bitmap": "",
+      "subject": "a big rounded box with two small boxes inside"
+    },
+    {
+      "key": "subnet",
+      "name": "子网",
+      "en": "Subnet",
+      "category": "network",
+      "tags": [
+        "网络",
+        "子网",
+        "网段"
+      ],
+      "vector": "subnet",
+      "bitmap": "",
+      "subject": "a dashed box with three connected dots"
+    },
+    {
+      "key": "secgroup",
+      "name": "安全组",
+      "en": "Security Group",
+      "category": "network",
+      "tags": [
+        "网络",
+        "安全组",
+        "策略"
+      ],
+      "vector": "secgroup",
+      "bitmap": "",
+      "subject": "a shield containing three small dots"
+    },
+    {
+      "key": "privateline",
+      "name": "专线 / 内网直连",
+      "en": "Private Line",
+      "category": "network",
+      "tags": [
+        "网络",
+        "专线",
+        "直连"
+      ],
+      "vector": "privateline",
+      "bitmap": "",
+      "subject": "two endpoints joined by a thick straight line"
+    },
+    {
+      "key": "anycast",
+      "name": "Anycast 任播",
+      "en": "Anycast",
+      "category": "network",
+      "tags": [
+        "网络",
+        "任播",
+        "就近"
+      ],
+      "vector": "anycast",
+      "bitmap": "",
+      "subject": "one source dot splitting to three targets"
+    },
+    {
+      "key": "apmproxy",
+      "name": "APM 探针",
+      "en": "APM Agent",
+      "category": "network",
+      "tags": [
+        "观测",
+        "探针",
+        "旁路"
+      ],
+      "vector": "apmproxy",
+      "bitmap": "",
+      "subject": "a center dot with two concentric signal arcs"
+    },
+    {
+      "key": "timeseries",
+      "name": "时序库",
+      "en": "Time Series DB",
+      "category": "storage",
+      "tags": [
+        "存储",
+        "时序",
+        "监控"
+      ],
+      "vector": "timeseries",
+      "bitmap": "",
+      "subject": "a rising zigzag line over a baseline"
+    },
+    {
+      "key": "graphdb",
+      "name": "图数据库",
+      "en": "Graph DB",
+      "category": "storage",
+      "tags": [
+        "存储",
+        "图",
+        "关系"
+      ],
+      "vector": "graphdb",
+      "bitmap": "",
+      "subject": "three dots joined by three edges"
+    },
+    {
+      "key": "columnar",
+      "name": "列式存储",
+      "en": "Columnar Store",
+      "category": "storage",
+      "tags": [
+        "存储",
+        "列式",
+        "分析"
+      ],
+      "vector": "columnar",
+      "bitmap": "",
+      "subject": "three vertical bars of decreasing opacity"
+    },
+    {
+      "key": "objectstore",
+      "name": "对象存储",
+      "en": "Object Storage",
+      "category": "storage",
+      "tags": [
+        "存储",
+        "对象",
+        "OSS"
+      ],
+      "vector": "objectstore",
+      "bitmap": "",
+      "subject": "a bucket with a handle"
+    },
+    {
+      "key": "fileshare",
+      "name": "文件共享",
+      "en": "File Share",
+      "category": "storage",
+      "tags": [
+        "存储",
+        "文件",
+        "共享"
+      ],
+      "vector": "fileshare",
+      "bitmap": "",
+      "subject": "two adjacent folders"
+    },
+    {
+      "key": "warehouse",
+      "name": "数据仓库",
+      "en": "Data Warehouse",
+      "category": "storage",
+      "tags": [
+        "存储",
+        "数仓",
+        "OLAP"
+      ],
+      "vector": "warehouse",
+      "bitmap": "",
+      "subject": "three stacked cylinder layers"
+    },
+    {
+      "key": "datalake",
+      "name": "数据湖",
+      "en": "Data Lake",
+      "category": "storage",
+      "tags": [
+        "存储",
+        "数据湖",
+        "原始"
+      ],
+      "vector": "datalake",
+      "bitmap": "",
+      "subject": "a droplet above two wave lines"
+    },
+    {
+      "key": "archive",
+      "name": "归档存储",
+      "en": "Archive Storage",
+      "category": "storage",
+      "tags": [
+        "存储",
+        "归档",
+        "冷存"
+      ],
+      "vector": "archive",
+      "bitmap": "",
+      "subject": "a storage crate with a lid line"
+    },
+    {
+      "key": "catalog",
+      "name": "元数据目录",
+      "en": "Data Catalog",
+      "category": "storage",
+      "tags": [
+        "存储",
+        "元数据",
+        "目录"
+      ],
+      "vector": "catalog",
+      "bitmap": "",
+      "subject": "an open book with two pages"
+    },
+    {
+      "key": "disttxn",
+      "name": "分布式事务",
+      "en": "Distributed Transaction",
+      "category": "middleware",
+      "tags": [
+        "中间件",
+        "事务",
+        "一致"
+      ],
+      "vector": "disttxn",
+      "bitmap": "",
+      "subject": "three nodes in a triangle with a bar"
+    },
+    {
+      "key": "rpc",
+      "name": "RPC 调用",
+      "en": "RPC",
+      "category": "middleware",
+      "tags": [
+        "中间件",
+        "RPC",
+        "调用"
+      ],
+      "vector": "rpc",
+      "bitmap": "",
+      "subject": "two boxes with arrows going both ways"
+    },
+    {
+      "key": "servicemesh",
+      "name": "服务网格",
+      "en": "Service Mesh",
+      "category": "middleware",
+      "tags": [
+        "中间件",
+        "网格",
+        "Sidecar"
+      ],
+      "vector": "servicemesh",
+      "bitmap": "",
+      "subject": "two offset squares joined by crossing lines"
+    },
+    {
+      "key": "configsync",
+      "name": "配置同步",
+      "en": "Config Sync",
+      "category": "middleware",
+      "tags": [
+        "中间件",
+        "配置",
+        "同步"
+      ],
+      "vector": "configsync",
+      "bitmap": "",
+      "subject": "a circular arrow pair around a center"
+    },
+    {
+      "key": "streampipeline",
+      "name": "流处理管道",
+      "en": "Stream Pipeline",
+      "category": "middleware",
+      "tags": [
+        "中间件",
+        "流",
+        "管道"
+      ],
+      "vector": "streampipeline",
+      "bitmap": "",
+      "subject": "a funnel with a stream below"
+    },
+    {
+      "key": "idgen",
+      "name": "分布式 ID",
+      "en": "ID Generator",
+      "category": "middleware",
+      "tags": [
+        "中间件",
+        "ID",
+        "发号"
+      ],
+      "vector": "idgen",
+      "bitmap": "",
+      "subject": "a snowflake shape"
+    },
+    {
+      "key": "logcollector",
+      "name": "日志采集",
+      "en": "Log Collector",
+      "category": "observe",
+      "tags": [
+        "观测",
+        "日志",
+        "采集"
+      ],
+      "vector": "logcollector",
+      "bitmap": "",
+      "subject": "text lines funneling into a spout"
+    },
+    {
+      "key": "traceui",
+      "name": "链路追踪视图",
+      "en": "Trace View",
+      "category": "observe",
+      "tags": [
+        "观测",
+        "链路",
+        "Trace"
+      ],
+      "vector": "traceui",
+      "bitmap": "",
+      "subject": "three staggered horizontal bars"
+    },
+    {
+      "key": "alerting",
+      "name": "告警",
+      "en": "Alerting",
+      "category": "observe",
+      "tags": [
+        "观测",
+        "告警",
+        "通知"
+      ],
+      "vector": "alerting",
+      "bitmap": "",
+      "subject": "a bell with a clapper"
+    },
+    {
+      "key": "dashboard",
+      "name": "仪表盘",
+      "en": "Dashboard",
+      "category": "observe",
+      "tags": [
+        "观测",
+        "看板",
+        "大盘"
+      ],
+      "vector": "dashboard",
+      "bitmap": "",
+      "subject": "a half gauge with a needle"
+    },
+    {
+      "key": "audit",
+      "name": "审计核查",
+      "en": "Audit Review",
+      "category": "observe",
+      "tags": [
+        "观测",
+        "审计",
+        "核查"
+      ],
+      "vector": "audit",
+      "bitmap": "",
+      "subject": "a magnifier over a check mark"
+    },
+    {
+      "key": "backup",
+      "name": "备份",
+      "en": "Backup",
+      "category": "observe",
+      "tags": [
+        "观测",
+        "备份",
+        "恢复"
+      ],
+      "vector": "backup",
+      "bitmap": "",
+      "subject": "a dashed ring with an up arrow"
+    },
+    {
+      "key": "healthcheck",
+      "name": "健康检查",
+      "en": "Health Check",
+      "category": "observe",
+      "tags": [
+        "观测",
+        "探活",
+        "心跳"
+      ],
+      "vector": "healthcheck",
+      "bitmap": "",
+      "subject": "an electrocardiogram line"
+    },
+    {
+      "key": "slo",
+      "name": "SLO 目标",
+      "en": "SLO Target",
+      "category": "observe",
+      "tags": [
+        "观测",
+        "SLO",
+        "指标"
+      ],
+      "vector": "slo",
+      "bitmap": "",
+      "subject": "a target with concentric rings"
+    },
+    {
+      "key": "profiling",
+      "name": "性能剖析",
+      "en": "Profiling",
+      "category": "observe",
+      "tags": [
+        "观测",
+        "剖析",
+        "火焰图"
+      ],
+      "vector": "profiling",
+      "bitmap": "",
+      "subject": "a flame graph of stacked bars"
+    },
+    {
+      "key": "secret",
+      "name": "密钥 / 凭据",
+      "en": "Secret",
+      "category": "security",
+      "tags": [
+        "安全",
+        "密钥",
+        "凭据"
+      ],
+      "vector": "secret",
+      "bitmap": "",
+      "subject": "a key with a round bow"
+    },
+    {
+      "key": "kms",
+      "name": "密钥管理 KMS",
+      "en": "KMS",
+      "category": "security",
+      "tags": [
+        "安全",
+        "KMS",
+        "密钥"
+      ],
+      "vector": "kms",
+      "bitmap": "",
+      "subject": "a padlock with a keyhole"
+    },
+    {
+      "key": "cert",
+      "name": "证书",
+      "en": "Certificate",
+      "category": "security",
+      "tags": [
+        "安全",
+        "证书",
+        "TLS"
+      ],
+      "vector": "cert",
+      "bitmap": "",
+      "subject": "a document with a seal circle"
+    },
+    {
+      "key": "iam",
+      "name": "身份认证 IAM",
+      "en": "IAM",
+      "category": "security",
+      "tags": [
+        "安全",
+        "认证",
+        "身份"
+      ],
+      "vector": "iam",
+      "bitmap": "",
+      "subject": "an ID card with a person silhouette"
+    },
+    {
+      "key": "encrypt",
+      "name": "加密",
+      "en": "Encryption",
+      "category": "security",
+      "tags": [
+        "安全",
+        "加密",
+        "密文"
+      ],
+      "vector": "encrypt",
+      "bitmap": "",
+      "subject": "a closed padlock"
+    },
+    {
+      "key": "bastion",
+      "name": "堡垒机",
+      "en": "Bastion Host",
+      "category": "security",
+      "tags": [
+        "安全",
+        "堡垒机",
+        "跳板"
+      ],
+      "vector": "bastion",
+      "bitmap": "",
+      "subject": "a monitor showing a terminal prompt"
+    },
+    {
+      "key": "siem",
+      "name": "SIEM 安全分析",
+      "en": "SIEM",
+      "category": "security",
+      "tags": [
+        "安全",
+        "SIEM",
+        "分析"
+      ],
+      "vector": "siem",
+      "bitmap": "",
+      "subject": "a radar sweep over rings"
+    },
+    {
+      "key": "auditlog",
+      "name": "审计日志",
+      "en": "Audit Log",
+      "category": "security",
+      "tags": [
+        "安全",
+        "审计",
+        "留痕"
+      ],
+      "vector": "auditlog",
+      "bitmap": "",
+      "subject": "a list with a small clock"
+    },
+    {
+      "key": "oauth",
+      "name": "OAuth 授权",
+      "en": "OAuth",
+      "category": "security",
+      "tags": [
+        "安全",
+        "授权",
+        "OAuth"
+      ],
+      "vector": "oauth",
+      "bitmap": "",
+      "subject": "two interlocking rings"
+    },
+    {
+      "key": "cicd",
+      "name": "CI/CD 流水线",
+      "en": "CI/CD Pipeline",
+      "category": "delivery",
+      "tags": [
+        "交付",
+        "流水线",
+        "构建"
+      ],
+      "vector": "cicd",
+      "bitmap": "",
+      "subject": "two circles joined by crossing arrows"
+    },
+    {
+      "key": "imagerepo",
+      "name": "镜像仓库",
+      "en": "Image Registry",
+      "category": "delivery",
+      "tags": [
+        "交付",
+        "镜像",
+        "仓库"
+      ],
+      "vector": "imagerepo",
+      "bitmap": "",
+      "subject": "three stacked container layers"
+    },
+    {
+      "key": "artifactrepo",
+      "name": "制品库",
+      "en": "Artifact Repository",
+      "category": "delivery",
+      "tags": [
+        "交付",
+        "制品",
+        "仓库"
+      ],
+      "vector": "artifactrepo",
+      "bitmap": "",
+      "subject": "a crate with a label tab"
+    },
+    {
+      "key": "iac",
+      "name": "基础设施即代码",
+      "en": "IaC",
+      "category": "delivery",
+      "tags": [
+        "交付",
+        "IaC",
+        "编排"
+      ],
+      "vector": "iac",
+      "bitmap": "",
+      "subject": "braces around cloud lines"
+    },
+    {
+      "key": "configmgmt",
+      "name": "配置管理",
+      "en": "Config Management",
+      "category": "delivery",
+      "tags": [
+        "交付",
+        "配置",
+        "管理"
+      ],
+      "vector": "configmgmt",
+      "bitmap": "",
+      "subject": "two sliders on parallel tracks"
+    },
+    {
+      "key": "canary",
+      "name": "金丝雀发布",
+      "en": "Canary Release",
+      "category": "delivery",
+      "tags": [
+        "交付",
+        "灰度",
+        "发布"
+      ],
+      "vector": "canary",
+      "bitmap": "",
+      "subject": "a main road with a small branch"
+    },
+    {
+      "key": "bluegreen",
+      "name": "蓝绿部署",
+      "en": "Blue-Green Deploy",
+      "category": "delivery",
+      "tags": [
+        "交付",
+        "蓝绿",
+        "切换"
+      ],
+      "vector": "bluegreen",
+      "bitmap": "",
+      "subject": "a circle half filled"
+    },
+    {
+      "key": "rollback",
+      "name": "回滚",
+      "en": "Rollback",
+      "category": "delivery",
+      "tags": [
+        "交付",
+        "回滚",
+        "回退"
+      ],
+      "vector": "rollback",
+      "bitmap": "",
+      "subject": "a circular arrow pointing back"
+    },
+    {
+      "key": "single",
+      "name": "单实例",
+      "en": "Single Instance",
+      "category": "topology",
+      "tags": [
+        "形态",
+        "单点",
+        "单实例"
+      ],
+      "vector": "single",
+      "bitmap": "",
+      "subject": "one square with a center dot"
+    },
+    {
+      "key": "replica",
+      "name": "多副本",
+      "en": "Replicas",
+      "category": "topology",
+      "tags": [
+        "形态",
+        "副本",
+        "多份"
+      ],
+      "vector": "replica",
+      "bitmap": "",
+      "subject": "three squares side by side"
+    },
+    {
+      "key": "master-slave",
+      "name": "主从",
+      "en": "Master-Slave",
+      "category": "topology",
+      "tags": [
+        "形态",
+        "主从",
+        "主备"
+      ],
+      "vector": "master-slave",
+      "bitmap": "",
+      "subject": "a big block linked to a small block"
+    },
+    {
+      "key": "sharding",
+      "name": "分片",
+      "en": "Sharding",
+      "category": "topology",
+      "tags": [
+        "形态",
+        "分片",
+        "分库"
+      ],
+      "vector": "sharding",
+      "bitmap": "",
+      "subject": "a square divided into four"
+    },
+    {
+      "key": "readonly-replica",
+      "name": "读写分离",
+      "en": "Read/Write Split",
+      "category": "topology",
+      "tags": [
+        "形态",
+        "读写分离",
+        "从库"
+      ],
+      "vector": "readonly-replica",
+      "bitmap": "",
+      "subject": "a filled node fanning to two hollow nodes"
+    },
+    {
+      "key": "multiaz",
+      "name": "多可用区",
+      "en": "Multi-AZ",
+      "category": "topology",
+      "tags": [
+        "形态",
+        "多可用区",
+        "容灾"
+      ],
+      "vector": "multiaz",
+      "bitmap": "",
+      "subject": "two boxes linked diagonally"
+    },
+    {
+      "key": "active-active",
+      "name": "双活",
+      "en": "Active-Active",
+      "category": "topology",
+      "tags": [
+        "形态",
+        "双活",
+        "互备"
+      ],
+      "vector": "active-active",
+      "bitmap": "",
+      "subject": "two rings with arrows both ways"
+    },
+    {
+      "key": "cold-standby",
+      "name": "冷备",
+      "en": "Cold Standby",
+      "category": "topology",
+      "tags": [
+        "形态",
+        "冷备",
+        "待机"
+      ],
+      "vector": "cold-standby",
+      "bitmap": "",
+      "subject": "a solid block beside a dashed block"
+    }
+  ]
+}

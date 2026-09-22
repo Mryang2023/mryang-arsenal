@@ -32,7 +32,11 @@ export interface TechIcon {
     | 'observe'
     | 'infra'
     | 'tool'
-    | 'none';
+    | 'none'
+    // 第二批补进来的两类：架构图里「谁在用系统」与「一个还是多个」既不是
+    // 技术件也不是工具，塞进 infra/tool 会让图例把它们混进技术组件堆里。
+    | 'actor'
+    | 'topology';
 }
 
 const P = (d: string, extra = '') => `<path d="${d}"${extra ? ' ' + extra : ''}/>`;
@@ -695,6 +699,768 @@ export const TECH_ICONS: Record<string, TechIcon> = {
       P('M8.6 13c.5-2 1.8-3 3.4-3s2.9 1 3.4 3Z', 'opacity="0.8"') +
       C(12, 7.6, 1.7),
   },
+  // ══════════════════════════════════════════════════════════
+  // 第二批：画架构图会用到、但第一批没有的「非技术组件」
+  //
+  // 第一批 89 个全是具体技术件（MySQL / Redis / Nacos）。真正画交付级架构图时
+  // 缺的恰恰是那些**不是某个产品**的东西：谁在用系统、跑在哪、怎么进来、
+  // 一个还是多个。这些形状必须能被一眼认出类别，所以到这里形状语义换成：
+  //   角色=人形 / 计算=容器与机柜 / 网络=边界与通路 / 存储=容量 /
+  //   中间件=连接 / 观测=波形与仪表 / 安全=盾与锁 / 交付=循环与分流 /
+  //   形态=数量与关系（新增 kind: actor / topology）
+  // 位图资产（public/icons/**）是另一回事：那是给文档和卡片当插画的，
+  // 这里一份都不引 —— 架构图要的是能随 currentColor 变色、能进 SVG 导出的矢量。
+  // ══════════════════════════════════════════════════════════
+
+  // ── actor：谁在用系统 ────────────────────────────────────
+  user: {
+    name: '用户',
+    color: '#4A5568',
+    kind: 'actor',
+    svg: C(12, 8, 3.4) + S('M5.5 20c0-3.6 2.9-5.6 6.5-5.6s6.5 2 6.5 5.6'),
+  },
+  admin: {
+    name: '管理员',
+    color: '#3C4A5C',
+    kind: 'actor',
+    svg:
+      C(12, 8.4, 3.2) +
+      S('M5.6 20c0-3.5 2.9-5.5 6.4-5.5s6.4 2 6.4 5.5') +
+      P('M18.6 3.4l2.2.9v1.9c0 1.3-.9 2.3-2.2 2.7-1.3-.4-2.2-1.4-2.2-2.7V4.3Z', 'opacity="0.9"'),
+  },
+  operator: {
+    name: '运维人员',
+    color: '#4A5568',
+    kind: 'actor',
+    svg:
+      C(11, 8.2, 3) +
+      S('M5 19.8c0-3.3 2.7-5.3 6-5.3s6 2 6 5.3') +
+      C(18.6, 5.4, 2.2, 'fill="none" stroke="currentColor" stroke-width="1.5"') +
+      S('M18.6 3.2v1.4M18.6 6.2v1.4M16.4 5.4h1.4M19.4 5.4h1.4', 1.2),
+  },
+  auditor: {
+    name: '审计 / 审核方',
+    color: '#4A5568',
+    kind: 'actor',
+    svg:
+      R(4, 3.5, 11, 15, 2, 'fill="none" stroke="currentColor" stroke-width="1.6"') +
+      S('M7 7.5h5M7 10.5h5M7 13.5h3', 1.3) +
+      S('M16 15.4l2 2 3.6-4.2', 1.8),
+  },
+  mobile: {
+    name: '移动端',
+    color: '#4A5568',
+    kind: 'actor',
+    svg:
+      R(7, 2.5, 10, 19, 2.5, 'fill="none" stroke="currentColor" stroke-width="1.7"') +
+      S('M10.5 5.2h3', 1.4) +
+      C(12, 18.4, 1.1),
+  },
+  bigscreen: {
+    name: '大屏 / 看板',
+    color: '#3C4A5C',
+    kind: 'actor',
+    svg:
+      R(2.5, 4, 19, 12, 1.5, 'fill="none" stroke="currentColor" stroke-width="1.7"') +
+      S('M9 20h6M12 16v4', 1.6) +
+      P('M5 13l3.5-3.5 3 3 2.5-2.5L18 13Z', 'opacity="0.55"'),
+  },
+  thirdparty: {
+    name: '第三方系统',
+    color: '#4A5568',
+    kind: 'actor',
+    svg:
+      R(3, 5, 12, 12, 2, 'fill="none" stroke="currentColor" stroke-width="1.7"') +
+      S('M15.5 11h5.5', 1.5) +
+      S('M18 8v6', 1.5) +
+      S('M18 8l-2 2M18 8l2 2', 1.4),
+  },
+  legacy: {
+    name: '遗留系统',
+    color: '#5A6472',
+    kind: 'actor',
+    svg:
+      R(4, 5, 16, 11, 1.5, 'fill="none" stroke="currentColor" stroke-width="1.7"') +
+      S('M4 8.5h16', 1.4) +
+      C(7, 12.2, 1.4) +
+      C(10.5, 12.2, 1.4) +
+      S('M8 16.5h8', 1.5),
+  },
+  ai: {
+    name: 'AI / 模型服务',
+    color: '#6C5CE7',
+    kind: 'actor',
+    svg:
+      R(5, 5, 14, 14, 3, 'fill="none" stroke="currentColor" stroke-width="1.7"') +
+      R(9, 9, 6, 6, 1) +
+      S('M12 3v2M12 19v2M3 12h2M19 12h2', 1.5),
+  },
+  devops: {
+    name: 'DevOps / 平台工程',
+    color: '#4A5568',
+    kind: 'actor',
+    svg:
+      C(12, 12, 8.2, 'fill="none" stroke="currentColor" stroke-width="1.6"') +
+      S('M9 12h6', 1.6) +
+      S('M9 12l2-2M9 12l2 2M15 12l-2-2M15 12l-2 2', 1.5),
+  },
+
+  // ── compute：东西跑在哪 ──────────────────────────────────
+  vm: {
+    name: '虚拟机',
+    color: '#3E9B4F',
+    kind: 'infra',
+    svg:
+      R(3, 4, 18, 6, 1.5, 'fill="none" stroke="currentColor" stroke-width="1.6"') +
+      R(3, 12, 18, 6, 1.5, 'fill="none" stroke="currentColor" stroke-width="1.6"') +
+      S('M6.5 7h3M6.5 15h3', 1.4),
+  },
+  baremetal: {
+    name: '物理机',
+    color: '#376F42',
+    kind: 'infra',
+    svg:
+      R(4, 3, 16, 18, 2, 'fill="none" stroke="currentColor" stroke-width="1.7"') +
+      S('M4 8h16M4 16h16', 1.4) +
+      C(7, 5.5, 0.9) +
+      C(7, 11.5, 0.9),
+  },
+  pod: {
+    name: 'Pod / 容器组',
+    color: '#3E9B4F',
+    kind: 'infra',
+    svg:
+      S('M12 3l7.5 4.5v9L12 21l-7.5-4.5v-9Z', 1.6) +
+      R(9, 9, 6, 6, 1.5, 'fill="currentColor" opacity="0.75"'),
+  },
+  serverless: {
+    name: 'Serverless / 函数',
+    color: '#3E9B4F',
+    kind: 'infra',
+    svg:
+      S('M6.2 19.5 12.4 5', 1.9) +
+      S('M12 19.5 17.4 11', 1.9) +
+      S('M9 13.2h5.2', 1.5),
+  },
+  edge: {
+    name: '边缘节点',
+    color: '#2E7D45',
+    kind: 'infra',
+    svg:
+      C(12, 12, 8.5, 'fill="none" stroke="currentColor" stroke-width="1.6"') +
+      S('M3.5 12h17', 1.3) +
+      S('M12 3.5c2.6 2.4 4 5.4 4 8.5s-1.4 6.1-4 8.5c-2.6-2.4-4-5.4-4-8.5S9.4 5.9 12 3.5Z', 1.3),
+  },
+  gpu: {
+    name: 'GPU 节点',
+    color: '#3E9B4F',
+    kind: 'infra',
+    svg:
+      R(3, 6, 18, 11, 2, 'fill="none" stroke="currentColor" stroke-width="1.7"') +
+      S('M7 10v3M10 10v3M13 10v3M16 10v3', 1.5) +
+      S('M6 20.5h12', 1.5),
+  },
+  batch: {
+    name: '批处理 / 离线任务',
+    color: '#376F42',
+    kind: 'infra',
+    svg:
+      R(3, 5, 6, 6, 1.5) +
+      R(3, 14, 6, 5, 1.5, 'opacity="0.7"') +
+      S('M11 8h6M11 16.5h6', 1.5) +
+      S('M15 5.8l2 2.2-2 2.2M15 14.3l2 2.2-2 2.2', 1.4),
+  },
+  cloud: {
+    name: '云平台',
+    color: '#3E9B4F',
+    kind: 'infra',
+    svg: S('M7 18h10.5a3.5 3.5 0 0 0 .3-7A5.5 5.5 0 0 0 7 9.5 4.3 4.3 0 0 0 7 18Z', 1.7),
+  },
+  rack: {
+    name: '机柜',
+    color: '#376F42',
+    kind: 'infra',
+    svg:
+      R(4, 2.5, 16, 19, 1.5, 'fill="none" stroke="currentColor" stroke-width="1.7"') +
+      S('M4 8h16M4 13h16', 1.4) +
+      C(7, 5.2, 0.9) +
+      C(7, 10.2, 0.9) +
+      C(7, 15.2, 0.9),
+  },
+  zone: {
+    name: '可用区',
+    color: '#2E7D45',
+    kind: 'infra',
+    svg:
+      C(8, 12, 4.2, 'fill="none" stroke="currentColor" stroke-width="1.5" stroke-dasharray="3 2.2"') +
+      C(16, 12, 4.2, 'fill="none" stroke="currentColor" stroke-width="1.5" stroke-dasharray="3 2.2"') +
+      S('M10 12h4', 1.4),
+  },
+  autoscale: {
+    name: '弹性伸缩',
+    color: '#3E9B4F',
+    kind: 'infra',
+    svg:
+      R(9, 8, 6, 8, 1.5, 'fill="none" stroke="currentColor" stroke-width="1.5"') +
+      S('M4 13V7.5', 1.5) +
+      S('M4 7.5l-1.8 2.2M4 7.5l1.8 2.2', 1.4) +
+      S('M20 11v5.5', 1.5) +
+      S('M20 16.5l-1.8-2.2M20 16.5l1.8-2.2', 1.4),
+  },
+
+  // ── network：请求怎么进来 ────────────────────────────────
+  cdn: {
+    name: 'CDN 加速',
+    color: '#2F6FBA',
+    kind: 'infra',
+    svg:
+      C(12, 12, 3, 'fill="currentColor" opacity="0.85"') +
+      C(12, 12, 8, 'fill="none" stroke="currentColor" stroke-width="1.4" stroke-dasharray="2.5 2"') +
+      C(4, 12, 1.7) +
+      C(20, 12, 1.7) +
+      C(12, 4, 1.7) +
+      C(12, 20, 1.7),
+  },
+  waf: {
+    name: 'WAF 防火墙',
+    color: '#C4453C',
+    kind: 'infra',
+    svg:
+      S('M12 3.2 19 6v6c0 4-3 7-7 8.8C8 19 5 16 5 12V6Z', 1.7) +
+      S('M8.5 10h7M8.5 13.5h7', 1.3),
+  },
+  dns: {
+    name: 'DNS 解析',
+    color: '#2F6FBA',
+    kind: 'infra',
+    svg:
+      R(3, 4, 18, 5, 1.5, 'fill="none" stroke="currentColor" stroke-width="1.6"') +
+      R(6, 14, 12, 5, 1.5, 'fill="none" stroke="currentColor" stroke-width="1.6"') +
+      S('M12 9v5', 1.5) +
+      S('M6 6.5h5', 1.4),
+  },
+  reverseproxy: {
+    name: '反向代理',
+    color: '#2F6FBA',
+    kind: 'infra',
+    svg:
+      S('M8 6.5v11M16 6.5v11', 1.6) +
+      S('M11.5 9.5 9 12l2.5 2.5M12.5 9.5 15 12l-2.5 2.5', 1.5),
+  },
+  firewall: {
+    name: '防火墙',
+    color: '#C4453C',
+    kind: 'infra',
+    svg: S('M3 6.5h18M3 12h18M3 17.5h18', 1.6) + S('M9 6.5v5.5M15 12v5.5', 1.5),
+  },
+  vpc: {
+    name: 'VPC 私有网络',
+    color: '#2F6FBA',
+    kind: 'infra',
+    svg:
+      R(2.5, 4.5, 19, 15, 2, 'fill="none" stroke="currentColor" stroke-width="1.7"') +
+      R(6, 8, 5, 4, 1, 'fill="currentColor" opacity="0.7"') +
+      R(13, 13, 5, 4, 1, 'fill="currentColor" opacity="0.7"'),
+  },
+  subnet: {
+    name: '子网',
+    color: '#2F6FBA',
+    kind: 'infra',
+    svg:
+      R(3, 5, 18, 14, 2, 'fill="none" stroke="currentColor" stroke-width="1.5" stroke-dasharray="3 2.2"') +
+      C(8, 12, 1.8) +
+      C(16, 12, 1.8) +
+      C(12, 8, 1.4) +
+      S('M9.6 12h4.8', 1.3),
+  },
+  secgroup: {
+    name: '安全组',
+    color: '#C4453C',
+    kind: 'infra',
+    svg:
+      S('M12 3.5 19 6.2v5.6c0 3.9-2.9 6.8-7 8.7-4.1-1.9-7-4.8-7-8.7V6.2Z', 1.6) +
+      C(9, 11, 1.3) +
+      C(15, 11, 1.3) +
+      C(12, 15, 1.3),
+  },
+  privateline: {
+    name: '专线 / 内网直连',
+    color: '#2F6FBA',
+    kind: 'infra',
+    svg: S('M3 12h18', 2.4) + R(2, 9, 3, 6, 1) + R(19, 9, 3, 6, 1),
+  },
+  anycast: {
+    name: 'Anycast 任播',
+    color: '#2F6FBA',
+    kind: 'infra',
+    svg:
+      C(6, 12, 2.6) +
+      C(18, 6, 2) +
+      C(18, 12, 2) +
+      C(18, 18, 2) +
+      S('M8.6 11.2 15.8 6.6M9 12h6.8M8.6 12.8 15.8 17.4', 1.3),
+  },
+  apmproxy: {
+    name: 'APM 探针',
+    color: '#D97B29',
+    kind: 'infra',
+    svg:
+      C(12, 12, 2.2) +
+      S('M7.6 7.6a6.2 6.2 0 0 0 0 8.8M16.4 16.4a6.2 6.2 0 0 0 0-8.8', 1.5) +
+      S('M5 5a10 10 0 0 0 0 14M19 19a10 10 0 0 0 0-14', 1.4),
+  },
+
+  // ── storage：东西放哪 ────────────────────────────────────
+  timeseries: {
+    name: '时序库',
+    color: '#0F9B8E',
+    kind: 'db',
+    svg: S('M4 19.5h16', 1.5) + S('M5 15.5l3-4.5 3 2.2 3-5.2 4 7.5', 1.7),
+  },
+  graphdb: {
+    name: '图数据库',
+    color: '#0F9B8E',
+    kind: 'db',
+    svg:
+      C(6, 7, 2.2) +
+      C(18, 9, 2.2) +
+      C(11, 18, 2.2) +
+      S('M7.8 8.4 16.2 9.8M6.9 9.2 10.2 16M17.2 11 12.4 16.4', 1.4),
+  },
+  columnar: {
+    name: '列式存储',
+    color: '#0F9B8E',
+    kind: 'db',
+    svg:
+      R(4, 4, 3.2, 16, 1, 'opacity="0.85"') +
+      R(9.4, 4, 3.2, 16, 1, 'opacity="0.6"') +
+      R(14.8, 4, 3.2, 16, 1, 'opacity="0.4"'),
+  },
+  objectstore: {
+    name: '对象存储',
+    color: '#0F9B8E',
+    kind: 'db',
+    svg:
+      S('M5 7h14l-1.4 12a2 2 0 0 1-2 1.8H8.4a2 2 0 0 1-2-1.8Z', 1.7) +
+      C(12, 12.5, 2, 'fill="none" stroke="currentColor" stroke-width="1.4"') +
+      S('M8.5 7V5.5A3.5 3.5 0 0 1 12 2a3.5 3.5 0 0 1 3.5 3.5V7', 1.4),
+  },
+  fileshare: {
+    name: '文件共享',
+    color: '#0F9B8E',
+    kind: 'db',
+    svg:
+      R(2.5, 7, 10, 10, 1.5, 'fill="none" stroke="currentColor" stroke-width="1.6"') +
+      R(11.5, 7, 10, 10, 1.5, 'fill="none" stroke="currentColor" stroke-width="1.6"') +
+      S('M2.5 10h10M11.5 10h10', 1.3),
+  },
+  warehouse: {
+    name: '数据仓库',
+    color: '#0F9B8E',
+    kind: 'db',
+    svg:
+      S('M4 6c0-1.2 3.6-2.2 8-2.2s8 1 8 2.2', 1.5) +
+      S('M4 12c0-1.2 3.6-2.2 8-2.2s8 1 8 2.2', 1.5) +
+      S('M4 18c0-1.2 3.6-2.2 8-2.2s8 1 8 2.2', 1.5) +
+      S('M4 6v12M20 6v12', 1.5),
+  },
+  datalake: {
+    name: '数据湖',
+    color: '#0F9B8E',
+    kind: 'db',
+    svg:
+      S('M3 15c2-2 4-2 6 0s4 2 6 0 4-2 6 0', 1.6) +
+      S('M3 19.5c2-2 4-2 6 0s4 2 6 0 4-2 6 0', 1.4) +
+      S('M12 3.5c1.6 2 3 3.4 3 5.2A3 3 0 0 1 9 8.7c0-1.8 1.4-3.2 3-5.2Z', 1.4),
+  },
+  archive: {
+    name: '归档存储',
+    color: '#0B7D72',
+    kind: 'db',
+    svg:
+      R(3, 6, 18, 13, 1.5, 'fill="none" stroke="currentColor" stroke-width="1.7"') +
+      S('M3 10h18', 1.5) +
+      S('M10 13.5h4', 1.5),
+  },
+  catalog: {
+    name: '元数据目录',
+    color: '#0B7D72',
+    kind: 'db',
+    svg:
+      S('M5 4.5h6a2 2 0 0 1 2 2V20a2 2 0 0 0-2-2H5Z', 1.6) +
+      S('M19 4.5h-6a2 2 0 0 0-2 2V20a2 2 0 0 1 2-2h6Z', 1.6),
+  },
+
+  // ── middleware：组件之间怎么说话 ─────────────────────────
+  disttxn: {
+    name: '分布式事务',
+    color: '#7C5CBF',
+    kind: 'tool',
+    svg:
+      C(6, 7, 2.2) +
+      C(18, 7, 2.2) +
+      C(12, 17, 2.2) +
+      S('M7.8 8.6h8.4M6.6 9.2 10.6 15.4M17.4 9.2 13.4 15.4', 1.4) +
+      S('M10 12.6h4', 1.4),
+  },
+  rpc: {
+    name: 'RPC 调用',
+    color: '#7C5CBF',
+    kind: 'tool',
+    svg:
+      R(2.5, 7, 8, 4, 1.5, 'fill="none" stroke="currentColor" stroke-width="1.5"') +
+      R(13.5, 13, 8, 4, 1.5, 'fill="none" stroke="currentColor" stroke-width="1.5"') +
+      S('M11 9h4', 1.5) +
+      S('M13.4 7.6 15.4 9l-2 1.4', 1.4) +
+      S('M13 17H9', 1.5) +
+      S('M11 15.6 9 17l2 1.4', 1.4),
+  },
+  servicemesh: {
+    name: '服务网格',
+    color: '#7C5CBF',
+    kind: 'infra',
+    svg:
+      R(3.5, 3.5, 7, 7, 1.5, 'fill="none" stroke="currentColor" stroke-width="1.5"') +
+      R(13.5, 13.5, 7, 7, 1.5, 'fill="none" stroke="currentColor" stroke-width="1.5"') +
+      S('M10.5 7h8.5M7 10.5v8.5', 1.4) +
+      C(12, 12, 1.6),
+  },
+  configsync: {
+    name: '配置同步',
+    color: '#7C5CBF',
+    kind: 'registry',
+    svg:
+      S('M6 12a6 6 0 0 1 10.2-4.2M18 12a6 6 0 0 1-10.2 4.2', 1.6) +
+      S('M16 4.5v3.6h-3.6M8 19.5v-3.6h3.6', 1.4),
+  },
+  streampipeline: {
+    name: '流处理管道',
+    color: '#7C5CBF',
+    kind: 'mq',
+    svg: P('M4 5h16l-6 7v6.5l-4 2V12Z', 'opacity="0.8"') + S('M8 20.5h8', 1.4),
+  },
+  idgen: {
+    name: '分布式 ID',
+    color: '#7C5CBF',
+    kind: 'tool',
+    svg:
+      S('M12 3v18M4.2 7.5l15.6 9M19.8 7.5l-15.6 9', 1.5) +
+      C(12, 12, 2.4),
+  },
+
+  // ── observe：出事怎么知道 ────────────────────────────────
+  logcollector: {
+    name: '日志采集',
+    color: '#D97B29',
+    kind: 'observe',
+    svg:
+      S('M4 5h10M4 9h13M4 13h8', 1.4) +
+      S('M15 15h5l-2.5 5.5Z', 1.5),
+  },
+  traceui: {
+    name: '链路追踪视图',
+    color: '#D97B29',
+    kind: 'observe',
+    svg: S('M4 6.5h6', 2.2) + S('M7 12h7', 2.2) + S('M11 17.5h9', 2.2),
+  },
+  alerting: {
+    name: '告警',
+    color: '#D97B29',
+    kind: 'observe',
+    svg:
+      S('M6 16.5V11a6 6 0 0 1 12 0v5.5', 1.6) +
+      S('M4.5 17.5h15', 1.6) +
+      S('M10 20a2.2 2.2 0 0 0 4 0', 1.5) +
+      S('M12 3v2', 1.5),
+  },
+  dashboard: {
+    name: '仪表盘',
+    color: '#D97B29',
+    kind: 'observe',
+    svg:
+      S('M3.5 17a8.5 8.5 0 0 1 17 0', 1.7) +
+      S('M12 17 16 10', 1.7) +
+      C(12, 17, 1.4) +
+      R(4.5, 19, 4, 2, 0.6, 'opacity="0.6"') +
+      R(10, 19, 4, 2, 0.6, 'opacity="0.6"'),
+  },
+  audit: {
+    name: '审计核查',
+    color: '#D97B29',
+    kind: 'observe',
+    svg:
+      C(10.5, 10.5, 6, 'fill="none" stroke="currentColor" stroke-width="1.6"') +
+      S('M15 15l5 5', 1.8) +
+      S('M8 10.5l2 2 3-3.5', 1.6),
+  },
+  backup: {
+    name: '备份',
+    color: '#D97B29',
+    kind: 'observe',
+    svg:
+      C(12, 12, 8.5, 'fill="none" stroke="currentColor" stroke-width="1.4" stroke-dasharray="3 2.5"') +
+      C(12, 12, 3.4, 'opacity="0.85"') +
+      S('M12 3.5v3', 1.4) +
+      S('M12 3.5l-1.6 1.8M12 3.5l1.6 1.8', 1.4),
+  },
+  healthcheck: {
+    name: '健康检查',
+    color: '#D97B29',
+    kind: 'observe',
+    svg: S('M3 12h4l2-5 3 10 2.5-7 1.5 2H21', 1.7),
+  },
+  slo: {
+    name: 'SLO 目标',
+    color: '#D97B29',
+    kind: 'observe',
+    svg:
+      C(12, 12, 8.5, 'fill="none" stroke="currentColor" stroke-width="1.5"') +
+      C(12, 12, 4.8, 'fill="none" stroke="currentColor" stroke-width="1.5"') +
+      C(12, 12, 1.8),
+  },
+  profiling: {
+    name: '性能剖析',
+    color: '#D97B29',
+    kind: 'observe',
+    svg:
+      R(3, 17, 18, 3, 0.8, 'opacity="0.5"') +
+      R(5, 13, 14, 3, 0.8, 'opacity="0.65"') +
+      R(7, 9, 10, 3, 0.8, 'opacity="0.8"') +
+      R(9, 5, 6, 3, 0.8),
+  },
+
+  // ── security：怎么证明你是谁 ─────────────────────────────
+  secret: {
+    name: '密钥 / 凭据',
+    color: '#C4453C',
+    kind: 'security',
+    svg:
+      C(8.5, 15.5, 3.6, 'fill="none" stroke="currentColor" stroke-width="1.6"') +
+      S('M11 13l8-8', 1.8) +
+      S('M17 6.5 19 4.5M16 9.5l2 2', 1.5),
+  },
+  kms: {
+    name: '密钥管理 KMS',
+    color: '#C4453C',
+    kind: 'security',
+    svg:
+      R(4, 10, 16, 10, 2, 'fill="none" stroke="currentColor" stroke-width="1.7"') +
+      C(12, 15, 2.4, 'fill="none" stroke="currentColor" stroke-width="1.5"') +
+      S('M12 17.4v2', 1.5) +
+      S('M8 10V7a4 4 0 0 1 8 0v3', 1.5),
+  },
+  cert: {
+    name: '证书',
+    color: '#C4453C',
+    kind: 'security',
+    svg:
+      R(4, 3.5, 16, 17, 1.5, 'fill="none" stroke="currentColor" stroke-width="1.7"') +
+      S('M7.5 8h9M7.5 11.5h9M7.5 15h5', 1.4) +
+      C(16.5, 16.5, 2.4, 'fill="none" stroke="currentColor" stroke-width="1.4"'),
+  },
+  iam: {
+    name: '身份认证 IAM',
+    color: '#C4453C',
+    kind: 'security',
+    svg:
+      R(2.5, 5.5, 13, 13, 2, 'fill="none" stroke="currentColor" stroke-width="1.6"') +
+      C(8, 12, 2.6, 'opacity="0.8"') +
+      S('M4.5 18.5c0-2.4 1.6-4 3.5-4s3.5 1.6 3.5 4', 1.4) +
+      S('M17 9h4M17 13h4', 1.5),
+  },
+  encrypt: {
+    name: '加密',
+    color: '#C4453C',
+    kind: 'security',
+    svg:
+      R(5, 10.5, 14, 10, 2, 'fill="none" stroke="currentColor" stroke-width="1.7"') +
+      S('M8.5 10.5V7.5a3.5 3.5 0 0 1 7 0v3', 1.6) +
+      C(12, 15.5, 1.7),
+  },
+  bastion: {
+    name: '堡垒机',
+    color: '#C4453C',
+    kind: 'security',
+    svg:
+      R(3, 4, 18, 16, 2, 'fill="none" stroke="currentColor" stroke-width="1.7"') +
+      S('M3 9h18', 1.5) +
+      S('M7 13.5l2 2-2 2M11 17.5h5', 1.6),
+  },
+  siem: {
+    name: 'SIEM 安全分析',
+    color: '#C4453C',
+    kind: 'security',
+    svg:
+      C(12, 12, 8.5, 'fill="none" stroke="currentColor" stroke-width="1.5"') +
+      C(12, 12, 4.5, 'fill="none" stroke="currentColor" stroke-width="1.3"') +
+      S('M12 12 18.5 8.5', 1.6) +
+      C(12, 12, 1.5),
+  },
+  auditlog: {
+    name: '审计日志',
+    color: '#C4453C',
+    kind: 'security',
+    svg:
+      S('M4.5 5h14', 1.6) +
+      S('M5 10h10M5 14h12M5 18h8', 1.4) +
+      C(17.5, 17, 2.8, 'fill="none" stroke="currentColor" stroke-width="1.4"') +
+      S('M17.5 15.6v2.6l1.6 1', 1.3),
+  },
+  oauth: {
+    name: 'OAuth 授权',
+    color: '#C4453C',
+    kind: 'security',
+    svg:
+      C(9, 12, 5.2, 'fill="none" stroke="currentColor" stroke-width="1.6"') +
+      C(15, 12, 5.2, 'fill="none" stroke="currentColor" stroke-width="1.6"') +
+      S('M11 9.5h2M11 14.5h2', 1.4),
+  },
+
+  // ── delivery：怎么发出去 ─────────────────────────────────
+  cicd: {
+    name: 'CI/CD 流水线',
+    color: '#55606E',
+    kind: 'tool',
+    svg:
+      C(7, 7, 2.6, 'fill="none" stroke="currentColor" stroke-width="1.6"') +
+      C(17, 17, 2.6, 'fill="none" stroke="currentColor" stroke-width="1.6"') +
+      S('M9.4 8.4 16 15M15 8.4 8.6 15', 1.5),
+  },
+  imagerepo: {
+    name: '镜像仓库',
+    color: '#55606E',
+    kind: 'tool',
+    svg:
+      R(5, 4, 14, 6, 1.5, 'fill="none" stroke="currentColor" stroke-width="1.6"') +
+      R(5, 11, 14, 6, 1.5, 'fill="none" stroke="currentColor" stroke-width="1.6"') +
+      R(9, 18, 6, 2.5, 0.8, 'opacity="0.7"'),
+  },
+  artifactrepo: {
+    name: '制品库',
+    color: '#55606E',
+    kind: 'tool',
+    svg:
+      R(3, 7, 18, 13, 1.5, 'fill="none" stroke="currentColor" stroke-width="1.7"') +
+      S('M3 11h18', 1.5) +
+      R(9.5, 4, 5, 6, 1.5, 'fill="none" stroke="currentColor" stroke-width="1.4"'),
+  },
+  iac: {
+    name: '基础设施即代码',
+    color: '#55606E',
+    kind: 'tool',
+    svg:
+      S('M8 5.5C5 5.5 5 8 5 8s0 2.5 3 2.5', 1.6) +
+      S('M16 5.5c3 0 3 2.5 3 2.5s0 2.5-3 2.5', 1.6) +
+      S('M11 8h2', 1.6) +
+      S('M6 14h12M6 18h8', 1.5),
+  },
+  configmgmt: {
+    name: '配置管理',
+    color: '#55606E',
+    kind: 'tool',
+    svg: S('M4 8h16M4 16h16', 1.5) + C(9, 8, 2.4) + C(15, 16, 2.4),
+  },
+  canary: {
+    name: '金丝雀发布',
+    color: '#55606E',
+    kind: 'tool',
+    svg:
+      S('M3 17h18', 1.7) +
+      S('M3 7h9', 1.7) +
+      S('M12 7c4.5 0 4.5 10 9 10', 1.6) +
+      C(15.5, 12, 1.6),
+  },
+  bluegreen: {
+    name: '蓝绿部署',
+    color: '#55606E',
+    kind: 'tool',
+    svg:
+      P('M12 3a9 9 0 0 0 0 18Z', 'opacity="0.85"') +
+      C(12, 12, 9, 'fill="none" stroke="currentColor" stroke-width="1.7"'),
+  },
+  rollback: {
+    name: '回滚',
+    color: '#55606E',
+    kind: 'tool',
+    svg: S('M20 12a8 8 0 1 1-2.5-5.8', 1.7) + S('M20 4.5v4h-4', 1.6),
+  },
+
+  // ── topology：一个还是多个（给集群形态选择器用） ──────────
+  single: {
+    name: '单实例',
+    color: '#2F6FBA',
+    kind: 'topology',
+    svg:
+      R(6, 6, 12, 12, 2, 'fill="none" stroke="currentColor" stroke-width="1.8"') +
+      C(12, 12, 2.6, 'opacity="0.8"'),
+  },
+  replica: {
+    name: '多副本',
+    color: '#2F6FBA',
+    kind: 'topology',
+    svg:
+      R(2.5, 8, 6, 8, 1.5, 'fill="none" stroke="currentColor" stroke-width="1.5"') +
+      R(9, 8, 6, 8, 1.5, 'opacity="0.85"') +
+      R(15.5, 8, 6, 8, 1.5, 'fill="none" stroke="currentColor" stroke-width="1.5"'),
+  },
+  'master-slave': {
+    name: '主从',
+    color: '#2F6FBA',
+    kind: 'topology',
+    svg:
+      R(3, 5, 10, 7, 1.5, 'opacity="0.85"') +
+      R(15, 14, 6, 5, 1.5, 'fill="none" stroke="currentColor" stroke-width="1.5"') +
+      S('M8 12v3.2h7', 1.5),
+  },
+  sharding: {
+    name: '分片',
+    color: '#2F6FBA',
+    kind: 'topology',
+    svg:
+      R(3, 3, 18, 18, 2, 'fill="none" stroke="currentColor" stroke-width="1.7"') +
+      S('M12 3v18M3 12h18', 1.4),
+  },
+  'readonly-replica': {
+    name: '读写分离',
+    color: '#2F6FBA',
+    kind: 'topology',
+    svg:
+      C(6, 6, 3.2, 'opacity="0.85"') +
+      C(17, 12, 2.4, 'fill="none" stroke="currentColor" stroke-width="1.5"') +
+      C(17, 19, 2.4, 'fill="none" stroke="currentColor" stroke-width="1.5"') +
+      S('M8 8.4 14.8 11M8 8.4 14.8 17.6', 1.4),
+  },
+  multiaz: {
+    name: '多可用区',
+    color: '#2F6FBA',
+    kind: 'topology',
+    svg:
+      R(2.5, 3.5, 8.5, 8.5, 1.5, 'fill="none" stroke="currentColor" stroke-width="1.5"') +
+      R(13, 12, 8.5, 8.5, 1.5, 'fill="none" stroke="currentColor" stroke-width="1.5"') +
+      S('M11 8h7v7', 1.5) +
+      C(6.7, 7.7, 1.8, 'opacity="0.8"') +
+      C(17.2, 16.2, 1.8, 'fill="none" stroke="currentColor" stroke-width="1.4"'),
+  },
+  'active-active': {
+    name: '双活',
+    color: '#2F6FBA',
+    kind: 'topology',
+    svg:
+      C(7, 12, 4.4, 'fill="none" stroke="currentColor" stroke-width="1.6"') +
+      C(17, 12, 4.4, 'fill="none" stroke="currentColor" stroke-width="1.6"') +
+      S('M11.4 12h1.2', 1.6) +
+      S('M10 9.5 12.5 12 10 14.5M14 9.5 11.5 12 14 14.5', 1.4),
+  },
+  'cold-standby': {
+    name: '冷备',
+    color: '#2F6FBA',
+    kind: 'topology',
+    svg:
+      R(3, 5, 9, 7, 1.5, 'opacity="0.85"') +
+      R(14, 12, 7, 7, 1.5, 'fill="none" stroke="currentColor" stroke-width="1.5" stroke-dasharray="3 2.2"') +
+      S('M12 8.5h4.2v4', 1.4),
+  },
+
   none: {
     name: '留空 / 不启用',
     color: '#6B7280',

@@ -1,0 +1,9 @@
+stages:
+  - build
+  - test
+  - deploy
+
+build:
+  stage: build
+  script:
+    - ./mvnw package

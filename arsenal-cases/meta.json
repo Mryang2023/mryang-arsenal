@@ -1,0 +1,12 @@
+{
+  "collection": "arsenal-cases",
+  "name": "军火库 · 场景案例库",
+  "version": "0.1.0",
+  "releasedAt": "2026-09-22",
+  "description": "按问题与参数出方案。每个场景声明一组驱动参数（并发量 / 数据规模 / 读写比 / 一致性 / P99 / 增长预期），每个代码切片带 when 条件：命中的给出建表 DDL 与生产级 Java，没命中的必须显式说明为什么在这个参数下不适用 —— 不许静默省略。与 arsenal-cookbook 的分工：cookbook 讲「一个功能标准该怎么写」，cases 讲「在这些约束下该怎么设计」。",
+  "order": [
+    "huge-rowcount-rdb",
+    "genomic-sequence-store"
+  ],
+  "count": 2
+}

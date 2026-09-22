@@ -4,6 +4,31 @@
 
 目标只有一个：**让任何 AI 生成的代码，都收敛到同一套工程规范上。**
 
+### 从代码出图（`com.arsenal.scan`）
+
+给一个本地目录、一个 zip、或一个 https git 地址，扫描出一份**只读的事实 JSON**：
+
+```bash
+curl -s -X POST http://localhost:3011/api/scan/facts   -H "Content-Type: application/json"   -d '{"source":{"kind":"path","value":"D:/workspace/2026/mryang-arsenal/arsenal-server"}}'
+```
+
+| 接口 | 说明 |
+|---|---|
+| `POST /api/scan/facts` | 本地目录 / https git → `ProjectFacts` |
+| `POST /api/scan/upload` | 上传 zip → `ProjectFacts` |
+| `GET /api/scan/rules` | 映射表条数与位置 |
+| `GET /api/scan/rules/detail` | 映射表反查（这个依赖为什么没被认出来） |
+
+三条硬规矩：**只记录读到的**（副本数读不到是 `null` + 一条 note，绝不填 1）、
+**每条命中都有 evidence**（文件路径 + 行号）、**未命中不丢**（进 `notes` 的 `UNMAPPED_DEPENDENCY`）。
+
+安全闸门（`ScanGuard`）：不执行被扫描仓库里的任何东西（git 带 `--config core.hooksPath=/dev/null`）、
+路径先 `toRealPath()` 再校验在根内、zip 出现 `../` 或绝对路径**整体拒绝**、
+单文件 2MB / 总 500MB / 2 万文件 / 深度 20 / 180s 超时、
+`password` `secret` `token` `key` 的值一律 `***`（`.env` 只留键名）、临时目录 finally 清理。
+
+---
+
 ---
 
 ## 仓库位置
@@ -44,6 +69,7 @@ arsenal/
 │       ├── stack_base.py stack_data.py stack_mw.py stack_deploy.py
 │       ├── stack_arch.py stack_cross.py stack_presets.py  ← 装配台选型
 │       └── stack_project.py     项目结构树 / 启动类 / 导出文件模板
+│       └── icons.py             图标资产库清单（九大类 / 矢量 key / 位图路径）
 │
 ├── arsenal-rules/               规则数据源（source of truth，Git 化）
 │   ├── _schema/rule.schema.json 规则对象的 JSON Schema
@@ -51,6 +77,12 @@ arsenal/
 │   └── {skeleton,web,service,data,concurrency,reliability,security,test,collab}/*.json
 │
 ├── arsenal-cookbook/            最佳实践案例数据（4 条切片 / 32 文件 / 2214 行）
+├── arsenal-cases/               场景案例数据（source of truth，由 tools/content/cases/*.py 生成）
+│   ├── meta.json                2 场景 / 12 切片 / 1353 行 SQL+Java
+│   ├── huge-rowcount-rdb.json   亿级行关系库读写
+│   └── genomic-sequence-store.json  基因 / DNA 序列海量存取
+├── arsenal-scan/               代码扫描映射表（source of truth，由 tools/content/scan_rules.py 生成）
+│   └── scan_rules.json          108 条坐标映射 / 47 条会落进部署图
 ├── arsenal-stacks/              装配台数据
 │   ├── stack.json               18 维度 / 46 选项 / 4 预设
 │   ├── architecture.json        7 泳道 / 31 能力 / 21 条组合策略
@@ -59,14 +91,20 @@ arsenal/
 ├── arsenal-profiles/            六视图项目档案（换项目只加这里，代码零改动）
 │   └── <id>.json                与文件名同 id；数字一律写 {{token}}，不许手抄
 │
+├── arsenal-icons/               图标资产库清单（source of truth）
+│   └── icons.json               81 个图标 / 9 类 —— 矢量 key 与位图路径的登记表
+│
 ├── arsenal-web/                 Next.js 前端（3010）
-│   ├── src/app/{rules,check,export,blueprints,stack,arch,archify}/  七个页面
+│   ├── src/app/{rules,check,export,blueprints,stack,arch,archify,icons}/  八个页面
 │   │                             （arch = 架构图谱：业务 / 数据 / 应用 / 技术 / 产品 / 项目 六大架构，
 │   │                              讲哪个项目由项目档案决定；技术架构沿用装配台选型 ——
 │   │                              localStorage 快照，装配台是唯一属主。
-│   │                              archify = 出图服务：任意 IR 进城，HTML 出城）
+│   │                              archify = 出图服务：任意 IR 进城，HTML 出城。
+│   │                              icons = 图标资产库：分类 / 搜索 / 复制 key / 矢量位图双视图）
+│   ├── public/icons/<category>/ 位图资产（分批补；目前 0 张，矢量已全量可用）
 │   ├── src/lib/                 纯函数层（cookbook / stack / arch / arch-canvas /
-│   │                             archify-ir / arch-views / project / zip，都不引绘图库）
+│   │                             archify-ir / arch-views / project / zip / icon-assets，
+│   │                             都不引绘图库）
 │   │                             + arsenal-api.ts（唯一一处网络请求，调后端出图）
 │   └── .verify/                 自检脚本（属资产，进 Git）
 │
@@ -163,20 +201,25 @@ bash scripts/compile-check.sh      # 26 源文件 → 41 class
 cd arsenal-web && npm run verify
 ```
 
-一条命令跑完六层、共 **473 项**：
+一条命令跑完八层、共 **620 项**：
 
 | 层 | 项数 | 看什么 |
 |---|---|---|
 | `verify:arch` | 35 | 能力供需 / 槽位必需性 / 三态结论 |
 | `verify:graph` | 59 | 架构图交互层：依赖边与版式边不许混淆、可达/路由自洽、渲染器加法契约 |
-| `verify:project` | 321 | 结构树、启动类、隐患、README、架构图与说明、**部署产物（Dockerfile / Compose / K8s 清单 / Helm Chart 的可应用性与字段一致性）**、zip 打包；**六大架构视图数据层**（每个数字可追溯到真实数据）、技术架构画布加料不变量（页脚 / 署名 / 分区计数）、**图标库与动效**（图标 key 不许静默回落、导出态带动画 / 交互态不带）、**导航与页签契约**（导航不许指向空地址、页面不许成孤儿、页签 id 必须有渲染分支） |
+| `verify:cases` | 25 | 场景案例库：驱动参数档位离散、**穷举 2592 组参数断言「命中 + 未命中 == 切片总数」一个都不丢**、同参数两次调用逐字节一致、锚点真在代码里、规则 id 真实存在、无 TODO/反模式 |
+| `verify:project` | 406 | 结构树、启动类、隐患、README、架构图与说明、**部署产物（Dockerfile / Compose / K8s 清单 / Helm Chart 的可应用性与字段一致性）**、zip 打包；**六大架构视图数据层**（每个数字可追溯到真实数据）、技术架构画布加料不变量（页脚 / 署名 / 分区计数）、**图标库与动效**（图标 key 不许静默回落、导出态带动画 / 交互态不带）、**图标资产库**（key 唯一、矢量 key 全部命中 `TECH_ICONS`、代码与架构图数据里的图标引用可解析、位图清单 ↔ 磁盘双向对齐、体积 ≤6MB、页面与菜单成对存在）、**导航与页签契约**（导航不许指向空地址、页面不许成孤儿、页签 id 必须有渲染分支） |
 | `verify:engine` | 17 | 规则池对账、样本检出、误报检查 |
 | `verify:parity` | 12 | 前后端导出逐字节一致性（含后端探针实跑）；**活服务体检** —— 起后端时断言 `/api/stats` 报的条数与分布 == 事实源（防「改了规则忘了重启」的静默漂移），没起服务则明说跳过 |
-| `verify:archify` | 29 | 选型 → 通用绘图器 IR：结构自检 + 对方那九项构图检查 + 后端出图服务实跑 |
+| `verify:archify` | 31 | 选型 → 通用绘图器 IR：结构自检 + 对方那九项构图检查 + 后端出图服务实跑 |
+| `verify:scan` | 35 | 代码扫描：fixture 仓库逐字段、确定性（扫两次除时间戳外逐字段相等）、恶意输入（路径逃逸 zip / 超大文件 / `file://` `ssh://` `git://` git / 软链外跳）全被拒且错误码正确、密码与 `.env` 脱敏、不存绝对路径 |
 
 改动能力模型、槽位必需性、策略、结构树、架构图渲染或技术架构图（画布 / IR 适配器）之后
 **必须重跑**：基线在 `.verify/audit-check.ts`、`.verify/graph-check.ts`、
-`.verify/project-check.ts` 与 `.verify/archify-check.ts`。
+`.verify/project-check.ts`、`.verify/archify-check.ts` 与 `.verify/scan-check.ts`。
+
+`verify:scan` 需要 bash + JDK 17（它要起后端扫描探针实跑）。缺一个就**明说跳过**并退出 0 ——
+那时「通过」里不含扫描断言。
 
 `verify:archify` 需要机器上装了通用绘图器（扳手AI.Archify）。没装时前 19 项
 **明说跳过**并照常退出 0 —— 但那时「通过」里不包含九项构图检查，别当成绿灯。
@@ -205,8 +248,10 @@ cd arsenal-web && ARCHIFY_SWEEP=1 npm run verify:archify
 |---|---|---|
 | **规则集** | 不能做什么 | 69 条（MUST 37 + NEVER 13 = 50 条强制级卡满上限；SHOULD 18 + MAY 1） |
 | **最佳实践案例库** | 一个功能完整该怎么写，以及**什么时候不要这么写** | 4 条切片 / 32 文件 / 2214 行 / 98 条锚点备注 / 16 条参考出处 |
-| **架构装配台** | 由哪些零件组成、**拼起来能不能跑** | 7 泳道 / 18 维度 / 46 选项 / 31 能力 / 21 策略 |
-| **架构图谱（/arch）** | 六大架构一图讲清：业务 / 数据 / 应用 / 技术 / 产品 / 项目 | 由项目档案驱动：换一份 `arsenal-profiles/<id>.json`（或就地导入）就换一个项目，渲染代码零改动。5 张静态视图 + 技术架构（跟随装配台选型）；视图数字全部从真实数据算出。视觉系统：`arch-glyphs`（30+ 概念图标，每域每层一个）、`tech-icons`（87 个技术组件图标）、`arch-motion`（SVG 内嵌动画，导出的 .svg 单独打开照样动）、六张 AI 生成封面插画（`public/arch/*.webp`，共 79KB）。动效克制：实线不因为动画变虚线（语义优先），`prefers-reduced-motion` 下全部停 |
+| **场景案例库（/cases）** | 在**这些约束**下该怎么设计（与最佳实践案例库的分工：那边是「教科书范文」，这边是「会诊」） | 2 个场景 / 12 个条件切片 / 1353 行 SQL+Java / 45 条锚点备注。每个场景 6 个驱动参数（并发量 / 数据规模 / 读写比 / 一致性 / P99 / 增长预期），每条代码切片带 `when` 条件：**命中的给代码，没命中的必须写明为什么不适用**（不许静默省略），参数组合本身矛盾（如「百万 QPS + 强一致 + P99<50ms」）在页面顶部标黄。合成引擎 `case-synth.ts` 是纯函数，同参数两次调用逐字节一致（2592 组参数已穷举守恒） |
+| **架构装配台** | 由哪些零件组成、**拼起来能不能跑** | 7 泳道 / **33 维度**（9 组）/ **127 选项** / **100 能力** / 21 策略 / 6 套预设。从「只选 Java 组件」扩到「装配一整个项目」：新增运行基石（运行环境 / 入口负载 / 网关 / 编排 / 制品库）、数据生态（检索 / 分析型存储 / 对象存储）、质量工程（测试栈 / 门禁）、运维安全（CI/CD / 监控 / 密钥 / 日志）、部署形态五组。高阶档（APISIX / TiDB / Vault / Istio / 分库分表 …）带「高阶」角标且必须写 ≥2 条翻车场景。**集群形态成为一等公民**：数据库 / 缓存 / 检索 / 队列 / 应用都能选单实例 / 主从 / 组复制 / 分片 / 云原生，形态参与能力判定，并且**真的影响产物** —— K8s `replicas` / PDB / 反亲和、Helm 三份 values、容量摘要、架构图叠层数全部由 `topology.ts` 算出来，`deploy.ts` 里不再有写死的副本数 |
+| **图标资产库（/icons）** | 画架构图会用到的图标：**矢量**供架构图节点 / 装配台 / IR 组件用（随 `currentColor` 变色、能进 SVG 导出），**位图**供卡片配图与文档插图用 —— 两套分工固定，不互相替代 | 9 大类 / 81 个登记图标（`tech-icons` 从 89 扩到 **170** 个：第一批是 MySQL / Redis / Nacos 这类技术件，第二批补的是「谁在用系统 / 跑在哪 / 怎么进来 / 一个还是多个」）。全部手绘 SVG，零图标库依赖。事实源 `arsenal-icons/icons.json`（由 `tools/content/icons.py` 生成）；位图分批补，目前 0 张 —— 空态在页面上如实显示并给出可直接使用的生图 prompt |
+| **架构图谱（/arch）** | 六大架构一图讲清：业务 / 数据 / 应用 / 技术 / 产品 / 项目 | 由项目档案驱动：换一份 `arsenal-profiles/<id>.json`（或就地导入）就换一个项目，渲染代码零改动。5 张静态视图 + 技术架构（跟随装配台选型）；视图数字全部从真实数据算出。视觉系统：`arch-glyphs`（30+ 概念图标，每域每层一个）、`tech-icons`（170 个技术组件与架构概念图标）、`arch-motion`（SVG 内嵌动画，导出的 .svg 单独打开照样动）、六张 AI 生成封面插画（`public/arch/*.webp`，共 79KB）。动效克制：实线不因为动画变虚线（语义优先），`prefers-reduced-motion` 下全部停 |
 | **出图服务（/archify）** | 把任意项目的架构 IR 变成一张合格的 HTML 交付图 | 与选型无关：粘贴 / 上传任意 IR → 本地两道预检（形状 + 已知结构坑）→ 后端渲染 → HTML 预览与下载 + 逐条构图诊断。输入不限于军火库自己生成的 IR |
 
 装配台的核心是**能力供需模型**：每个选项声明 `requires` / `provides`，

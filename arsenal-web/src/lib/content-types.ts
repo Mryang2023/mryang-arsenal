@@ -165,6 +165,13 @@ export interface StackOption {
   env?: { key: string; desc: string }[];
   notes?: string[];
   pitfalls?: string[];
+  /**
+   * 集群形态表（数据来自 arsenal-stacks/stack.json）。
+   * 类型定义在 topology.ts —— 那边要用它算副本数，放这里是循环依赖。
+   */
+  topology?: unknown;
+  /** 该选项的默认形态 id。不选时用它，而不是形态表的第一项 */
+  topologyDefault?: string;
 }
 
 export interface StackDimension {
@@ -174,6 +181,8 @@ export interface StackDimension {
   why: string;
   defaultOption: string;
   options: StackOption[];
+  /** 维度级形态表：这个组件不区分具体产品时（MySQL 与 PostgreSQL 都能做主从）挂在这里 */
+  topology?: unknown;
 }
 
 export interface StackGroup {
@@ -217,4 +226,42 @@ export interface ComposedStack {
   notes: { dimName: string; optName: string; items: string[] }[];
   pitfalls: { dimName: string; optName: string; items: string[] }[];
   selected: { dimension: StackDimension; option: StackOption }[];
+}
+
+// ── 图标资产库 ──────────────────────────────────────────────
+export interface IconCategory {
+  id: string;
+  name: string;
+  accent: string;
+  desc: string;
+}
+
+/**
+ * 一条图标登记。
+ *
+ * `vector` 指向 tech-icons.ts 的 key（架构图用）；`bitmap` 是 public/icons 下
+ * 的相对路径（展示用）。**bitmap 允许为空** —— 位图是分批补的，登记先于产出，
+ * 空值表示「这张还没画」，不是「这条数据坏了」。
+ */
+export interface IconAsset {
+  key: string;
+  name: string;
+  en: string;
+  category: string;
+  tags: string[];
+  vector: string;
+  bitmap: string;
+  subject: string;
+}
+
+export interface IconLibrary {
+  collection: string;
+  name: string;
+  version: string;
+  description: string;
+  stylePrefix: string;
+  categories: IconCategory[];
+  count: number;
+  bitmapCount: number;
+  icons: IconAsset[];
 }

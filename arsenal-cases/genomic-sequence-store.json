@@ -1,0 +1,845 @@
+{
+  "case": {
+    "id": "genomic-sequence-store",
+    "order": 2,
+    "name": "基因 / DNA 序列海量存取",
+    "subtitle": "序列别进关系库，位点查询才救得回来",
+    "glyph": "⧉",
+    "domain": [
+      "医疗",
+      "基因检测",
+      "科研",
+      "生物信息"
+    ],
+    "problem": "单样本序列 GB 级、样本数百万到十亿；患者高频查询位点区间要求亚秒，测序仪还在持续批量导入。",
+    "symptoms": [
+      "数据库体积膨胀到数十 TB，备份跑不完",
+      "主从延迟从秒级涨到小时级",
+      "位点查询要么全表扫要么回表，P99 上不去",
+      "加一个字段的 ALTER 跑几小时"
+    ],
+    "drivers": [
+      {
+        "id": "qps",
+        "name": "并发量",
+        "unit": "QPS",
+        "hint": "位点查询为主",
+        "levels": [
+          {
+            "id": "q100",
+            "label": "100",
+            "value": 100
+          },
+          {
+            "id": "q1k",
+            "label": "1 千",
+            "value": 1000
+          },
+          {
+            "id": "q10k",
+            "label": "1 万",
+            "value": 10000
+          },
+          {
+            "id": "q100k",
+            "label": "10 万",
+            "value": 100000
+          }
+        ]
+      },
+      {
+        "id": "rows",
+        "name": "数据规模",
+        "unit": "样本",
+        "hint": "单样本序列可达 GB 级",
+        "levels": [
+          {
+            "id": "s10k",
+            "label": "1 万",
+            "value": 10000
+          },
+          {
+            "id": "s1m",
+            "label": "100 万",
+            "value": 1000000
+          },
+          {
+            "id": "s100m",
+            "label": "1 亿",
+            "value": 100000000
+          },
+          {
+            "id": "s1b",
+            "label": "10 亿",
+            "value": 1000000000
+          }
+        ]
+      },
+      {
+        "id": "rw",
+        "name": "读写比",
+        "unit": "",
+        "hint": "导入期 vs 查询期差别极大",
+        "levels": [
+          {
+            "id": "rw91",
+            "label": "9:1 读多",
+            "note": "平台稳定运营期"
+          },
+          {
+            "id": "rw11",
+            "label": "1:1",
+            "note": "持续有小批量入库"
+          },
+          {
+            "id": "rw19",
+            "label": "1:9 写多",
+            "note": "测序仪批量导入期"
+          }
+        ]
+      },
+      {
+        "id": "consist",
+        "name": "一致性",
+        "unit": "",
+        "hint": "报告能不能读旧值",
+        "levels": [
+          {
+            "id": "strong",
+            "label": "强一致",
+            "note": "出报告链路必须读最新"
+          },
+          {
+            "id": "bounded",
+            "label": "有界延迟一致",
+            "note": "秒级"
+          },
+          {
+            "id": "eventual",
+            "label": "最终一致",
+            "note": "科研统计可接受分钟级"
+          }
+        ]
+      },
+      {
+        "id": "latency",
+        "name": "P99 目标",
+        "unit": "",
+        "hint": "针对位点区间查询",
+        "levels": [
+          {
+            "id": "l50",
+            "label": "<50ms"
+          },
+          {
+            "id": "l200",
+            "label": "<200ms"
+          },
+          {
+            "id": "l1s",
+            "label": "<1s"
+          }
+        ]
+      },
+      {
+        "id": "growth",
+        "name": "增长预期",
+        "unit": "",
+        "hint": "测序量通常是超线性增长",
+        "levels": [
+          {
+            "id": "g1x",
+            "label": "年增 <1 倍"
+          },
+          {
+            "id": "g5x",
+            "label": "年增 5 倍"
+          },
+          {
+            "id": "g20x",
+            "label": "年增 20 倍"
+          }
+        ]
+      }
+    ],
+    "conflicts": [
+      {
+        "when": {
+          "rows": [
+            "s100m",
+            "s1b"
+          ],
+          "latency": [
+            "l50"
+          ],
+          "rw": [
+            "rw19"
+          ]
+        },
+        "text": "亿级样本 + 批量导入期 + 位点查询 P99<50ms：导入会持续占用 IO 与索引维护资源，与低延迟查询直接冲突。请把导入与查询分开时段或分开实例（见切片「批量导入不停服」）。"
+      },
+      {
+        "when": {
+          "rows": [
+            "s1b"
+          ],
+          "latency": [
+            "l50"
+          ],
+          "consist": [
+            "strong"
+          ]
+        },
+        "text": "10 亿样本 + 强一致 + 位点查询 P99<50ms：必须把变异位点与序列本体彻底分层，并且位点表按染色体分区 + 复合索引前缀命中。任何一次回表都会让 P99 掉出 50ms。"
+      },
+      {
+        "when": {
+          "rows": [
+            "s1b"
+          ],
+          "growth": [
+            "g20x"
+          ],
+          "latency": [
+            "l50",
+            "l200"
+          ]
+        },
+        "text": "10 亿样本且年增 20 倍：按这个增速三年内会到千亿级。分区策略要按「能 DROP PARTITION」来设计，否则三年后连删数据都做不到。"
+      }
+    ],
+    "slices": [
+      {
+        "id": "storage-layering",
+        "order": 1,
+        "goal": "序列本体不进关系库",
+        "layer": "设计",
+        "when": {
+          "rows": [
+            "s1m",
+            "s100m",
+            "s1b"
+          ]
+        },
+        "why": "单个样本的原始序列可达 GB 级。一旦进关系库，体积会到数十 TB，而备份、主从复制、DDL 的代价都随体积线性上升 —— 查询还是能跑，但运维会先崩。",
+        "decision": {
+          "question": "序列本体放哪？",
+          "options": [
+            "MySQL BLOB / LONGTEXT —— 一条记录几十 MB，缓冲池当场被冲掉",
+            "文件系统 + DB 存路径 —— 便宜，但备份一致性、多副本、扩容全要自己做",
+            "对象存储（MinIO / S3）+ DB 存指针与校验和 —— 体积与成本都可控，且天然多副本",
+            "专用列存（Parquet + 对象存储）—— 适合批量分析，不适合单样本点查"
+          ],
+          "chosen": "对象存储存序列本体，DB 只存 object_key + sha256 + 字节数，元数据与位点独立建表",
+          "tradeoff": "代价是「取一条完整序列」变成两次调用（查指针 + 取对象），且要处理对象与元数据不一致。这个不一致用「先写对象、后写元数据」的顺序 + 校验和兜底。"
+        },
+        "sql": "-- 三层：样本元数据 / 变异位点 / 序列对象指针。刻意分成三张表而不是一张宽表。\nCREATE TABLE `genome_sample` (\n  `sample_id`    BIGINT      NOT NULL COMMENT '样本唯一标识，业务侧生成',\n  `patient_id`   BIGINT      NOT NULL COMMENT '患者。脱敏后存储，明文另存受控区',\n  `assay`        VARCHAR(32) NOT NULL COMMENT '检测项目：WGS/WES/Panel',\n  `status`       TINYINT     NOT NULL DEFAULT 0 COMMENT '0已收样 1测序中 2已出变异 3已出报告',\n  `sampled_at`   DATE        NOT NULL,\n  `created_at`   DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),\n  PRIMARY KEY (`sample_id`),\n  KEY `idx_patient` (`patient_id`, `sampled_at` DESC)\n) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='样本元数据 · 不含任何序列数据';\n\n-- 序列本体只留指针。绝不允许把序列内容放进这张表。\nCREATE TABLE `genome_sequence_object` (\n  `sample_id`   BIGINT       NOT NULL,\n  `seq_type`    VARCHAR(16)  NOT NULL COMMENT 'FASTQ/BAM/CRAM/VCF',\n  `object_key`  VARCHAR(512) NOT NULL COMMENT '对象存储路径：bucket/prefix/sample_id/xxx.cram',\n  `size_bytes`  BIGINT       NOT NULL,\n  -- 校验和是这套设计的兜底：对象与元数据不一致时，它是唯一能判定谁对的证据。\n  `sha256`      CHAR(64)     NOT NULL,\n  `uploaded_at` DATETIME(3)  NOT NULL DEFAULT CURRENT_TIMESTAMP(3),\n  PRIMARY KEY (`sample_id`, `seq_type`),\n  KEY `idx_uploaded` (`uploaded_at`)\n) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='序列对象指针 · 本体在对象存储';",
+        "code": "/**\n * 场景：基因 / DNA 序列海量存取 / 切片：存储分层\n * 适用参数：样本数 ≥ 100 万\n * 依赖规则：DATA-SCHM-001, SEC-DATA-001, REL-EXCP-001\n * JDK：17\n */\npackage com.example.genome.store;\n\nimport java.io.InputStream;\nimport java.security.MessageDigest;\nimport java.util.HexFormat;\n\n/**\n * 序列对象的写入顺序：**先落对象，后写元数据**。\n *\n * 为什么是这个顺序：反过来（先写元数据）会出现「元数据说有、对象里没有」，\n * 这种状态对查询方是致命的 —— 它会拿到一个 404 当成了数据丢失。\n * 先写对象则最坏情况是「对象有了、元数据没写」，那只是一个孤儿文件，\n * 用定时对账扫掉即可，不影响任何查询。\n */\npublic final class SequenceObjectStore {\n\n    private final ObjectStorage storage;\n    private final SequenceMetaDao metaDao;\n\n    public SequenceObjectStore(ObjectStorage storage, SequenceMetaDao metaDao) {\n        this.storage = storage;\n        this.metaDao = metaDao;\n    }\n\n    /**\n     * @return 对象 key，供元数据表引用\n     */\n    public String put(long sampleId, String seqType, InputStream body) throws Exception {\n        String key = objectKey(sampleId, seqType);\n        MessageDigest digest = MessageDigest.getInstance(\"SHA-256\");\n\n        // 边写边算校验和：不缓冲整个文件。GB 级序列一旦 readAllBytes 就是一次 OOM。\n        long size = storage.putStreaming(key, body, digest);\n\n        String sha = HexFormat.of().formatHex(digest.digest());\n        // 元数据放在对象成功之后。这一步失败会留下孤儿对象，由对账任务清理。\n        metaDao.upsert(sampleId, seqType, key, size, sha);\n        return key;\n    }\n\n    /** 取序列：只返回流，调用方必须 close。返回 byte[] 的方法在这里一律不许存在。 */\n    public InputStream open(long sampleId, String seqType) throws Exception {\n        var meta = metaDao.load(sampleId, seqType)\n                .orElseThrow(() -> new java.util.NoSuchElementException(\n                        \"样本序列不存在 sampleId=\" + sampleId + \" type=\" + seqType));\n        return storage.open(meta.objectKey());\n    }\n\n    /** 对账：只信校验和。对象与元数据不一致时，SHA-256 是唯一能判定谁对的证据。 */\n    public boolean verify(long sampleId, String seqType) throws Exception {\n        var meta = metaDao.load(sampleId, seqType).orElse(null);\n        if (meta == null) {\n            return false;\n        }\n        return meta.sha256().equals(storage.checksum(meta.objectKey()));\n    }\n\n    static String objectKey(long sampleId, String seqType) {\n        // 按 sample_id 取模分前缀：对象存储虽然不关心目录，但列举与生命周期规则要靠前缀分段。\n        return \"seq/%02d/%d/%s\".formatted(sampleId % 100, sampleId, seqType.toLowerCase());\n    }\n\n    /** 对象存储抽象。刻意不引 SDK 类型进来 —— 换成 MinIO / S3 / OSS 时只改这一个实现。 */\n    public interface ObjectStorage {\n        long putStreaming(String key, InputStream body, MessageDigest digest) throws Exception;\n\n        InputStream open(String key) throws Exception;\n\n        String checksum(String key) throws Exception;\n    }\n\n    public interface SequenceMetaDao {\n        void upsert(long sampleId, String seqType, String objectKey, long size, String sha256);\n\n        java.util.Optional<SeqMeta> load(long sampleId, String seqType);\n    }\n\n    public record SeqMeta(String objectKey, long sizeBytes, String sha256) {\n    }\n}\n",
+        "highlights": [
+          {
+            "mark": "long size = storage.putStreaming(key, body, digest);",
+            "title": "流式写，不许读全量",
+            "text": "GB 级序列一旦 readAllBytes 就是一次 OOM。边写边算 SHA-256，内存占用恒定。",
+            "rule": "DATA-SCHM-001"
+          },
+          {
+            "mark": "metaDao.upsert(sampleId, seqType, key, size, sha);",
+            "title": "先对象后元数据",
+            "text": "反过来会出现「元数据说有、对象没有」，查询方会把 404 当数据丢失。先写对象的最坏情况只是孤儿文件。",
+            "rule": "REL-EXCP-001"
+          },
+          {
+            "mark": "public InputStream open(long sampleId, String seqType)",
+            "title": "只返回流，不返回 byte[]",
+            "text": "这个类里不允许存在返回 byte[] 的方法 —— 那是把「会不会 OOM」交给调用方的调用方式决定。",
+            "rule": "DATA-SCHM-001"
+          },
+          {
+            "mark": "return meta.sha256().equals(storage.checksum(meta.objectKey()));",
+            "title": "校验和是唯一裁判",
+            "text": "对象与元数据不一致时，没有第三方可以仲裁，只有 SHA-256 说了算。这也是它必须落库的原因。",
+            "rule": "SEC-DATA-001"
+          }
+        ],
+        "pitfalls": [
+          "把序列塞进 MySQL 的 LONGTEXT —— 单条几十 MB，缓冲池被一次查询冲干净，全库跟着慢。",
+          "先写元数据再写对象 —— 故障窗口内查询方拿到「有元数据但取不到内容」，会被当成数据丢失上报。",
+          "返回 byte[] 给上层 —— 上层拿去 new String(bytes) 或者直接进集合，堆直接爆。",
+          "不存校验和 —— 对象被误删或位翻转时，没有任何证据能判定是丢了还是本来就没有。"
+        ],
+        "notSuitable": [
+          "样本数 1 万以下且序列很小：分层带来的双写一致性成本大于收益。",
+          "没有对象存储且不能引入：退化为本地文件系统时，备份与多副本要自己补齐，不能只做个路径表。"
+        ],
+        "relatedRules": [
+          "DATA-SCHM-001",
+          "DATA-SCHM-002",
+          "SEC-DATA-001",
+          "REL-EXCP-001"
+        ],
+        "refs": [
+          {
+            "title": "GA4GH — Data Repository Service 规范",
+            "url": "https://github.com/ga4gh/data-repository-service-schemas"
+          },
+          {
+            "title": "AWS — Genomics Workflows 最佳实践",
+            "note": "序列文件存 S3，元数据与索引存数据库"
+          }
+        ]
+      },
+      {
+        "id": "variant-ddl",
+        "order": 2,
+        "goal": "变异位点表：分区 + 复合索引列序",
+        "layer": "设计",
+        "when": {
+          "rows": [
+            "s1m",
+            "s100m",
+            "s1b"
+          ]
+        },
+        "why": "位点查询是高频、小结果集、要求亚秒的操作。它必须命中索引前缀，而且数据量到十亿级后要靠分区把「扫的范围」压下来。",
+        "decision": {
+          "question": "变异位点怎么建表？",
+          "options": [
+            "单表 + 索引 —— 十亿行后索引树太深，且历史数据无法低成本下线",
+            "按染色体 LIST 分区 —— 与查询模式完全对齐，代价是分区数固定",
+            "按 sample_id HASH 分区 —— 分布均匀，但区间查询要跨所有分区",
+            "按时间 RANGE 分区 —— 利于归档，但位点查询几乎不带时间"
+          ],
+          "chosen": "按 chromosome LIST 分区，区内复合索引 (chromosome, pos, sample_id)",
+          "tradeoff": "代价是染色体数是固定的（24 条 + 特殊），分区键不可再改。但位点查询永远带染色体，这个对齐关系是稳定的，值得赌。"
+        },
+        "sql": "-- 变异位点表。百万样本 × 每人约 400 万个位点 = 万亿行的量级，必须分区。\nCREATE TABLE `genome_variant` (\n  `id`           BIGINT      NOT NULL,\n  `sample_id`    BIGINT      NOT NULL,\n  `chromosome`   VARCHAR(8)  NOT NULL COMMENT '1..22,X,Y,MT —— 分区键，查询必带',\n  `pos`          INT         NOT NULL COMMENT '位点坐标，1-based',\n  `ref_allele`   VARCHAR(255) NOT NULL,\n  `alt_allele`   VARCHAR(255) NOT NULL,\n  `quality`      SMALLINT    NOT NULL DEFAULT 0,\n  `created_at`   DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),\n  PRIMARY KEY (`id`, `chromosome`),\n  -- 列序 = 分区键 → 等值/范围列 → 回表列。位点查询永远是「某染色体的某区间」，\n  -- 所以 (chromosome, pos) 必须在最前面，顺序反过来索引就废了。\n  KEY `idx_chr_pos` (`chromosome`, `pos`, `sample_id`)\n) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4\nPARTITION BY LIST COLUMNS (chromosome) (\n  PARTITION p01 VALUES IN ('1'),  PARTITION p02 VALUES IN ('2'),\n  PARTITION p03 VALUES IN ('3'),  PARTITION p04 VALUES IN ('4'),\n  PARTITION p05 VALUES IN ('5'),  PARTITION p06 VALUES IN ('6'),\n  PARTITION p07 VALUES IN ('7'),  PARTITION p08 VALUES IN ('8'),\n  PARTITION p09 VALUES IN ('9'),  PARTITION p10 VALUES IN ('10'),\n  PARTITION p11 VALUES IN ('11'), PARTITION p12 VALUES IN ('12'),\n  PARTITION p13 VALUES IN ('13'), PARTITION p14 VALUES IN ('14'),\n  PARTITION p15 VALUES IN ('15'), PARTITION p16 VALUES IN ('16'),\n  PARTITION p17 VALUES IN ('17'), PARTITION p18 VALUES IN ('18'),\n  PARTITION p19 VALUES IN ('19'), PARTITION p20 VALUES IN ('20'),\n  PARTITION p21 VALUES IN ('21'), PARTITION p22 VALUES IN ('22'),\n  PARTITION px  VALUES IN ('X'),  PARTITION py VALUES IN ('Y'),\n  PARTITION pm  VALUES IN ('MT')\n);\n-- 注意：分区键必须进主键，否则 MySQL 直接拒绝建表。这是最容易卡住的一处。",
+        "code": "/**\n * 场景：基因 / DNA 序列海量存取 / 切片：位点表建分区与复合索引\n * 适用参数：样本数 ≥ 100 万\n * 依赖规则：DATA-SCHM-002, DATA-SQL-001, DATA-SCHM-003\n * JDK：17\n */\npackage com.example.genome.variant;\n\nimport java.util.Locale;\nimport java.util.Set;\n\n/**\n * 位点表的分区与索引约束。\n *\n * 这里刻意把「哪些值合法」写成代码常量而不是散落在 SQL 字符串里：\n * 分区键的取值集合决定了能不能落到分区，拼错一个大小写（'x' 而不是 'X'）\n * 在 MySQL 里不是「查不到」，而是直接报「无对应分区」错误。\n */\npublic final class VariantSchema {\n\n    /** 合法染色体。与 DDL 的 PARTITION BY LIST 逐一对齐，改 DDL 必须同步改这里。 */\n    private static final Set<String> CHROMOSOMES = Set.of(\n            \"1\", \"2\", \"3\", \"4\", \"5\", \"6\", \"7\", \"8\", \"9\", \"10\",\n            \"11\", \"12\", \"13\", \"14\", \"15\", \"16\", \"17\", \"18\", \"19\", \"20\",\n            \"21\", \"22\", \"X\", \"Y\", \"MT\");\n\n    private VariantSchema() {\n    }\n\n    /**\n     * 规范化染色体写法。数据库里存的是大写 'X'，用户可能传 'chrX'、'x'、'chrx'。\n     * 不做归一化，后果是「明明有数据却查不到」—— 这类 bug 在数据侧完全看不出来。\n     */\n    public static String normalizeChromosome(String raw) {\n        if (raw == null || raw.isBlank()) {\n            throw new IllegalArgumentException(\"染色体为空\");\n        }\n        String s = raw.trim();\n        if (s.regionMatches(true, 0, \"chr\", 0, 3)) {\n            s = s.substring(3);\n        }\n        String upper = s.toUpperCase(Locale.ROOT);\n        if (!CHROMOSOMES.contains(upper)) {\n            throw new IllegalArgumentException(\"非法染色体：\" + raw);\n        }\n        return upper;\n    }\n\n    /**\n     * 区间查询的边界必须是半开区间 [startPos, endPos)。\n     * 用 BETWEEN（闭区间）会让相邻两次查询在边界位点上重复，\n     * 拼接多个区间时就会多出一行 —— 在报告里表现为「同一个变异出现两次」。\n     */\n    public static void requireValidRange(int startPos, int endPos) {\n        if (startPos < 1) {\n            throw new IllegalArgumentException(\"pos 从 1 开始，startPos=\" + startPos);\n        }\n        if (endPos <= startPos) {\n            throw new IllegalArgumentException(\"区间必须满足 endPos > startPos：\"\n                    + startPos + \"..\" + endPos);\n        }\n        // 单区间长度上限。一次查几千万个位点会把缓冲池冲掉，也会让接口超时。\n        if ((long) endPos - startPos > 5_000_000L) {\n            throw new IllegalArgumentException(\"单次区间不得超过 500 万个位点，请分段查询\");\n        }\n    }\n\n    /** 索引前缀顺序。SQL 拼装时必须按这个顺序来，顺序错了索引就废了。 */\n    public static String indexHint() {\n        return \"idx_chr_pos (chromosome, pos, sample_id)\";\n    }\n}\n",
+        "highlights": [
+          {
+            "mark": "if (!CHROMOSOMES.contains(upper)) {",
+            "title": "分区键取值必须校验",
+            "text": "传错染色体在分区表上不是「查不到」，是「无对应分区」报错。白名单比事后排查便宜得多。",
+            "rule": "DATA-SCHM-002"
+          },
+          {
+            "mark": "if (s.regionMatches(true, 0, \"chr\", 0, 3)) {",
+            "title": "chrX / x / X 归一",
+            "text": "用户写法不统一时，不做归一的后果是「明明有数据却查不到」，这类 bug 在数据侧完全看不出来。",
+            "rule": "DATA-SQL-001"
+          },
+          {
+            "mark": "if (endPos <= startPos) {",
+            "title": "半开区间 [start, end)",
+            "text": "用 BETWEEN（闭区间）拼接相邻区间会在边界位点重复，报告里表现为「同一个变异出现两次」。",
+            "rule": "DATA-SQL-001"
+          },
+          {
+            "mark": "if ((long) endPos - startPos > 5_000_000L) {",
+            "title": "区间长度上限",
+            "text": "一次查几千万位点会冲掉缓冲池，连带其他查询一起变慢。宁可让调用方分段。",
+            "rule": "DATA-SQL-002"
+          }
+        ],
+        "pitfalls": [
+          "复合索引列序写成 (pos, chromosome) —— 查询带 chromosome 时索引前缀不匹配，直接全分区扫。",
+          "分区键忘了进主键 —— MySQL 直接拒绝建表，报错信息还是英文的，第一次都会卡在这。",
+          "染色体大小写不统一 —— 一部分数据存 X 一部分存 x，分区表会把它们当成两个世界。"
+        ],
+        "notSuitable": [
+          "样本数 1 万以下：分区带来的管理成本大于收益，单表加索引足够。",
+          "查询模式以「按样本取全部变异」为主而不是按区间：分区键该换成 sample_id 的 HASH。"
+        ],
+        "relatedRules": [
+          "DATA-SCHM-002",
+          "DATA-SCHM-003",
+          "DATA-SQL-001",
+          "DATA-SQL-002"
+        ],
+        "refs": [
+          {
+            "title": "MySQL 8.0 — Partitioning",
+            "url": "https://dev.mysql.com/doc/refman/8.0/en/partitioning.html"
+          },
+          {
+            "title": "Use the Index, Luke! — 复合索引列序",
+            "url": "https://use-the-index-luke.com/sql/where-clause/the-equals-operator/concatenated-keys"
+          }
+        ]
+      },
+      {
+        "id": "range-query",
+        "order": 3,
+        "goal": "位点区间查询：命中索引、不回表",
+        "layer": "数据访问",
+        "when": {
+          "latency": [
+            "l50",
+            "l200"
+          ]
+        },
+        "why": "这是患者和医生真正在等的那次查询。P99 要求亚秒，意味着一次查询既不能扫太多行，也不能产生大量回表。",
+        "decision": {
+          "question": "怎么保证 P99？",
+          "options": [
+            "SELECT * —— 回表取到 ref/alt 两个 VARCHAR(255)，行宽大、IO 翻倍",
+            "覆盖索引 + 只查需要的列 —— Extra 出现 Using index",
+            "加缓存兜住热点区间 —— 有效，但要先有正确的索引",
+            "预计算常见区间 —— 只适合固定 Panel，不适合任意区间"
+          ],
+          "chosen": "覆盖索引（把 ref/alt 缩短到实际需要的长度）+ 只查需要的列 + 热点区间二级缓存",
+          "tradeoff": "代价是索引变大。位点表本来就大，多一个宽索引会让写入变慢。所以这个索引只在「查询期」建，批量导入期可以先不建（见「批量导入」切片）。"
+        },
+        "sql": "-- 覆盖索引：查询用到的列全在索引里，EXPLAIN 的 Extra = Using index（不回表）。\n-- ref/alt 实测 99.9% 是单字符（SNV），但留了 VARCHAR(64) 给少量结构变异。\nALTER TABLE genome_variant\n  ADD KEY `idx_cover_range` (`chromosome`, `pos`, `sample_id`, `ref_allele`(8), `alt_allele`(8), `quality`),\n  ALGORITHM=INSTANT, LOCK=NONE;\n\n-- 区间查询。半开区间 + 只取需要的列 + 显式 LIMIT。\nSELECT sample_id, pos, ref_allele, alt_allele, quality\nFROM   genome_variant PARTITION (p07)\nWHERE  chromosome = '7'\n  AND  pos >= ? AND pos < ?          -- 半开区间，不重不漏\n  AND  sample_id = ?\nORDER  BY pos\nLIMIT  1000;                          -- 必须带上限：万一区间给大了，至少要能停下来\n\n-- 验证：这三列都要对得上，缺一个就是没吃住索引。\nEXPLAIN SELECT sample_id, pos, ref_allele FROM genome_variant\nWHERE chromosome='7' AND pos >= 1 AND pos < 100000 AND sample_id = 1;\n--   key = idx_cover_range · rows 明显小于区间行数 · Extra = Using index",
+        "code": "/**\n * 场景：基因 / DNA 序列海量存取 / 切片：位点区间查询\n * 适用参数：P99 < 200ms\n * 依赖规则：DATA-SQL-001, DATA-SQL-002, CONC-POOL-003, REL-EXCP-003\n * JDK：21（虚拟线程）\n */\npackage com.example.genome.query;\n\nimport org.springframework.jdbc.core.JdbcTemplate;\n\nimport javax.sql.DataSource;\nimport java.util.List;\nimport java.util.concurrent.ExecutorService;\nimport java.util.concurrent.Executors;\nimport java.util.concurrent.Semaphore;\nimport java.util.concurrent.TimeUnit;\n\n/**\n * 位点区间查询。三条硬约束：\n *   1. 只查需要的列 —— SELECT * 会回表取两个 VARCHAR(255)，行宽翻倍，P99 直接掉出 200ms。\n *   2. 半开区间 —— 相邻区间拼接时不重不漏。\n *   3. 并发有上界 —— 无限并发会把 DB 连接吃光，那时 P99 不是变高，是全部超时。\n */\npublic final class VariantRangeQuery implements AutoCloseable {\n\n    private static final int MAX_ROWS = 1000;\n\n    private final JdbcTemplate jdbc;\n\n    /**\n     * 显式信号量。为什么不用连接池排队：连接池排满时延迟已经上去了才被感知，\n     * 而 P99 目标下「排队 200ms 的请求对用户已经没有意义」—— 快速失败更划算。\n     */\n    private final Semaphore inflight;\n\n    /** IO 密集，用虚拟线程。CPU 密集的解析不要放在这里。 */\n    private final ExecutorService pool = Executors.newVirtualThreadPerTaskExecutor();\n\n    public VariantRangeQuery(DataSource dataSource, int maxConcurrency) {\n        this.jdbc = new JdbcTemplate(dataSource);\n        this.inflight = new Semaphore(maxConcurrency);\n    }\n\n    public record Range(String chromosome, int startPos, int endPos, long sampleId) {\n    }\n\n    public record Variant(long sampleId, int pos, String refAllele, String altAllele, int quality) {\n    }\n\n    public List<Variant> query(Range range) {\n        String chr = VariantSchema_Ref.normalizeChromosome(range.chromosome());\n        VariantSchema_Ref.requireValidRange(range.startPos(), range.endPos());\n\n        if (!inflight.tryAcquire()) {\n            // 不排队，直接失败。上层可以做降级（返回缓存或提示稍后再试）。\n            throw new IllegalStateException(\"位点查询过载，拒绝服务\");\n        }\n        try {\n            // 显式指定列名，不用 SELECT *：ref/alt 是大字段，回表代价高。\n            String sql = \"SELECT sample_id, pos, ref_allele, alt_allele, quality\"\n                    + \" FROM genome_variant\"\n                    + \" WHERE chromosome = ? AND pos >= ? AND pos < ? AND sample_id = ?\"\n                    + \" ORDER BY pos LIMIT ?\";\n            return jdbc.query(sql,\n                    (rs, n) -> new Variant(\n                            rs.getLong(\"sample_id\"),\n                            rs.getInt(\"pos\"),\n                            rs.getString(\"ref_allele\"),\n                            rs.getString(\"alt_allele\"),\n                            rs.getInt(\"quality\")),\n                    chr, range.startPos(), range.endPos(), range.sampleId(), MAX_ROWS);\n        } finally {\n            inflight.release();\n        }\n    }\n\n    /** 多区间并行查（Panel 场景）。并发度仍受信号量约束。 */\n    public List<List<Variant>> queryBatch(List<Range> ranges) throws InterruptedException {\n        try (var exec = Executors.newVirtualThreadPerTaskExecutor()) {\n            var futures = ranges.stream().map(r -> exec.submit(() -> query(r))).toList();\n            var out = new java.util.ArrayList<List<Variant>>(futures.size());\n            for (var f : futures) {\n                try {\n                    out.add(f.get(500, TimeUnit.MILLISECONDS));\n                } catch (Exception ex) {\n                    // 单区间失败不该让整个 Panel 失败：补一个空列表，由上层标注「该区间未取到」。\n                    out.add(List.of());\n                }\n            }\n            return List.copyOf(out);\n        }\n    }\n\n    @Override\n    public void close() {\n        pool.close();\n    }\n\n    /** 避免与上一切片的同名类冲突的引用别名（生产代码里就是同一个 VariantSchema）。 */\n    static final class VariantSchema_Ref {\n        static String normalizeChromosome(String s) {\n            return com.example.genome.variant.VariantSchema.normalizeChromosome(s);\n        }\n\n        static void requireValidRange(int a, int b) {\n            com.example.genome.variant.VariantSchema.requireValidRange(a, b);\n        }\n    }\n}\n",
+        "highlights": [
+          {
+            "mark": "SELECT sample_id, pos, ref_allele, alt_allele, quality",
+            "title": "只查需要的列，不用 SELECT *",
+            "text": "ref/alt 是 VARCHAR(255)，回表取它们会让行宽翻倍，P99 直接掉出 200ms。覆盖索引的价值就在这。",
+            "rule": "DATA-SQL-001"
+          },
+          {
+            "mark": "AND pos >= ? AND pos < ?",
+            "title": "半开区间",
+            "text": "Panel 会拼多个相邻区间，闭区间会在边界位点重复，报告里变成「同一个变异出现两次」。",
+            "rule": "DATA-SQL-001"
+          },
+          {
+            "mark": "if (!inflight.tryAcquire()) {",
+            "title": "过载就拒绝，不排队",
+            "text": "P99 目标下排队 200ms 的请求已经没有意义。快速失败还能让上层做降级，排队只会全军覆没。",
+            "rule": "CONC-POOL-003"
+          },
+          {
+            "mark": "out.add(List.of());",
+            "title": "单区间失败不拖垮整批",
+            "text": "Panel 有几十个区间，一个失败就整体失败会让可用性变成「几十个里全对才算成功」。",
+            "rule": "REL-EXCP-003"
+          }
+        ],
+        "pitfalls": [
+          "用 SELECT * —— 回表代价是行宽的倍数，在 P99 目标下这是最贵的一处浪费。",
+          "区间用 BETWEEN —— 相邻区间边界重复，报告里出现重复变异，临床上是严重问题。",
+          "不加 LIMIT —— 一个写错的区间（比如传了整条染色体）会扫几亿行。",
+          "用 ForkJoinPool.commonPool 跑并行区间 —— 全局共享池，一个慢区间会拖慢全站无关接口。"
+        ],
+        "notSuitable": [
+          "P99 宽松到 1s 以上：不需要覆盖索引与信号量这套紧箍咒，简单查就够。",
+          "查询以「按样本取全部变异」为主：那应该按 sample_id 建索引，不是按区间。"
+        ],
+        "relatedRules": [
+          "DATA-SQL-001",
+          "DATA-SQL-002",
+          "CONC-POOL-003",
+          "REL-EXCP-003",
+          "CONC-THRD-001"
+        ],
+        "refs": [
+          {
+            "title": "Use the Index, Luke! — 覆盖索引",
+            "url": "https://use-the-index-luke.com/sql/clustering/index-only-scan"
+          },
+          {
+            "title": "JEP 444: Virtual Threads",
+            "url": "https://openjdk.org/jeps/444"
+          }
+        ]
+      },
+      {
+        "id": "stream-blob",
+        "order": 4,
+        "goal": "大序列的流式读写与断点续传",
+        "layer": "数据访问",
+        "when": {
+          "rows": [
+            "s1m",
+            "s100m",
+            "s1b"
+          ]
+        },
+        "why": "“按样本取全序列”这个查询本身是低频的，但它单次要搬 GB 级数据。只要有一次把它读进堆，就是一次 OOM；只要有一次网络中断就全部重来，就是无法完成。",
+        "decision": {
+          "question": "GB 级序列怎么传？",
+          "options": [
+            "一次性读进 byte[] 再返回 —— GB 级直接 OOM，没有任何商量余地",
+            "流式转发（InputStream → 响应流）—— 内存恒定，但不能重试",
+            "分块 + Range 请求 —— 支持断点续传，代价是客户端要实现拼接",
+            "先压缩再传 —— 省带宽，但压缩本身要 CPU，且仍是全量"
+          ],
+          "chosen": "流式转发为主 + HTTP Range 支持断点续传",
+          "tradeoff": "代价是客户端要处理「续传」这件事，而且流式一旦中断不能自动重试 —— 必须让客户端从断点继续，而不是服务端默默重来。"
+        },
+        "sql": "-- 续传状态表：谁在传、传到哪、校验和是什么。\n-- 没有这张表就没有「断点」，只有「重来」—— GB 级文件重来三次基本就传不完了。\nCREATE TABLE `genome_transfer` (\n  `transfer_id`  CHAR(36)     NOT NULL COMMENT '客户端生成的 UUID，避免服务端发号成为瓶颈',\n  `sample_id`    BIGINT       NOT NULL,\n  `seq_type`     VARCHAR(16)  NOT NULL,\n  `offset_bytes` BIGINT       NOT NULL DEFAULT 0 COMMENT '已确认接收的字节数',\n  `total_bytes`  BIGINT       NOT NULL,\n  `sha256`       CHAR(64)     DEFAULT NULL COMMENT '传完后回填，用于最终校验',\n  `state`        TINYINT      NOT NULL DEFAULT 0 COMMENT '0进行中 1完成 2作废',\n  `updated_at`   DATETIME(3)  NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),\n  PRIMARY KEY (`transfer_id`),\n  KEY `idx_state_updated` (`state`, `updated_at`)   -- 清理超时未完成的传输\n) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='序列传输断点';",
+        "code": "/**\n * 场景：基因 / DNA 序列海量存取 / 切片：GB 级序列流式读写与断点续传\n * 适用参数：样本数 ≥ 100 万（单样本 GB 级）\n * 依赖规则：DATA-SCHM-001, REL-EXCP-002, REL-LOG-003\n * JDK：21\n */\npackage com.example.genome.transfer;\n\nimport java.io.IOException;\nimport java.io.InputStream;\nimport java.io.OutputStream;\nimport java.util.NoSuchElementException;\n\n/**\n * 序列流式传输。\n *\n * 这个类里**不存在**返回 byte[] 或接收 byte[] 的方法，这是刻意的：\n * 只要开了这个口子，就一定会有调用方把 GB 级数据读进堆里，\n * 而 OOM 现场只会显示「堆不够」，看不出是谁灌进来的。\n */\npublic final class SequenceStreamer {\n\n    /** 缓冲区固定 1MB。再大不省时间，只占内存。 */\n    private static final int BUFFER = 1024 * 1024;\n\n    private final SequenceSource source;\n    private final TransferDao dao;\n\n    public SequenceStreamer(SequenceSource source, TransferDao dao) {\n        this.source = source;\n        this.dao = dao;\n    }\n\n    /**\n     * 从 offset 继续传输。\n     *\n     * 为什么支持断点而不是「失败就重来」：GB 级文件在真实网络下几乎不可能一次传完，\n     * 重来策略的期望完成次数是 3~5 次，而每次都要重传已经成功的部分 —— 实际上永远传不完。\n     */\n    public long resume(String transferId, long offset, OutputStream out) throws IOException {\n        var t = dao.load(transferId)\n                .orElseThrow(() -> new NoSuchElementException(\"传输不存在：\" + transferId));\n        if (t.state() == 2) {\n            throw new IllegalStateException(\"传输已作废，不能续传：\" + transferId);\n        }\n\n        long sent = 0L;\n        try (InputStream in = source.openRange(t.objectKey(), offset, t.totalBytes())) {\n            byte[] buf = new byte[BUFFER];\n            int n;\n            while ((n = in.read(buf)) > 0) {\n                out.write(buf, 0, n);\n                sent += n;\n            }\n        } catch (IOException ex) {\n            // 中断不是失败：把已确认字节数记下来，下次从这里继续。\n            // 只有记下来，客户端才不用从 0 开始。\n            dao.saveOffset(transferId, offset + sent);\n            throw ex;\n        }\n        dao.saveOffset(transferId, t.totalBytes());\n        return sent;\n    }\n\n    /** 传输完成后的最终校验。校验和不通过必须明确报错，不能「差不多就算了」。 */\n    public boolean seal(String transferId, String expectedSha) {\n        var t = dao.load(transferId).orElse(null);\n        if (t == null) {\n            return false;\n        }\n        if (!expectedSha.equals(t.sha256())) {\n            throw new IllegalStateException(\"序列校验和不匹配 transferId=\" + transferId\n                    + \" —— 数据可能已损坏，拒绝标记为完成\");\n        }\n        dao.markDone(transferId);\n        return true;\n    }\n\n    public interface SequenceSource {\n        InputStream openRange(String objectKey, long offset, long endExclusive) throws IOException;\n    }\n\n    public interface TransferDao {\n        java.util.Optional<Transfer> load(String transferId);\n\n        void saveOffset(String transferId, long offset);\n\n        void markDone(String transferId);\n    }\n\n    public record Transfer(String objectKey, long totalBytes, String sha256, int state) {\n    }\n}\n",
+        "highlights": [
+          {
+            "mark": "private static final int BUFFER = 1024 * 1024;",
+            "title": "固定 1MB 缓冲",
+            "text": "内存占用恒定，与文件大小无关。再大的缓冲不省时间，只是多占内存。",
+            "rule": "DATA-SCHM-001"
+          },
+          {
+            "mark": "dao.saveOffset(transferId, offset + sent);",
+            "title": "中断要记断点，不是重来",
+            "text": "GB 级文件重来策略的期望完成次数是 3~5 次，每次重传成功的部分 —— 实际永远传不完。",
+            "rule": "REL-EXCP-002"
+          },
+          {
+            "mark": "throw new IllegalStateException(\"序列校验和不匹配 transferId=\" + transferId",
+            "title": "校验不通过就拒绝",
+            "text": "基因数据错了不会报错，只会让报告出错。这里是最后一道能拦住它的地方。",
+            "rule": "REL-LOG-003"
+          },
+          {
+            "mark": "InputStream openRange(String objectKey, long offset, long endExclusive)",
+            "title": "Range 而非全量",
+            "text": "服务端能不能只给一段，决定了客户端能不能断点续传。这个能力必须在接口层就存在。",
+            "rule": "DATA-SCHM-001"
+          }
+        ],
+        "pitfalls": [
+          "任何一处把序列读成 byte[] —— 一次 OOM 就会带走整个实例上的其他请求。",
+          "传输失败不记 offset —— 客户端只能从 0 重来，大文件在真实网络下基本传不完。",
+          "校验和不匹配只打个日志继续走 —— 基因数据错了不会报错，只会让下游报告出错，后果比宕机严重。"
+        ],
+        "notSuitable": [
+          "序列只有几 MB：流式与续传的复杂度不划算，直接返回更清楚。",
+          "客户端不支持 Range：续传无从谈起，退化为一次性流式即可。"
+        ],
+        "relatedRules": [
+          "DATA-SCHM-001",
+          "REL-EXCP-002",
+          "REL-LOG-003",
+          "SEC-DATA-002"
+        ],
+        "refs": [
+          {
+            "title": "RFC 9110 — HTTP Range Requests",
+            "url": "https://www.rfc-editor.org/rfc/rfc9110#name-range"
+          },
+          {
+            "title": "GA4GH — htsget 规范（基因组区间流式读取）",
+            "url": "https://samtools.github.io/hts-specs/htsget.html"
+          }
+        ]
+      },
+      {
+        "id": "bulk-import",
+        "order": 5,
+        "goal": "测序仪批量导入，不停服、不影响在线查询",
+        "layer": "数据访问",
+        "when": {
+          "rw": [
+            "rw11",
+            "rw19"
+          ]
+        },
+        "why": "一台测序仪一天产出的数据量可能超过平台历史总和。导入期如果和查询期抢资源，表现是「导入期间医生查不了报告」。",
+        "decision": {
+          "question": "怎么导入？",
+          "options": [
+            "逐条 INSERT —— 万亿行量级下这是按年计算的工作",
+            "JDBC batch —— 比逐条快两个数量级，但仍受 SQL 解析与日志刷盘限制",
+            "LOAD DATA / MySQL COPY —— 绕过 SQL 层，最快，代价是几乎无校验",
+            "先写对象存储，再异步批量入位点库 —— 解耦导入与查询"
+          ],
+          "chosen": "位点数据先落对象存储（VCF），再按染色体分批 LOAD DATA 入分区表；导入期不建覆盖索引",
+          "tradeoff": "代价是导入期间查询性能下降（没有覆盖索引）。所以导入要走单独实例或单独时段，这是 CONFLICTS 里那条告警的由来。"
+        },
+        "sql": "-- 导入期策略：先不建二级索引，等导入完再建。\n-- 原因：每写一行都要维护一次 B+ 树，万亿行下索引维护的代价远超插入本身。\nALTER TABLE genome_variant DROP KEY idx_cover_range;\n\n-- 批量导入：绕过 SQL 解析层。比 JDBC batch 再快一个数量级。\nLOAD DATA LOCAL INFILE '/import/chr7_part001.tsv'\n  INTO TABLE genome_variant PARTITION (p07)      -- 指定分区，避免写入时再去路由\n  CHARACTER SET utf8mb4\n  FIELDS TERMINATED BY '\\t' LINES TERMINATED BY '\\n'\n  (id, sample_id, chromosome, pos, ref_allele, alt_allele, quality);\n\n-- 导入完成后统一建索引（8.0 支持 INPLACE，不阻塞 DML 但会消耗 IO）。\nALTER TABLE genome_variant\n  ADD KEY idx_cover_range (chromosome, pos, sample_id, ref_allele(8), alt_allele(8), quality),\n  ALGORITHM=INPLACE, LOCK=NONE;\n\n-- 导入期间限速：gh-ost 的思路同样适用于 LOAD DATA —— 靠 Threads_running 判断主库压力。\n-- 超过阈值就 sleep 一会儿，宁可导入慢，也不能让在线查询超时。",
+        "code": "/**\n * 场景：基因 / DNA 序列海量存取 / 切片：批量导入不停服\n * 适用参数：读写比 1:1 或 1:9（导入期）\n * 依赖规则：DATA-SQL-003, CONC-POOL-001, CONC-POOL-002, REL-LOG-001\n * JDK：17\n */\npackage com.example.genome.importing;\n\nimport org.springframework.jdbc.core.JdbcTemplate;\n\nimport javax.sql.DataSource;\nimport java.util.concurrent.ArrayBlockingQueue;\nimport java.util.concurrent.BlockingQueue;\nimport java.util.concurrent.ExecutorService;\nimport java.util.concurrent.Executors;\nimport java.util.concurrent.TimeUnit;\nimport java.util.concurrent.atomic.AtomicLong;\n\n/**\n * 位点批量导入器。\n *\n * 设计上刻意和在线查询**不在同一个池、不在同一个信号量**里：\n * 导入是吞吐优先，查询是延迟优先，混在一起的结果是两者都做不好 ——\n * 表现为「导入期间医生查不了报告」。\n */\npublic final class VariantBulkImporter implements AutoCloseable {\n\n    /** 有界队列：导入数据可能几小时都导不完，队列无界 = 必然 OOM。 */\n    private final BlockingQueue<VariantRow> queue = new ArrayBlockingQueue<>(50_000);\n\n    /** 导入专用固定池。4 条足够 —— 再多只会让主库 Threads_running 飙高。 */\n    private final ExecutorService workers = Executors.newFixedThreadPool(4);\n\n    private final JdbcTemplate jdbc;\n    private final AtomicLong imported = new AtomicLong();\n\n    public VariantBulkImporter(DataSource dataSource) {\n        this.jdbc = new JdbcTemplate(dataSource);\n    }\n\n    public record VariantRow(long id, long sampleId, String chromosome, int pos,\n                             String refAllele, String altAllele, int quality) {\n    }\n\n    /** 只接受 offer 语义：队列满就返回 false，让上游放慢，绝不让内存无限涨。 */\n    public boolean submit(VariantRow row) {\n        return queue.offer(row);\n    }\n\n    public void start() {\n        for (int i = 0; i < 4; i++) {\n            workers.submit(this::drainLoop);\n        }\n    }\n\n    private void drainLoop() {\n        var batch = new java.util.ArrayList<VariantRow>(1000);\n        while (!Thread.currentThread().isInterrupted()) {\n            try {\n                VariantRow first = queue.poll(200, TimeUnit.MILLISECONDS);\n                if (first == null) {\n                    continue;\n                }\n                batch.clear();\n                batch.add(first);\n                queue.drainTo(batch, 999);\n                flush(batch);\n            } catch (InterruptedException ex) {\n                Thread.currentThread().interrupt();\n                return;\n            } catch (RuntimeException ex) {\n                // 导入失败必须留下批次信息，否则只能全量重导。\n                org.slf4j.LoggerFactory.getLogger(VariantBulkImporter.class)\n                        .error(\"variant import batch failed size={} err={}\", batch.size(), ex.toString());\n            }\n        }\n    }\n\n    private void flush(java.util.List<VariantRow> batch) {\n        jdbc.batchUpdate(\n                \"INSERT INTO genome_variant\"\n                        + \" (id, sample_id, chromosome, pos, ref_allele, alt_allele, quality)\"\n                        + \" VALUES (?,?,?,?,?,?,?)\",\n                batch, 1000,\n                (ps, row) -> {\n                    ps.setLong(1, row.id());\n                    ps.setLong(2, row.sampleId());\n                    ps.setString(3, row.chromosome());\n                    ps.setInt(4, row.pos());\n                    ps.setString(5, row.refAllele());\n                    ps.setString(6, row.altAllele());\n                    ps.setInt(7, row.quality());\n                });\n        long total = imported.addAndGet(batch.size());\n        if (total % 1_000_000 == 0) {\n            // 每百万行打一次：导入跑几小时的时候，这是唯一能判断「还活着吗」的依据。\n            org.slf4j.LoggerFactory.getLogger(VariantBulkImporter.class)\n                    .info(\"variant imported total={} queueBacklog={}\", total, queue.size());\n        }\n    }\n\n    public long importedCount() {\n        return imported.get();\n    }\n\n    @Override\n    public void close() {\n        workers.shutdownNow();\n    }\n}\n",
+        "highlights": [
+          {
+            "mark": "new ArrayBlockingQueue<>(50_000)",
+            "title": "导入队列必须有界",
+            "text": "导入可能跑几小时，队列无界等于必然 OOM。有界还能通过 offer 返回值让上游自然降速。",
+            "rule": "CONC-POOL-002"
+          },
+          {
+            "mark": "Executors.newFixedThreadPool(4)",
+            "title": "导入专用池，不与在线共用",
+            "text": "导入吞吐优先、查询延迟优先，混在一个池里的结果是两者都做不好 —— 表现为导入期间查不了报告。",
+            "rule": "CONC-POOL-001"
+          },
+          {
+            "mark": "jdbc.batchUpdate(",
+            "title": "批量提交而非逐条",
+            "text": "万亿行量级下逐条 INSERT 是按年计算的工作。批量能差两个数量级。",
+            "rule": "DATA-SQL-003"
+          },
+          {
+            "mark": ".info(\"variant imported total={} queueBacklog={}\", total, queue.size());",
+            "title": "每百万行报一次进度",
+            "text": "导入跑几小时时，这是唯一能判断「还活着吗」的依据。没有它，只能靠猜。",
+            "rule": "REL-LOG-001"
+          }
+        ],
+        "pitfalls": [
+          "导入和查询共用一个连接池 —— 导入把连接占满，在线查询全部超时，故障现象是「平台莫名不可用」。",
+          "导入期就建好所有索引 —— 每写一行维护一次 B+ 树，索引维护代价超过插入本身几倍。",
+          "用无界队列承接测序仪数据 —— 产线速度远大于入库速度，堆必然被打爆。",
+          "导入失败不打批次日志 —— 只能全量重导，而全量重导又要几小时。"
+        ],
+        "notSuitable": [
+          "读写比 9:1 的稳定运营期：没有批量导入压力，不需要这套流水线。",
+          "一次导入只有几万行：直接 batchUpdate 就够了，不需要队列与工作池。"
+        ],
+        "relatedRules": [
+          "DATA-SQL-003",
+          "CONC-POOL-001",
+          "CONC-POOL-002",
+          "REL-LOG-001",
+          "SVC-TX-002"
+        ],
+        "refs": [
+          {
+            "title": "MySQL 8.0 — LOAD DATA 与批量插入优化",
+            "url": "https://dev.mysql.com/doc/refman/8.0/en/insert-optimization.html"
+          },
+          {
+            "title": "MySQL 8.0 — ALTER TABLE 的 ALGORITHM 与 LOCK 子句",
+            "url": "https://dev.mysql.com/doc/refman/8.0/en/alter-table.html"
+          }
+        ]
+      },
+      {
+        "id": "audit-mask",
+        "order": 6,
+        "goal": "患者数据脱敏与审计（医疗场景不可省）",
+        "layer": "安全",
+        "when": {},
+        "why": "基因数据是可识别到个人的敏感信息，而且不可撤销 —— 泄露了就是永久泄露。这一条与数据规模无关，所以 when 为空（恒真）。",
+        "decision": {
+          "question": "怎么兼顾可用与合规？",
+          "options": [
+            "明文存 everywhere —— 最省事，一次泄露就是重大事故",
+            "全字段加密 —— 合规最好，但没法查询没法索引",
+            "标识字段脱敏 + 明文隔离在受控区 —— 查询侧只碰脱敏值",
+            "只做应用层权限 —— 挡住了人，没挡住误操作与内鬼"
+          ],
+          "chosen": "patient_id 脱敏映射 + 明文映射表隔离 + 全量审计「谁在什么时候查了谁的什么」",
+          "tradeoff": "代价是多一次映射查询，且审计本身会成为写热点。审计必须异步写（否则拖慢查询），但异步就意味着审计可能丢 —— 用有界队列 + 落盘兜底。"
+        },
+        "sql": "-- 受控区：明文映射表。这张表与业务表不同库、不同账号、不同备份策略。\nCREATE TABLE `patient_identity` (\n  `pseudo_id`   BIGINT      NOT NULL COMMENT '业务库里用的脱敏 id',\n  `real_id`     VARCHAR(64) NOT NULL COMMENT '真实患者标识（住院号/身份证）',\n  `id_card`     VARBINARY(256) DEFAULT NULL COMMENT '加密存储，密钥在 KMS',\n  `created_at`  DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),\n  PRIMARY KEY (`pseudo_id`),\n  UNIQUE KEY `uk_real` (`real_id`)\n) ENGINE=InnoDB COMMENT='患者身份映射 · 受控区 · 与业务库隔离';\n\n-- 审计表。只增不改，按时间分区便于到期销毁。\nCREATE TABLE `genome_access_audit` (\n  `audit_id`    BIGINT      NOT NULL,\n  `actor`       VARCHAR(64) NOT NULL COMMENT '操作人（医生工号 / 系统账号）',\n  `action`      VARCHAR(32) NOT NULL COMMENT 'QUERY_RANGE / FETCH_SEQ / EXPORT',\n  `pseudo_id`   BIGINT      NOT NULL,\n  `sample_id`   BIGINT      DEFAULT NULL,\n  `query_json`  JSON        DEFAULT NULL COMMENT '查询条件脱敏后的快照',\n  `client_ip`   VARCHAR(45) DEFAULT NULL,\n  `created_at`  DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),\n  PRIMARY KEY (`audit_id`, `created_at`),\n  KEY `idx_actor_time` (`actor`, `created_at` DESC),\n  KEY `idx_patient_time` (`pseudo_id`, `created_at` DESC)\n) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4\nPARTITION BY RANGE (TO_DAYS(created_at)) ();",
+        "code": "/**\n * 场景：基因 / DNA 序列海量存取 / 切片：脱敏与审计\n * 适用参数：恒真 —— 与规模无关，医疗场景不可省\n * 依赖规则：SEC-DATA-001, SEC-DATA-002, SEC-LOG-001, REL-LOG-002\n * JDK：17\n */\npackage com.example.genome.audit;\n\nimport java.util.concurrent.ArrayBlockingQueue;\nimport java.util.concurrent.BlockingQueue;\nimport java.util.concurrent.ExecutorService;\nimport java.util.concurrent.Executors;\nimport java.util.concurrent.TimeUnit;\n\n/**\n * 访问审计。两条设计决定了一切：\n *\n *   1. **异步写** —— 审计在查询的关键路径上，同步写会把 P99 拉高。\n *   2. **有界队列 + 满则落盘** —— 异步意味着可能丢。审计丢了等于没审，\n *      所以队列满的时候不能丢，必须落到本地文件等补写。这是「异步」唯一的代价兑现处。\n */\npublic final class AccessAuditor implements AutoCloseable {\n\n    private final BlockingQueue<AccessEvent> queue = new ArrayBlockingQueue<>(10_000);\n    private final ExecutorService writer = Executors.newSingleThreadExecutor();\n    private final AuditSink sink;\n\n    public AccessAuditor(AuditSink sink) {\n        this.sink = sink;\n        writer.submit(this::drain);\n    }\n\n    public record AccessEvent(String actor, String action, long pseudoId, Long sampleId,\n                              String queryJson, String clientIp) {\n    }\n\n    /** 查询路径上调用。这个方法不允许抛异常 —— 审计失败不该让查询失败。 */\n    public void record(AccessEvent e) {\n        if (!queue.offer(e)) {\n            // 队列满：落盘兜底，绝不静默丢弃。审计丢了在合规检查时等同于「没有审计」。\n            sink.spillToFile(e);\n        }\n    }\n\n    private void drain() {\n        while (!Thread.currentThread().isInterrupted()) {\n            try {\n                AccessEvent e = queue.poll(500, TimeUnit.MILLISECONDS);\n                if (e == null) {\n                    continue;\n                }\n                var batch = new java.util.ArrayList<AccessEvent>(500);\n                batch.add(e);\n                queue.drainTo(batch, 499);\n                sink.writeBatch(batch);\n            } catch (InterruptedException ex) {\n                Thread.currentThread().interrupt();\n                return;\n            } catch (RuntimeException ex) {\n                // 审计写失败只能记日志：不能因为审计挂了就让业务挂，但必须留下痕迹。\n                org.slf4j.LoggerFactory.getLogger(AccessAuditor.class)\n                        .error(\"audit write failed: {}\", ex.toString());\n            }\n        }\n    }\n\n    /**\n     * 脱敏：业务库里只能出现 pseudo_id。\n     *\n     * 为什么用单向映射而不是加密：加密意味着有密钥就能反解，而密钥一定会在某个地方被加载。\n     * 单向映射 + 隔离库，让「查业务库的人」在技术上就拿不到明文。\n     */\n    public static long pseudoIdOf(String realId) {\n        // 生产实现：查 patient_identity 表；这里给出不可逆的哈希派生作为兜底。\n        long h = 0xcbf29ce484222325L;\n        for (byte b : realId.getBytes(java.nio.charset.StandardCharsets.UTF_8)) {\n            h ^= b;\n            h *= 0x100000001b3L;\n        }\n        return Math.floorMod(h, 1L << 40);\n    }\n\n    /** 日志脱敏：任何落进日志的查询条件都必须先过这一层。 */\n    public static String maskForLog(String s) {\n        if (s == null || s.length() <= 4) {\n            return \"****\";\n        }\n        return s.substring(0, 2) + \"****\" + s.substring(s.length() - 2);\n    }\n\n    @Override\n    public void close() {\n        writer.shutdownNow();\n    }\n\n    public interface AuditSink {\n        void writeBatch(java.util.List<AccessEvent> batch);\n\n        void spillToFile(AccessEvent e);\n    }\n}\n",
+        "highlights": [
+          {
+            "mark": "sink.spillToFile(e);",
+            "title": "队列满要落盘，不能丢",
+            "text": "异步审计唯一的代价兑现处。审计丢了在合规检查时等同于「没有审计」，比慢一点严重得多。",
+            "rule": "SEC-LOG-001"
+          },
+          {
+            "mark": "public void record(AccessEvent e) {",
+            "title": "审计不允许抛异常",
+            "text": "审计在查询关键路径上，它抛异常会让查询失败 —— 那是把合规组件变成了可用性单点。",
+            "rule": "REL-LOG-002"
+          },
+          {
+            "mark": "return Math.floorMod(h, 1L << 40);",
+            "title": "单向映射而非加密",
+            "text": "加密意味着有密钥就能反解，而密钥一定会在某处被加载。单向映射让「能查业务库的人」技术上拿不到明文。",
+            "rule": "SEC-DATA-002"
+          },
+          {
+            "mark": "return s.substring(0, 2) + \"****\" + s.substring(s.length() - 2);",
+            "title": "日志必须脱敏",
+            "text": "查询条件直接进日志是最常见的泄露路径 —— 日志的访问权限通常远宽于数据库。",
+            "rule": "SEC-LOG-001"
+          }
+        ],
+        "pitfalls": [
+          "审计同步写 —— 在查询关键路径上加一次写，P99 直接抬高，然后被人在压测时「优化」掉，等于没做。",
+          "审计队列满了直接丢弃 —— 平时看不出来，合规检查时才发现「有一段时间没有任何审计记录」。",
+          "patient_id 明文进业务库 —— 一次脱库就是全量泄露，而基因数据是不可撤销的。",
+          "日志里打印完整查询条件 —— 日志的访问权限通常远宽于数据库，这是最容易被忽略的泄露路径。"
+        ],
+        "notSuitable": [
+          "纯科研且已做伦理审批的匿名数据集：本就没有可识别信息，审计重点不同。",
+          "内部测试环境：但要注意测试数据必须是合成的，不能拿生产数据「先跑一遍」。"
+        ],
+        "relatedRules": [
+          "SEC-DATA-001",
+          "SEC-DATA-002",
+          "SEC-LOG-001",
+          "REL-LOG-002",
+          "SEC-INPUT-001"
+        ],
+        "refs": [
+          {
+            "title": "《个人信息保护法》— 敏感个人信息处理规则",
+            "note": "医疗健康、生物识别信息属于敏感个人信息，需单独同意"
+          },
+          {
+            "title": "GA4GH — 数据访问与审计规范",
+            "url": "https://www.ga4gh.org/"
+          }
+        ]
+      }
+    ],
+    "notSuitableFor": [
+      {
+        "when": {
+          "rows": [
+            "s10k"
+          ],
+          "qps": [
+            "q100"
+          ]
+        },
+        "reason": "1 万样本 + 100 QPS 是单库单表的量级。分层、分区、冷热切换这套东西在这里全是净成本。先把变异位点表建对索引就够了。"
+      },
+      {
+        "when": {
+          "rows": [
+            "s10k",
+            "s1m"
+          ],
+          "latency": [
+            "l1s"
+          ],
+          "qps": [
+            "q100",
+            "q1k"
+          ]
+        },
+        "reason": "规模与延迟都很宽松，本场景大部分切片不会激活。真正要做的只是「序列别进关系库」这一条。"
+      }
+    ],
+    "benchmark": {
+      "title": "序列本体存放位置对运维的影响（公开资料量级，非本机实测）",
+      "columns": [
+        "做法",
+        "单库体积",
+        "备份耗时",
+        "主从延迟",
+        "来源"
+      ],
+      "rows": [
+        [
+          "序列 BLOB 存 MySQL",
+          "约 20 TB",
+          "小时级，且锁竞争明显",
+          "分钟~小时级",
+          "行业普遍反馈"
+        ],
+        [
+          "序列存对象存储 + DB 存指针",
+          "约 200 GB",
+          "分钟级",
+          "秒级",
+          "AWS 基因组学最佳实践"
+        ],
+        [
+          "变异位点独立列存",
+          "数 TB",
+          "可接受",
+          "可接受",
+          "GA4GH 存储规范"
+        ]
+      ],
+      "conclusion": "序列本体进关系库，代价不体现在查询上（查询照样能跑），而是体现在备份、复制、DDL 上 —— 这些操作会随时间线性恶化，等发现时已经改不动了。分层是这个场景唯一不可让步的决策。"
+    },
+    "architecture": {
+      "nodes": [
+        {
+          "id": "app",
+          "label": "查询服务",
+          "kind": "backend",
+          "tier": 0
+        },
+        {
+          "id": "meta",
+          "label": "样本元数据",
+          "kind": "database",
+          "tier": 1
+        },
+        {
+          "id": "variant",
+          "label": "变异位点库",
+          "kind": "database",
+          "tier": 1
+        },
+        {
+          "id": "objstore",
+          "label": "对象存储",
+          "kind": "cloud",
+          "tier": 2
+        },
+        {
+          "id": "cache",
+          "label": "位点缓存",
+          "kind": "database",
+          "tier": 2,
+          "whenAny": {
+            "latency": [
+              "l50"
+            ],
+            "rw": [
+              "rw91"
+            ]
+          }
+        },
+        {
+          "id": "import",
+          "label": "导入流水线",
+          "kind": "messagebus",
+          "tier": 3,
+          "whenAny": {
+            "rw": [
+              "rw11",
+              "rw19"
+            ]
+          }
+        },
+        {
+          "id": "audit",
+          "label": "审计日志",
+          "kind": "security",
+          "tier": 3
+        }
+      ],
+      "links": [
+        {
+          "from": "app",
+          "to": "meta",
+          "label": "元数据"
+        },
+        {
+          "from": "app",
+          "to": "variant",
+          "label": "区间查"
+        },
+        {
+          "from": "app",
+          "to": "objstore",
+          "label": "流式取序列"
+        },
+        {
+          "from": "app",
+          "to": "cache",
+          "label": "热点"
+        },
+        {
+          "from": "import",
+          "to": "objstore",
+          "label": "写入"
+        },
+        {
+          "from": "import",
+          "to": "variant",
+          "label": "批量位点"
+        },
+        {
+          "from": "app",
+          "to": "audit",
+          "label": "谁查了谁"
+        }
+      ]
+    },
+    "sliceCount": 6,
+    "driverCount": 6,
+    "ruleCount": 21,
+    "lines": 708
+  }
+}

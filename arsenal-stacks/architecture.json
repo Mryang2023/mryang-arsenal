@@ -2,7 +2,7 @@
   "collection": "arsenal-architecture",
   "version": "0.1.0",
   "releasedAt": "2026-09-11",
-  "description": "把 18 个选型维度还原成一张可装配的架构图。每个零件声明它提供什么能力、需要什么能力，校验时求一次能力并集，就能算出这套组合能不能跑起来、缺的是哪一块。",
+  "description": "把 33 个选型维度还原成一张可装配的架构图。每个零件声明它提供什么能力、需要什么能力，校验时求一次能力并集，就能算出这套组合能不能跑起来、缺的是哪一块。",
   "lanes": [
     {
       "id": "entry",
@@ -78,7 +78,76 @@
     "cap.packaging": "可执行产物",
     "cap.image": "容器镜像",
     "cap.orchestration": "编排调度与自愈",
-    "cap.release.templating": "多环境发布参数化"
+    "cap.release.templating": "多环境发布参数化",
+    "cap.rt.process": "进程运行环境",
+    "cap.rt.vm": "虚拟机运行环境",
+    "cap.rt.container": "容器运行环境",
+    "cap.rt.k8s": "Kubernetes 运行环境",
+    "cap.rt.serverless": "Serverless 运行环境",
+    "cap.rt.hybrid": "混合异构运行环境",
+    "cap.rt.entry.direct": "直连入口",
+    "cap.rt.entry.proxy": "反向代理入口",
+    "cap.rt.lb.l7": "七层负载均衡",
+    "cap.rt.lb.l4": "四层负载均衡",
+    "cap.rt.lb.cloud": "云负载均衡",
+    "cap.rt.ha.vip": "高可用虚拟IP",
+    "cap.rt.gateway": "API 网关路由",
+    "cap.rt.gateway.scg": "Spring Cloud 网关",
+    "cap.rt.orchestrate": "容器编排调度",
+    "cap.rt.orchestrate.light": "轻量编排",
+    "cap.rt.artifact": "镜像制品库",
+    "cap.rt.artifact.private": "私有制品库",
+    "cap.dx.search.fulltext": "全文检索",
+    "cap.dx.search.agg": "聚合分析",
+    "cap.dx.search.vector": "向量检索",
+    "cap.dx.search.realtime": "近实时索引",
+    "cap.dx.search.geospatial": "地理空间检索",
+    "cap.dx.analytics.columnar": "列式存储",
+    "cap.dx.analytics.mpp": "MPP 查询",
+    "cap.dx.analytics.rollup": "预聚合",
+    "cap.dx.analytics.lake": "湖仓一体",
+    "cap.dx.object.s3api": "S3 兼容接口",
+    "cap.dx.object.immutable": "不可变存储",
+    "cap.dx.object.lifecycle": "生命周期管理",
+    "cap.qa.test.unit": "单元测试",
+    "cap.qa.test.integration": "集成测试",
+    "cap.qa.test.contract": "契约测试",
+    "cap.qa.test.performance": "性能压测",
+    "cap.qa.test.mutation": "变异测试",
+    "cap.qa.mock": "Mock 隔离",
+    "cap.qa.wire": "HTTP 打桩",
+    "cap.qa.coverage": "覆盖率度量",
+    "cap.qa.gate.coverage": "覆盖率门禁",
+    "cap.qa.gate.mutation": "变异门禁",
+    "cap.qa.gate.quality": "代码质量门禁",
+    "cap.qa.isolated": "容器化隔离测试",
+    "cap.ops.pipeline": "持续交付流水线",
+    "cap.ops.pipeline.ci": "持续集成",
+    "cap.ops.pipeline.gitops": "GitOps 交付",
+    "cap.ops.metrics": "指标采集与告警",
+    "cap.ops.metrics.jvm": "JVM 指标暴露",
+    "cap.ops.metrics.scrape": "指标拉取",
+    "cap.ops.apm": "应用性能监控",
+    "cap.ops.trace": "分布式链路追踪",
+    "cap.ops.hostmon": "主机与基础设施监控",
+    "cap.ops.secret.cfg": "配置密钥管理",
+    "cap.ops.secret.kms": "密钥管理服务",
+    "cap.ops.secret.vault": "动态密钥保管库",
+    "cap.ops.log": "日志收集与检索",
+    "cap.ops.log.agg": "集中式日志聚合",
+    "cap.ops.log.audit": "审计日志",
+    "cap.ops.observ": "统一观测能力",
+    "cap.topo.ha.failover": "故障自动切换",
+    "cap.topo.replication": "数据复制",
+    "cap.topo.replicaset": "副本集",
+    "cap.topo.antiaffinity": "反亲和调度",
+    "cap.topo.pdb": "Pod 中断预算",
+    "cap.topo.multiaz": "多可用区",
+    "cap.topo.shard.proxy": "分片代理",
+    "cap.topo.shard.key": "分片键",
+    "cap.topo.distributed.db": "分布式数据库",
+    "cap.topo.multiactive": "异地多活",
+    "cap.topo.federation": "跨地域联邦"
   },
   "nodes": {
     "web": {
@@ -212,6 +281,120 @@
       "role": "构建工具",
       "required": true,
       "missing": "没有构建工具，依赖下载不下来、产物打不出来，代码写完也无法交付。"
+    },
+    "os": {
+      "lane": "base",
+      "icon": "⌘",
+      "role": "运行时基座",
+      "required": false,
+      "recommended": true,
+      "missing": "没有明确运行基座，进程跑在哪、怎么重启都说不清，环境差异会让‘我机器上能跑’反复出现。"
+    },
+    "ingress": {
+      "lane": "entry",
+      "icon": "⇥",
+      "role": "流量入口",
+      "required": false,
+      "recommended": true,
+      "missing": "没有统一入口，每个实例各自对外暴露端口，扩容和摘流量都要手工改客户端配置。"
+    },
+    "gateway": {
+      "lane": "entry",
+      "icon": "⇉",
+      "role": "网关路由",
+      "required": false,
+      "recommended": false,
+      "missing": "没有网关，鉴权限流灰度逻辑散落在各服务，接口治理随服务数增多而失控。"
+    },
+    "orchestration": {
+      "lane": "delivery",
+      "icon": "⊞",
+      "role": "编排调度",
+      "required": false,
+      "recommended": false,
+      "missing": "缺少编排，多实例启停靠手工，挂掉不会自愈，发布只能停机或写临时脚本。"
+    },
+    "imageregistry": {
+      "lane": "delivery",
+      "icon": "❐",
+      "role": "制品仓库",
+      "required": false,
+      "recommended": false,
+      "missing": "没有制品库，镜像在本地散落、无版本溯源，CI 与多环境部署无法复用同一份产物。"
+    },
+    "search": {
+      "lane": "infra",
+      "icon": "◫",
+      "role": "检索",
+      "required": false,
+      "missing": "没有检索引擎，模糊查询只能走数据库 LIKE，数据量一大就全表扫描。"
+    },
+    "analytics": {
+      "lane": "infra",
+      "icon": "◫",
+      "role": "分析",
+      "required": false,
+      "missing": "没有分析库，大查询直接打主库，报表跑起来就把交易线程拖垮。"
+    },
+    "objectstore": {
+      "lane": "infra",
+      "icon": "◫",
+      "role": "存储",
+      "required": false,
+      "missing": "没有对象存储，静态文件与备份落本地盘，多副本部署各节点互不可见。"
+    },
+    "testing": {
+      "lane": "quality",
+      "icon": "✓",
+      "role": "测试",
+      "required": false,
+      "missing": "没有测试技术栈，缺陷只能在生产暴露，一次线上故障的修复成本远高于本地测试。"
+    },
+    "qualitygate": {
+      "lane": "quality",
+      "icon": "✓",
+      "role": "门禁",
+      "required": false,
+      "missing": "没有质量门禁，覆盖率与坏味道无人拦截，技术债在主干无声累积。"
+    },
+    "cicd": {
+      "lane": "delivery",
+      "icon": "⇄",
+      "role": "持续交付",
+      "required": false,
+      "recommended": false,
+      "missing": "没有流水线，发布靠手工 scp 和 java -jar，出错难回滚、无法保证各环境产物一致。"
+    },
+    "monitoring": {
+      "lane": "quality",
+      "icon": "◉",
+      "role": "监控告警",
+      "required": false,
+      "recommended": true,
+      "missing": "没有监控，接口变慢或实例挂掉只能等用户投诉，无从得知 JVM 与依赖的健康趋势。"
+    },
+    "secret": {
+      "lane": "quality",
+      "icon": "⬢",
+      "role": "密钥安全",
+      "required": false,
+      "recommended": true,
+      "missing": "没有密钥管理，密码写进配置或镜像，泄露无感知、轮换要重启，合规审计直接不通过。"
+    },
+    "logging": {
+      "lane": "quality",
+      "icon": "⊟",
+      "role": "日志审计",
+      "required": false,
+      "recommended": true,
+      "missing": "没有集中日志，出问题要挨个登录实例翻文件，跨服务串联与审计溯源几乎不可能。"
+    },
+    "clustertopology": {
+      "lane": "delivery",
+      "icon": "⋮",
+      "role": "形态",
+      "required": false,
+      "missing": "不选部署形态，交付产物一律单副本，宕机即中断且无 PDB 保护。"
     }
   },
   "options": {
@@ -572,6 +755,602 @@
           "cap.image",
           "cap.orchestration",
           "cap.release.templating"
+        ]
+      }
+    },
+    "os": {
+      "bare": {
+        "provides": [
+          "cap.rt.process"
+        ]
+      },
+      "vm": {
+        "provides": [
+          "cap.rt.process",
+          "cap.rt.vm"
+        ]
+      },
+      "container": {
+        "provides": [
+          "cap.rt.process",
+          "cap.rt.container"
+        ]
+      },
+      "k8s": {
+        "provides": [
+          "cap.rt.process",
+          "cap.rt.container",
+          "cap.rt.k8s",
+          "cap.rt.orchestrate"
+        ]
+      },
+      "serverless": {
+        "provides": [
+          "cap.rt.process",
+          "cap.rt.serverless"
+        ]
+      },
+      "hybrid": {
+        "provides": [
+          "cap.rt.process",
+          "cap.rt.container",
+          "cap.rt.k8s",
+          "cap.rt.hybrid"
+        ]
+      }
+    },
+    "ingress": {
+      "direct": {
+        "provides": [
+          "cap.rt.entry.direct"
+        ]
+      },
+      "nginx": {
+        "provides": [
+          "cap.rt.lb.l7",
+          "cap.rt.entry.proxy"
+        ]
+      },
+      "haproxy": {
+        "provides": [
+          "cap.rt.lb.l7",
+          "cap.rt.lb.l4",
+          "cap.rt.entry.proxy"
+        ]
+      },
+      "slb": {
+        "provides": [
+          "cap.rt.lb.cloud",
+          "cap.rt.lb.l7"
+        ]
+      },
+      "lvs": {
+        "provides": [
+          "cap.rt.lb.l4",
+          "cap.rt.ha.vip"
+        ],
+        "requires": [
+          "cap.rt.process"
+        ]
+      },
+      "envoy": {
+        "provides": [
+          "cap.rt.lb.l7",
+          "cap.rt.entry.proxy"
+        ],
+        "requires": [
+          "cap.rt.k8s"
+        ]
+      },
+      "f5": {
+        "provides": [
+          "cap.rt.lb.l4",
+          "cap.rt.lb.l7"
+        ],
+        "requires": [
+          "cap.rt.process"
+        ]
+      }
+    },
+    "gateway": {
+      "none": {
+        "provides": [],
+        "requires": []
+      },
+      "scg": {
+        "provides": [
+          "cap.rt.gateway",
+          "cap.rt.gateway.scg"
+        ]
+      },
+      "apisix": {
+        "provides": [
+          "cap.rt.gateway"
+        ],
+        "requires": [
+          "cap.rt.container"
+        ]
+      },
+      "kong": {
+        "provides": [
+          "cap.rt.gateway"
+        ],
+        "requires": [
+          "cap.rt.container"
+        ]
+      },
+      "envoygw": {
+        "provides": [
+          "cap.rt.gateway"
+        ],
+        "requires": [
+          "cap.rt.k8s"
+        ]
+      }
+    },
+    "orchestration": {
+      "single": {
+        "provides": [
+          "cap.rt.process"
+        ]
+      },
+      "compose": {
+        "provides": [
+          "cap.rt.orchestrate.light"
+        ],
+        "requires": [
+          "cap.rt.container"
+        ]
+      },
+      "swarm": {
+        "provides": [
+          "cap.rt.orchestrate"
+        ],
+        "requires": [
+          "cap.rt.container"
+        ]
+      },
+      "k8s": {
+        "provides": [
+          "cap.rt.orchestrate",
+          "cap.rt.k8s"
+        ]
+      },
+      "k3s": {
+        "provides": [
+          "cap.rt.orchestrate",
+          "cap.rt.k8s"
+        ]
+      },
+      "nomad": {
+        "provides": [
+          "cap.rt.orchestrate"
+        ],
+        "requires": [
+          "cap.rt.container"
+        ]
+      }
+    },
+    "imageregistry": {
+      "public": {
+        "provides": [
+          "cap.rt.artifact"
+        ]
+      },
+      "harbor": {
+        "provides": [
+          "cap.rt.artifact",
+          "cap.rt.artifact.private"
+        ],
+        "requires": [
+          "cap.rt.container"
+        ]
+      },
+      "nexus": {
+        "provides": [
+          "cap.rt.artifact",
+          "cap.rt.artifact.private"
+        ],
+        "requires": [
+          "cap.rt.container"
+        ]
+      },
+      "artifactory": {
+        "provides": [
+          "cap.rt.artifact",
+          "cap.rt.artifact.private"
+        ],
+        "requires": [
+          "cap.rt.container"
+        ]
+      }
+    },
+    "search": {
+      "none": {
+        "provides": [],
+        "requires": []
+      },
+      "es": {
+        "provides": [
+          "cap.dx.search.fulltext",
+          "cap.dx.search.agg"
+        ]
+      },
+      "opensearch": {
+        "provides": [
+          "cap.dx.search.fulltext",
+          "cap.dx.search.agg"
+        ]
+      },
+      "solr": {
+        "provides": [
+          "cap.dx.search.fulltext",
+          "cap.dx.search.agg",
+          "cap.dx.search.geospatial"
+        ]
+      },
+      "meili": {
+        "provides": [
+          "cap.dx.search.fulltext",
+          "cap.dx.search.realtime"
+        ]
+      },
+      "vector": {
+        "provides": [
+          "cap.dx.search.vector"
+        ]
+      }
+    },
+    "analytics": {
+      "none": {
+        "provides": [],
+        "requires": []
+      },
+      "clickhouse": {
+        "provides": [
+          "cap.dx.analytics.columnar",
+          "cap.dx.analytics.mpp",
+          "cap.dx.analytics.rollup"
+        ]
+      },
+      "doris": {
+        "provides": [
+          "cap.dx.analytics.columnar",
+          "cap.dx.analytics.mpp",
+          "cap.dx.analytics.rollup"
+        ]
+      },
+      "starrocks": {
+        "provides": [
+          "cap.dx.analytics.columnar",
+          "cap.dx.analytics.mpp",
+          "cap.dx.analytics.rollup"
+        ]
+      },
+      "kylin": {
+        "provides": [
+          "cap.dx.analytics.rollup",
+          "cap.dx.analytics.mpp"
+        ]
+      },
+      "lakehouse": {
+        "provides": [
+          "cap.dx.analytics.lake"
+        ]
+      }
+    },
+    "objectstore": {
+      "none": {
+        "provides": [],
+        "requires": []
+      },
+      "minio": {
+        "provides": [
+          "cap.dx.object.s3api",
+          "cap.dx.object.immutable",
+          "cap.dx.object.lifecycle"
+        ]
+      },
+      "s3": {
+        "provides": [
+          "cap.dx.object.s3api",
+          "cap.dx.object.immutable",
+          "cap.dx.object.lifecycle"
+        ]
+      },
+      "oss": {
+        "provides": [
+          "cap.dx.object.s3api",
+          "cap.dx.object.immutable",
+          "cap.dx.object.lifecycle"
+        ]
+      },
+      "ceph": {
+        "provides": [
+          "cap.dx.object.s3api",
+          "cap.dx.object.immutable"
+        ]
+      }
+    },
+    "testing": {
+      "junit5": {
+        "provides": [
+          "cap.qa.test.unit"
+        ]
+      },
+      "testcontainers": {
+        "provides": [
+          "cap.qa.test.unit",
+          "cap.qa.test.integration",
+          "cap.qa.isolated"
+        ]
+      },
+      "mockito": {
+        "provides": [
+          "cap.qa.test.unit",
+          "cap.qa.mock"
+        ]
+      },
+      "wiremock": {
+        "provides": [
+          "cap.qa.test.unit",
+          "cap.qa.wire"
+        ]
+      },
+      "jmeter": {
+        "provides": [
+          "cap.qa.test.performance"
+        ]
+      },
+      "pact": {
+        "provides": [
+          "cap.qa.test.unit",
+          "cap.qa.test.contract"
+        ]
+      },
+      "pitest": {
+        "provides": [
+          "cap.qa.test.unit",
+          "cap.qa.test.mutation"
+        ]
+      }
+    },
+    "qualitygate": {
+      "none": {
+        "provides": [],
+        "requires": []
+      },
+      "jacoco": {
+        "provides": [
+          "cap.qa.coverage",
+          "cap.qa.gate.coverage"
+        ],
+        "requires": [
+          "cap.qa.test.unit"
+        ]
+      },
+      "sonar": {
+        "provides": [
+          "cap.qa.gate.quality"
+        ],
+        "requires": [
+          "cap.qa.test.unit"
+        ]
+      },
+      "mutation": {
+        "provides": [
+          "cap.qa.gate.mutation"
+        ],
+        "requires": [
+          "cap.qa.test.mutation"
+        ]
+      }
+    },
+    "cicd": {
+      "manual": {
+        "provides": [],
+        "requires": []
+      },
+      "jenkins": {
+        "provides": [
+          "cap.ops.pipeline.ci",
+          "cap.ops.pipeline"
+        ],
+        "requires": [
+          "cap.rt.process"
+        ]
+      },
+      "gitlabci": {
+        "provides": [
+          "cap.ops.pipeline.ci",
+          "cap.ops.pipeline"
+        ],
+        "requires": [
+          "cap.rt.process"
+        ]
+      },
+      "argocd": {
+        "provides": [
+          "cap.ops.pipeline.gitops",
+          "cap.ops.pipeline"
+        ],
+        "requires": [
+          "cap.rt.k8s"
+        ]
+      },
+      "githubactions": {
+        "provides": [
+          "cap.ops.pipeline.ci",
+          "cap.ops.pipeline"
+        ],
+        "requires": []
+      }
+    },
+    "monitoring": {
+      "actuator": {
+        "provides": [
+          "cap.ops.metrics.jvm",
+          "cap.ops.metrics.scrape"
+        ],
+        "requires": [
+          "cap.jvm"
+        ]
+      },
+      "promgrafana": {
+        "provides": [
+          "cap.ops.metrics",
+          "cap.ops.metrics.scrape"
+        ],
+        "requires": [
+          "cap.rt.process"
+        ]
+      },
+      "zabbix": {
+        "provides": [
+          "cap.ops.hostmon",
+          "cap.ops.metrics"
+        ],
+        "requires": [
+          "cap.rt.process"
+        ]
+      },
+      "skywalking": {
+        "provides": [
+          "cap.ops.apm",
+          "cap.ops.trace"
+        ],
+        "requires": [
+          "cap.rt.process"
+        ]
+      },
+      "cloudapm": {
+        "provides": [
+          "cap.ops.apm",
+          "cap.ops.trace"
+        ],
+        "requires": []
+      }
+    },
+    "secret": {
+      "file": {
+        "provides": [],
+        "requires": []
+      },
+      "configcenter": {
+        "provides": [
+          "cap.ops.secret.cfg",
+          "cap.config.center"
+        ],
+        "requires": [
+          "cap.rt.process"
+        ]
+      },
+      "k8ssecret": {
+        "provides": [
+          "cap.ops.secret.cfg"
+        ],
+        "requires": [
+          "cap.rt.k8s"
+        ]
+      },
+      "vault": {
+        "provides": [
+          "cap.ops.secret.vault",
+          "cap.ops.secret.kms"
+        ],
+        "requires": [
+          "cap.rt.k8s"
+        ]
+      },
+      "cloudkms": {
+        "provides": [
+          "cap.ops.secret.kms"
+        ],
+        "requires": []
+      }
+    },
+    "logging": {
+      "logback": {
+        "provides": [
+          "cap.ops.log"
+        ],
+        "requires": [
+          "cap.jvm"
+        ]
+      },
+      "elk": {
+        "provides": [
+          "cap.ops.log.agg",
+          "cap.ops.log"
+        ],
+        "requires": [
+          "cap.rt.process"
+        ]
+      },
+      "loki": {
+        "provides": [
+          "cap.ops.log.agg",
+          "cap.ops.log"
+        ],
+        "requires": [
+          "cap.rt.process"
+        ]
+      },
+      "clickhouse": {
+        "provides": [
+          "cap.ops.log.agg",
+          "cap.ops.log.audit"
+        ],
+        "requires": [
+          "cap.rt.process"
+        ]
+      },
+      "cloudlog": {
+        "provides": [
+          "cap.ops.log.agg",
+          "cap.ops.log"
+        ],
+        "requires": []
+      }
+    },
+    "clustertopology": {
+      "single": {
+        "provides": [],
+        "requires": []
+      },
+      "masterslave": {
+        "provides": [
+          "cap.topo.ha.failover",
+          "cap.topo.replication"
+        ]
+      },
+      "cluster": {
+        "provides": [
+          "cap.topo.ha.failover",
+          "cap.topo.replicaset",
+          "cap.topo.antiaffinity",
+          "cap.topo.pdb",
+          "cap.topo.multiaz",
+          "cap.topo.replication"
+        ]
+      },
+      "sharded": {
+        "provides": [
+          "cap.topo.shard.proxy",
+          "cap.topo.shard.key",
+          "cap.topo.distributed.db"
+        ]
+      },
+      "multiactive": {
+        "provides": [
+          "cap.topo.multiactive",
+          "cap.topo.multiaz",
+          "cap.topo.antiaffinity",
+          "cap.topo.distributed.db",
+          "cap.topo.federation"
+        ],
+        "requires": [
+          "cap.orchestration"
         ]
       }
     }
@@ -1274,6 +2053,67 @@
       "deploy": {
         "place": "node",
         "zone": "platform"
+      },
+      "os": {
+        "place": "node",
+        "zone": "platform"
+      },
+      "ingress": {
+        "place": "node",
+        "zone": "platform"
+      },
+      "gateway": {
+        "place": "node",
+        "zone": "platform"
+      },
+      "orchestration": {
+        "place": "node",
+        "zone": "platform"
+      },
+      "imageregistry": {
+        "place": "node",
+        "zone": "platform"
+      },
+      "search": {
+        "place": "node",
+        "zone": "mw"
+      },
+      "analytics": {
+        "place": "node",
+        "zone": "mw"
+      },
+      "objectstore": {
+        "place": "node",
+        "zone": "mw"
+      },
+      "testing": {
+        "place": "appTag",
+        "tagLabel": "测试"
+      },
+      "qualitygate": {
+        "place": "appTag",
+        "tagLabel": "门禁"
+      },
+      "monitoring": {
+        "place": "node",
+        "zone": "ops"
+      },
+      "secret": {
+        "place": "node",
+        "zone": "ops"
+      },
+      "logging": {
+        "place": "node",
+        "zone": "ops"
+      },
+      "cicd": {
+        "place": "node",
+        "zone": "platform"
+      },
+      "clustertopology": {
+        "place": "side",
+        "zone": "platform",
+        "tagLabel": "集群形态"
       }
     },
     "options": {
@@ -1704,6 +2544,315 @@
               "note": "边缘 Prometheus 汇总到中心，适合多机房。"
             }
           ]
+        }
+      },
+      "os": {
+        "bare": {
+          "icon": "baremetal"
+        },
+        "vm": {
+          "icon": "vm"
+        },
+        "container": {
+          "icon": "docker"
+        },
+        "k8s": {
+          "icon": "k8s"
+        },
+        "serverless": {
+          "icon": "serverless"
+        },
+        "hybrid": {
+          "icon": "rack"
+        }
+      },
+      "ingress": {
+        "direct": {
+          "icon": "reverseproxy"
+        },
+        "nginx": {
+          "icon": "nginx",
+          "port": "80/443"
+        },
+        "haproxy": {
+          "icon": "slb",
+          "port": "80/443"
+        },
+        "slb": {
+          "icon": "slb",
+          "port": "443"
+        },
+        "lvs": {
+          "icon": "anycast",
+          "port": "80"
+        },
+        "envoy": {
+          "icon": "envoy",
+          "port": "80/443"
+        },
+        "f5": {
+          "icon": "firewall",
+          "port": "443"
+        }
+      },
+      "gateway": {
+        "none": {
+          "icon": "none"
+        },
+        "scg": {
+          "icon": "gateway",
+          "port": "8080"
+        },
+        "apisix": {
+          "icon": "apisix",
+          "port": "9080"
+        },
+        "kong": {
+          "icon": "gateway",
+          "port": "8000"
+        },
+        "envoygw": {
+          "icon": "envoy",
+          "port": "8080"
+        }
+      },
+      "orchestration": {
+        "single": {
+          "icon": "single"
+        },
+        "compose": {
+          "icon": "docker"
+        },
+        "swarm": {
+          "icon": "docker"
+        },
+        "k8s": {
+          "icon": "k8s"
+        },
+        "k3s": {
+          "icon": "k8s"
+        },
+        "nomad": {
+          "icon": "rack"
+        }
+      },
+      "imageregistry": {
+        "public": {
+          "icon": "cloud"
+        },
+        "harbor": {
+          "icon": "harbor",
+          "port": "443"
+        },
+        "nexus": {
+          "icon": "nexus",
+          "port": "8081"
+        },
+        "artifactory": {
+          "icon": "artifactrepo",
+          "port": "8082"
+        }
+      },
+      "search": {
+        "none": {
+          "icon": "none"
+        },
+        "es": {
+          "icon": "elasticsearch",
+          "port": "9200"
+        },
+        "opensearch": {
+          "icon": "opensearch",
+          "port": "9200"
+        },
+        "solr": {
+          "icon": "columnar",
+          "port": "8983"
+        },
+        "meili": {
+          "icon": "timeseries",
+          "port": "7700"
+        },
+        "vector": {
+          "icon": "graphdb",
+          "port": "19530"
+        }
+      },
+      "analytics": {
+        "none": {
+          "icon": "none"
+        },
+        "clickhouse": {
+          "icon": "clickhouse",
+          "port": "8123"
+        },
+        "doris": {
+          "icon": "columnar",
+          "port": "9030"
+        },
+        "starrocks": {
+          "icon": "columnar",
+          "port": "9030"
+        },
+        "kylin": {
+          "icon": "warehouse",
+          "port": "7070"
+        },
+        "lakehouse": {
+          "icon": "datalake"
+        }
+      },
+      "objectstore": {
+        "none": {
+          "icon": "none"
+        },
+        "minio": {
+          "icon": "minio",
+          "port": "9000"
+        },
+        "s3": {
+          "icon": "objectstore",
+          "port": "443"
+        },
+        "oss": {
+          "icon": "objectstore",
+          "port": "443"
+        },
+        "ceph": {
+          "icon": "fileshare",
+          "port": "7480"
+        }
+      },
+      "testing": {
+        "junit5": {
+          "icon": "junit"
+        },
+        "testcontainers": {
+          "icon": "testcontainers"
+        },
+        "mockito": {
+          "icon": "junit"
+        },
+        "wiremock": {
+          "icon": "reverseproxy"
+        },
+        "jmeter": {
+          "icon": "profiling"
+        },
+        "pact": {
+          "icon": "thirdparty"
+        },
+        "pitest": {
+          "icon": "profiling"
+        }
+      },
+      "qualitygate": {
+        "none": {
+          "icon": "none"
+        },
+        "jacoco": {
+          "icon": "profiling"
+        },
+        "sonar": {
+          "icon": "sonarqube",
+          "port": "9000"
+        },
+        "mutation": {
+          "icon": "profiling"
+        }
+      },
+      "monitoring": {
+        "actuator": {
+          "icon": "actuator"
+        },
+        "promgrafana": {
+          "icon": "prometheus",
+          "port": "9090"
+        },
+        "zabbix": {
+          "icon": "apmproxy",
+          "port": "10051"
+        },
+        "skywalking": {
+          "icon": "skywalking",
+          "port": "11800"
+        },
+        "cloudapm": {
+          "icon": "apmproxy"
+        }
+      },
+      "secret": {
+        "file": {
+          "icon": "configmgmt"
+        },
+        "configcenter": {
+          "icon": "configsync"
+        },
+        "k8ssecret": {
+          "icon": "secret"
+        },
+        "vault": {
+          "icon": "secret",
+          "port": "8200"
+        },
+        "cloudkms": {
+          "icon": "kms"
+        }
+      },
+      "logging": {
+        "logback": {
+          "icon": "logback"
+        },
+        "elk": {
+          "icon": "elasticsearch",
+          "port": "9200"
+        },
+        "loki": {
+          "icon": "loki",
+          "port": "3100"
+        },
+        "clickhouse": {
+          "icon": "clickhouse",
+          "port": "8123"
+        },
+        "cloudlog": {
+          "icon": "logcollector"
+        }
+      },
+      "cicd": {
+        "manual": {
+          "icon": "operator"
+        },
+        "jenkins": {
+          "icon": "jenkins",
+          "port": "8080"
+        },
+        "gitlabci": {
+          "icon": "gitlab"
+        },
+        "argocd": {
+          "icon": "argocd",
+          "port": "443"
+        },
+        "githubactions": {
+          "icon": "cicd"
+        }
+      },
+      "clustertopology": {
+        "single": {
+          "icon": "single"
+        },
+        "masterslave": {
+          "icon": "master-slave"
+        },
+        "cluster": {
+          "icon": "replica"
+        },
+        "sharded": {
+          "icon": "sharding"
+        },
+        "multiactive": {
+          "icon": "multiaz"
         }
       }
     },

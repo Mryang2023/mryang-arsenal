@@ -6,39 +6,93 @@
   "views": {
     "business": {
       "definition": "定义军火库为谁创造什么价值：把个人工程规范收敛成机器可校验的数据，服务「人查、给 AI 用、拿代码验」三种消费方式。",
-      "focus": ["规范字典", "能力域", "三种出口", "单人 + 小团队"],
+      "focus": [
+        "规范字典",
+        "能力域",
+        "三种出口",
+        "单人 + 小团队"
+      ],
       "question": "军火库提供什么能力？为谁服务、经什么渠道消费？",
-      "outputs": ["能力地图", "三种出口链路", "服务边界（不做什么）"]
+      "outputs": [
+        "能力地图",
+        "三种出口链路",
+        "服务边界（不做什么）"
+      ]
     },
     "data": {
       "definition": "规划规范数据如何被定义、构建、分发与治理：arsenal-{rules,cookbook,stacks} 是唯一事实源，JSON 是载体，管道是脚本。",
-      "focus": ["Rule as Data", "事实源唯一", "构建管道", "锚点治理"],
+      "focus": [
+        "Rule as Data",
+        "事实源唯一",
+        "构建管道",
+        "锚点治理"
+      ],
       "question": "数据从哪里来、经谁加工、被谁消费、怎么防漂移？",
-      "outputs": ["数据资产清单", "构建链路图", "治理规则（锚点 / 换行 / 交叉校验）"]
+      "outputs": [
+        "数据资产清单",
+        "构建链路图",
+        "治理规则（锚点 / 换行 / 交叉校验）"
+      ]
     },
     "app": {
       "definition": "定义系统如何分层、集成与协作：Next.js 静态站 + Spring Boot 只读服务的双层单体，前端渲染、后端出图与校验。",
-      "focus": ["系统分层", "路由 × 接口", "前后端契约", "降级策略"],
+      "focus": [
+        "系统分层",
+        "路由 × 接口",
+        "前后端契约",
+        "降级策略"
+      ],
       "question": "有哪些系统、怎么连接、功能如何承载？",
-      "outputs": ["分层地图", "接口清单", "一致性与降级约定"]
+      "outputs": [
+        "分层地图",
+        "接口清单",
+        "一致性与降级约定"
+      ]
     },
     "tech": {
       "definition": "定义应用运行所依赖的技术底座：按选型装配出会被部署的东西 —— 客户端、应用进程、中间件、数据存储与观测运维。",
-      "focus": ["云平台", "中间件", "数据库", "开发与运维技术"],
+      "focus": [
+        "云平台",
+        "中间件",
+        "数据库",
+        "开发与运维技术"
+      ],
       "question": "系统在什么技术底座上、如何稳定高效扩展？",
-      "outputs": ["技术栈图", "部署架构图", "技术说明书（三张表）"]
+      "outputs": [
+        "技术栈图",
+        "部署架构图",
+        "技术说明书（三张表）"
+      ]
     },
     "product": {
       "definition": "从用户需求出发规划产品功能与演进路线：七个功能面覆盖「写规则 → 装配 → 出图 → 校验 → 交付」全流程，引擎三层按台阶演进。",
-      "focus": ["功能结构", "校验引擎三层", "严重度配额", "演进路线"],
+      "focus": [
+        "功能结构",
+        "校验引擎三层",
+        "严重度配额",
+        "演进路线"
+      ],
       "question": "产品提供什么能力、如何满足「让 AI 守规矩」、如何迭代？",
-      "outputs": ["功能地图", "引擎分层视图", "不做清单"]
+      "outputs": [
+        "功能地图",
+        "引擎分层视图",
+        "不做清单"
+      ]
     },
     "project": {
       "definition": "围绕目标交付组织项目实施方式：仓库分区、构建链、{{verify.total}} 项验证链与里程碑，保证单人也能持续安全地改。",
-      "focus": ["仓库分区", "构建链", "验证链", "里程碑"],
+      "focus": [
+        "仓库分区",
+        "构建链",
+        "验证链",
+        "里程碑"
+      ],
       "question": "怎么推进、谁验证、何时交付、风险在哪？",
-      "outputs": ["仓库结构树", "验证链分解", "待推进清单"]
+      "outputs": [
+        "仓库结构树",
+        "验证链分解",
+        "待推进清单"
+      ]
     }
   },
   "business": {
@@ -70,11 +124,27 @@
       }
     ],
     "outlets": [
-      { "name": "人查", "desc": "规则库 / 蓝图库 / 装配台页面，人直接翻", "glyph": "☼" },
-      { "name": "给 AI 用", "desc": "约束 prompt 片段、导出数据，贴给任何 AI", "glyph": "✦" },
-      { "name": "拿代码验", "desc": "POST /api/lint，上传代码按规范逐条判", "glyph": "⛨" }
+      {
+        "name": "人查",
+        "desc": "规则库 / 蓝图库 / 装配台页面，人直接翻",
+        "glyph": "☼"
+      },
+      {
+        "name": "给 AI 用",
+        "desc": "约束 prompt 片段、导出数据，贴给任何 AI",
+        "glyph": "✦"
+      },
+      {
+        "name": "拿代码验",
+        "desc": "POST /api/lint，上传代码按规范逐条判",
+        "glyph": "⛨"
+      }
     ],
-    "consumers": ["mryang 本人", "AI 编码助手", "CI / 校验台"],
+    "consumers": [
+      "mryang 本人",
+      "AI 编码助手",
+      "CI / 校验台"
+    ],
     "nonGoals": [
       "不做 auto-fix —— 判定与修复分离，越权修复比报错更危险",
       "不绑定某家 AI 的代理 —— 规范属于人，不属于某个模型",
@@ -103,10 +173,26 @@
       }
     ],
     "pipeline": [
-      { "name": "tools/content/*.py", "desc": "内容源：改内容改这里，不改 JSON", "glyph": "✎" },
-      { "name": "build-content.py", "desc": "构建：写 JSON 必须 newline=\\n，防 CRLF 假变更", "glyph": "⚙" },
-      { "name": "*.json（事实源）", "desc": "Git 化的唯一事实源，三种出口都读它", "glyph": "▤" },
-      { "name": "sync-content.mjs", "desc": "同步：构建期校验锚点存在性，找不到即失败", "glyph": "⇄" }
+      {
+        "name": "tools/content/*.py",
+        "desc": "内容源：改内容改这里，不改 JSON",
+        "glyph": "✎"
+      },
+      {
+        "name": "build-content.py",
+        "desc": "构建：写 JSON 必须 newline=\\n，防 CRLF 假变更",
+        "glyph": "⚙"
+      },
+      {
+        "name": "*.json（事实源）",
+        "desc": "Git 化的唯一事实源，三种出口都读它",
+        "glyph": "▤"
+      },
+      {
+        "name": "sync-content.mjs",
+        "desc": "同步：构建期校验锚点存在性，找不到即失败",
+        "glyph": "⇄"
+      }
     ],
     "consumers": [
       "前端静态导入（构建期读取，缺失即构建失败）",
@@ -121,48 +207,126 @@
   },
   "app": {
     "routes": [
-      { "path": "/", "name": "概览", "desc": "军火库全景与统计" },
-      { "path": "/rules", "name": "规则库", "desc": "{{rules.total}} 条规范，按类检索" },
-      { "path": "/blueprints", "name": "最佳实践案例库", "desc": "{{cookbook.features}} 切片 · {{cookbook.lines}} 行真实代码" },
-      { "path": "/stack", "name": "装配台", "desc": "{{stack.dimensions}} 维选型 + 产物生成" },
-      { "path": "/arch", "name": "架构图谱", "desc": "六大架构视图" },
-      { "path": "/archify", "name": "出图服务", "desc": "任意 IR 进城，HTML 出城" },
-      { "path": "/check", "name": "校验台", "desc": "上传代码按规范判定" },
-      { "path": "/export", "name": "导出中心", "desc": "规则集多格式导出" }
+      {
+        "path": "/",
+        "name": "概览",
+        "desc": "军火库全景与统计"
+      },
+      {
+        "path": "/rules",
+        "name": "规则库",
+        "desc": "{{rules.total}} 条规范，按类检索"
+      },
+      {
+        "path": "/blueprints",
+        "name": "最佳实践案例库",
+        "desc": "{{cookbook.features}} 切片 · {{cookbook.lines}} 行真实代码"
+      },
+      {
+        "path": "/stack",
+        "name": "装配台",
+        "desc": "{{stack.dimensions}} 维选型 + 产物生成"
+      },
+      {
+        "path": "/arch",
+        "name": "架构图谱",
+        "desc": "六大架构视图"
+      },
+      {
+        "path": "/archify",
+        "name": "出图服务",
+        "desc": "任意 IR 进城，HTML 出城"
+      },
+      {
+        "path": "/check",
+        "name": "校验台",
+        "desc": "上传代码按规范判定"
+      },
+      {
+        "path": "/export",
+        "name": "导出中心",
+        "desc": "规则集多格式导出"
+      }
     ],
     "endpoints": [
-      { "group": "系统", "items": ["GET /api/health", "GET /api/stats"] },
+      {
+        "group": "系统",
+        "items": [
+          "GET /api/health",
+          "GET /api/stats"
+        ]
+      },
       {
         "group": "规则",
-        "items": ["GET /api/rules", "GET /api/rules/grouped", "GET /api/rules/sources", "GET /api/rules/{id}"]
+        "items": [
+          "GET /api/rules",
+          "GET /api/rules/grouped",
+          "GET /api/rules/sources",
+          "GET /api/rules/{id}"
+        ]
       },
       {
         "group": "导出",
-        "items": ["GET /api/export/formats", "GET /api/export/{format}", "GET /api/export/{format}/raw"]
+        "items": [
+          "GET /api/export/formats",
+          "GET /api/export/{format}",
+          "GET /api/export/{format}/raw"
+        ]
       },
-      { "group": "校验 / 出图", "items": ["POST /api/lint", "GET /api/archify", "POST /api/archify/deliver"] }
+      {
+        "group": "校验 / 出图",
+        "items": [
+          "POST /api/lint",
+          "GET /api/archify",
+          "POST /api/archify/deliver"
+        ]
+      }
     ],
     "layers": [
-      { "name": "页面层", "desc": "Next.js 14 静态导出（output: export），无服务端运行时", "items": "@routes" },
+      {
+        "name": "页面层",
+        "desc": "Next.js 14 静态导出（output: export），无服务端运行时",
+        "items": "@routes"
+      },
       {
         "name": "领域库层",
         "desc": "src/lib —— 检索 / 装配 / 画布 / 引擎 / 导出，全部构建期可用",
-        "items": ["rules", "cookbook", "stack", "arch-canvas", "archify-ir", "engine", "exporters"]
+        "items": [
+          "rules",
+          "cookbook",
+          "stack",
+          "arch-canvas",
+          "archify-ir",
+          "engine",
+          "exporters"
+        ]
       },
       {
         "name": "API 客户端",
         "desc": "arsenal-api.ts —— 全站唯一的 fetch 收口，后端不可达时逐功能降级",
-        "items": ["probeArchify", "deliverArchify"]
+        "items": [
+          "probeArchify",
+          "deliverArchify"
+        ]
       },
       {
         "name": "服务层",
         "desc": "Spring Boot 3.2 只读服务（3011），控制器零 try-catch，全局异常收口",
-        "items": ["RulesController", "ExportController", "LintController", "ArchifyController"]
+        "items": [
+          "RulesController",
+          "ExportController",
+          "LintController",
+          "ArchifyController"
+        ]
       },
       {
         "name": "数据源",
         "desc": "启动期只读仓库 JSON，不持久化、无数据库",
-        "items": ["arsenal-rules", "arsenal-cookbook", "arsenal-stacks"]
+        "items": [
+          "arsenal-rules",
+          "arsenal-cookbook",
+          "arsenal-stacks"
+        ]
       }
     ],
     "contracts": [
@@ -173,13 +337,34 @@
   },
   "product": {
     "surfaces": [
-      { "name": "规则库", "desc": "规范的查与审：严重度 / 分类 / 来源过滤" },
-      { "name": "最佳实践案例库", "desc": "规范的代码化呈现：bad/good 可对照" },
-      { "name": "装配台", "desc": "选型 → 可运行性判定 → 工程产物" },
-      { "name": "架构图谱", "desc": "六大架构一图讲清：业务到项目" },
-      { "name": "出图服务", "desc": "任意 IR 出图：通用绘图器的独立入口" },
-      { "name": "校验台", "desc": "拿代码验：上传即判，如实披露 skipped" },
-      { "name": "导出中心", "desc": "三种出口的批量出口：MD / JSON / zip" }
+      {
+        "name": "规则库",
+        "desc": "规范的查与审：严重度 / 分类 / 来源过滤"
+      },
+      {
+        "name": "最佳实践案例库",
+        "desc": "规范的代码化呈现：bad/good 可对照"
+      },
+      {
+        "name": "装配台",
+        "desc": "选型 → 可运行性判定 → 工程产物"
+      },
+      {
+        "name": "架构图谱",
+        "desc": "六大架构一图讲清：业务到项目"
+      },
+      {
+        "name": "出图服务",
+        "desc": "任意 IR 出图：通用绘图器的独立入口"
+      },
+      {
+        "name": "校验台",
+        "desc": "拿代码验：上传即判，如实披露 skipped"
+      },
+      {
+        "name": "导出中心",
+        "desc": "三种出口的批量出口：MD / JSON / zip"
+      }
     ],
     "engineLayers": [
       {
@@ -204,14 +389,38 @@
   },
   "project": {
     "dirs": [
-      { "path": "arsenal-rules/", "role": "规则事实源（{{rules.total}} 条规则）" },
-      { "path": "arsenal-cookbook/", "role": "蓝图事实源（{{cookbook.features}} 切片）" },
-      { "path": "arsenal-stacks/", "role": "选型与画布声明" },
-      { "path": "arsenal-web/", "role": "Next.js 前端 + 全部自检脚本" },
-      { "path": "arsenal-server/", "role": "Spring Boot 只读服务（3011）" },
-      { "path": "tools/", "role": "内容构建脚本（改内容改这里）" },
-      { "path": "docs/", "role": "交付样例与说明" },
-      { "path": "arsenal-profiles/", "role": "六视图项目档案（换项目只加这里）" }
+      {
+        "path": "arsenal-rules/",
+        "role": "规则事实源（{{rules.total}} 条规则）"
+      },
+      {
+        "path": "arsenal-cookbook/",
+        "role": "蓝图事实源（{{cookbook.features}} 切片）"
+      },
+      {
+        "path": "arsenal-stacks/",
+        "role": "选型与画布声明"
+      },
+      {
+        "path": "arsenal-web/",
+        "role": "Next.js 前端 + 全部自检脚本"
+      },
+      {
+        "path": "arsenal-server/",
+        "role": "Spring Boot 只读服务（3011）"
+      },
+      {
+        "path": "tools/",
+        "role": "内容构建脚本（改内容改这里）"
+      },
+      {
+        "path": "docs/",
+        "role": "交付样例与说明"
+      },
+      {
+        "path": "arsenal-profiles/",
+        "role": "六视图项目档案（换项目只加这里）"
+      }
     ],
     "pipeline": [
       "tools/content/*.py（改内容）",
@@ -220,21 +429,83 @@
       "npm run verify（{{verify.total}} 项自检）"
     ],
     "verifyChain": [
-      { "name": "架构判定", "count": 35, "desc": "能力并集 / 缺口 / 组合策略" },
-      { "name": "图与交互", "count": 59, "desc": "依赖边 / 版式边 / 交互钩子" },
-      { "name": "结构与导出", "count": 321, "desc": "目录树 / 部署产物 / 导出包 / zip 解压复验 / 导航与页签契约 / 项目档案契约" },
-      { "name": "引擎样本", "count": 17, "desc": "正则层真检出与 skipped 披露" },
-      { "name": "前后端一致性", "count": 12, "desc": "探针实跑导出比对 + 活服务体检" },
-      { "name": "Archify 链路", "count": 29, "desc": "IR 适配 / 出图 / 护栏" }
+      {
+        "name": "架构判定",
+        "count": 35,
+        "desc": "能力并集 / 缺口 / 组合策略"
+      },
+      {
+        "name": "图与交互",
+        "count": 59,
+        "desc": "依赖边 / 版式边 / 交互钩子"
+      },
+      {
+        "name": "结构与导出",
+        "count": 406,
+        "desc": "目录树 / 部署产物 / 导出包 / zip 解压复验 / 导航与页签契约 / 项目档案契约 / 图标资产库（矢量 key 不许静默回落、位图清单与磁盘双向对齐）"
+      },
+      {
+        "name": "场景案例",
+        "count": 25,
+        "desc": "驱动参数 / when 命中守恒 / 确定性 / 锚点与规则引用"
+      },
+      {
+        "name": "引擎样本",
+        "count": 17,
+        "desc": "正则层真检出与 skipped 披露"
+      },
+      {
+        "name": "前后端一致性",
+        "count": 12,
+        "desc": "探针实跑导出比对 + 活服务体检"
+      },
+      {
+        "name": "Archify 链路",
+        "count": 31,
+        "desc": "IR 适配 / 出图 / 护栏"
+      },
+      {
+        "name": "代码扫描",
+        "count": 35,
+        "desc": "fixture 逐字段 / 确定性 / 恶意输入全被拒 / 脱敏 / 不存绝对路径"
+      }
     ],
     "roadmap": [
-      { "name": "MCP Server 适配层", "desc": "接口全就绪，只差协议层 —— 项目成败关键", "tone": "key" },
-      { "name": "六视图档案化", "desc": "已落地：换项目只加一份 profile，六张图自动跟上", "tone": "done" },
-      { "name": "装配台 / 蓝图接后端 API", "desc": "前端已完整可用，后端目前只读规则集", "tone": "next" },
-      { "name": "AST 引擎层", "desc": "JavaParser，{{rules.astCapable}} 条 ast 规则已备好数据", "tone": "next" },
-      { "name": "LLM 语义层", "desc": "辅助判定，结论可核对；{{rules.llmCapable}} 条规则已声明 llm check", "tone": "later" },
-      { "name": "{{rules.total}} 条规则逐条过目", "desc": "没过目就不算军火库", "tone": "key" },
-      { "name": "结构层 2 条规则缺口", "desc": "界面如实标注，不挂假 id，补不补待定", "tone": "later" }
+      {
+        "name": "MCP Server 适配层",
+        "desc": "接口全就绪，只差协议层 —— 项目成败关键",
+        "tone": "key"
+      },
+      {
+        "name": "六视图档案化",
+        "desc": "已落地：换项目只加一份 profile，六张图自动跟上",
+        "tone": "done"
+      },
+      {
+        "name": "装配台 / 蓝图接后端 API",
+        "desc": "前端已完整可用，后端目前只读规则集",
+        "tone": "next"
+      },
+      {
+        "name": "AST 引擎层",
+        "desc": "JavaParser，{{rules.astCapable}} 条 ast 规则已备好数据",
+        "tone": "next"
+      },
+      {
+        "name": "LLM 语义层",
+        "desc": "辅助判定，结论可核对；{{rules.llmCapable}} 条规则已声明 llm check",
+        "tone": "later"
+      },
+      {
+        "name": "{{rules.total}} 条规则逐条过目",
+        "desc": "没过目就不算军火库",
+        "tone": "key"
+      },
+      {
+        "name": "结构层 2 条规则缺口",
+        "desc": "界面如实标注，不挂假 id，补不补待定",
+        "tone": "later"
+      }
     ]
   }
 }

@@ -3,7 +3,7 @@
   "name": "军火库 · 技术选型与架构装配",
   "version": "0.1.0",
   "releasedAt": "2026-09-11",
-  "description": "把一个 Spring Boot 项目拆成 18 个选型维度。勾选组合后，实时合成 pom 依赖、application.yml、必需的配置类与联动代码，并给出运维清单与冲突提示。",
+  "description": "把一个 Spring Boot 项目拆成 33 个选型维度。勾选组合后，实时合成 pom 依赖、application.yml、必需的配置类与联动代码，并给出运维清单与冲突提示。",
   "groups": [
     {
       "id": "base",
@@ -34,6 +34,36 @@
       "name": "交付与运行",
       "glyph": "⬢",
       "desc": "打包、容器化、编排与发布。这一组反向约束业务代码：无状态、优雅停机、还要能自证健康。"
+    },
+    {
+      "id": "runtime",
+      "name": "运行基石",
+      "glyph": "▤",
+      "desc": "决定进程跑在哪里、请求怎么进来。这一组反向约束业务代码：无状态、能水平扩容、配置外置。"
+    },
+    {
+      "id": "ops",
+      "name": "运维安全",
+      "glyph": "⛨",
+      "desc": "代码怎么变成线上服务、出问题怎么知道、密钥放哪里。选得越轻，出事时越被动。"
+    },
+    {
+      "id": "datax",
+      "name": "数据生态",
+      "glyph": "◫",
+      "desc": "主库之外的第二、第三存储：搜索、分析、对象存储。每加一个就多一条数据同步链路要维护。"
+    },
+    {
+      "id": "quality",
+      "name": "质量工程",
+      "glyph": "✓",
+      "desc": "测试技术栈与质量门禁：决定缺陷在哪一环被拦截，以及上线红线的具体门槛。"
+    },
+    {
+      "id": "topology",
+      "name": "部署形态",
+      "glyph": "⋮",
+      "desc": "全局部署形态：单实例 / 主备 / 集群 / 分片 / 多活。该选择直接决定 K8s 副本数、PDB 与反亲和策略。"
     }
   ],
   "dimensions": [
@@ -159,7 +189,8 @@
           ],
           "pitfalls": [
             "默认 max-threads=200，配置成 2000 并不能提高吞吐，只会让下游被打爆。"
-          ]
+          ],
+          "topologyDefault": "single"
         },
         {
           "id": "webflux",
@@ -186,9 +217,39 @@
           "pitfalls": [
             "在响应式链路里调用阻塞接口：少数几个阻塞就会拖死整个事件循环。",
             "为了「技术先进」而选 WebFlux：CRUD 业务几乎无收益，维护成本却高一个量级。"
-          ]
+          ],
+          "topologyDefault": "single"
         }
-      ]
+      ],
+      "topology": {
+        "default": "single",
+        "modes": [
+          {
+            "id": "single",
+            "label": "单副本",
+            "replicas": 1,
+            "note": "单副本"
+          },
+          {
+            "id": "multi",
+            "label": "多副本",
+            "replicas": 3,
+            "requires": [
+              "cap.topo.antiaffinity"
+            ],
+            "note": "多副本负载"
+          },
+          {
+            "id": "canary",
+            "label": "灰度",
+            "replicas": 2,
+            "requires": [
+              "cap.topo.multiaz"
+            ],
+            "note": "灰度发布"
+          }
+        ]
+      }
     },
     {
       "id": "persistence",
@@ -337,7 +398,8 @@
           "pitfalls": [
             "用 utf8 而非 utf8mb4：存 emoji 报错「Incorrect string value」。",
             "排序规则选了 utf8mb4_general_ci 却在做严格比对：某些字符会被视为相等。"
-          ]
+          ],
+          "topologyDefault": "single"
         },
         {
           "id": "postgres",
@@ -360,9 +422,58 @@
           "pitfalls": [
             "建表时用了带引号的大写标识符：之后所有查询都必须带引号，否则找不到表。",
             "把 MySQL 的 ON DUPLICATE KEY UPDATE 直接搬过来：语法不成立，要用 ON CONFLICT。"
-          ]
+          ],
+          "topologyDefault": "single"
         }
-      ]
+      ],
+      "topology": {
+        "default": "single",
+        "modes": [
+          {
+            "id": "single",
+            "label": "单实例",
+            "replicas": 1,
+            "note": "开发与小型生产"
+          },
+          {
+            "id": "masterslave",
+            "label": "主从",
+            "replicas": 2,
+            "requires": [
+              "cap.topo.replication"
+            ],
+            "note": "读扩展故障切换"
+          },
+          {
+            "id": "mgr",
+            "label": "组复制",
+            "replicas": 3,
+            "requires": [
+              "cap.topo.ha.failover"
+            ],
+            "note": "自动选主强一致"
+          },
+          {
+            "id": "sharded",
+            "label": "分库分表",
+            "replicas": 4,
+            "requires": [
+              "cap.topo.shard.proxy",
+              "cap.topo.shard.key"
+            ],
+            "note": "单表破亿常态"
+          },
+          {
+            "id": "cloudnative",
+            "label": "云原生",
+            "replicas": 3,
+            "requires": [
+              "cap.topo.distributed.db"
+            ],
+            "note": "TiDB/OceanBase"
+          }
+        ]
+      }
     },
     {
       "id": "pool",
@@ -519,7 +630,8 @@
           ],
           "pitfalls": [
             "在没有监控数据的情况下直接上缓存：问题被掩盖而不是被解决。"
-          ]
+          ],
+          "topologyDefault": "single"
         },
         {
           "id": "caffeine",
@@ -555,7 +667,8 @@
           "pitfalls": [
             "@Cacheable 加在同类内部调用的方法上：代理不生效，缓存静默失效。",
             "缓存 null 值导致「查不到」被永久记住：要配 unless 或明确的空值策略。"
-          ]
+          ],
+          "topologyDefault": "single"
         },
         {
           "id": "redis",
@@ -597,9 +710,48 @@
             "只设 timeout 不设 connect-timeout：连不上时线程会卡在连接阶段。",
             "缓存与数据库双写不一致：先更新库再删缓存，不要「更新库也更新缓存」。",
             "大 key（几十万成员的 Set/Hash）：单次操作阻塞整个 Redis 实例。"
-          ]
+          ],
+          "topologyDefault": "single"
         }
-      ]
+      ],
+      "topology": {
+        "default": "single",
+        "modes": [
+          {
+            "id": "single",
+            "label": "单实例",
+            "replicas": 1,
+            "note": "单机缓存"
+          },
+          {
+            "id": "masterslave",
+            "label": "主从",
+            "replicas": 2,
+            "requires": [
+              "cap.topo.replication"
+            ],
+            "note": "读写分离"
+          },
+          {
+            "id": "cluster",
+            "label": "集群",
+            "replicas": 3,
+            "requires": [
+              "cap.topo.replicaset"
+            ],
+            "note": "数据分片集群"
+          },
+          {
+            "id": "multilevel",
+            "label": "多级",
+            "replicas": 2,
+            "requires": [
+              "cap.topo.replication"
+            ],
+            "note": "多级缓存"
+          }
+        ]
+      }
     },
     {
       "id": "mq",
@@ -620,7 +772,8 @@
           ],
           "pitfalls": [
             "把「异步」等同于「消息队列」：Spring 的 @Async 已经能解决单机异步。"
-          ]
+          ],
+          "topologyDefault": "single"
         },
         {
           "id": "rocketmq",
@@ -649,7 +802,8 @@
             "消费端吞掉异常：消息被标记为成功、实际处理失败，且不会重投。",
             "把重业务逻辑放消费者里同步执行：消费变慢后积压成山。",
             "生产者 send 放在事务里且等待结果：MQ 抖动会拖长事务，把数据库连接耗尽。"
-          ]
+          ],
+          "topologyDefault": "single"
         },
         {
           "id": "rabbitmq",
@@ -670,7 +824,8 @@
           "pitfalls": [
             "自动 ack：消费者一拿到消息就确认，处理失败即丢消息。",
             "不开 publisher-confirm：消息实际没到 broker，但代码以为发送成功。"
-          ]
+          ],
+          "topologyDefault": "single"
         },
         {
           "id": "kafka",
@@ -691,9 +846,39 @@
           "pitfalls": [
             "分区数设成 1：后面想并行也扩不了（分区只能增，重分区会打乱键的分配）。",
             "消费者处理耗时超过 max.poll.interval.ms：触发 rebalance，消费组反复重组。"
-          ]
+          ],
+          "topologyDefault": "single"
         }
-      ]
+      ],
+      "topology": {
+        "default": "single",
+        "modes": [
+          {
+            "id": "single",
+            "label": "单实例",
+            "replicas": 1,
+            "note": "单机消息"
+          },
+          {
+            "id": "cluster",
+            "label": "集群",
+            "replicas": 3,
+            "requires": [
+              "cap.topo.replicaset"
+            ],
+            "note": "多节点集群"
+          },
+          {
+            "id": "multiaz",
+            "label": "多可用区",
+            "replicas": 3,
+            "requires": [
+              "cap.topo.multiaz"
+            ],
+            "note": "跨可用区"
+          }
+        ]
+      }
     },
     {
       "id": "registry",
@@ -1505,6 +1690,1561 @@
           }
         }
       ]
+    },
+    {
+      "id": "os",
+      "groupId": "runtime",
+      "name": "运行环境",
+      "why": "进程到底跑在裸机、虚拟机还是容器里，直接决定扩容方式、配置下发和环境一致性，选错后面全要返工。",
+      "defaultOption": "container",
+      "options": [
+        {
+          "id": "bare",
+          "name": "裸机进程",
+          "badge": "通用",
+          "summary": "直接在宿主操作系统上以进程方式跑 jar，最省资源、零额外依赖，但扩容和配置下发全靠手工，环境一致性无法保证。",
+          "yaml": "[Unit]\nDescription=mryang-app\n[Service]\nExecStart=/opt/app/bin/start.sh\nUser=app\nRestart=on-failure",
+          "notes": [
+            "用 systemd 托管进程，配置 Restart=on-failure 让崩溃自动拉起。",
+            "JDK 版本、时区、字体等依赖都靠宿主环境，换机器要重装一遍。"
+          ],
+          "pitfalls": [
+            "多实例扩容需逐台机器部署，没有统一调度，滚动发布得自己写脚本。"
+          ]
+        },
+        {
+          "id": "vm",
+          "name": "虚拟机",
+          "badge": "通用",
+          "summary": "在虚拟机里跑进程，环境隔离比裸机好、可克隆镜像，但每个 VM 带完整操作系统，资源开销大、启动慢。",
+          "yaml": "vagrant init ubuntu/jammy64\nvagrant up\nvagrant ssh -c 'java -jar /srv/app.jar'",
+          "notes": [
+            "用 Packer 把装好 JDK 的虚拟机打成黄金镜像，克隆即上线。",
+            "虚机之间网络靠内网 IP，注意安全组与防火墙规则。"
+          ],
+          "pitfalls": [
+            "虚机常驻占用固定内存，低峰期利用率低，成本不如容器弹性。"
+          ]
+        },
+        {
+          "id": "container",
+          "name": "容器",
+          "badge": "推荐",
+          "summary": "用 Docker 把应用与依赖打包成镜像，环境一致、秒级启停，是绝大多数微服务的默认落点，但需维护构建与仓库。",
+          "yaml": "FROM eclipse-temurin:21-jre\nCOPY app.jar /app.jar\nENTRYPOINT [\"java\",\"-jar\",\"/app.jar\"]",
+          "notes": [
+            "多阶段构建，编译在 maven 镜像、运行用 jre 镜像，最终镜像控制在 200MB 内。",
+            "用 -XX:MaxRAMPercentage=75 让 JVM 跟着容器内存上限走，避免 OOMKilled。"
+          ],
+          "pitfalls": [
+            "容器里用默认 JVM 内存参数会撑满宿主，必须显式限制堆与容器内存。"
+          ]
+        },
+        {
+          "id": "k8s",
+          "name": "Kubernetes",
+          "badge": "高阶",
+          "summary": "Kubernetes 提供声明式编排、自愈与水平扩容，适合多服务多环境，但控制面与运维心智成本明显更高。",
+          "yaml": "apiVersion: apps/v1\nkind: Deployment\nspec:\n  replicas: 3\n  template:\n    spec:\n      containers:\n      - name: app\n        image: registry/app:1.0",
+          "notes": [
+            "用 HPA 按 CPU 或 QPS 自动扩缩，配合 readinessProbe 做无损发布。",
+            "配置走 ConfigMap、密钥走 Secret，绝不写进镜像。"
+          ],
+          "pitfalls": [
+            "Deployment 没配 livenessProbe，进程假死时 K8s 不会重启，流量持续打挂。",
+            "镜像 tag 用 latest 会导致滚动更新拉到旧缓存，必须固定版本号。"
+          ]
+        },
+        {
+          "id": "serverless",
+          "name": "Serverless 函数",
+          "badge": "灵活",
+          "summary": "以 Spring Cloud Function 打包成函数，按请求计费、免运维，但冷启动、超时与有状态限制让大部分业务跑不进去。",
+          "yaml": "@Bean\npublic Function<String,String> uppercase(){\n  return s -> s.toUpperCase();\n}",
+          "notes": [
+            "函数必须无状态，依赖注入在部署时绑定，运行期不保留内存。",
+            "注意平台 15 分钟执行上限与并发实例冷启动延迟。"
+          ],
+          "pitfalls": [
+            "长事务或长连接（如 WebSocket）在 Serverless 上会直接超时失败。"
+          ]
+        },
+        {
+          "id": "hybrid",
+          "name": "混合异构",
+          "badge": "灵活",
+          "summary": "核心服务跑 K8s、边缘推理跑裸机 GPU、批处理跑虚拟机，按负载选最合适的基座，但跨环境网络与运维规范要自己打通。",
+          "yaml": "# core -> k8s | inference -> bare GPU | batch -> vm\nkubectl apply -f core.yaml\nbash gpu/run.sh\nssh vm 'java -jar batch.jar'",
+          "notes": [
+            "用统一服务网格或 VPN 打通各基座网络，避免地址孤岛。",
+            "监控和密钥方案要能跨基座复用，否则运维翻倍。"
+          ],
+          "pitfalls": [
+            "异构环境各自一套发布与密钥流程，人员流动时极易出现盲区。"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "ingress",
+      "groupId": "runtime",
+      "name": "入口与负载均衡",
+      "why": "请求从哪进来、怎么做负载均衡，决定了 TLS、限流、灰度的统一程度，选直连还是代理直接左右扩容体验。",
+      "defaultOption": "nginx",
+      "options": [
+        {
+          "id": "direct",
+          "name": "直连",
+          "badge": "轻量",
+          "summary": "客户端直连应用实例 IP:端口，零中间层、延迟最低，但实例地址写死在客户端，扩容和摘流量都要改配置重启。",
+          "yaml": "server:\n  port: 8080\n  address: 0.0.0.0",
+          "notes": [
+            "用 server.port 固定端口，多实例需手动分配不同端口避免冲突。",
+            "TLS 在每个实例各自配置，证书轮换要挨个改。"
+          ],
+          "pitfalls": [
+            "没有统一入口，扩一个新实例就得改所有客户端配置并重启。"
+          ]
+        },
+        {
+          "id": "nginx",
+          "name": "Nginx 反向代理",
+          "badge": "推荐",
+          "summary": "用 Nginx 做七层反向代理与负载均衡，配置成熟、性能稳，单机可扛万级并发，是绝大多数项目的默认入口。",
+          "yaml": "upstream app { server 10.0.0.1:8080; server 10.0.0.2:8080; }\nserver {\n  listen 80;\n  location /api/ { proxy_pass http://app; }\n}",
+          "notes": [
+            "用 proxy_set_header Host $host 透传域名，开 proxy_next_upstream 做故障转移。",
+            "TLS  termination 放在 Nginx，后端走内网 HTTP 省算力。"
+          ],
+          "pitfalls": [
+            "默认轮询不感知后端负载，慢实例会拖垮整组，需加 least_conn。"
+          ]
+        },
+        {
+          "id": "haproxy",
+          "name": "HAProxy",
+          "badge": "稳妥",
+          "summary": "HAProxy 专注四/七层负载均衡，连接数与健康检查能力比 Nginx 更强，适合长连接和极高性能入口场景。",
+          "yaml": "frontend http\n  bind :80\n  default_backend app\nbackend app\n  server a1 10.0.0.1:8080 check\n  server a2 10.0.0.2:8080 check",
+          "notes": [
+            "用 option httpchk 做应用级健康检查，比 TCP 探活更准。",
+            "支持 stick-table 做会话保持与限流计数。"
+          ],
+          "pitfalls": [
+            "默认配置不做 TLS 终结，需额外配 cert 与 ssl 前端。"
+          ]
+        },
+        {
+          "id": "slb",
+          "name": "云负载均衡",
+          "badge": "通用",
+          "summary": "直接用云厂商负载均衡（如 ALB/CLB），免运维、自带证书与可用区容灾，但流量与规则被绑定在单一云，跨云迁移成本高。",
+          "yaml": "aws elbv2 create-load-balancer --name app --subnets s1 s2\naliyun slb CreateLoadBalancer --LoadBalancerName app",
+          "notes": [
+            "把后端实例挂到目标组/后端服务器组，探活走 HTTP 状态码。",
+            "证书在云控制台托管，自动续签免运维。"
+          ],
+          "pitfalls": [
+            "规则与配额绑定该云，搬到其他云要重写整套入口配置。"
+          ]
+        },
+        {
+          "id": "lvs",
+          "name": "LVS+Keepalived",
+          "badge": "高阶",
+          "summary": "LVS+Keepalived 做四层 DR 模式转发，性能接近线速、支撑百万并发，但需要内核参数调优与双机 VIP 漂移，运维门槛高。",
+          "yaml": "vrrp_instance VI { virtual_router_id 51; virtual_ipaddress { 10.0.0.100 } }\nvirtual_server 10.0.0.100 80 { lb_algo rr; real_server 10.0.0.1 80 { } }",
+          "notes": [
+            "DR 模式下 Real Server 需把 VIP 配在 lo 回环并抑制 ARP。",
+            "Keepalived 双机心跳走独立网卡，避免脑裂。"
+          ],
+          "pitfalls": [
+            "ARP 抑制漏配会导致 VIP 抢答混乱，整组入口抖动。",
+            "纯四层不解析 HTTP，无法按路径或域名分流。"
+          ]
+        },
+        {
+          "id": "envoy",
+          "name": "Envoy+Istio",
+          "badge": "高阶",
+          "summary": "Envoy 作为边车代理配合 Istio 提供精细流量治理、mTLS 与可观测，是 Service Mesh 标配，但引入控制面后复杂度陡增。",
+          "yaml": "apiVersion: networking.istio.io/v1beta1\nkind: Gateway\nmetadata: {name: app-gw}\nspec:\n  servers:\n  - port: {number: 443, name: https}\n    hosts: [\"*\"]",
+          "notes": [
+            "边车自动注入，应用无感知即可获得重试、熔断与指标。",
+            "用 VirtualService 做金丝雀，按权重切 5% 流量。"
+          ],
+          "pitfalls": [
+            "控制面 Istiod 挂掉会导致新连接规则下发停滞。",
+            "边车吃内存，每个 Pod 多 100MB+，密度高时要算账。"
+          ]
+        },
+        {
+          "id": "f5",
+          "name": "F5 硬件",
+          "badge": "高阶",
+          "summary": "F5 硬件负载均衡提供金融级吞吐、SSL 卸载与策略引擎，稳定性极强，但设备昂贵、配置依赖专有控制台、弹性差。",
+          "yaml": "tmsh create ltm pool app members add { 10.0.0.1:8080 }\ntmsh create ltm virtual vip destination 10.0.0.100:443 pool app",
+          "notes": [
+            "SSL 卸载在 F5 上做，后端只收明文内网流量。",
+            "iRules 可做复杂七层改写与限速策略。"
+          ],
+          "pitfalls": [
+            "硬件扩容靠采购，突发流量顶不住时无法秒级弹性。"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "gateway",
+      "groupId": "runtime",
+      "name": "API 网关",
+      "why": "鉴权、限流、灰度这些横切逻辑放不放网关，决定了每个服务要不要重复造轮子，是架构复杂度的分水岭。",
+      "defaultOption": "none",
+      "options": [
+        {
+          "id": "none",
+          "name": "无",
+          "badge": "轻量",
+          "summary": "不引入独立网关，由 Nginx/SLB 直接路由到服务，架构最轻、运维最少，但限流、鉴权、灰度等能力要分散到每个服务自己实现。",
+          "yaml": "# 直接由 ingress 层路由，无独立网关进程",
+          "notes": [
+            "鉴权和限流需要各服务用 Spring Security / Resilience4j 各自实现。",
+            "服务数少于 3 个时，引入网关反而是负担。"
+          ],
+          "pitfalls": [
+            "服务数量变多后，统一熔断、路径重写和灰度发布会难以收敛。"
+          ]
+        },
+        {
+          "id": "scg",
+          "name": "Spring Cloud Gateway",
+          "badge": "推荐",
+          "summary": "Spring Cloud Gateway 用 Java 写路由与过滤器，和 Spring 生态无缝集成，适合做鉴权、限流、灰度等统一入口逻辑。",
+          "yaml": "spring:\n  cloud:\n    gateway:\n      routes:\n      - id: user\n        uri: lb://user-svc\n        predicates:\n        - Path=/api/user/**",
+          "dependencies": [
+            {
+              "groupId": "org.springframework.cloud",
+              "artifactId": "spring-cloud-starter-gateway"
+            }
+          ],
+          "notes": [
+            "用 GatewayFilter 统一加鉴权头、限流用 RequestRateLimiter 过滤器。",
+            "基于 WebFlux，依赖里不能混用阻塞式 spring-webmvc。"
+          ],
+          "pitfalls": [
+            "引入了 spring-boot-starter-web 会和 WebFlux 冲突导致启动失败。",
+            "默认路由全在内存，多实例需接配置中心才能一致。"
+          ]
+        },
+        {
+          "id": "apisix",
+          "name": "Apache APISIX",
+          "badge": "高阶",
+          "summary": "Apache APISIX 基于 Nginx+Lua/etcd，动态路由热更新、插件丰富，性能高于 Java 网关，适合高并发与多云统一网关。",
+          "yaml": "curl -X PUT apisix/admin/routes/1 -d '\n  {\"uri\":\"/api/*\",\"upstream\":{\"nodes\":{\"10.0.0.1:8080\":1}}}'",
+          "notes": [
+            "路由改完秒级生效，不用 reload 进程。",
+            "限流、JWT、灰度插件开箱即用，配置在 etcd。"
+          ],
+          "pitfalls": [
+            "Lua 插件出 bug 难以用 Java 栈排查，团队要补 Lua 能力。",
+            "依赖 etcd 集群，etcd 抖动会让路由下发卡住。"
+          ]
+        },
+        {
+          "id": "kong",
+          "name": "Kong",
+          "badge": "高阶",
+          "summary": "Kong 以 OpenResty 为底座、插件生态庞大，企业集成成熟，但 Lua 插件开发与调试门槛高于配置式网关。",
+          "yaml": "curl -X POST :8001/services --data name=app --data url=http://10.0.0.1:8080\ncurl -X POST :8001/services/app/routes --data paths=/api",
+          "notes": [
+            "插件（key-auth、rate-limiting）挂在 service 或 route 上。",
+            "企业版带 Kong Manager 图形化，开源版靠 admin API。"
+          ],
+          "pitfalls": [
+            "自定义插件要写 Lua，调试靠日志，Java 团队上手慢。"
+          ]
+        },
+        {
+          "id": "envoygw",
+          "name": "Envoy Gateway",
+          "badge": "高阶",
+          "summary": "Envoy Gateway 用 Kubernetes Gateway API 标准驱动 Envoy，声明式、和 K8s 原生融合，是 mesh 与网关统一的方向，但落地资料仍少。",
+          "yaml": "apiVersion: gateway.networking.k8s.io/v1\nkind: Gateway\nmetadata: {name: eg}\nspec:\n  gatewayClassName: envoy\n  listeners:\n  - name: https port: 443",
+          "notes": [
+            "用标准 Gateway API，未来换实现不用改业务配置。",
+            "策略走 EnvoyPatchPolicy 做细调。"
+          ],
+          "pitfalls": [
+            "部分高级路由特性尚不支持，踩坑要读 issue。",
+            "强绑定 K8s，裸机环境用不了。"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "orchestration",
+      "groupId": "runtime",
+      "name": "编排与调度",
+      "why": "多实例怎么启停、挂了谁来拉起、发布怎么滚动，编排方式决定了运维自动化上限，也反向约束应用是否无状态。",
+      "defaultOption": "single",
+      "options": [
+        {
+          "id": "single",
+          "name": "单进程",
+          "badge": "轻量",
+          "summary": "单进程 jar 自己跑，最简单、零编排，但只能纵向扩容，挂了靠外部守护进程拉起，不适合多实例协同。",
+          "yaml": "nohup java -jar app.jar > app.log 2>&1 &",
+          "notes": [
+            "配合 systemd 或 nohup 保证进程存活。",
+            "升级就是停进程换 jar 再起，有短暂中断。"
+          ],
+          "pitfalls": [
+            "多个实例需人工在不同机器启动并分配端口，无统一服务发现。"
+          ]
+        },
+        {
+          "id": "compose",
+          "name": "Docker Compose",
+          "badge": "通用",
+          "summary": "Docker Compose 用一份 yaml 拉起多容器，本地与单机部署极方便，但缺乏跨主机调度与生产级自愈，不适合真正集群。",
+          "yaml": "services:\n  app:\n    image: registry/app:1.0\n    ports: [\"8080:8080\"]\n  redis:\n    image: redis:7",
+          "notes": [
+            "docker compose up -d 一条命令拉起整套依赖。",
+            "用 depends_on 控制启动顺序。"
+          ],
+          "pitfalls": [
+            "Compose 不跨主机，单机挂掉整套服务跟着挂。",
+            "无健康检查驱动的自动重启，需配 restart: unless-stopped。"
+          ]
+        },
+        {
+          "id": "swarm",
+          "name": "Docker Swarm",
+          "badge": "稳妥",
+          "summary": "Docker Swarm 在 Compose 基础上加集群调度与多副本，学习成本低，但生态与功能已被 Kubernetes 全面压制，新项目少选。",
+          "yaml": "docker swarm init\ndocker stack deploy -c docker-compose.yml app",
+          "notes": [
+            "docker service scale 即可横向扩副本。",
+            "内置 overlay 网络打通跨主机容器。"
+          ],
+          "pitfalls": [
+            "社区活跃度低，新特性与第三方集成远少于 K8s。"
+          ]
+        },
+        {
+          "id": "k8s",
+          "name": "Kubernetes",
+          "badge": "高阶",
+          "summary": "Kubernetes 声明式管理多副本、滚动发布与自愈，是生产集群事实标准，但 yaml 多、概念重，小项目会觉得杀鸡用牛刀。",
+          "yaml": "kubectl apply -f deployment.yaml\nkubectl set image deploy/app app=registry/app:1.1",
+          "notes": [
+            "rollout status 可看发布进度，rollout undo 一键回滚。",
+            "用 namespace 隔离环境，ResourceQuota 限资源。"
+          ],
+          "pitfalls": [
+            "yaml 字段拼错只给模糊报错，排错需要熟读 API。",
+            "节点资源规划不足会触发驱逐风暴。"
+          ]
+        },
+        {
+          "id": "k3s",
+          "name": "K3s 轻量",
+          "badge": "高阶",
+          "summary": "K3s 是砍掉非核心组件的轻量 K8s，单二进制、512M 即可跑，适合边缘和小型集群，但少数上游特性被精简。",
+          "yaml": "curl -sfL https://get.k3s.io | sh -\nkubectl apply -f deployment.yaml",
+          "notes": [
+            "默认用 containerd，自带 Traefik 做入口。",
+            "边缘节点用 agent 模式只跑工作负载。"
+          ],
+          "pitfalls": [
+            "部分 K8s .alpha 特性被精简，用到要先确认支持。"
+          ]
+        },
+        {
+          "id": "nomad",
+          "name": "Nomad",
+          "badge": "高阶",
+          "summary": "HashiCorp Nomad 调度容器/二进制/Java 任务，比 K8s 轻、跨数据中心简单，但生态与社区规模远小于 Kubernetes。",
+          "yaml": "job \"app\" {\n  group \"g\" {\n    task \"web\" { driver = \"docker\" config { image = \"registry/app:1.0\" } }\n  }\n}",
+          "notes": [
+            "job 文件可调度 Docker、raw_exec、Java 多种任务。",
+            "常和 Consul 配合做服务发现。"
+          ],
+          "pitfalls": [
+            "插件与上层生态（CI、监控）不如 K8s 丰富。"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "imageregistry",
+      "groupId": "runtime",
+      "name": "镜像与制品库",
+      "why": "构建出的镜像放哪、怎么溯源和复用，决定了 CI 与各环境部署是否用同一份产物，也关系密钥与合规。",
+      "defaultOption": "public",
+      "options": [
+        {
+          "id": "public",
+          "name": "公有云仓库",
+          "badge": "轻量",
+          "summary": "直接用 Docker Hub 或云厂商镜像仓库，零搭建、拉取即用，但镜像公开或受速率限制，私有关键镜像有泄露与合规风险。",
+          "yaml": "docker tag app:1.0 registry.cn/app:1.0\ndocker push registry.cn/app:1.0",
+          "notes": [
+            "push 前先 docker tag 成完整仓库地址。",
+            "用访问凭证登录，别把 token 写进 CI 明文。"
+          ],
+          "pitfalls": [
+            "Docker Hub 匿名拉取限 100 次/6h，CI 高峰期会被限流。",
+            "公开仓库误推带密钥的镜像会直接泄露。"
+          ]
+        },
+        {
+          "id": "harbor",
+          "name": "Harbor",
+          "badge": "推荐",
+          "summary": "Harbor 是带权限、漏洞扫描和镜像签名的私有仓库，满足企业合规，但需要单独部署维护一套存储与证书。",
+          "yaml": "helm repo add harbor https://helm.goharbor.io\nhelm install harbor harbor/harbor --set persistence.enabled=true",
+          "notes": [
+            "开 trivy 扫描，高危漏洞镜像禁止拉取。",
+            "用项目级成员权限隔离不同团队镜像。"
+          ],
+          "pitfalls": [
+            "默认用的 Postgres 与 Redis 也要备份，否则仓库元数据丢失。",
+            "证书过期会导致所有节点 docker pull 失败。"
+          ]
+        },
+        {
+          "id": "nexus",
+          "name": "Nexus",
+          "badge": "通用",
+          "summary": "Sonatype Nexus 同时托管镜像与 Maven/npm 制品，一套管理多类依赖，但对纯镜像场景配置偏重。",
+          "yaml": "docker run -d -p 8081:8081 sonatype/nexus3\n# 建 docker hosted 仓库后 push",
+          "notes": [
+            "一个 Nexus 管 jar 包和镜像，依赖收敛到一处。",
+            "用 blob store 分磁盘，避免镜像撑爆系统盘。"
+          ],
+          "pitfalls": [
+            "默认内存偏小，大镜像并发推送容易 OOM 退出。"
+          ]
+        },
+        {
+          "id": "artifactory",
+          "name": "JFrog Artifactory",
+          "badge": "高阶",
+          "summary": "JFrog Artifactory 统一管理镜像、包与构建元数据，企业级合规与溯源强，但授权费用高、资源占用大。",
+          "yaml": "curl -u admin:pass -X PUT https://artifactory/api/docker/app/v2/app/manifests/1.0",
+          "notes": [
+            "构建元数据（build info）可追溯每次发布的来源。",
+            "Xray 做深度依赖与 licence 扫描。"
+          ],
+          "pitfalls": [
+            "商业授权按节点计费，小团队成本不划算。"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "search",
+      "groupId": "datax",
+      "name": "搜索与检索引擎",
+      "why": "模糊查询与全文检索走数据库 LIKE，数据量增大后全表扫描；独立引擎把检索与 TP 解耦。",
+      "defaultOption": "none",
+      "options": [
+        {
+          "id": "none",
+          "name": "无检索引擎",
+          "badge": "默认",
+          "summary": "不引入独立检索组件，模糊搜索全走数据库 LIKE，运维成本为零，但数据量增大后性能急剧下降。",
+          "yaml": "# 无检索引擎，无需配置",
+          "notes": [
+            "模糊查询退化为 SQL LIKE '%kw%'"
+          ],
+          "pitfalls": [
+            "千万级数据 LIKE 全表扫描，响应从毫秒跌到秒级",
+            "无法做相关性排序与高亮，体验差"
+          ],
+          "dependencies": [],
+          "topologyDefault": "single"
+        },
+        {
+          "id": "es",
+          "name": "Elasticsearch",
+          "badge": "推荐",
+          "summary": "分布式倒排索引引擎，近实时全文检索与聚合分析的事实标准，REST 9200 端口，适合日志与商品搜索。",
+          "yaml": "spring:\n  elasticsearch:\n    uris: http://es:9200\n    username: elastic\n    password: ${ES_PWD}",
+          "notes": [
+            "indices.put_settings 调 refresh_interval 控制写入吞吐",
+            "用 _bulk 批量写入，单批 5–15MB 最稳",
+            "分片数 = 数据节点数 × 1~3，避免单分片 >50GB"
+          ],
+          "pitfalls": [
+            "分片数一旦设定不可修改，单分片超 50GB 后查询延迟陡增",
+            "默认无鉴权，暴露在 9200 会被勒索软件扫库",
+            "JVM 堆不超 50% 物理内存且 <32GB，否则 GC 停顿飙升"
+          ],
+          "dependencies": [
+            {
+              "groupId": "org.springframework.boot",
+              "artifactId": "spring-boot-starter-data-elasticsearch"
+            }
+          ],
+          "topologyDefault": "single"
+        },
+        {
+          "id": "opensearch",
+          "name": "OpenSearch",
+          "badge": "",
+          "summary": "AWS 主导的 ES 7.10 分叉，OpenSearch Dashboards 替代 Kibana，兼容 _search API，许可更宽松。",
+          "yaml": "spring:\n  elasticsearch:\n    uris: http://opensearch:9200\n    username: admin\n    password: ${OS_PWD}",
+          "notes": [
+            "安全插件默认开启，需配置 admin 证书",
+            "ISM 策略可做索引生命周期自动 rollover"
+          ],
+          "pitfalls": [
+            "与 ES 8 的 _search 已出现语义差异，升级脚本需回填",
+            "Dashboards 插件生态弱于 Kibana",
+            "跨集群复制 CCR 配置复杂易错"
+          ],
+          "dependencies": [
+            {
+              "groupId": "org.springframework.boot",
+              "artifactId": "spring-boot-starter-data-elasticsearch"
+            }
+          ],
+          "topologyDefault": "single"
+        },
+        {
+          "id": "solr",
+          "name": "Apache Solr",
+          "badge": "高阶",
+          "summary": "基于 Lucene 的成熟企业检索，支持 SQL 化查询与分布式 SolrCloud，适合强一致与复杂 facet 场景。",
+          "yaml": "spring:\n  data:\n    solr:\n      host: http://solr:8983/solr",
+          "notes": [
+            "collection 分片与副本在创建时指定",
+            "支持 streaming expressions 做分布式计算"
+          ],
+          "pitfalls": [
+            "SolrCloud 依赖 ZooKeeper 外部协调，运维面增大",
+            "schemaless 模式自动推断字段类型，脏数据涌入后难回滚",
+            "8.x 到 9.x 配置格式大改，升级需重写 solrconfig"
+          ],
+          "dependencies": [
+            {
+              "groupId": "org.apache.solr",
+              "artifactId": "solr-solrj"
+            }
+          ],
+          "topologyDefault": "single"
+        },
+        {
+          "id": "meili",
+          "name": "Meilisearch",
+          "badge": "",
+          "summary": "Rust 写的轻量即时搜索，毫秒级前缀搜索，内置中文分词，部署极简，适合中小站点与前端直搜。",
+          "yaml": "MEILI_MASTER_KEY=masterKey\nMEILI_NO_ANALYTICS=true",
+          "notes": [
+            "index 更新走 /indexes/{uid}/documents",
+            "内置 typo tolerance 与排序规则"
+          ],
+          "pitfalls": [
+            "单实例内存索引，数据量超千万条后内存吃紧",
+            "不支持复杂聚合与 join，超出能力需换 ES",
+            "主从复制仍不成熟，多写会冲突"
+          ],
+          "dependencies": [
+            {
+              "groupId": "com.meilisearch.sdk",
+              "artifactId": "meilisearch-java"
+            }
+          ],
+          "topologyDefault": "single"
+        },
+        {
+          "id": "vector",
+          "name": "向量检索 Milvus/pgvector",
+          "badge": "高阶",
+          "summary": "面向 embedding 的向量检索，Milvus 支持十亿级 ANN 检索，pgvector 借 PostgreSQL 落地，适合 RAG 与推荐。",
+          "yaml": "milvus:\n  uri: http://milvus:19530",
+          "notes": [
+            "用 IVF_FLAT / HNSW 建索引，efSearch 控召回",
+            "pgvector 用 ivfflat 或 hnsw 索引"
+          ],
+          "pitfalls": [
+            "HNSW 索引构建占大量内存，亿级向量需分片部署",
+            "ANN 召回率靠 efSearch 调，过低会漏召回关键结果",
+            "Milvus 分布式版依赖 etcd+MinIO+对象存储，组件链长"
+          ],
+          "dependencies": [
+            {
+              "groupId": "io.milvus",
+              "artifactId": "milvus-sdk-java"
+            }
+          ],
+          "topologyDefault": "single"
+        }
+      ],
+      "topology": {
+        "default": "single",
+        "modes": [
+          {
+            "id": "single",
+            "label": "单实例",
+            "replicas": 1,
+            "note": "单机检索"
+          },
+          {
+            "id": "cluster",
+            "label": "集群",
+            "replicas": 3,
+            "requires": [
+              "cap.topo.replicaset",
+              "cap.topo.antiaffinity"
+            ],
+            "note": "分片副本集群"
+          },
+          {
+            "id": "tiered",
+            "label": "分层",
+            "replicas": 2,
+            "requires": [
+              "cap.topo.replication"
+            ],
+            "note": "冷热分层"
+          }
+        ]
+      }
+    },
+    {
+      "id": "analytics",
+      "groupId": "datax",
+      "name": "分析型存储",
+      "why": "交易库做聚合分析会拖慢主业务，列式分析库把 OLAP 隔离，报表与实时大查询互不干扰。",
+      "defaultOption": "none",
+      "options": [
+        {
+          "id": "none",
+          "name": "无分析库",
+          "badge": "默认",
+          "summary": "不引入分析型存储，统计报表直接查业务库，零额外组件，但大查询会抢占 TP 资源拖慢交易。",
+          "yaml": "# 无分析型存储",
+          "notes": [
+            "复杂统计走主库从节点"
+          ],
+          "pitfalls": [
+            "亿级 GROUP BY 在主库跑会锁资源、拖慢下单",
+            "无预聚合，重复大查询重复烧 CPU"
+          ],
+          "dependencies": []
+        },
+        {
+          "id": "clickhouse",
+          "name": "ClickHouse",
+          "badge": "推荐",
+          "summary": "列式 MPP 数据库，单表千亿行聚合秒级，HTTP 8123 / 原生 9000 端口，适合日志与实时 OLAP。",
+          "yaml": "clickhouse:\n  jdbc-url: jdbc:clickhouse://ck:8123/default\n  username: default",
+          "notes": [
+            "MergeTree 系列引擎配 partition by toYYYYMM",
+            "用物化视图做预聚合，查询走 mv"
+          ],
+          "pitfalls": [
+            "高并发点查性能差，不适合做 TP 业务库",
+            "ALTER 改分区元数据会锁表，大表操作挑低峰",
+            "JOIN 需把小表放右，否则全量 shuffle"
+          ],
+          "dependencies": [
+            {
+              "groupId": "com.clickhouse",
+              "artifactId": "clickhouse-jdbc"
+            }
+          ]
+        },
+        {
+          "id": "doris",
+          "name": "Apache Doris",
+          "badge": "高阶",
+          "summary": "百度开源 MPP 分析库，兼容 MySQL 协议 9030 端口，FE/BE 分离架构，亚秒级多维分析。",
+          "yaml": "jdbc:mysql://doris-fe:9030/db",
+          "notes": [
+            "Rollup 与 Materialized View 加速聚合",
+            "动态分区按天自动建"
+          ],
+          "pitfalls": [
+            "FE 选主强依赖多数派，3 节点最少 2 活",
+            "导入 Label 重复会幂等失败，需自管去重",
+            "大表 Compaction 滞后会拖查询，要控导入频率"
+          ],
+          "dependencies": [
+            {
+              "groupId": "mysql",
+              "artifactId": "mysql-connector-j"
+            }
+          ]
+        },
+        {
+          "id": "starrocks",
+          "name": "StarRocks",
+          "badge": "高阶",
+          "summary": "原 Doris 分支，向量化执行引擎与强 CBO，单表宽表与大宽表星型模型分析都快。",
+          "yaml": "jdbc:mysql://starrocks-fe:9030/db",
+          "notes": [
+            "支持 Primary Key 模型做实时更新",
+            "Bitmap/HyperLogLog 做精确去重"
+          ],
+          "pitfalls": [
+            "BE 节点对内存敏感，OOM 会踢节点",
+            "多表 Join 广播超阈值会落盘变慢",
+            "社区版缺资源隔离，混合负载互相干扰"
+          ],
+          "dependencies": [
+            {
+              "groupId": "mysql",
+              "artifactId": "mysql-connector-j"
+            }
+          ]
+        },
+        {
+          "id": "kylin",
+          "name": "Apache Kylin",
+          "badge": "高阶",
+          "summary": "基于预计算 Cube 的 OLAP，查询亚秒但构建重，适合固定多维报表，Hadoop 生态绑定深。",
+          "yaml": "# Kylin 走 REST /kylin/api",
+          "notes": [
+            "Cube 维度组合爆炸要控 Segment",
+            "查询命中预聚合不走明细"
+          ],
+          "pitfalls": [
+            "Cube 构建耗资源，维度过多组合指数膨胀",
+            "强绑定 HDFS+Hive，脱离 Hadoop 难部署",
+            "增量构建需指定 Partition 列，错配丢数据"
+          ],
+          "dependencies": [
+            {
+              "groupId": "org.apache.kylin",
+              "artifactId": "kylin-jdbc"
+            }
+          ]
+        },
+        {
+          "id": "lakehouse",
+          "name": "湖仓 Hudi/Iceberg",
+          "badge": "高阶",
+          "summary": "Iceberg/Hudi 表格式叠加对象存储，ACID + 时间旅行，流批一体，适合数据湖与数仓统一。",
+          "yaml": "spark.sql.extensions=org.apache.iceberg.spark.extensions.IcebergSparkSessionExtensions",
+          "notes": [
+            "Iceberg 隐式分区免去手动分区字段",
+            "用 compaction 合并小文件"
+          ],
+          "pitfalls": [
+            "小文件累积拖垮元数据，需定时 compaction",
+            "Catalog 多选，Glue/Hive 切换坑多",
+            "并发写需开乐观锁，否则 commit 冲突"
+          ],
+          "dependencies": [
+            {
+              "groupId": "org.apache.iceberg",
+              "artifactId": "iceberg-spark-runtime-3.5_2.12"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "objectstore",
+      "groupId": "datax",
+      "name": "对象存储",
+      "why": "静态资源、备份与海量小文件放对象存储比块存储便宜且可横向扩展，避免多节点磁盘挂载不一致。",
+      "defaultOption": "none",
+      "options": [
+        {
+          "id": "none",
+          "name": "无对象存储",
+          "badge": "默认",
+          "summary": "不引入对象存储，静态文件与备份落本地磁盘，零额外组件，但无法弹性横向扩展与多节点共享。",
+          "yaml": "# 无对象存储",
+          "notes": [
+            "文件存本地需挂载共享卷"
+          ],
+          "pitfalls": [
+            "多副本部署各节点磁盘不一致，文件互不可见",
+            "无生命周期管理，备份需自管脚本",
+            "磁盘故障即丢数据，无跨区域容灾"
+          ],
+          "dependencies": []
+        },
+        {
+          "id": "minio",
+          "name": "MinIO",
+          "badge": "推荐",
+          "summary": "S3 兼容的高性能对象存储，单二进制部署，适合私有化与开发环境，API 与 AWS S3 一致。",
+          "yaml": "minio:\n  endpoint: http://minio:9000\n  access-key: minioadmin\n  secret-key: minioadmin",
+          "notes": [
+            "用 mc 客户端做 mirror 备份",
+            "分布式用 erasure code 纠删码"
+          ],
+          "pitfalls": [
+            "单机无纠删码，磁盘坏即丢数据",
+            "默认匿名可读，需显式设 policy 锁桶",
+            "大文件分片上传需客户端支持"
+          ],
+          "dependencies": [
+            {
+              "groupId": "io.minio",
+              "artifactId": "minio"
+            }
+          ]
+        },
+        {
+          "id": "s3",
+          "name": "亚马逊 S3",
+          "badge": "",
+          "summary": "AWS S3 对象存储，11 个 9 耐久性，标准/低频/归档多层级，全球可用，适合公有云生产。",
+          "yaml": "aws:\n  s3:\n    bucket: my-app-bucket\n    region: ap-northeast-1",
+          "notes": [
+            "用生命周期规则自动转归档",
+            "SSE-KMS 加密默认开"
+          ],
+          "pitfalls": [
+            "跨区流量费昂贵，读频繁要就近缓存",
+            "误设 public 桶会被爬数据",
+            "List 大桶千万元件会很慢，需分页"
+          ],
+          "dependencies": [
+            {
+              "groupId": "software.amazon.awssdk",
+              "artifactId": "s3"
+            }
+          ]
+        },
+        {
+          "id": "oss",
+          "name": "阿里云 OSS",
+          "badge": "",
+          "summary": "阿里云对象存储，S3 风格 API，国内合规与 CDN 联动好，适合国内业务与静态资源加速。",
+          "yaml": "aliyun:\n  oss:\n    endpoint: oss-cn-hangzhou.aliyuncs.com\n    bucket: my-bucket",
+          "notes": [
+            "STS 临时凭证控制权限",
+            "与 CDN 回源联动"
+          ],
+          "pitfalls": [
+            "Endpoint 选错内网/外网计费差异大",
+            "Bucket 名全局唯一，命名要规划",
+            "低频访问有最小 30 天计费陷阱"
+          ],
+          "dependencies": [
+            {
+              "groupId": "com.aliyun.oss",
+              "artifactId": "aliyun-sdk-oss"
+            }
+          ]
+        },
+        {
+          "id": "ceph",
+          "name": "Ceph",
+          "badge": "高阶",
+          "summary": "统一存储（对象/块/文件），强一致 RADOS，适合自建超大规模存储池，运维门槛高。",
+          "yaml": "# 通过 RGW 暴露 S3 兼容接口",
+          "notes": [
+            "RGW 提供 S3 兼容网关",
+            "CRUSH 算法做数据分布"
+          ],
+          "pitfalls": [
+            "MON/OSD/MDS 组件多，排障复杂",
+            "扩容需手工重平衡，期间 IO 抖动",
+            "小集群性价比低，最少 3 节点起步"
+          ],
+          "dependencies": [
+            {
+              "groupId": "com.amazonaws",
+              "artifactId": "aws-java-sdk-s3"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "testing",
+      "groupId": "quality",
+      "name": "测试技术栈",
+      "why": "测试技术栈决定缺陷拦截位置，从单元测试到契约测试层层把关，越早发现问题修复成本越低。",
+      "defaultOption": "junit5",
+      "options": [
+        {
+          "id": "junit5",
+          "name": "JUnit 5",
+          "badge": "推荐",
+          "summary": "JVM 单元测试事实标准，@Nested/@Parameterized 与扩展模型成熟，所有构建默认跑的基线测试框架。",
+          "yaml": "test:\n  use-junit-platform: true",
+          "notes": [
+            "@DisplayName 写中文用例名",
+            "assertions 用 AssertJ 流式断言"
+          ],
+          "pitfalls": [
+            "静态方法@TestInstance 误用会导致状态串味",
+            "并行执行需显式开 junit.jupiter.execution.parallel.enabled"
+          ],
+          "dependencies": [
+            {
+              "groupId": "org.junit.jupiter",
+              "artifactId": "junit-jupiter"
+            }
+          ]
+        },
+        {
+          "id": "testcontainers",
+          "name": "Testcontainers",
+          "badge": "",
+          "summary": "用 Docker 拉起真实 MySQL/Redis/Kafka 做集成测试，告别 H2 与生产的语义差，CI 需有 Docker。",
+          "yaml": "spring:\n  datasource:\n    url: jdbc:tc:mysql:8.0:///test",
+          "notes": [
+            "@Container 复用单例容器提速",
+            "支持 GenericContainer 跑任意中间件"
+          ],
+          "pitfalls": [
+            "CI 无 Docker 守护则直接失败",
+            "容器未加 .withReuse 每次重建，套件慢三倍",
+            "端口随机映射，硬编码端口会连错"
+          ],
+          "dependencies": [
+            {
+              "groupId": "org.testcontainers",
+              "artifactId": "junit-jupiter"
+            }
+          ]
+        },
+        {
+          "id": "mockito",
+          "name": "Mockito",
+          "badge": "",
+          "summary": "最流行的 Mock 框架，@Mock/@InjectMocks 隔离外部依赖，配合 JUnit 5 做单元级行为验证。",
+          "yaml": "# Mockito 通过 @ExtendWith(MockitoExtension.class) 启用",
+          "notes": [
+            "mockito-inline 支持静态方法 mock",
+            "用 ArgumentCaptor 校验入参"
+          ],
+          "pitfalls": [
+            "过度 mock 让测试只验证自己写的桩，失去意义",
+            "final 类需 mockito-inline 才能 mock",
+            "verify 次数写错会误报红灯"
+          ],
+          "dependencies": [
+            {
+              "groupId": "org.mockito",
+              "artifactId": "mockito-core"
+            }
+          ]
+        },
+        {
+          "id": "wiremock",
+          "name": "WireMock",
+          "badge": "",
+          "summary": "HTTP 打桩与契约仿真，模拟第三方接口返回、延迟与 5xx，验证本服务的容错与降级逻辑。",
+          "yaml": "wiremock:\n  port: 8089",
+          "notes": [
+            "stubFor 配 json 响应与场景状态",
+            "record 模式可抓真实流量回放"
+          ],
+          "pitfalls": [
+            "桩端口冲突会静默连到别的进程",
+            "正则匹配顺序错会导致命中错误桩",
+            "未清 stub 测试间串味"
+          ],
+          "dependencies": [
+            {
+              "groupId": "org.wiremock",
+              "artifactId": "wiremock-standalone"
+            }
+          ]
+        },
+        {
+          "id": "jmeter",
+          "name": "JMeter 压测",
+          "badge": "高阶",
+          "summary": "图形化与 CLI 压测工具，线程组模拟高并发，导出 jtl 做吞吐与 P99 延迟分析，验证容量基线。",
+          "yaml": "# jmeter -n -t plan.jmx -l result.jtl",
+          "notes": [
+            "用 CLI 非 GUI 跑，GUI 仅编辑",
+            "Constant Throughput Timer 控 QPS"
+          ],
+          "pitfalls": [
+            "本机发压机成瓶颈，需分布式多台施压",
+            "堆内存默认小，大并发 OOM 丢样本",
+            "思考时间设 0 会打出非真实尖峰"
+          ],
+          "dependencies": []
+        },
+        {
+          "id": "pact",
+          "name": "Pact 契约测试",
+          "badge": "高阶",
+          "summary": "消费者驱动契约，把接口期望固化为契约文件，CI 校验提供方是否破坏，解耦多服务联调。",
+          "yaml": "# @PactTestFor 写消费者契约",
+          "notes": [
+            "pact broker 集中管理契约版本",
+            "can-i-deploy 校验可发布性"
+          ],
+          "pitfalls": [
+            "契约与实现脱节会误报，需定期回放",
+            "broker 缺失则契约无处共享",
+            "版本矩阵膨胀后难以追溯"
+          ],
+          "dependencies": [
+            {
+              "groupId": "au.com.dius.pact.consumer",
+              "artifactId": "junit5"
+            }
+          ]
+        },
+        {
+          "id": "pitest",
+          "name": "PITest 变异测试",
+          "badge": "高阶",
+          "summary": "字节码级变异注入（改 > 为 >=），度量测试是否真能抓到缺陷，比覆盖率更能反映测试有效性。",
+          "yaml": "# mvn org.pitest:pitest-maven:mutationCoverage",
+          "notes": [
+            "targetClasses 限定被测包",
+            "用 lineCoverage 阈值过滤弱测试"
+          ],
+          "pitfalls": [
+            "全量变异极慢，需按模块增量跑",
+            "反射/序列化代码易产生等价变异误降分",
+            "默认开启多线程易与 JaCoCo 冲突"
+          ],
+          "dependencies": [
+            {
+              "groupId": "org.pitest",
+              "artifactId": "pitest"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "qualitygate",
+      "groupId": "quality",
+      "name": "质量门禁",
+      "why": "质量门禁把覆盖率与静态扫描固化为上线红线，避免技术债无声累积到生产环境才暴雷。",
+      "defaultOption": "none",
+      "options": [
+        {
+          "id": "none",
+          "name": "无门禁",
+          "badge": "默认",
+          "summary": "不设质量门禁，测试跑过即可合并，最快但技术债无声累积，劣质代码易溜进主干。",
+          "yaml": "# 无质量门禁",
+          "notes": [
+            "仅靠 CI 跑测试是否通过"
+          ],
+          "pitfalls": [
+            "覆盖率下滑无人察觉，长期腐化",
+            "重复代码与坏味道无人拦截"
+          ],
+          "dependencies": []
+        },
+        {
+          "id": "jacoco",
+          "name": "JaCoCo 覆盖率",
+          "badge": "推荐",
+          "summary": "字节码插桩度量行/分支覆盖率，可在 CI 设阈值门禁，不足则构建失败，拦截低覆盖合并。",
+          "yaml": "# jacoco: report / check 规则 rule.element=CLASS",
+          "notes": [
+            "check 配 minimum 0.80 拦低覆盖",
+            "excludes 排除 DTO/配置类"
+          ],
+          "pitfalls": [
+            "盲目追 100% 覆盖催生无效 getter 测试",
+            "增量行未覆盖却整体达标会漏检",
+            "与 PITest 同跑需错开 agent"
+          ],
+          "dependencies": [
+            {
+              "groupId": "org.jacoco",
+              "artifactId": "jacoco-maven-plugin"
+            }
+          ]
+        },
+        {
+          "id": "sonar",
+          "name": "SonarQube Quality Gate",
+          "badge": "高阶",
+          "summary": "静态扫描平台，按 Quality Gate 校验重复率、漏洞与坏味道，门禁不达标阻断流水线。",
+          "yaml": "sonar:\n  host.url: http://sonar:9000\n  projectKey: my-app",
+          "notes": [
+            "quality gate 设 new_code 条件",
+            "with 企业规则集做合规"
+          ],
+          "pitfalls": [
+            "扫描全量慢，需增量分析模式",
+            "规则过严会把历史债全标红阻塞",
+            "数据库大仓扫描吃内存要单独扩容"
+          ],
+          "dependencies": []
+        },
+        {
+          "id": "mutation",
+          "name": "变异测试门禁",
+          "badge": "高阶",
+          "summary": "把 PITest 变异覆盖率接入门禁，保证测试真能抓缺陷而非虚高覆盖，质量门槛最高一档。",
+          "yaml": "# pitest mutationCoverage + 阈值",
+          "notes": [
+            "set mutationThreshold=70 拦弱测试",
+            "仅对核心模块开，控成本"
+          ],
+          "pitfalls": [
+            "全量变异耗时数十分钟，拖垮 PR",
+            "等价变异需人工白名单豁免",
+            "与 JaCoCo agent 同进程冲突需分离"
+          ],
+          "dependencies": [
+            {
+              "groupId": "org.pitest",
+              "artifactId": "pitest"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "cicd",
+      "groupId": "ops",
+      "name": "交付流水线",
+      "why": "代码怎么变成线上服务、能否灰度回滚，交付方式决定发布频率和出错恢复速度，选手工还是流水线天差地别。",
+      "defaultOption": "manual",
+      "options": [
+        {
+          "id": "manual",
+          "name": "手工",
+          "badge": "轻量",
+          "summary": "手工打 jar、scp 到服务器、java -jar 启停，零工具成本，但发布靠人、易出错、无法回滚，规模一大就失控。",
+          "yaml": "mvn -q package\nscp target/app.jar srv:/opt/app/\nssh srv 'systemctl restart app'",
+          "notes": [
+            "用 systemctl restart 拉起，先停旧进程再起新进程。",
+            "保留上一个 jar 包，出问题直接换回。"
+          ],
+          "pitfalls": [
+            "发布需停机或手动替换，无灰度、无回滚，出错只能连上去救火。"
+          ]
+        },
+        {
+          "id": "jenkins",
+          "name": "Jenkins",
+          "badge": "通用",
+          "summary": "Jenkins 用自由风格或 Pipeline 串起构建到部署，插件极多、可控性强，但 Master 要自己维护，配置易腐化。",
+          "yaml": "pipeline {\n  agent any\n  stages {\n    stage('build') { steps { sh 'mvn -q package' } }\n    stage('deploy') { steps { sh 'kubectl apply -f k8s/' } }\n  }\n}",
+          "notes": [
+            "用 Jenkinsfile 把流水线存进仓库，配置即代码。",
+            "凭据走 Credentials Binding，别写进脚本明文。"
+          ],
+          "pitfalls": [
+            "Master 单点且插件版本混乱，升级常导致 job 集体失效。",
+            "默认不隔离构建环境，多任务会互相污染工作区。"
+          ]
+        },
+        {
+          "id": "gitlabci",
+          "name": "GitLab CI",
+          "badge": "推荐",
+          "summary": "GitLab CI 用仓库内 .gitlab-ci.yml 定义流水线，与代码同仓、体验顺滑，但需要 Runner 资源且强绑定 GitLab。",
+          "yaml": "stages: [build, deploy]\nbuild:\n  stage: build\n  script: [\"mvn -q package\"]\ndeploy:\n  stage: deploy\n  script: [\"kubectl apply -f k8s/\"]",
+          "notes": [
+            "用 cache 缓存 ~/.m2 加速构建，artifacts 传包给下一阶段。",
+            "Runner 用 docker executor 保证环境干净。"
+          ],
+          "pitfalls": [
+            "Runner 资源不足时流水线排队，发布被卡。",
+            "强绑定 GitLab，换代码平台要重写整套流水线。"
+          ]
+        },
+        {
+          "id": "argocd",
+          "name": "ArgoCD GitOps",
+          "badge": "高阶",
+          "summary": "ArgoCD 以 Git 仓库为唯一事实源，自动同步 K8s 期望态、可视化差异，是 GitOps 标准做法，但前提是已经上 K8s。",
+          "yaml": "apiVersion: argoproj.io/v1alpha1\nkind: Application\nspec:\n  source: {repoURL: <git>, path: k8s}\n  destination: {server: https://k8s, namespace: app}",
+          "notes": [
+            "改 Git 即触发同步，集群状态永远追平仓库。",
+            "用 syncPolicy 开自动同步与健康检查。"
+          ],
+          "pitfalls": [
+            "没上 K8s 根本用不了，强行引入要先搭集群。",
+            "Git 里写错 yaml 会被 ArgoCD 忠实同步成错误态。"
+          ]
+        },
+        {
+          "id": "githubactions",
+          "name": "GitHub Actions",
+          "badge": "通用",
+          "summary": "GitHub Actions 用 YAML 在工作流里构建发布，与 GitHub 深度集成、生态丰富，但私有仓库分钟数受限、数据在境外。",
+          "yaml": "jobs:\n  build:\n    runs-on: ubuntu-latest\n    steps:\n    - uses: actions/checkout@v4\n    - run: mvn -q package",
+          "notes": [
+            "用 secrets 注入云凭证，oidc 免长期 token。",
+            "matrix 并行测多 JDK 版本。"
+          ],
+          "pitfalls": [
+            "私有仓库免费额度有限，CI 频繁会超额。",
+            "构建日志与产物出境，敏感项目有合规顾虑。"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "monitoring",
+      "groupId": "ops",
+      "name": "监控与告警",
+      "why": "实例挂没挂、接口慢没慢、JVM 撑不撑，没有监控就只能等用户投诉，告警体系直接决定故障发现时间。",
+      "defaultOption": "actuator",
+      "options": [
+        {
+          "id": "actuator",
+          "name": "Actuator",
+          "badge": "轻量",
+          "summary": "Spring Boot Actuator 暴露 /actuator/health 与 /actuator/prometheus，零侵入看健康与 JVM 指标，但只有单机视图、无历史无告警。",
+          "yaml": "management:\n  endpoints.web.exposure.include: health,info,prometheus\n  endpoint.health.probes.enabled: true",
+          "dependencies": [
+            {
+              "groupId": "org.springframework.boot",
+              "artifactId": "spring-boot-starter-actuator"
+            }
+          ],
+          "notes": [
+            "开 livenessState 与 readinessState 供 K8s 探针调用。",
+            "prometheus 端点供后续接 Prometheus 拉取。"
+          ],
+          "pitfalls": [
+            "只有当前瞬时值，没有时间序列，无法看趋势也配不了告警。"
+          ]
+        },
+        {
+          "id": "promgrafana",
+          "name": "Prometheus+Grafana",
+          "badge": "推荐",
+          "summary": "Prometheus 拉取指标、Grafana 画图告警，云原生监控事实标准，开源免费、生态全，但需自建存储与保留策略。",
+          "yaml": "scrape_configs:\n- job_name: app\n  metrics_path: /actuator/prometheus\n  static_configs:\n  - targets: ['app:8080']",
+          "notes": [
+            "用 relabel 把实例标签打全，Grafana 按服务分组。",
+            "配 alertmanager 做告警收敛与路由。"
+          ],
+          "pitfalls": [
+            "默认本地 TSDB 不长期存，保留策略要自己定，磁盘会爆。",
+            "拉取间隔太密或 target 太多会拖垮 Prometheus。"
+          ]
+        },
+        {
+          "id": "zabbix",
+          "name": "Zabbix",
+          "badge": "稳妥",
+          "summary": "Zabbix 监控主机、网络与数据库等基础设施，Agent 成熟、告警灵活，但界面老旧、对容器动态实例发现较弱。",
+          "yaml": "zabbix_agentd -c /etc/zabbix/zabbix_agentd.conf\n# 前端配 host + template 'Template App Java JMX'",
+          "notes": [
+            "用 JMX 模板采 JVM，配合 jstatd 暴露端口。",
+            "trigger 配阈值与依赖，避免告警风暴。"
+          ],
+          "pitfalls": [
+            "容器 IP 漂移，自动发现要配主动注册否则漏采。"
+          ]
+        },
+        {
+          "id": "skywalking",
+          "name": "SkyWalking APM",
+          "badge": "高阶",
+          "summary": "SkyWalking 无侵入采集链路、拓扑与 JVM 指标，国产 APM 标杆，适合定位跨服务慢调用，但 OAP 集群运维不轻。",
+          "yaml": "-javaagent:/skywalking/agent/skywalking-agent.jar\n-DSW_AGENT_NAME=app\n-DSW_AGENT_COLLECTOR_BACKEND_SERVICES=oap:11800",
+          "notes": [
+            "用 agent 注入，业务代码零改动即可拿到链路。",
+            "拓扑图直接看服务依赖与慢调用热点。"
+          ],
+          "pitfalls": [
+            "OAP 用 ES 存储，数据量大时 ES 集群运维成本高。",
+            "采样率设太高会吃满后端存储。"
+          ]
+        },
+        {
+          "id": "cloudapm",
+          "name": "云 APM",
+          "badge": "高阶",
+          "summary": "直接用云厂商 APM（如 ARMS/Cloud Monitor），免运维、自动埋点，但指标与告警绑定该云、导出困难、按量计费。",
+          "yaml": "# 云控制台开启 APM，agent 由云探针自动挂载无需改代码",
+          "notes": [
+            "探针随实例自动注入，免部署采集端。",
+            "告警直接进云消息与值班群。"
+          ],
+          "pitfalls": [
+            "指标与大盘绑定该云，迁出时历史数据难带走。",
+            "按探针数与数据量计费，流量大时账单可观。"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "secret",
+      "groupId": "ops",
+      "name": "密钥与配置安全",
+      "why": "数据库密码、API Key 放哪，决定了一旦泄露能不能快速吊销、合规能不能过，明文配置是最高频的安全事故来源。",
+      "defaultOption": "file",
+      "options": [
+        {
+          "id": "file",
+          "name": "配置文件",
+          "badge": "轻量",
+          "summary": "把数据库密码等写进 application.yml 或环境变量，最简单，但密钥进版本库或镜像层，泄露无感知、轮换要重启。",
+          "yaml": "spring:\n  datasource:\n    password: ${DB_PWD}",
+          "notes": [
+            "用 ${DB_PWD} 占位从环境变量注入，别把明文提交进 Git。",
+            "镜像构建时不要把 .env 一起 COPY 进去。"
+          ],
+          "pitfalls": [
+            "密钥随镜像或仓库扩散，一旦泄露无法快速吊销，合规过不了。"
+          ]
+        },
+        {
+          "id": "configcenter",
+          "name": "配置中心加密",
+          "badge": "推荐",
+          "summary": "把配置与密钥放进 Nacos/Apollo 并加密存储，支持热更新与权限，但多一套中间件、密钥仍可能落本地缓存。",
+          "yaml": "spring:\n  cloud:\n    nacos:\n      config:\n        extension-configs[0]:\n          data-id: secret.yml\n          refresh: true",
+          "dependencies": [
+            {
+              "groupId": "com.alibaba.cloud",
+              "artifactId": "spring-cloud-starter-alibaba-nacos-config"
+            }
+          ],
+          "notes": [
+            "敏感值用 AES 加密后存配置中心，应用侧自动解密。",
+            "按命名空间隔离环境，按权限控制谁能看密钥。"
+          ],
+          "pitfalls": [
+            "配置中心本身要是被攻破，等于密钥库失守，要加访问控制。",
+            "本地缓存明文若落盘，机器被拖库仍会泄露。"
+          ]
+        },
+        {
+          "id": "k8ssecret",
+          "name": "Kubernetes Secret",
+          "badge": "通用",
+          "summary": "用 Kubernetes Secret 以 Base64 存密钥并挂进 Pod，和集群原生融合，但默认不加密落盘、需开 KMS 加密才安全。",
+          "yaml": "apiVersion: v1\nkind: Secret\nmetadata: {name: app}\ntype: Opaque\nstringData:\n  DB_PWD: s3cret",
+          "notes": [
+            "用 secretKeyRef 注入环境变量或挂载文件，别打进镜像。",
+            "开 EncryptionConfiguration 用 KMS 加密 etcd 里的 Secret。"
+          ],
+          "pitfalls": [
+            "Base64 只是编码不是加密，etcd 明文可读等于裸奔。",
+            "没开 RBAC 限制，任意能读 Secret 的账号都能拿密钥。"
+          ]
+        },
+        {
+          "id": "vault",
+          "name": "HashiCorp Vault",
+          "badge": "高阶",
+          "summary": "HashiCorp Vault 提供动态密钥、自动轮换与短时令牌，安全等级最高，但部署复杂、需管理密封/解封与备份。",
+          "yaml": "vault kv put secret/app DB_PWD=s3cret\nvault read secret/app\n# 注入用 vault-agent 或 sidecar",
+          "notes": [
+            "用 AppRole 或 Kubernetes auth 让 Pod 动态领短时令牌。",
+            "数据库密钥可设 lease 自动过期与轮换。"
+          ],
+          "pitfalls": [
+            "Vault seal 后全集群取不到密钥，要有自动解封与 HA。",
+            "备份的 unseal key 丢了就永远开不了，保管要分片。"
+          ],
+          "dependencies": []
+        },
+        {
+          "id": "cloudkms",
+          "name": "云 KMS",
+          "badge": "高阶",
+          "summary": "用云 KMS 托管主密钥、应用运行时解密，密钥不落本地、合规省心，但解密调用依赖该云、离线环境不可用。",
+          "yaml": "# 主密钥存 KMS，应用用 SDK 解密 envelope\naws kms decrypt --ciphertext-blob fileb://enc",
+          "notes": [
+            "用信封加密，数据密钥本地用、主密钥只在 KMS。",
+            "密钥权限按 RAM 策略细粒度收敛。"
+          ],
+          "pitfalls": [
+            "解密依赖云网络，内网隔离或断网时应用起不来。",
+            "KMS 调用按次计费，高频解密要加本地缓存。"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "logging",
+      "groupId": "ops",
+      "name": "日志与审计",
+      "why": "出问题时能不能快速翻到对应日志、跨服务串联一次请求，日志方案决定了排障速度和审计能力，落盘就完事远远不够。",
+      "defaultOption": "logback",
+      "options": [
+        {
+          "id": "logback",
+          "name": "Logback 落盘",
+          "badge": "轻量",
+          "summary": "Spring Boot 默认 Logback 把日志落本地文件，零配置可用，但分散在各实例磁盘，查问题要登录多台机器翻文件。",
+          "yaml": "<appender name=\"FILE\" class=\"ch.qos.logback.core.rolling.RollingFileAppender\">\n  <file>app.log</file>\n</appender>",
+          "dependencies": [
+            {
+              "groupId": "ch.qos.logback",
+              "artifactId": "logback-classic"
+            }
+          ],
+          "notes": [
+            "用 RollingFileAppender 按大小/天滚动，防止单文件撑爆磁盘。",
+            "打 MDC 把 traceId 带进每行，便于后续串联。"
+          ],
+          "pitfalls": [
+            "实例重启或容器销毁，本地日志随之消失，事后无法回溯。"
+          ]
+        },
+        {
+          "id": "elk",
+          "name": "ELK",
+          "badge": "推荐",
+          "summary": "Filebeat 把日志送 Elasticsearch、Kibana 检索，集中查询与可视化强，但 ES 吃内存、集群运维成本不低。",
+          "yaml": "filebeat.inputs:\n- type: log\n  paths: ['/var/log/app/*.log']\noutput.elasticsearch:\n  hosts: ['es:9200']",
+          "notes": [
+            "用 filebeat 轻量采集，ES 只存索引。",
+            "Kibana 建索引模式按 service 与 traceId 检索。"
+          ],
+          "pitfalls": [
+            "ES 默认吃一半内存，日志量大要单独扩容否则写入拒收。",
+            "索引不设置 lifecycle 策略，磁盘会被旧日志填满。"
+          ]
+        },
+        {
+          "id": "loki",
+          "name": "Loki+Promtail",
+          "badge": "高阶",
+          "summary": "Loki+Promtail 以标签索引日志、和 Grafana 一体，资源比 ELK 轻、查询便宜，但全文检索能力弱于 ES。",
+          "yaml": "scrape_configs:\n- job_name: app\n  static_configs:\n  - targets: [localhost]\n    labels: {job: app, service: user}",
+          "notes": [
+            "用标签（service/app）检索，不用全文倒排，省钱。",
+            "和 Prometheus/Grafana 同一栈，告警日志一体看。"
+          ],
+          "pitfalls": [
+            "标签基数爆炸（如把 traceId 当标签）会让 Loki 内存暴涨。",
+            "复杂全文检索不如 ES，搜模糊词体验差。"
+          ]
+        },
+        {
+          "id": "clickhouse",
+          "name": "ClickHouse 日志",
+          "badge": "高阶",
+          "summary": "用 ClickHouse 存日志，列存压缩高、亿级日志聚合秒回，适合做审计与离线分析，但需单独维护数据库与写入管道。",
+          "yaml": "CREATE TABLE logs (ts DateTime, service String, msg String)\n  ENGINE = MergeTree ORDER BY (service, ts)",
+          "notes": [
+            "用 Vector/Filebeat 转写，按服务分区便于审计查询。",
+            "列存压缩高，留一年日志成本也低。"
+          ],
+          "pitfalls": [
+            "要自己维护写入管道与表结构，运维比托管方案重。",
+            "高频小批量写入不攒批会拖垮写入性能。"
+          ]
+        },
+        {
+          "id": "cloudlog",
+          "name": "云日志服务",
+          "badge": "高阶",
+          "summary": "用云日志服务（如 CLS/CloudWatch）自动采集、检索与告警，免运维、弹性好，但日志出域有合规顾虑、按量计费。",
+          "yaml": "# 安装云 agent，配置 logpath 即可自动上报，无需自建管道",
+          "notes": [
+            "agent 自动采集容器.stdout 与文件，零管道。",
+            "直接配关键词告警进值班群。"
+          ],
+          "pitfalls": [
+            "日志出境有合规顾虑，敏感行业先评估。",
+            "按写入与存储量计费，大流量成本不低。"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "clustertopology",
+      "groupId": "topology",
+      "name": "全局部署形态",
+      "why": "实例数量与容灾形态直接决定 K8s replicas、PDB 与反亲和，是可用性 SLO 的物理落地，必须显式选择。",
+      "defaultOption": "single",
+      "options": [
+        {
+          "id": "single",
+          "name": "单机单实例",
+          "badge": "默认",
+          "summary": "单进程单副本，最低资源与运维成本，无高可用，适合开发、Demo 与可容忍停机的内管系统。",
+          "yaml": "# k8s: replicas: 1，无 PDB",
+          "notes": [
+            "无副本，进程挂即不可用"
+          ],
+          "pitfalls": [
+            "节点宕机即服务中断，无 SLA",
+            "无法滚动升级，发布必中断"
+          ],
+          "dependencies": []
+        },
+        {
+          "id": "masterslave",
+          "name": "主备",
+          "badge": "",
+          "summary": "一主一备热冗余，故障切换由中间件或看护脚本触发，读可分流，资源占用约两倍。",
+          "yaml": "# k8s: replicas: 2，readinessProbe 区分主备",
+          "notes": [
+            "failover 由 VIP/中间件切换",
+            "备库承接只读流量"
+          ],
+          "pitfalls": [
+            "切换有秒级抖动，脑裂需 fencing 防双写",
+            "异步复制丢切换瞬间未同步数据",
+            "备节点长期空闲，资源利用率低"
+          ],
+          "dependencies": []
+        },
+        {
+          "id": "cluster",
+          "name": "多副本集群",
+          "badge": "推荐",
+          "summary": "N 副本对等/分片集群，自愈与滚动升级，配 PDB 与反亲和，云原生常态的高可用形态。",
+          "yaml": "spec:\n  replicas: 3\n  strategy: RollingUpdate\n  podDisruptionBudget: minAvailable: 2",
+          "notes": [
+            "topologyKey: kubernetes.io/hostname 反亲和",
+            "PDB 保最少可用副本数"
+          ],
+          "pitfalls": [
+            "副本数设 2 时 PDB minAvailable 2 会阻塞节点维护",
+            "无反亲和会两副本同节点，宕机全挂",
+            "滚动升级期间双倍资源峰值需预留"
+          ],
+          "dependencies": []
+        },
+        {
+          "id": "sharded",
+          "name": "分片集群",
+          "badge": "高阶",
+          "summary": "按分片键水平拆分到多组节点，突破单实例容量与连接上限，单表破亿行后的常态。",
+          "yaml": "# sharding-proxy 路由 + 分片键配置",
+          "notes": [
+            "分片代理做 SQL 路由",
+            "分片键选高基数字段"
+          ],
+          "pitfalls": [
+            "分片键选错无法变更，跨片查询全广播",
+            "热点分片把单节点打满，需再平衡",
+            "分布式事务跨片一致性靠 TCC/Saga 补"
+          ],
+          "dependencies": []
+        },
+        {
+          "id": "multiactive",
+          "name": "异地多活",
+          "badge": "高阶",
+          "summary": "多地域独立可读写，单元化路由就近接入，RTO 近零，容单地域整体故障，架构与运维最重。",
+          "yaml": "# 多集群 federation + 全局流量调度",
+          "notes": [
+            "单元化按 user_id 取模路由",
+            "需全局时钟与冲突消解"
+          ],
+          "pitfalls": [
+            "跨地域写入冲突需业务层消解，复杂度陡增",
+            "数据同步延迟致读己写不一致",
+            "成本数倍，小业务 ROI 为负"
+          ],
+          "dependencies": []
+        }
+      ]
     }
   ],
   "presets": [
@@ -1531,7 +3271,22 @@
         "mapping": "manual",
         "boilerplate": "lombok",
         "test": "mockito",
-        "deploy": "jar"
+        "deploy": "jar",
+        "os": "bare",
+        "ingress": "direct",
+        "gateway": "none",
+        "orchestration": "single",
+        "imageregistry": "public",
+        "search": "none",
+        "analytics": "none",
+        "objectstore": "none",
+        "testing": "junit5",
+        "qualitygate": "none",
+        "cicd": "manual",
+        "monitoring": "actuator",
+        "secret": "file",
+        "logging": "logback",
+        "clustertopology": "single"
       }
     },
     {
@@ -1557,7 +3312,22 @@
         "mapping": "manual",
         "boilerplate": "lombok",
         "test": "testcontainers",
-        "deploy": "docker"
+        "deploy": "docker",
+        "os": "container",
+        "ingress": "nginx",
+        "gateway": "none",
+        "orchestration": "compose",
+        "imageregistry": "public",
+        "search": "none",
+        "analytics": "none",
+        "objectstore": "none",
+        "testing": "testcontainers",
+        "qualitygate": "jacoco",
+        "cicd": "gitlabci",
+        "monitoring": "promgrafana",
+        "secret": "configcenter",
+        "logging": "logback",
+        "clustertopology": "single"
       }
     },
     {
@@ -1583,7 +3353,22 @@
         "mapping": "mapstruct",
         "boilerplate": "lombok",
         "test": "testcontainers",
-        "deploy": "k8s"
+        "deploy": "k8s",
+        "os": "k8s",
+        "ingress": "slb",
+        "gateway": "scg",
+        "orchestration": "k8s",
+        "imageregistry": "harbor",
+        "search": "es",
+        "analytics": "none",
+        "objectstore": "minio",
+        "testing": "testcontainers",
+        "qualitygate": "sonar",
+        "cicd": "argocd",
+        "monitoring": "promgrafana",
+        "secret": "k8ssecret",
+        "logging": "loki",
+        "clustertopology": "cluster"
       }
     },
     {
@@ -1609,7 +3394,104 @@
         "mapping": "mapstruct",
         "boilerplate": "lombok",
         "test": "testcontainers",
-        "deploy": "helm"
+        "deploy": "helm",
+        "os": "k8s",
+        "ingress": "nginx",
+        "gateway": "scg",
+        "orchestration": "k8s",
+        "imageregistry": "harbor",
+        "search": "es",
+        "analytics": "clickhouse",
+        "objectstore": "minio",
+        "testing": "testcontainers",
+        "qualitygate": "sonar",
+        "cicd": "gitlabci",
+        "monitoring": "skywalking",
+        "secret": "vault",
+        "logging": "elk",
+        "clustertopology": "masterslave"
+      }
+    },
+    {
+      "id": "ha",
+      "name": "高可用集群",
+      "badge": "高可用",
+      "summary": "不允许单点。应用多副本打散到不同节点，数据库主从、缓存集群、队列集群，入口由负载均衡摘除故障实例。代价是运维面显著变大。",
+      "picks": {
+        "jdk": "17",
+        "build": "maven",
+        "web": "mvc",
+        "persistence": "mybatisplus",
+        "database": "mysql",
+        "pool": "hikari",
+        "migration": "flyway",
+        "cache": "redis",
+        "mq": "rocketmq",
+        "registry": "nacos",
+        "scheduler": "xxljob",
+        "auth": "securityjwt",
+        "apidoc": "springdoc",
+        "observability": "prometheus",
+        "mapping": "mapstruct",
+        "boilerplate": "lombok",
+        "test": "testcontainers",
+        "deploy": "helm",
+        "os": "k8s",
+        "ingress": "slb",
+        "gateway": "scg",
+        "orchestration": "k8s",
+        "imageregistry": "harbor",
+        "search": "es",
+        "analytics": "none",
+        "objectstore": "minio",
+        "testing": "testcontainers",
+        "qualitygate": "sonar",
+        "cicd": "argocd",
+        "monitoring": "promgrafana",
+        "secret": "k8ssecret",
+        "logging": "loki",
+        "clustertopology": "cluster"
+      }
+    },
+    {
+      "id": "data-intensive",
+      "name": "数据密集",
+      "badge": "大数据",
+      "summary": "写入与分析量大到主库扛不住：分库分表 + 分析型存储 + 对象存储 + 检索集群。适合报表、日志、画像这类读多写也多的场景。",
+      "picks": {
+        "jdk": "17",
+        "build": "maven",
+        "web": "mvc",
+        "persistence": "mybatisplus",
+        "database": "mysql",
+        "pool": "druid",
+        "migration": "flyway",
+        "cache": "redis",
+        "mq": "kafka",
+        "registry": "nacos",
+        "scheduler": "xxljob",
+        "auth": "securityjwt",
+        "apidoc": "springdoc",
+        "observability": "prometheus",
+        "mapping": "mapstruct",
+        "boilerplate": "lombok",
+        "test": "testcontainers",
+        "deploy": "k8s",
+        "os": "k8s",
+        "ingress": "nginx",
+        "gateway": "scg",
+        "orchestration": "k8s",
+        "imageregistry": "harbor",
+        "search": "es",
+        "analytics": "clickhouse",
+        "objectstore": "minio",
+        "testing": "testcontainers",
+        "qualitygate": "jacoco",
+        "cicd": "gitlabci",
+        "monitoring": "promgrafana",
+        "secret": "k8ssecret",
+        "logging": "elk",
+        "clustertopology": "sharded"
       }
     }
   ]

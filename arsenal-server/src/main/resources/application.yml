@@ -42,6 +42,10 @@ arsenal:
     # 单个 IR 的字节上限。实测最大的预设约 12 KB，1 MB 是留足余量的护栏。
     max-spec-bytes: 1048576
 
+  # 代码扫描：依赖坐标 → 技术 key 的映射表（与 arsenal-web 读的是同一份文件）
+  scan:
+    rules-file: ${ARSENAL_SCAN_RULES:../arsenal-scan/scan_rules.json}
+
   cors:
     allowed-origins: http://localhost:3010,http://127.0.0.1:3010
 

@@ -38,6 +38,14 @@ arsenal-demo-*.zip
 #    对 arsenal-web/.workbuddy/_*.png 返回「未忽略」，探针产物会漏进待提交列表）。
 **/.workbuddy/_*
 
+# ── 夜跑接力链的瞬时状态文件（2026-09-21 夜跑引入）──────────────
+#    .workbuddy/night-chain/ 下每一棒开工/收工都会写状态文件，跑完即弃；
+#    但同目录的 REVIEW.md 是给人看的产出，**故意不忽略**。
+#    说明见 docs/hy4-night-plans/NIGHT-RUN.md §二。
+.workbuddy/night-chain/*-running.json
+.workbuddy/night-chain/*-done.json
+.workbuddy/night-chain/*-blocked.json
+
 # ── IDE 本地配置：每台机器、每个人都不一样，不进仓库 ──────────
 #    JetBrains 会在项目根建 .idea/，VS Code 建 .vscode/
 .idea/

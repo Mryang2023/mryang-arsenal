@@ -388,3 +388,286 @@ console.log(
   `[arsenal] 已同步 ${profileOrder.length} 份项目档案 → src/generated/profiles.json\n` +
   `         ${profileOrder.join(' / ')}（六视图齐备，id 与文件名一致，token 写法合法）`
 );
+
+// ── ⑥ 图标资产库 ────────────────────────────────────────────
+// 这里守的是「清单 ↔ 磁盘」两个方向：
+//   · 清单里登记了位图，磁盘上却没有 → 页面上是一张破图（生成器已查一遍，这里再查）
+//   · 磁盘上有图，清单里没登记     → 图永远不会被用上，且下次同步也发现不了
+// 第二个方向只有在这里能查：生成器眼里只有清单，看不到目录里多出的文件。
+const iconsDoc = readJson(path.join(root, 'arsenal-icons', 'icons.json'));
+const iconProblems = [];
+
+const ICON_CATS = new Set((iconsDoc.categories ?? []).map((c) => c.id));
+const iconsPublicDir = path.join(webRoot, 'public', 'icons');
+const iconKeys = new Set();
+
+// 矢量事实源在 TS 里，这里按文本扫顶层条目 —— 与生成器同一套正则，
+// 免得「生成器说有、同步说没有」这类只在某一侧成立的判定。
+const tsIconsSrc = fs.readFileSync(
+  path.join(webRoot, 'src', 'lib', 'tech-icons.ts'),
+  'utf8'
+);
+const vectorKeys = new Set(
+  [...tsIconsSrc.matchAll(/^ {2}('([a-z0-9-]+)'|([a-z0-9]+)): \{$/gm)].map(
+    (m) => m[2] ?? m[3]
+  )
+);
+
+for (const ic of iconsDoc.icons ?? []) {
+  const at = `图标 ${ic.key}`;
+  if (!/^[a-z][a-z0-9-]*$/.test(ic.key ?? '')) iconProblems.push(`${at} 的 key 不合法`);
+  if (iconKeys.has(ic.key)) iconProblems.push(`${at} 的 key 重复`);
+  iconKeys.add(ic.key);
+  if (!ICON_CATS.has(ic.category)) iconProblems.push(`${at} 的 category「${ic.category}」不在九大类内`);
+  if (!ic.en || !ic.name) iconProblems.push(`${at} 缺少中文名或英文名`);
+  if (ic.vector && !vectorKeys.has(ic.vector)) {
+    iconProblems.push(`${at} 指向的矢量 key「${ic.vector}」在 tech-icons.ts 里不存在 —— 页面上会静默变灰方块`);
+  }
+  if (!ic.vector) iconProblems.push(`${at} 没有矢量 key`);
+  if (ic.bitmap) {
+    if (ic.bitmap.startsWith('/') || ic.bitmap.includes('..') || /^[A-Za-z]:/.test(ic.bitmap)) {
+      iconProblems.push(`${at} 的 bitmap 路径不合法（不许绝对路径或 ..）：${ic.bitmap}`);
+    } else if (!ic.bitmap.endsWith('.png') && !ic.bitmap.endsWith('.webp')) {
+      iconProblems.push(`${at} 的 bitmap 必须是 .png/.webp：${ic.bitmap}`);
+    } else if (!fs.existsSync(path.join(iconsPublicDir, ic.bitmap))) {
+      iconProblems.push(`${at} 登记了位图但磁盘上没有：public/icons/${ic.bitmap}`);
+    }
+  }
+}
+
+// 孤儿位图：生成出来却没登记，等于白生成（生成器和页面都看不到它）
+const bitmapRegistered = new Set((iconsDoc.icons ?? []).map((i) => i.bitmap).filter(Boolean));
+const walkIcons = (dir, prefix) => {
+  if (!fs.existsSync(dir)) return [];
+  return fs.readdirSync(dir, { withFileTypes: true }).flatMap((e) => {
+    const rel = prefix ? `${prefix}/${e.name}` : e.name;
+    return e.isDirectory() ? walkIcons(path.join(dir, e.name), rel) : [rel];
+  });
+};
+const orphanBitmaps = walkIcons(iconsPublicDir, '').filter((rel) => !bitmapRegistered.has(rel));
+if (orphanBitmaps.length) {
+  iconProblems.push(`这些位图落在盘上却没登记进 icons.json：${orphanBitmaps.join('、')}`);
+}
+
+// 体积闸门：位图是二进制，一张不压就几百 KB，攒够一批就能把仓库顶大
+const totalBytes = walkIcons(iconsPublicDir, '').reduce(
+  (n, rel) => n + fs.statSync(path.join(iconsPublicDir, rel)).size, 0
+);
+if (totalBytes > 6 * 1024 * 1024) {
+  iconProblems.push(`位图总 ${(totalBytes / 1024 / 1024).toFixed(1)}MB 超过 6MB 上限 —— 该转 WebP 了`);
+}
+
+if (iconProblems.length) fail(iconProblems.join('\n  - '));
+
+fs.writeFileSync(
+  path.join(outDir, 'icons.json'),
+  JSON.stringify(iconsDoc, null, 2),
+  'utf8'
+);
+
+console.log(
+  `[arsenal] 已同步图标资产库 → src/generated/icons.json\n` +
+  `         ${iconKeys.size} 个图标 / ${ICON_CATS.size} 类（矢量 key 全部命中 tech-icons.ts）\n` +
+  `         ${bitmapRegistered.size} 张位图已落盘（${(totalBytes / 1024).toFixed(0)}KB），无孤儿文件`
+);
+
+// ── ⑦ 场景案例库 ────────────────────────────────────────────
+// 生成器已经校验过一遍；这里再独立校验一次，因为它守的是本库唯一的核心承诺：
+// **参数变了，命中的切片必须变，而且没命中的必须说得出原因。**
+// 静默省略一个切片，读者就会以为「这个参数下不需要做这件事」。
+const casesDir = path.join(root, 'arsenal-cases');
+const casesMeta = readJson(path.join(casesDir, 'meta.json'));
+
+const cases = [];
+const caseProblems = [];
+const caseIds = new Set();
+
+// 规则 id 的真实集合：猜一个 id 不会报错，只会让「案例 ↔ 规则」的反向链接
+// 在页面上永远空着 —— 那种错是看不见的，所以必须在这里拦。
+const KNOWN_RULES = new Set();
+{
+  const walk = (o) => {
+    if (Array.isArray(o)) return o.forEach(walk);
+    if (o && typeof o === 'object') {
+      if (typeof o.id === 'string' && o.severity) KNOWN_RULES.add(o.id);
+      Object.values(o).forEach(walk);
+    }
+  };
+  const rulesDir = path.join(root, 'arsenal-rules');
+  const stack = [rulesDir];
+  while (stack.length) {
+    const dir = stack.pop();
+    if (!fs.existsSync(dir)) continue;
+    for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
+      const p = path.join(dir, e.name);
+      if (e.isDirectory()) stack.push(p);
+      else if (e.name.endsWith('.json')) walk(readJson(p));
+    }
+  }
+}
+
+for (const id of casesMeta.order ?? []) {
+  const doc = readJson(path.join(casesDir, id + '.json'));
+  const kase = doc.case;
+  if (!kase) {
+    caseProblems.push(id + '.json 缺少 case 字段');
+    continue;
+  }
+  if (caseIds.has(kase.id)) caseProblems.push('场景 id 重复：' + kase.id);
+  caseIds.add(kase.id);
+
+  const driverLevels = new Map();
+  const driverIds = new Set();
+  for (const d of kase.drivers ?? []) {
+    if (driverIds.has(d.id)) caseProblems.push(kase.id + ' 的 driver id 重复：' + d.id);
+    driverIds.add(d.id);
+    const lids = new Set((d.levels ?? []).map((l) => l.id));
+    if (lids.size !== (d.levels ?? []).length) {
+      caseProblems.push(kase.id + '/' + d.id + ' 的档位 id 有重复');
+    }
+    driverLevels.set(d.id, lids);
+  }
+  if (driverIds.size < 4) {
+    caseProblems.push(kase.id + ' 只有 ' + driverIds.size + ' 个驱动参数 —— 少于 4 个就退化成静态文案');
+  }
+
+  const checkWhen = (when, where) => {
+    for (const [did, levels] of Object.entries(when ?? {})) {
+      if (!driverLevels.has(did)) {
+        caseProblems.push(where + ' 的 when 引用了未声明的 driver：' + did);
+        continue;
+      }
+      for (const lv of levels) {
+        if (!driverLevels.get(did).has(lv)) {
+          caseProblems.push(where + ' 的 when 引用了 driver ' + did + ' 未声明的档位：' + lv);
+        }
+      }
+    }
+  };
+
+  const sliceIds = new Set();
+  (kase.slices ?? []).forEach((s, i) => {
+    const where = kase.id + '/' + (s.id ?? i);
+    if (sliceIds.has(s.id)) caseProblems.push(where + ' 的切片 id 重复');
+    sliceIds.add(s.id);
+    if (s.order !== i + 1) {
+      caseProblems.push(where + ' 的 order 是 ' + s.order + '，应为 ' + (i + 1));
+    }
+    checkWhen(s.when, where);
+
+    const marks = new Set();
+    for (const h of s.highlights ?? []) {
+      if (!h.mark) {
+        caseProblems.push(where + ' 有 highlight 缺少 mark 锚点');
+        continue;
+      }
+      if (marks.has(h.mark)) caseProblems.push(where + ' 的锚点重复：' + h.mark.slice(0, 40));
+      marks.add(h.mark);
+      // 锚点是片段不是行号：找不到就必须当场失败，错位的备注比没有备注更危险。
+      if (!(s.code ?? '').includes(h.mark)) {
+        caseProblems.push(where + ' 锚点找不到目标：' + JSON.stringify(h.mark.slice(0, 60)));
+      }
+      if (h.rule && !KNOWN_RULES.has(h.rule)) {
+        caseProblems.push(where + ' 的 highlight 引用了不存在的规则 ' + h.rule);
+      }
+    }
+    if ((s.highlights ?? []).length < 2) {
+      caseProblems.push(where + ' 只有 ' + (s.highlights ?? []).length + ' 条 highlights');
+    }
+    for (const r of s.relatedRules ?? []) {
+      if (!KNOWN_RULES.has(r)) {
+        caseProblems.push(where + ' 引用了不存在的规则 id：' + r);
+      }
+    }
+    if ((s.relatedRules ?? []).length === 0) {
+      caseProblems.push(where + ' 没有关联任何规则 —— 案例与规则库脱节');
+    }
+    if (!(s.sql ?? '').trim()) caseProblems.push(where + ' 没有建表 DDL');
+    if (!(s.code ?? '').trim()) caseProblems.push(where + ' 没有代码');
+    if (!s.why || s.why.length < 20) {
+      caseProblems.push(where + ' 的 why 太短 —— 说不清「为什么在这个参数下要这么做」');
+    }
+  });
+
+  // 矛盾与不适用的 when 同样要合法，否则告警永远不触发，页面上的黄条等于摆设
+  (kase.conflicts ?? []).forEach((c, i) => {
+    checkWhen(c.when, kase.id + '/conflict[' + i + ']');
+    if (!c.text) caseProblems.push(kase.id + '/conflict[' + i + '] 没有说明矛盾在哪');
+  });
+  (kase.notSuitableFor ?? []).forEach((n, i) => {
+    checkWhen(n.when, kase.id + '/notSuitableFor[' + i + ']');
+    if (!n.reason) caseProblems.push(kase.id + '/notSuitableFor[' + i + '] 没说该看什么');
+  });
+
+  // 架构建议：节点只能来自场景数据，连线两端必须都存在
+  const nodeIds = new Set((kase.architecture?.nodes ?? []).map((n) => n.id));
+  for (const n of kase.architecture?.nodes ?? []) {
+    checkWhen(n.whenAny, kase.id + '/arch/' + n.id);
+  }
+  for (const l of kase.architecture?.links ?? []) {
+    if (!nodeIds.has(l.from) || !nodeIds.has(l.to)) {
+      caseProblems.push(kase.id + ' 的架构连线指向不存在的节点：' + l.from + ' -> ' + l.to);
+    }
+  }
+
+  cases.push(kase);
+}
+
+if (caseProblems.length) fail(caseProblems.join('\n  - '));
+
+fs.writeFileSync(
+  path.join(outDir, 'cases.json'),
+  JSON.stringify({ meta: casesMeta, cases }, null, 2),
+  'utf8'
+);
+
+const totalSlices = cases.reduce((n, c) => n + (c.slices ?? []).length, 0);
+const totalMarks = cases.reduce(
+  (n, c) => n + (c.slices ?? []).reduce((m, s) => m + (s.highlights ?? []).length, 0), 0
+);
+console.log(
+  '[arsenal] 已同步场景案例库 → src/generated/cases.json\n' +
+  '         ' + cases.length + ' 个场景 / ' + totalSlices + ' 个条件切片 / ' + totalMarks +
+  ' 条锚点备注（全部命中代码）\n' +
+  '         驱动参数、矛盾告警、架构节点均已交叉校验'
+);
+
+// ── ⑧ 代码扫描映射表 ────────────────────────────────────────
+// 这一层守的是「坐标映射到架构图的哪一位」。失效方式很隐蔽：
+// dim/opt 写错了不报错，扫描照样成功，只是那个依赖**永远不出现在部署图上** ——
+// 页面一片正常，图少了个中间件。所以这里拿 architecture.json 的画布选项逐条对。
+const scanDoc = readJson(path.join(root, 'arsenal-scan', 'scan_rules.json'));
+const scanProblems = [];
+const archCanvas = readJson(path.join(root, 'arsenal-stacks', 'architecture.json')).canvas ?? {};
+const canvasDims = new Set(Object.keys(archCanvas.dims ?? {}));
+const canvasOpts = archCanvas.options ?? {};
+const scanTechs = new Set();
+
+for (const r of scanDoc.rules ?? []) {
+  const at = `${r.group}:${r.artifact}`;
+  if (!r.tech) scanProblems.push(`${at} 没有 tech`);
+  if (r.dim) {
+    if (!canvasDims.has(r.dim)) scanProblems.push(`${at} 的 dim「${r.dim}」不在架构画布里`);
+    else if (!(r.opt in (canvasOpts[r.dim] ?? {}))) {
+      scanProblems.push(`${at} 的 opt「${r.opt}」不在维度「${r.dim}」的选项里`);
+    }
+  } else if (r.opt) {
+    scanProblems.push(`${at} 只有 opt 没有 dim —— 落不到图上`);
+  }
+  if (r.icon && !vectorKeys.has(r.icon)) scanProblems.push(`${at} 的 icon「${r.icon}」在 tech-icons.ts 里不存在`);
+  scanTechs.add(r.tech);
+}
+if ((scanDoc.rules ?? []).length === 0) scanProblems.push('扫描映射表是空的');
+
+if (scanProblems.length) fail(scanProblems.join('\n  - '));
+
+fs.writeFileSync(
+  path.join(outDir, 'scan_rules.json'),
+  JSON.stringify({ meta: { collection: scanDoc.collection, count: scanDoc.count, onCanvas: scanDoc.onCanvas }, rules: scanDoc.rules }, null, 2),
+  'utf8'
+);
+console.log(
+  '[arsenal] 已同步代码扫描映射表 → src/generated/scan_rules.json\n' +
+  '         ' + scanDoc.count + ' 条映射 / ' + scanDoc.onCanvas + ' 条落架构图 / ' +
+  scanTechs.size + ' 个技术 key（dim、opt、icon 已对画布交叉校验）'
+);
