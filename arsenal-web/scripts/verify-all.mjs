@@ -24,6 +24,9 @@
  *
  * 用法：`npm run verify`（`preverify` 会先跑 sync；本脚本也会自己跑一次 sync，
  * 因为直接 `node scripts/verify-all.mjs` 时没有 preverify 兜底）。
+ *       `npm run verify -- --allow-skip` —— 本机环境满足不了某几层时，
+ *       把「绿但有跳过」放行成退出码 0（**跳过项仍会照常打印与点名**，只是不判负）。
+ *       给「本机就是没后端」的人一条不撒谎的绿灯，而不是把跳过偷偷算成通过。
  * ─────────────────────────────────────────────────────────────
  */
 import { spawnSync } from 'node:child_process';
@@ -117,8 +120,11 @@ function pad(s, n) {
 }
 
 const t0 = Date.now();
+/** `--allow-skip`：把「绿但有跳过」放行成 0。默认不放行 —— 退出码是给 CI / 人看的信号。 */
+const allowSkip = process.argv.includes('--allow-skip');
 console.log('═'.repeat(64));
 console.log('verify · 串行 runner（八层顺序执行，不短路；跳过是独立状态）');
+if (allowSkip) console.log('模式：--allow-skip（存在跳过时也退出 0 —— 跳过项仍会照常点名）');
 console.log('═'.repeat(64));
 
 cleanOldStatus();
@@ -136,15 +142,26 @@ const syncCode = run('npm', ['run', 'sync']);
 // （TS 的 `**/*.ts` 不匹配以点开头的目录，实测 521 个文件里 .verify 下 0 个），
 // 所以只跑根配置时，「断言脚本自己有没有类型错」没人管 —— 坏 import 只在运行时炸成整层崩。
 console.log('\n▸ typecheck（tsc --noEmit；根配置 + .verify 独立配置）');
+const tcRootStarted = Date.now();
 const tcRootCode = run(process.execPath, ['node_modules/typescript/bin/tsc', '--noEmit']);
+const tcRootMs = Date.now() - tcRootStarted;
+const tcVerifyStarted = Date.now();
 const tcVerifyCode = run(process.execPath, [
   'node_modules/typescript/bin/tsc',
   '--noEmit',
   '--project',
   '.verify/tsconfig.json',
 ]);
+const tcVerifyMs = Date.now() - tcVerifyStarted;
 const tcCode = tcRootCode !== 0 ? tcRootCode : tcVerifyCode;
-const tc = { code: tcCode, root: tcRootCode, verify: tcVerifyCode };
+const tc = {
+  code: tcCode,
+  root: tcRootCode,
+  verify: tcVerifyCode,
+  msRoot: tcRootMs,
+  msVerify: tcVerifyMs,
+  ms: tcRootMs + tcVerifyMs,
+};
 
 // ── 步骤 2：八层 ────────────────────────────────────────────────
 const rows = [];
@@ -153,19 +170,21 @@ for (const layer of LAYERS) {
   console.log(`\n${'═'.repeat(64)}`);
   console.log(`▸ ${layer.script}（${layer.name}${declared === null ? '' : ` · 声明 ${declared} 项`}）`);
   console.log('═'.repeat(64));
+  const startedAt = Date.now();
   const code = run('npm', ['run', layer.script], {
     ARSENAL_LAYER_DECLARED: declared === null ? '' : String(declared),
   });
+  const ms = Date.now() - startedAt;
   const st = readLayerStatus(layer.key);
-  rows.push({ ...layer, declared, code, st });
+  rows.push({ ...layer, declared, code, st, ms });
 }
 
 // ── 汇总 ───────────────────────────────────────────────────────
 console.log(`\n${'═'.repeat(64)}`);
 console.log('汇总（数字全部来自各层写出的 layer-<key>.json，没有一个是手写的）');
 console.log('═'.repeat(64));
-console.log(`${pad('层', 18)}${pad('实测', 8)}${pad('跳过', 8)}${pad('失败', 8)}${pad('退出码', 8)}声明`);
-console.log('─'.repeat(64));
+console.log(`${pad('层', 18)}${pad('实测', 8)}${pad('跳过', 8)}${pad('失败', 8)}${pad('退出码', 8)}${pad('耗时', 10)}声明`);
+console.log('─'.repeat(74));
 
 let totalPass = 0;
 let totalSkip = 0;
@@ -173,9 +192,10 @@ let totalFail = 0;
 const problems = [];
 const skippedLayers = [];
 
-console.log(`${pad('类型闸门', 18)}${pad('—', 8)}${pad('—', 8)}${pad('—', 8)}${pad(tcCode, 8)}闸门层（tsc --noEmit ×2，不计项数）`);
-console.log(`${pad('  └ 根配置 src/', 18)}${pad('—', 8)}${pad('—', 8)}${pad('—', 8)}${pad(tc.root, 8)}521 个文件`);
-console.log(`${pad('  └ .verify 断言', 18)}${pad('—', 8)}${pad('—', 8)}${pad('—', 8)}${pad(tc.verify, 8)}9 个断言脚本`);
+const secs = (ms) => `${(ms / 1000).toFixed(1)}s`;
+console.log(`${pad('类型闸门', 18)}${pad('—', 8)}${pad('—', 8)}${pad('—', 8)}${pad(tcCode, 8)}${pad(secs(tc.ms), 10)}闸门层（tsc --noEmit ×2，不计项数）`);
+console.log(`${pad('  └ 根配置 src/', 18)}${pad('—', 8)}${pad('—', 8)}${pad('—', 8)}${pad(tc.root, 8)}${pad(secs(tc.msRoot), 10)}521 个文件`);
+console.log(`${pad('  └ .verify 断言', 18)}${pad('—', 8)}${pad('—', 8)}${pad('—', 8)}${pad(tc.verify, 8)}${pad(secs(tc.msVerify), 10)}9 个断言脚本`);
 if (tcCode !== 0) problems.push(`[失败] 类型闸门 typecheck 退出码 ${tcCode}（根 ${tc.root} / .verify ${tc.verify}）`);
 
 for (const r of rows) {
@@ -185,7 +205,7 @@ for (const r of rows) {
   const failN = s?.fail ?? null;
   console.log(
     `${pad(r.name, 18)}${pad(passN === null ? '?' : passN, 8)}${pad(skipN === null ? '?' : skipN, 8)}`
-    + `${pad(failN === null ? '?' : failN, 8)}${pad(r.code, 8)}${r.declared ?? '—'}`
+    + `${pad(failN === null ? '?' : failN, 8)}${pad(r.code, 8)}${pad(secs(r.ms), 10)}${r.declared ?? '—'}`
   );
   if (s?.pass !== undefined) {
     totalPass += s.pass;
@@ -218,16 +238,26 @@ if (skippedLayers.length) {
 }
 
 // 总账必须能从各层真实输出推出来，所以只在这里拼一次
-const code = problems.some((p) => p.startsWith('[失败]')) ? 1 : totalSkip > 0 ? 2 : 0;
+const hasFailure = problems.length > 0;
+const code = hasFailure ? 1 : totalSkip > 0 ? (allowSkip ? 0 : 2) : 0;
+const reason = code === 0
+  ? (totalSkip > 0 ? '全绿且有跳过，--allow-skip 放行' : '全绿且无跳过')
+  : code === 2 ? '绿但存在跳过' : '有失败';
 console.log('');
 console.log(
-  `verify: ${totalPass} 项实测 / ${totalSkip} 项跳过 / ${totalFail} 项失败`
-  + `  → 退出码 ${code}（${code === 0 ? '全绿且无跳过' : code === 2 ? '绿但存在跳过' : '有失败'}）`
+  `verify: ${totalPass} 项实测 / ${totalSkip} 项跳过 / ${totalFail} 项失败  → 退出码 ${code}（${reason}）`
 );
+if (totalSkip > 0 && allowSkip && !hasFailure) {
+  console.log('  ! 退出码被 --allow-skip 放行成 0，但上面点名的跳过项**依然没有被验证**。');
+}
+const slowest = [...rows].sort((a, b) => b.ms - a.ms)[0];
+if (slowest) {
+  console.log(`最慢的一层：${slowest.name} ${secs(slowest.ms)}（八层合计 ${secs(rows.reduce((n, r) => n + r.ms, 0))}）`);
+}
 if (problems.length) {
   console.log('\n问题清单');
   for (const p of problems) console.log(`  ${p}`);
 }
-console.log(`耗时 ${((Date.now() - t0) / 1000).toFixed(1)}s`);
+console.log(`耗时 ${secs(Date.now() - t0)}`);
 
 process.exitCode = code;
