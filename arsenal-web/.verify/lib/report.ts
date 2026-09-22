@@ -12,6 +12,11 @@
  *   · pass  —— 真的断言过，且过了
  *   · fail  —— 真的断言过，且没过
  *   · skip  —— **没有执行**（依赖缺失 / 依赖不可达）。既不算过，也不算失败。
+ * 外加一个**不进上面三个**的第四类：
+ *   · knowinglySkipped —— **刻意未跑**（造用例代价过大，不跑是决定不是意外）。
+ *     它不计进 `total`，所以项的账不变；`--strict` 下由 runner 判为失败。
+ *     不把它混进 skip：混了之后「跳过 34 项」这句话就不再说得出
+ *     「其中几项是环境问题、几项是我们决定不跑」。
  *
  * 退出码约定（与 README、`scripts/verify-all.mjs` 同源，改口径三处一起改）：
  *   0 = 全绿且无任何跳过
@@ -90,6 +95,15 @@ const failedNames: string[] = [];
  * 链尾的 `verify:meta` 会据此把该层的项数标成**未核对**，而不是记一次通过。
  */
 let declaredOnlySkip = 0;
+/**
+ * 「刻意未跑」的项（`knowinglySkipped()`）—— 与 `skipCount` **分开**计数。
+ *
+ * 混在一起会让「跳过 34 项」这句话失去信息：其中有多少是「环境不满足，环境好了就能跑」，
+ * 有多少是「我们决定不跑，别等了」？分开之后 `--strict` 才有东西可判。
+ * 它不进 `pass` / `fail` / `skip`，所以**不影响项数比对**（`verify:meta` 只看前三个）。
+ */
+let knowinglySkipCount = 0;
+const knowinglyNames: string[] = [];
 /**
  * 本层实测项数与档案声明值对不上时的记录（`finish()` 里检测）。
  *
@@ -189,6 +203,26 @@ export function skipItems(label: string, reason: string, n: number): void {
   note(`    这 ${n} 项记为「未执行」—— 既不计通过也不计失败。`);
 }
 
+/**
+ * 「刻意未跑」：**声明在案、且这次本来就不打算跑**的断言（造用例代价过大）。
+ *
+ * 与 `skip()` 的区别就是「想跑跑不了」和「不打算跑」：
+ *   · `skip()` / `skipItems()` / `skipLayer()` —— 依赖缺失或不可达，**环境好了就能跑**
+ *     → 进 skip 计数 → 退出码 2
+ *   · 本函数 —— 代价过大，**不跑是决定而不是意外** → 单独一个计数，
+ *     不进 pass / fail / skip（所以项的账不变），`--strict` 下由 runner 判为失败。
+ *
+ * 为什么必须分开：混进「跳过」里，人会以为「把环境配好就全绿了」——
+ * 而这两项**配好环境也不会跑**。`verify:scan` 的 500MB 总字节闸门、
+ * 真等 180s 超时就是这两项（造 500MB 用例要磁盘和时间）。
+ */
+export function knowinglySkipped(name: string, reason: string): void {
+  knowinglySkipCount += 1;
+  knowinglyNames.push(name);
+  note(`  ~ 刻意未跑：${name}`);
+  note(`      ${reason}`);
+}
+
 export function summary(): {
   pass: number;
   fail: number;
@@ -196,6 +230,8 @@ export function summary(): {
   measured: number;
   total: number;
   countSource: 'measured' | 'declared';
+  knowinglySkipped: number;
+  knowinglyNames: string[];
   skipped: string[];
   failed: string[];
 } {
@@ -208,6 +244,9 @@ export function summary(): {
     // 总项数 = 实测 + 未执行 —— 链尾 `verify:meta` 用它与档案声明值比对。
     total: pass + fail + skipCount,
     countSource: declaredOnlySkip > 0 ? 'declared' : 'measured',
+    // 「刻意未跑」**不进 total**（不跑是决定，不是意外）—— 它只被单独记账。
+    knowinglySkipped: knowinglySkipCount,
+    knowinglyNames: [...knowinglyNames],
     skipped: [...skippedNames],
     failed: [...failedNames],
   };
@@ -243,6 +282,10 @@ export function finish(layer: string, noteText?: string): 0 | 1 | 2 {
   if (s.skip > 0) {
     for (const n of s.skipped) console.log(`  ~ 未执行：${n}`);
   }
+  if (s.knowinglySkipped > 0) {
+    console.log(`  ~ 刻意未跑 ${s.knowinglySkipped} 项（不打算跑，不是环境问题）：`);
+    for (const n of s.knowinglyNames) console.log(`      · ${n}`);
+  }
   if (declaredMismatch) {
     // 本层自己的账都对不上档案 —— 当场判负（与断言失败同为退出码 1）。
     // 链尾 verify:meta 会再报一次同样的两个数字（那里能一次看到八层全貌）。
@@ -263,6 +306,8 @@ export function finish(layer: string, noteText?: string): 0 | 1 | 2 {
     declared,
     declaredMismatch,
     countSource: s.countSource,
+    knowinglySkipped: s.knowinglySkipped,
+    knowinglyNames: s.knowinglyNames,
     exitCode: code,
     skipped: s.skipped,
   };

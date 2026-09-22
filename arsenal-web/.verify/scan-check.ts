@@ -34,7 +34,7 @@ import { CANVAS_THEME_OPTIONS, buildTechArchSvg } from '../src/lib/arch-canvas';
 import { archifyIrIssues, archifyIrShapeIssues } from '../src/lib/archify-ir';
 import { buildProfileDraftFromFacts } from '../src/lib/profile-draft';
 // 统一记账：pass / fail / **skip（独立状态，绝不计入 pass）**，退出码 0 / 2 / 1。
-import { check, finish, skipLayer } from './lib/report';
+import { check, finish, knowinglySkipped, skipLayer } from './lib/report';
 
 const here = path.dirname(url.fileURLToPath(import.meta.url));
 const webRoot = path.resolve(here, '..');
@@ -397,8 +397,14 @@ if (!skipAll) {
     many?.ok === false && many?.code === 'SCAN_TOO_LARGE',
     `实际 ok=${many?.ok} code=${many?.code}`);
 
-  // 总字节 500MB 闸门：造 500MB 的用例代价太大（磁盘 + 时间），如实说没验
-  console.log('  ! 5-4 总字节 500MB 闸门未验：造 500MB 用例代价过大。zip 那条路已有 SCAN_TOO_LARGE 断言（3-2）');
+  // 总字节 500MB 闸门：造 500MB 的用例代价太大（磁盘 + 时间），如实说没验。
+  // ⚠️ 这是**刻意未跑**（不跑是决定，不是环境问题）→ 走 knowinglySkipped，
+  // 与「想跑跑不了」的 skip 分开计数：它不进 skip/total（项的账不变），
+  // 但会在总账里单列一行，且 `npm run verify -- --strict` 下判为失败。
+  knowinglySkipped(
+    '5-4 总字节 500MB 闸门的真实超限（造 500MB 用例）',
+    '磁盘 + 时间代价过大。zip 那条路已有 SCAN_TOO_LARGE 断言（3-2）；8-2 断言了配置项值本身'
+  );
 
   // ── 【6】没有任何部署清单的仓库：不许编出副本数 ─────────────────
   //
@@ -480,6 +486,11 @@ if (!skipAll) {
       `实际 ok=${gt?.ok} code=${gt?.code}`);
     console.log('  ! 8-6 总字节 500MB 的真实超限（造 500MB 用例）与真等 180s 都未实跑：磁盘/时间代价过大。'
       + '只断言了配置项值与超时 code。文件数/深度/单文件都有真实超限用例（5-1/5-2/5-3）。');
+    // 上面这句是给人看的；下面这条是给机器记账的（刻意未跑，见 A-9）
+    knowinglySkipped(
+      '8-6 真等 180s 超时（真实等待）',
+      '等 180s 不现实。8-1/8-5 已断言配置项值与超期后 tick() 抛 SCAN_TIMEOUT 的 code'
+    );
   }
 
 console.log('');

@@ -36,6 +36,11 @@
  * 自己给自己出题。这种层在状态文件里带 `countSource: 'declared'`，
  * 元核对把它记成「未核对」（进 skip 计数 → 退出码 2），**不计 pass**。
  *
+ * ⚠️ **「刻意未跑」不参与比对、但必须落盘**：`knowinglySkipped()`（造用例代价过大、
+ * 不跑是决定而不是意外）的项**不进** `pass / fail / skip`，所以项数的账没被它影响；
+ * 但它必须与 `skip` 分开记进 `layer-counts.json`，否则「跳过 34 项」这句话就说不出
+ * 「其中几项是环境、几项是我们决定不跑」。判负交给 runner 的 `--strict`。
+ *
  * 退出码沿用 `.verify/lib/report.ts` 的约定：0 全绿 / 2 有跳过 / 1 有失败。
  * ─────────────────────────────────────────────────────────────
  */
@@ -75,6 +80,9 @@ interface LayerStatus {
   countSource?: string;
   exitCode?: number;
   skipped?: string[];
+  /** 「刻意未跑」的项数（`report.ts` 的 `knowinglySkipped()`）—— 不进比对，只落盘给人看。 */
+  knowinglySkipped?: number;
+  knowinglyNames?: string[];
 }
 
 /** 汇总表/落盘用的一行。`missing` 为真表示这层根本没写出状态文件。 */
@@ -90,6 +98,9 @@ interface LayerRow {
   exitCode: number | null;
   /** `null` = 未核对（整层未执行，项数无从独立核对）。 */
   ok: boolean | null;
+  /** 「刻意未跑」的项数 —— 与 `skip` 分开（不跑是决定，不是环境问题）。 */
+  knowinglySkipped: number;
+  knowinglyNames: string[];
   missing?: boolean;
 }
 
@@ -151,6 +162,9 @@ const unverified: string[] = [];
 let sumMeasured = 0;
 let sumSkipped = 0;
 let sumFail = 0;
+/** 「刻意未跑」的总项数 —— 不参与比对（项数账不含它），只落盘并打印。 */
+let sumKnowingly = 0;
+const knowinglyList: string[] = [];
 
 for (const key of CHAIN_ORDER) {
   const name = LAYER_NAMES[key] ?? key;
@@ -175,6 +189,8 @@ for (const key of CHAIN_ORDER) {
       countSource: 'missing',
       exitCode: null,
       ok: false,
+      knowinglySkipped: 0,
+      knowinglyNames: [],
       missing: true,
     };
     continue;
@@ -244,7 +260,11 @@ for (const key of CHAIN_ORDER) {
     countSource,
     exitCode: st.exitCode ?? null,
     ok: countSource === 'measured' ? total === declared : null,
+    knowinglySkipped: st.knowinglySkipped ?? 0,
+    knowinglyNames: st.knowinglyNames ?? [],
   };
+  sumKnowingly += st.knowinglySkipped ?? 0;
+  for (const n of st.knowinglyNames ?? []) knowinglyList.push(`${name} · ${n}`);
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -359,6 +379,13 @@ console.log('─'.repeat(78));
 console.log(`${pad('八层合计', 18)}${pad(sumDeclared, 8)}${pad(sumMeasured + sumFail + sumSkipped, 8)}${pad(sumSkipped, 8)}${pad(sumFail, 8)}`);
 console.log('（「实测」列 = 通过 + 失败 + 未执行，与「声明」同量纲；元核对自身不计入八层项数）');
 
+// 「刻意未跑」与「跳过」是两件事：前者不跑是决定，后者是环境。列出来，但不参与比对。
+if (sumKnowingly > 0) {
+  console.log(`\n刻意未跑 ${sumKnowingly} 项（不算跳过、不算失败、也不进项数合计 —— 它们没被执行过）`);
+  for (const k of knowinglyList) console.log(`  ~ ${k}`);
+  console.log('  （`npm run verify -- --strict` 会把它们判成失败）');
+}
+
 if (unverified.length) {
   console.log('\n未核对（项数无从独立核对 —— 不计通过，也不计失败）');
   for (const u of unverified) console.log(`  ~ ${u}`);
@@ -375,6 +402,9 @@ const aggregate = {
     fail: sumFail,
     skip: sumSkipped,
     total: sumMeasured + sumFail + sumSkipped,
+    // 「刻意未跑」单列：它**不在**上面的 total 里（不跑是决定，不是意外）
+    knowinglySkipped: sumKnowingly,
+    knowinglyNames: knowinglyList,
   },
   unverified,
 };

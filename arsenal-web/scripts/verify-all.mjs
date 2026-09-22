@@ -35,6 +35,10 @@
  *       `npm run verify -- --allow-skip` —— 本机环境满足不了某几层时，
  *       把「绿但有跳过」放行成退出码 0（**跳过项仍会照常打印与点名**，只是不判负）。
  *       给「本机就是没后端」的人一条不撒谎的绿灯，而不是把跳过偷偷算成通过。
+ *       `npm run verify -- --strict` —— 把「刻意未跑」也算失败（退出码 1）。
+ *       「刻意未跑」是造用例代价过大、**不跑是决定而不是意外**的那些断言
+ *       （`.verify/lib/report.ts` 的 `knowinglySkipped()`，目前 2 项，都在 `verify:scan`）。
+ *       它们不进项数合计（所以 662 的口径不变），但总账里永远单列一行。
  * ─────────────────────────────────────────────────────────────
  */
 import { spawnSync } from 'node:child_process';
@@ -130,9 +134,17 @@ function pad(s, n) {
 const t0 = Date.now();
 /** `--allow-skip`：把「绿但有跳过」放行成 0。默认不放行 —— 退出码是给 CI / 人看的信号。 */
 const allowSkip = process.argv.includes('--allow-skip');
+/**
+ * `--strict`：把「刻意未跑」也算失败（退出码 1）。
+ * 「刻意未跑」= 造用例代价过大、**不跑是决定而不是意外**的那些断言
+ * （`report.ts` 的 `knowinglySkipped()`，见 `verify:scan` 的 500MB 总字节闸门与真等 180s）。
+ * 默认不算失败（它们不影响项的账），但总账里**永远单列一行** —— 不打印才是问题。
+ */
+const strict = process.argv.includes('--strict');
 console.log('═'.repeat(64));
 console.log('verify · 串行 runner（八层顺序执行，不短路；跳过是独立状态）');
 if (allowSkip) console.log('模式：--allow-skip（存在跳过时也退出 0 —— 跳过项仍会照常点名）');
+if (strict) console.log('模式：--strict（「刻意未跑」的项也判失败）');
 console.log('═'.repeat(64));
 
 cleanOldStatus();
@@ -212,6 +224,9 @@ console.log('─'.repeat(74));
 let totalPass = 0;
 let totalSkip = 0;
 let totalFail = 0;
+/** 「刻意未跑」的项数 —— **不进上面的合计**，单列一行（见 A-9）。 */
+let totalKnowingly = 0;
+const knowinglyNames = [];
 const problems = [];
 const skippedLayers = [];
 
@@ -234,6 +249,11 @@ for (const r of rows) {
     totalPass += s.pass;
     totalSkip += s.skip;
     totalFail += s.fail;
+  }
+  // 「刻意未跑」单独累加：不并进合计，但必须在总账里看得见
+  if (s && typeof s.knowinglySkipped === 'number' && s.knowinglySkipped > 0) {
+    totalKnowingly += s.knowinglySkipped;
+    for (const n of s.knowinglyNames ?? []) knowinglyNames.push(`${r.name} · ${n}`);
   }
   // 层自己报的状态与进程退出码不一致 → 记账不可信，必须点名
   if (s && typeof s.exitCode === 'number' && s.exitCode !== r.code) {
@@ -261,6 +281,19 @@ for (const r of rows) {
 
 console.log('─'.repeat(64));
 console.log(`${pad('合计', 18)}${pad(totalPass, 8)}${pad(totalSkip, 8)}${pad(totalFail, 8)}`);
+
+// 刻意未跑：**不并进合计**（项数不变），但永远单列一行 —— 不打印才是问题
+if (totalKnowingly > 0) {
+  console.log(`${pad('刻意未跑', 18)}${pad(`${totalKnowingly} 项`, 8)}不打算跑（不是环境问题；--strict 下判失败）`);
+  for (const n of knowinglyNames) console.log(`  ~ ${n}`);
+  if (strict) {
+    problems.push(
+      `[失败] 刻意未跑 ${totalKnowingly} 项（--strict：这些断言没被执行过，不许算绿）`
+    );
+  }
+} else {
+  console.log(`${pad('刻意未跑', 18)}${pad('0 项', 8)}（没有声明「不跑」的断言）`);
+}
 
 // 元核对单独一行：它是闸门（像 typecheck），**不并入八层项数**
 const metaPass = metaSt?.pass ?? null;
