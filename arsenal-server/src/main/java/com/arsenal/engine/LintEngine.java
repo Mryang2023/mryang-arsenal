@@ -100,6 +100,16 @@ public class LintEngine {
         int matchedFiles = 0;
         int notApplicable = 0;
 
+        // AST 层的执行账本 —— 这三样过去都不存在，正是「假 100 分」的来源
+        List<ParseFailure> unparsed = new ArrayList<>();
+        List<String> astRuleIds = astRules.stream().map(Rule::id).toList();
+        Set<String> astEvaluatedRuleIds = new LinkedHashSet<>();
+        int javaFiles = 0;
+        int nonJavaFiles = 0;
+        int parsedJavaFiles = 0;
+        int failedJavaFiles = 0;
+        boolean compilerMissing = false;
+
         for (SourceFile file : files) {
             String name = GlobMatcher.normalize(file.name());
             String text = file.content();
@@ -158,25 +168,48 @@ public class LintEngine {
             }
 
             // ── 2b. AST 层（语法树）── 仅对 Java 源执行，解析一次跑完全部检查器
-            if (!astRules.isEmpty() && name.endsWith(".java")) {
-                touched = true;
-                Map<String, List<AstEngine.Finding>> astHits = astEngine.lintFile(astRules, name, text);
-                for (Map.Entry<String, List<AstEngine.Finding>> e : astHits.entrySet()) {
-                    Rule ar = index.byId(e.getKey()).orElse(null);
-                    if (ar == null) {
-                        continue;
-                    }
-                    int shown = 0;
-                    for (AstEngine.Finding fnd : e.getValue()) {
-                        if (shown++ >= maxPerRule) {
-                            break;
+            //
+            // 「没跑成」必须留下痕迹：解析失败时生成显式的 ParseFailure 条目，
+            // 并且**不把这条规则算进 executableRules**（它确实没执行）。
+            // 绝不能像过去那样返回空 map 就完事 —— 那等于把「没结论」报成「零违规」。
+            if (!astRules.isEmpty()) {
+                if (!name.endsWith(".java")) {
+                    // 非 Java 文件：AST 层不适用，但整层是否跑成要等收尾时统一判定
+                    nonJavaFiles++;
+                } else {
+                    touched = true;
+                    javaFiles++;
+                    AstEngine.FileScan scan = astEngine.lintFile(astRules, name, text);
+                    if (scan.parse().ok()) {
+                        parsedJavaFiles++;
+                        astEvaluatedRuleIds.addAll(astRuleIds);
+                        for (Map.Entry<String, List<AstEngine.Finding>> e : scan.hits().entrySet()) {
+                            Rule ar = index.byId(e.getKey()).orElse(null);
+                            if (ar == null) {
+                                continue;
+                            }
+                            int shown = 0;
+                            for (AstEngine.Finding fnd : e.getValue()) {
+                                if (shown++ >= maxPerRule) {
+                                    break;
+                                }
+                                violations.add(new Violation(
+                                        ar.id(), ar.title(), ar.severity(), ar.category(),
+                                        name, fnd.line(), 1, fnd.snippet(),
+                                        fnd.message(), ar.promptFragment(), 0));
+                            }
+                            ruleFileHits.computeIfAbsent(ar.id(), k -> new LinkedHashSet<>()).add(name);
                         }
-                        violations.add(new Violation(
-                                ar.id(), ar.title(), ar.severity(), ar.category(),
-                                name, fnd.line(), 1, fnd.snippet(),
-                                fnd.message(), ar.promptFragment(), 0));
+                    } else {
+                        failedJavaFiles++;
+                        if (scan.parse().status() == AstEngine.ParseStatus.COMPILER_MISSING) {
+                            // 无编译器不是「这个文件」的问题，是一条报告级事实 —— 收尾时记一次，
+                            // 否则 N 个文件就是 N 条一模一样的记录（噪音，不是信息）。
+                            compilerMissing = true;
+                        } else {
+                            unparsed.add(parseFailureOf(name, scan.parse(), astRuleIds));
+                        }
                     }
-                    ruleFileHits.computeIfAbsent(ar.id(), k -> new LinkedHashSet<>()).add(name);
                 }
             }
 
@@ -196,7 +229,7 @@ public class LintEngine {
             Severity sev = index.byId(e.getKey()).map(Rule::severity).orElse(Severity.SHOULD);
             penalty += sev.penalty() + Math.min(e.getValue() - 1, 4);
         }
-        int score = Math.max(0, Math.min(100, 100 - penalty));
+        int penaltyScore = Math.max(0, Math.min(100, 100 - penalty));
 
         // ── 4. 聚合 ─────────────────────────────────────
         Map<String, Integer> counts = new LinkedHashMap<>();
@@ -233,12 +266,84 @@ public class LintEngine {
 
         long ms = (System.nanoTime() - start) / 1_000_000;
 
+        // ── 5. 「没跑成」的显式披露（B-4）──────────────────
+        // 整层未执行时补一条报告级记录。不做这一步，「提交一个 .ts → 拿到 100 分」这个谎就还在：
+        // 那时 astRules 一条都没跑，却照样被算进 executableRules，且没有任何一行说明。
+        String astStatus;
+        String astNote;
+        if (astRules.isEmpty()) {
+            astStatus = "not_applicable";
+            astNote = "本次规则池里没有可执行的 AST 规则。";
+        } else if (compilerMissing) {
+            astStatus = "compiler_missing";
+            astNote = "当前 JVM 无 java.compiler —— 无法进行 AST 检查，"
+                    + astRuleIds.size() + " 条 AST 规则未执行。";
+            unparsed.add(new ParseFailure("", 0, 0, "COMPILER_MISSING",
+                    "无法进行 AST 检查：当前 JVM 没有 javac（java.compiler 模块缺失）", astNote, astRuleIds));
+        } else if (javaFiles == 0) {
+            astStatus = "no_java_file";
+            astNote = "本次没有提交任何 .java 文件（非 Java 文件 " + nonJavaFiles + " 个）—— "
+                    + "AST 层未执行，" + astRuleIds.size() + " 条 AST 规则本次没有结论。";
+            unparsed.add(new ParseFailure("", 0, 0, "NO_JAVA_FILE",
+                    "解析失败：没有可解析的 .java 文件，AST 规则一条都没跑", astNote, astRuleIds));
+        } else if (parsedJavaFiles == 0) {
+            astStatus = "failed";
+            astNote = "全部 " + javaFiles + " 个 .java 文件解析失败 —— 无法进行 AST 检查。";
+        } else if (failedJavaFiles > 0) {
+            astStatus = "partial";
+            astNote = failedJavaFiles + "/" + javaFiles + " 个 .java 文件解析失败，"
+                    + "AST 结论只覆盖解析成功的 " + parsedJavaFiles + " 个文件。";
+        } else {
+            astStatus = "executed";
+            astNote = "AST 层已对 " + parsedJavaFiles + " 个 .java 文件执行完毕。";
+        }
+
+        // 只有「一个文件都没解析成功」时才是整层未执行；partial 的细节由 per-file 的 unparsed 条目承担，
+        // 那时把 7 条全列成「未执行」是夸大。
+        boolean wholeLayerRan = parsedJavaFiles > 0 || astRules.isEmpty();
+        List<String> astUnevaluated = wholeLayerRan ? List.of() : astRuleIds;
+        AstLayer ast = new AstLayer(astStatus, astRuleIds.size(), javaFiles,
+                parsedJavaFiles, failedJavaFiles, astUnevaluated, astNote);
+
+        // 不可判定 = 有人本来会跑、却没跑成。此时**不给数字**：给 100 是谎，给别的数也是谎。
+        boolean decidable = ast.conclusive() && unparsed.isEmpty();
+        List<String> undecidability = new ArrayList<>();
+        if (!decidable) {
+            undecidability.add(astNote);
+            if (!unparsed.isEmpty()) {
+                undecidability.add("存在 " + unparsed.size() + " 条「本次没跑成」记录，"
+                        + "受影响的 AST 规则 " + astRuleIds.size() + " 条 —— 本次不给出合规结论。");
+            }
+        }
+        Integer score = decidable ? penaltyScore : null;
+        String grade = decidable ? grade(penaltyScore) : "不可判定";
+
         return new LintReport(
-                files.size(), totalLines, active.size(), compiled.size() + astRules.size(),
+                files.size(), totalLines, active.size(), compiled.size() + astEvaluatedRuleIds.size(),
                 matchedFiles, notApplicable,
-                violations, skipped,
-                score, grade(score), counts,
-                new ArrayList<>(catMap.values()), byRule, ms);
+                violations, skipped, unparsed,
+                score, grade, counts,
+                new ArrayList<>(catMap.values()), byRule, ms,
+                ast, decidable, undecidability);
+    }
+
+    /** 把一次解析失败转成报告里的显式条目（含「解析失败」字样，并点名因此没跑到的规则）。 */
+    private ParseFailure parseFailureOf(String file, AstEngine.ParseResult parse, List<String> ruleIds) {
+        List<AstEngine.ParseError> errors = parse.errors();
+        String why = switch (parse.status()) {
+            case COMPILER_MISSING -> "无法进行 AST 检查（当前 JVM 无 java.compiler）";
+            case SYNTAX_ERROR -> "解析失败：语法不完整";
+            case OK -> "解析成功";
+        };
+        AstEngine.ParseError first = errors.isEmpty() ? null : errors.get(0);
+        String firstText = first == null ? parse.detail() : first.describe();
+        String detail = first == null
+                ? parse.detail()
+                : parse.detail() + "｜首条诊断 " + firstText + "（共 " + errors.size() + " 条）";
+        return new ParseFailure(file,
+                first == null ? 0 : first.line(),
+                first == null ? 0 : first.column(),
+                parse.status().name(), why + "：" + firstText, detail, ruleIds);
     }
 
     // ──────────────────────────────────────────────── 内部工具

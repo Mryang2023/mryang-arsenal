@@ -8,6 +8,7 @@ import com.sun.source.util.Trees;
 import com.sun.source.util.TreeScanner;
 import org.springframework.stereotype.Component;
 
+import javax.tools.Diagnostic;
 import javax.tools.DiagnosticCollector;
 import javax.tools.JavaCompiler;
 import javax.tools.JavaFileObject;
@@ -22,6 +23,7 @@ import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Deque;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -122,54 +124,106 @@ public final class AstEngine {
         return checkers.containsKey(ruleId);
     }
 
-    public List<Finding> lint(Rule rule, String filename, String content) {
-        if (!hasChecker(rule.id())) {
-            return List.of();
+    /** 一次解析的结局。刻意不用 {@code null} 表达失败 —— 「无编译器」与「语法坏了」必须能被区分。 */
+    public enum ParseStatus {
+        /** 解析成功，语法树可用 */
+        OK,
+        /** 语法错误：javac 报出了 ERROR 级诊断。语法树不完整，<b>不可用于判定</b> */
+        SYNTAX_ERROR,
+        /** 当前 JVM 没有 java.compiler，AST 检查整体不可用 */
+        COMPILER_MISSING
+    }
+
+    /** 一条 javac ERROR 诊断。行/列不可定位时为 0。 */
+    public record ParseError(int line, int column, String code, String message) {
+        public String describe() {
+            String at = line > 0
+                    ? ("第 " + line + " 行" + (column > 0 ? " 第 " + column + " 列" : ""))
+                    : "位置未知";
+            return at + "：" + message;
         }
-        Parsed parsed = parse(filename, content);
-        if (parsed == null) {
-            return List.of();
+    }
+
+    /**
+     * 一次 parse 的完整结果。{@code unit} 仅在 {@link ParseStatus#OK} 时非 null。
+     *
+     * <p>过去的实现返回 {@code null}，于是「无编译器 / 语法坏了 / 没有编译单元」三种情况
+     * 在调用方看来完全一样，最后都变成「零违规」。这个 record 就是为了让它们不再一样。
+     */
+    public record ParseResult(ParseStatus status, CompilationUnitTree unit,
+                              SourcePositions pos, List<ParseError> errors, String detail) {
+        public ParseResult {
+            status = status == null ? ParseStatus.SYNTAX_ERROR : status;
+            errors = errors == null ? List.of() : List.copyOf(errors);
+            detail = detail == null ? "" : detail;
         }
-        ScanCtx ctx = new ScanCtx(parsed.cut(), new SourceText(content), parsed.pos());
-        return checkers.get(rule.id()).check(rule, ctx);
+
+        public boolean ok() {
+            return status == ParseStatus.OK;
+        }
+    }
+
+    /** 单文件 AST 扫描结果：命中 + 解析结局（两者必须一起交还，否则调用方无法区分「没命中」与「没跑成」）。 */
+    public record FileScan(Map<String, List<Finding>> hits, ParseResult parse) {
+        public FileScan {
+            hits = hits == null ? Map.of() : Map.copyOf(hits);
+            parse = parse == null
+                    ? new ParseResult(ParseStatus.SYNTAX_ERROR, null, null, List.of(), "解析结果缺失")
+                    : parse;
+        }
     }
 
     /**
      * 对单个文件解析一次（避免每条规则重复 parse），跑完全部已注册检查器。
-     * 返回 ruleId → 命中列表。解析失败（非 Java / 语法不完整）时整体返回空 ——
-     * 交还 LintEngine 如实归入 skipped，绝不伪造判定。
+     *
+     * <p><b>解析失败时不再返回空 map 冒充「零违规」</b>（那正是假 100 分的源头）：
+     * 把 {@link ParseResult} 一并交还调用方，由 LintEngine 生成显式的解析失败条目。
      */
-    public Map<String, List<Finding>> lintFile(List<Rule> rules, String filename, String content) {
-        Map<String, List<Finding>> out = new LinkedHashMap<>();
-        Parsed parsed = null;
+    public FileScan lintFile(List<Rule> rules, String filename, String content) {
+        List<Rule> runnable = new ArrayList<>();
         for (Rule r : rules) {
-            if (!hasChecker(r.id())) {
-                continue;
+            if (hasChecker(r.id())) {
+                runnable.add(r);
             }
-            if (parsed == null) {
-                parsed = parse(filename, content);
-                if (parsed == null) {
-                    return out;
-                }
-            }
-            ScanCtx ctx = new ScanCtx(parsed.cut(), new SourceText(content), parsed.pos());
+        }
+        if (runnable.isEmpty()) {
+            // 没有检查器 = 没有可执行的 AST 规则，不解析、也不算解析失败
+            return new FileScan(Map.of(), new ParseResult(ParseStatus.OK, null, null, List.of(),
+                    "本文件没有可执行的 AST 检查器"));
+        }
+        ParseResult parsed = parse(filename, content);
+        if (!parsed.ok()) {
+            return new FileScan(Map.of(), parsed);
+        }
+        Map<String, List<Finding>> out = new LinkedHashMap<>();
+        ScanCtx ctx = new ScanCtx(parsed.unit(), new SourceText(content), parsed.pos());
+        for (Rule r : runnable) {
             List<Finding> found = checkers.get(r.id()).check(r, ctx);
             if (!found.isEmpty()) {
                 out.put(r.id(), found);
             }
         }
-        return out;
+        return new FileScan(out, parsed);
     }
 
     // ──────────────────────────────────────────────── 解析
 
-    private record Parsed(CompilationUnitTree cut, SourcePositions pos) {
-    }
-
-    private static Parsed parse(String filename, String content) {
+    /**
+     * 解析一个 Java 源串，返回带状态的 {@link ParseResult}。
+     *
+     * <p>这里必须读 {@code diags}：`task.parse()` 对语法损坏的输入**照样**会返回一个
+     * 不完整的编译单元（javac 是容错的），所以只看「有没有编译单元」根本看不出语法坏了 ——
+     * 那正是过去静默的根因。只有 ERROR 级诊断能说明解析失败。
+     *
+     * <p>只认 {@link Diagnostic.Kind#ERROR}：warning / note / mandatory-warning 都不算失败，
+     * 否则会把本来能解析的文件误判成坏文件（那是把「静默」换成「误报」，一样是骗人）。
+     */
+    private static ParseResult parse(String filename, String content) {
         JavaCompiler compiler = ToolProvider.getSystemJavaCompiler();
         if (compiler == null) {
-            return null;
+            return new ParseResult(ParseStatus.COMPILER_MISSING, null, null, List.of(),
+                    "当前 JVM 无 java.compiler（ToolProvider.getSystemJavaCompiler() 返回 null）"
+                            + " —— 无法进行 AST 检查");
         }
         DiagnosticCollector<JavaFileObject> diags = new DiagnosticCollector<>();
         try (StandardJavaFileManager fm = compiler.getStandardFileManager(diags, null, StandardCharsets.UTF_8)) {
@@ -183,15 +237,45 @@ public final class AstEngine {
             JavacTask task = (JavacTask) compiler.getTask(null, fm, diags,
                     List.of("-proc:none", "-Xlint:none"), null, List.of(fo));
             Iterable<? extends CompilationUnitTree> units = task.parse();
-            if (!units.iterator().hasNext()) {
-                return null;
+            Iterator<? extends CompilationUnitTree> it = units.iterator();
+
+            List<ParseError> errors = readErrors(diags);
+            if (!errors.isEmpty()) {
+                return new ParseResult(ParseStatus.SYNTAX_ERROR, null, null, errors,
+                        "javac 报出 " + errors.size() + " 条 ERROR 诊断 —— 解析失败，语法树不完整、不可用于判定");
             }
-            CompilationUnitTree cut = units.iterator().next();
-            SourcePositions pos = Trees.instance(task).getSourcePositions();
-            return new Parsed(cut, pos);
+            if (!it.hasNext()) {
+                return new ParseResult(ParseStatus.SYNTAX_ERROR, null, null,
+                        List.of(new ParseError(0, 0, "", "编译器未返回任何编译单元")),
+                        "javac 未产出编译单元 —— 解析失败");
+            }
+            CompilationUnitTree cut = it.next();
+            return new ParseResult(ParseStatus.OK, cut, Trees.instance(task).getSourcePositions(),
+                    List.of(), null);
         } catch (IOException e) {
-            return null;
+            // 文件管理器关闭失败 / 源码读取失败都归到这里 —— 同样是「没跑成」，不许静默
+            return new ParseResult(ParseStatus.SYNTAX_ERROR, null, null,
+                    List.of(new ParseError(0, 0, "", "读取源码失败：" + e.getMessage())),
+                    "读取源码失败 —— 解析失败：" + e.getMessage());
         }
+    }
+
+    /** 只取 ERROR 级诊断，换算成可读的行列 + 消息。 */
+    private static List<ParseError> readErrors(DiagnosticCollector<JavaFileObject> diags) {
+        List<ParseError> out = new ArrayList<>();
+        for (Diagnostic<? extends JavaFileObject> d : diags.getDiagnostics()) {
+            if (d.getKind() != Diagnostic.Kind.ERROR) {
+                continue;
+            }
+            long ln = d.getLineNumber();
+            long col = d.getColumnNumber();
+            out.add(new ParseError(
+                    ln > 0 ? (int) ln : 0,
+                    col > 0 ? (int) col : 0,
+                    d.getCode() == null ? "" : d.getCode(),
+                    d.getMessage(null) == null ? "" : d.getMessage(null)));
+        }
+        return out;
     }
 
     // ──────────────────────────────────────────────── 注册
@@ -270,7 +354,9 @@ public final class AstEngine {
             public Void visitCatch(CatchTree node, Void p) {
                 BlockTree body = node.getBlock();
                 boolean hasThrow = new ThrowFinder().scan(body, null) != null;
-                boolean hasPrint = new PrintFinder().scan(body, null);
+                // TreeScanner<Boolean,_>.scan 在「什么都没找到」时返回 null，
+                // 直接拆箱会 NPE（曾把任何含 catch 的文件打成 500）。必须用 equals 比较。
+                boolean hasPrint = Boolean.TRUE.equals(new PrintFinder().scan(body, null));
                 if (body.getStatements().isEmpty()) {
                     out.add(f(rule, node, ctx, "空 catch：捕获后未做任何处理"));
                 } else if (!hasThrow && hasPrint) {
