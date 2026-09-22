@@ -13,3 +13,6 @@ src/generated/
 *.tsbuildinfo
 next-env.d.ts
 .DS_Store
+
+# V-1 截图矩阵：45 张约 5MB，不入库；只提交 manifest/report/findings/evidence
+visual/shots/

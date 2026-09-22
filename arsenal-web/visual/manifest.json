@@ -1,6 +1,6 @@
 {
   "generator": "arsenal-web/visual/shoot.mjs",
-  "generatedAt": "2026-09-22T16:41:33.762Z",
+  "generatedAt": "2026-09-22T16:51:14.993Z",
   "baseUrl": "http://127.0.0.1:3021",
   "fullPage": false,
   "captureMode": "viewport",
@@ -147,7 +147,7 @@
       "width": 1440,
       "height": 900,
       "bytes": 211937,
-      "durationMs": 1330,
+      "durationMs": 1356,
       "ok": true,
       "error": null,
       "metrics": {
@@ -185,7 +185,7 @@
       "width": 1024,
       "height": 768,
       "bytes": 165741,
-      "durationMs": 1252,
+      "durationMs": 1277,
       "ok": true,
       "error": null,
       "metrics": {
@@ -217,7 +217,7 @@
       "width": 390,
       "height": 844,
       "bytes": 105504,
-      "durationMs": 1213,
+      "durationMs": 1204,
       "ok": true,
       "error": null,
       "metrics": {
@@ -288,8 +288,8 @@
       "viewport": "desktop",
       "width": 1440,
       "height": 900,
-      "bytes": 151738,
-      "durationMs": 1181,
+      "bytes": 151722,
+      "durationMs": 1183,
       "ok": true,
       "error": null,
       "metrics": {
@@ -321,7 +321,7 @@
       "width": 1024,
       "height": 768,
       "bytes": 111442,
-      "durationMs": 1157,
+      "durationMs": 1145,
       "ok": true,
       "error": null,
       "metrics": {
@@ -353,7 +353,7 @@
       "width": 390,
       "height": 844,
       "bytes": 49775,
-      "durationMs": 1116,
+      "durationMs": 1105,
       "ok": true,
       "error": null,
       "metrics": {
@@ -425,7 +425,7 @@
       "width": 1440,
       "height": 900,
       "bytes": 109260,
-      "durationMs": 1166,
+      "durationMs": 1125,
       "ok": true,
       "error": null,
       "metrics": {
@@ -469,7 +469,7 @@
       "width": 1024,
       "height": 768,
       "bytes": 105853,
-      "durationMs": 1121,
+      "durationMs": 1117,
       "ok": true,
       "error": null,
       "metrics": {
@@ -513,7 +513,7 @@
       "width": 390,
       "height": 844,
       "bytes": 42535,
-      "durationMs": 1072,
+      "durationMs": 1077,
       "ok": true,
       "error": null,
       "metrics": {
@@ -597,7 +597,7 @@
       "width": 1440,
       "height": 900,
       "bytes": 203801,
-      "durationMs": 1177,
+      "durationMs": 1176,
       "ok": true,
       "error": null,
       "metrics": {
@@ -629,7 +629,7 @@
       "width": 1024,
       "height": 768,
       "bytes": 164122,
-      "durationMs": 1131,
+      "durationMs": 1174,
       "ok": true,
       "error": null,
       "metrics": {
@@ -661,7 +661,7 @@
       "width": 390,
       "height": 844,
       "bytes": 96179,
-      "durationMs": 1135,
+      "durationMs": 1129,
       "ok": true,
       "error": null,
       "metrics": {
@@ -733,7 +733,7 @@
       "width": 1440,
       "height": 900,
       "bytes": 227148,
-      "durationMs": 1263,
+      "durationMs": 1201,
       "ok": true,
       "error": null,
       "metrics": {
@@ -765,7 +765,7 @@
       "width": 1024,
       "height": 768,
       "bytes": 185910,
-      "durationMs": 1242,
+      "durationMs": 1218,
       "ok": true,
       "error": null,
       "metrics": {
@@ -797,7 +797,7 @@
       "width": 390,
       "height": 844,
       "bytes": 102884,
-      "durationMs": 1164,
+      "durationMs": 1166,
       "ok": true,
       "error": null,
       "metrics": {
@@ -869,7 +869,7 @@
       "width": 1440,
       "height": 900,
       "bytes": 104212,
-      "durationMs": 1506,
+      "durationMs": 1509,
       "ok": true,
       "error": null,
       "metrics": {
@@ -900,8 +900,8 @@
       "viewport": "tablet",
       "width": 1024,
       "height": 768,
-      "bytes": 87072,
-      "durationMs": 1125,
+      "bytes": 87036,
+      "durationMs": 1144,
       "ok": true,
       "error": null,
       "metrics": {
@@ -933,7 +933,7 @@
       "width": 390,
       "height": 844,
       "bytes": 54137,
-      "durationMs": 1110,
+      "durationMs": 1123,
       "ok": true,
       "error": null,
       "metrics": {
@@ -1005,7 +1005,7 @@
       "width": 1440,
       "height": 900,
       "bytes": 181652,
-      "durationMs": 1282,
+      "durationMs": 1258,
       "ok": true,
       "error": null,
       "metrics": {
@@ -1037,7 +1037,7 @@
       "width": 1024,
       "height": 768,
       "bytes": 120499,
-      "durationMs": 1250,
+      "durationMs": 1264,
       "ok": true,
       "error": null,
       "metrics": {
@@ -1069,7 +1069,7 @@
       "width": 390,
       "height": 844,
       "bytes": 44697,
-      "durationMs": 1211,
+      "durationMs": 1187,
       "ok": true,
       "error": null,
       "metrics": {
@@ -1141,7 +1141,7 @@
       "width": 1440,
       "height": 900,
       "bytes": 192712,
-      "durationMs": 1225,
+      "durationMs": 1217,
       "ok": true,
       "error": null,
       "metrics": {
@@ -1173,7 +1173,7 @@
       "width": 1024,
       "height": 768,
       "bytes": 145845,
-      "durationMs": 1190,
+      "durationMs": 1229,
       "ok": true,
       "error": null,
       "metrics": {
@@ -1205,7 +1205,7 @@
       "width": 390,
       "height": 844,
       "bytes": 92433,
-      "durationMs": 1153,
+      "durationMs": 1162,
       "ok": true,
       "error": null,
       "metrics": {
@@ -1277,7 +1277,7 @@
       "width": 1440,
       "height": 900,
       "bytes": 145192,
-      "durationMs": 1332,
+      "durationMs": 1307,
       "ok": true,
       "error": null,
       "metrics": {
@@ -1341,7 +1341,7 @@
       "width": 390,
       "height": 844,
       "bytes": 51804,
-      "durationMs": 1257,
+      "durationMs": 1260,
       "ok": true,
       "error": null,
       "metrics": {
@@ -1439,7 +1439,7 @@
       "width": 1440,
       "height": 900,
       "bytes": 142234,
-      "durationMs": 1298,
+      "durationMs": 1292,
       "ok": true,
       "error": null,
       "metrics": {
@@ -1471,7 +1471,7 @@
       "width": 1024,
       "height": 768,
       "bytes": 91559,
-      "durationMs": 1292,
+      "durationMs": 1318,
       "ok": true,
       "error": null,
       "metrics": {
@@ -1543,7 +1543,7 @@
       "width": 390,
       "height": 844,
       "bytes": 54504,
-      "durationMs": 1260,
+      "durationMs": 1286,
       "ok": true,
       "error": null,
       "metrics": {
@@ -1641,7 +1641,7 @@
       "width": 1440,
       "height": 900,
       "bytes": 141925,
-      "durationMs": 1201,
+      "durationMs": 1189,
       "ok": true,
       "error": null,
       "metrics": {
@@ -1673,7 +1673,7 @@
       "width": 1024,
       "height": 768,
       "bytes": 119517,
-      "durationMs": 1178,
+      "durationMs": 1173,
       "ok": true,
       "error": null,
       "metrics": {
@@ -1705,7 +1705,7 @@
       "width": 390,
       "height": 844,
       "bytes": 62813,
-      "durationMs": 1127,
+      "durationMs": 1143,
       "ok": true,
       "error": null,
       "metrics": {
@@ -1803,7 +1803,7 @@
       "width": 1440,
       "height": 900,
       "bytes": 144659,
-      "durationMs": 1174,
+      "durationMs": 1200,
       "ok": true,
       "error": null,
       "metrics": {
@@ -1835,7 +1835,7 @@
       "width": 1024,
       "height": 768,
       "bytes": 125477,
-      "durationMs": 1180,
+      "durationMs": 1153,
       "ok": true,
       "error": null,
       "metrics": {
@@ -1867,7 +1867,7 @@
       "width": 390,
       "height": 844,
       "bytes": 65310,
-      "durationMs": 1122,
+      "durationMs": 1130,
       "ok": true,
       "error": null,
       "metrics": {
@@ -1997,7 +1997,7 @@
       "width": 1024,
       "height": 768,
       "bytes": 137935,
-      "durationMs": 1179,
+      "durationMs": 1174,
       "ok": true,
       "error": null,
       "metrics": {
@@ -2029,7 +2029,7 @@
       "width": 390,
       "height": 844,
       "bytes": 70341,
-      "durationMs": 1140,
+      "durationMs": 1135,
       "ok": true,
       "error": null,
       "metrics": {
@@ -2127,7 +2127,7 @@
       "width": 1440,
       "height": 900,
       "bytes": 164323,
-      "durationMs": 1261,
+      "durationMs": 1273,
       "ok": true,
       "error": null,
       "metrics": {
@@ -2159,7 +2159,7 @@
       "width": 1024,
       "height": 768,
       "bytes": 125159,
-      "durationMs": 1236,
+      "durationMs": 1235,
       "ok": true,
       "error": null,
       "metrics": {
@@ -2257,7 +2257,7 @@
       "width": 390,
       "height": 844,
       "bytes": 79173,
-      "durationMs": 1222,
+      "durationMs": 1197,
       "ok": true,
       "error": null,
       "metrics": {
@@ -2355,7 +2355,7 @@
       "width": 1440,
       "height": 900,
       "bytes": 163145,
-      "durationMs": 1257,
+      "durationMs": 1233,
       "ok": true,
       "error": null,
       "metrics": {
@@ -2387,7 +2387,7 @@
       "width": 1024,
       "height": 768,
       "bytes": 124905,
-      "durationMs": 1235,
+      "durationMs": 1219,
       "ok": true,
       "error": null,
       "metrics": {
@@ -2419,7 +2419,7 @@
       "width": 390,
       "height": 844,
       "bytes": 78563,
-      "durationMs": 1211,
+      "durationMs": 1216,
       "ok": true,
       "error": null,
       "metrics": {
