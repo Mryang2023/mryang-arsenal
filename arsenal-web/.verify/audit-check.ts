@@ -10,19 +10,9 @@
 import { auditArchitecture, nodeArch, skeletonPicks } from '@/lib/arch';
 import { emptyPicks, presetPicks } from '@/lib/stack';
 import type { StackPicks } from '@/lib/content-types';
-
-let pass = 0;
-let fail = 0;
-
-function check(name: string, cond: boolean, detail?: string) {
-  if (cond) {
-    pass += 1;
-    console.log(`  \u2713 ${name}`);
-  } else {
-    fail += 1;
-    console.log(`  \u2717 ${name}${detail ? ` \u2014 ${detail}` : ''}`);
-  }
-}
+// 统一记账：pass / fail / **skip（独立状态，绝不计入 pass）**，退出码 0 / 2 / 1。
+// 见 .verify/lib/report.ts 顶部注释。
+import { check, finish } from './lib/report';
 
 function titles(list: { title: string }[]) {
   return list.map((x) => x.title).join(' | ');
@@ -153,6 +143,4 @@ for (const [dim, opt] of Object.entries(std)) {
 }
 check('能力总数随装配只增不减', monotonic);
 
-console.log(`\n${'─'.repeat(52)}`);
-console.log(`通过 ${pass} / 失败 ${fail}`);
-process.exitCode = fail === 0 ? 0 : 1;
+finish('arch');

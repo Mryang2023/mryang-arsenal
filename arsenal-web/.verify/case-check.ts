@@ -28,18 +28,8 @@ import {
 } from '@/lib/case-synth';
 import type { CaseDef, CaseParams } from '@/lib/case-types';
 import { buildZip, crc32 } from '@/lib/zip-lite';
-
-let pass = 0;
-let fail = 0;
-function check(name: string, cond: boolean, detail = '') {
-  if (cond) {
-    pass += 1;
-    console.log(`  \u2713 ${name}`);
-  } else {
-    fail += 1;
-    console.log(`  \u2717 ${name}${detail ? `\n      ${detail}` : ''}`);
-  }
-}
+// 统一记账：pass / fail / **skip（独立状态，绝不计入 pass）**，退出码 0 / 2 / 1。
+import { check, finish } from './lib/report';
 
 const webRoot = path.resolve(process.cwd());
 const KNOWN_RULES = new Set<string>();
@@ -477,6 +467,4 @@ console.log('\n【13】导出整包：ZIP 写出器必须产出结构自洽、�
   );
 }
 
-console.log(`\n${'─'.repeat(52)}`);
-console.log(`通过 ${pass} / 失败 ${fail}`);
-process.exitCode = fail === 0 ? 0 : 1;
+finish('cases');

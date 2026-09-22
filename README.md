@@ -230,7 +230,40 @@ bash scripts/compile-check.sh      # 26 源文件 → 41 class
 cd arsenal-web && npm run verify
 ```
 
-一条命令跑完八层、共 **662 项**：
+一条命令跑完八层、共 **662 项**（另有类型闸门 `tsc --noEmit`，见下）：
+
+**`verify` 现在是一个串行 runner（`arsenal-web/scripts/verify-all.mjs`），不是 `&&` 链。**
+两层差别是「报告可不可信」：
+
+- **不短路**：以前是 `verify:arch && verify:graph && … && verify:scan`，任何一层红了，
+  后面几层**根本不启动**，而「没启动」在退出码上留不下痕迹 —— 报告只显示「第三层红了」。
+  现在八层顺序全跑、逐层收集退出码，所以每一层都有行。
+- **跳过是独立状态**：既不算通过、也不算失败。每层收尾都会打
+  `实测 N 项 / 跳过 M 项 / 失败 K 项`，并写 `.verify/tmp/layer-<key>.json`；
+  runner 末尾打一行总账，数字全部来自各层真实输出（**没有一个是手写的**）。
+
+```text
+verify: 628 项实测 / 34 项跳过 / 0 项失败  → 退出码 2（绿但存在跳过）
+```
+
+**退出码约定**（与 `scripts/verify-all.mjs`、`.verify/lib/report.ts` 同源，改口径三处一起改）：
+
+| 退出码 | 含义 | 怎么用 |
+|---|---|---|
+| `0` | 全绿，且**无任何跳过** | 可以拍胸脯说「八层都跑了」 |
+| `2` | 绿（无失败），但**存在跳过** | 可交付，但报告里必须点名哪层跳了、跳了几项 |
+| `1` | 有失败（含某层崩溃 / 没写出状态文件 / 空跑却报通过） | 不许交付 |
+
+**类型闸门**：`npm run typecheck` = `node node_modules/typescript/bin/tsc --noEmit`
+（**不要**用 `node_modules/.bin/tsc`，那是 shell shim，本机必挂；也不要 `npx tsc`）。
+它是 runner 里的一个闸门层（不计项数）：先跑根配置守 `src/`，
+再跑 `.verify/tsconfig.json` 守那 9 个断言脚本自己 —— 因为
+**`.verify/**` 不在根 tsconfig 的 include 里**（TS 的 `**/*.ts` 不匹配点开头的目录，
+实测 `--listFiles` 共 521 个文件、`.verify` 下 0 个），只跑根配置的话，
+断言脚本的类型错只在**运行时**炸成整层崩。
+`noUncheckedIndexedAccess` **暂未开启**：实测打开后 `tsc --noEmit` 报 **139 条**错误
+（65×TS18048 / 35×TS2532 / 24×TS2322 / 14×TS2345 / 1×TS2538），
+属独立任务，不在本层范围。
 
 | 层 | 项数 | 看什么 |
 |---|---|---|
@@ -247,11 +280,13 @@ cd arsenal-web && npm run verify
 **必须重跑**：基线在 `.verify/audit-check.ts`、`.verify/graph-check.ts`、
 `.verify/project-check.ts`、`.verify/archify-check.ts` 与 `.verify/scan-check.ts`。
 
-`verify:scan` 需要 bash + JDK 17（它要起后端扫描探针实跑）。缺一个就**明说跳过**并退出 0 ——
-那时「通过」里不含扫描断言。
+`verify:scan` 需要 bash + JDK 17（它要起后端扫描探针实跑）。缺一个就**明说跳过**、
+把本层声明的 69 项全记为「未执行」并**退出 2**（退出 0 的时代结束了）——
+那时「实测」里不含扫描断言，总账会点名「代码扫描（69 项未执行）」。
 
-`verify:archify` 需要机器上装了通用绘图器（扳手AI.Archify）。没装时前 19 项
-**明说跳过**并照常退出 0 —— 但那时「通过」里不包含九项构图检查，别当成绿灯。
+`verify:archify` 需要机器上装了通用绘图器（扳手AI.Archify）。没装时整层 31 项记为
+「未执行」并**退出 2**；装了绘图器但后端出图服务不可达时，服务侧那 9 条记为「未执行」，
+本层本地 IR 自检仍然真跑。两种都不再计入「通过」。
 默认跑 4 套预设 + 8 种边界组合；想穷举七个节点维度的全部 128 种组合：
 
 ```bash
@@ -264,9 +299,11 @@ cd arsenal-web && ARCHIFY_SWEEP=1 npm run verify:archify
 子进程输出没被翻译回来，IR 全绿它也照样坏。
 
 > `verify:parity` 需要 `bash` + JDK 17：它要起后端探针实跑一遍导出再逐字节比对。
-> 没有 bash 的环境这一层跑不了（报 `execvpe(/bin/bash) failed`），此时其余五层
-> （35 + 59 + 213 + 14 + 29 = 350 项）仍然有效，只是少了 parity 的 9 项
-> 与 archify 里依赖 bash 的那部分。
+> 没有 bash 的环境这一层跑不了（报 `execvpe(/bin/bash) failed`），此时其余七层
+> 仍然有效 —— 但这一层的「未执行」不再被静默吞掉：
+> 探针起不来 → 依赖它的比对项记「未执行」；探针跑成了但没起后端 →
+> **活服务那 3 条**（规则数 / 严重度分布 / 分类分布）记「未执行」，
+> 本层退出 2，总账里点名「前后端一致性（N 项未执行）」。
 
 
 ---

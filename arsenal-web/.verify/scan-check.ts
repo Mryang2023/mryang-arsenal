@@ -33,6 +33,8 @@ import {
 import { CANVAS_THEME_OPTIONS, buildTechArchSvg } from '../src/lib/arch-canvas';
 import { archifyIrIssues, archifyIrShapeIssues } from '../src/lib/archify-ir';
 import { buildProfileDraftFromFacts } from '../src/lib/profile-draft';
+// 统一记账：pass / fail / **skip（独立状态，绝不计入 pass）**，退出码 0 / 2 / 1。
+import { check, finish, skipLayer } from './lib/report';
 
 const here = path.dirname(url.fileURLToPath(import.meta.url));
 const webRoot = path.resolve(here, '..');
@@ -40,19 +42,7 @@ const serverRoot = path.resolve(webRoot, '..', 'arsenal-server');
 const tmpDir = path.join(here, 'tmp', 'scan-check');
 const fixture = path.join(here, 'fixtures', 'demo-repo');
 
-let pass = 0;
-let fail = 0;
 let skipAll = false;
-
-function check(name: string, cond: boolean, detail?: string) {
-  if (cond) {
-    pass += 1;
-    console.log(`  \u2713 ${name}`);
-  } else {
-    fail += 1;
-    console.log(`  \u2717 ${name}${detail ? `\n      ${detail.split('\n').join('\n      ')}` : ''}`);
-  }
-}
 
 function section(title: string) {
   console.log(`\n${title}`);
@@ -66,12 +56,30 @@ const probeScript = path.join(serverRoot, 'scripts', 'scan-probe.sh');
 const bash = spawnSync('bash', ['--version'], { encoding: 'utf8' });
 const hasBash = bash.status === 0;
 const hasProbe = fs.existsSync(probeScript);
+let skipReason = '';
 if (!hasBash || !hasProbe) {
   skipAll = true;
-  console.log('  ! 跳过：缺少 bash 或 scan-probe.sh —— 本层未跑，verify 的绿不含扫描断言');
+  skipReason = !hasBash
+    ? 'bash 不可用（spawnSync("bash","--version") 未返回 0）—— 扫描探针跑不起来'
+    : `探针脚本不存在：${probeScript}`;
+  console.log(`  ! 跳过：${skipReason}`);
+  console.log('    本层不会被计入「通过」。收尾会打「实测 0 项 / 跳过 N 项 / 失败 0 项」，退出码 2。');
 }
 
-type Receipt = { action: string; kind: string; ok: boolean; code?: string; message?: string; facts?: any };
+// 探针回执。除 facts 外还有三种附加载荷（rules / symlink / guard）——
+// 以前这里没声明，tsc 抓不到 `?.rules` 这类访问（.verify 不在类型闸门里）。
+// 现在 .verify/tsconfig.json 把这一层也纳入了，所以字段必须写全。
+type Receipt = {
+  action: string;
+  kind: string;
+  ok: boolean;
+  code?: string;
+  message?: string;
+  facts?: any;
+  rules?: any;
+  symlink?: any;
+  guard?: any;
+};
 
 function runProbe(tag: string, actions: string[]): Receipt[] {
   const outFile = path.join(tmpDir, `${tag}.json`);
@@ -476,8 +484,7 @@ if (!skipAll) {
 
 console.log('');
 if (skipAll) {
-  console.log('verify:scan —— 跳过（缺 bash / 探针脚本）。0 项通过、0 项失败。');
-  process.exit(0);
+  // 整层未执行：记本层声明的项数为「跳过」，**不计通过也不计失败**，退出码由 finish 判为 2。
+  skipLayer('scan', skipReason);
 }
-console.log(`verify:scan —— ${pass} 项通过 / ${fail} 项失败`);
-process.exit(fail > 0 ? 1 : 0);
+process.exit(finish('scan'));

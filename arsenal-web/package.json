@@ -14,6 +14,8 @@
     "build": "node scripts/next-run.mjs build",
     "start": "next start -p 3010",
     "preverify": "npm run sync",
+    "typecheck": "node node_modules/typescript/bin/tsc --noEmit",
+    "typecheck:verify": "node node_modules/typescript/bin/tsc --noEmit --project .verify/tsconfig.json",
     "verify:arch": "tsx .verify/audit-check.ts",
     "verify:graph": "tsx .verify/graph-check.ts",
     "verify:project": "tsx .verify/project-check.ts",
@@ -21,7 +23,7 @@
     "verify:parity": "tsx .verify/parity-check.ts",
     "verify:archify": "tsx .verify/archify-check.ts",
     "verify:scan": "tsx .verify/scan-check.ts",
-    "verify": "npm run verify:arch && npm run verify:graph && npm run verify:cases && npm run verify:project && npm run verify:engine && npm run verify:parity && npm run verify:archify && npm run verify:scan",
+    "verify": "node scripts/verify-all.mjs",
     "lint": "next lint",
     "verify:cases": "tsx .verify/case-check.ts"
   },

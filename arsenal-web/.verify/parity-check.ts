@@ -33,6 +33,8 @@ import { DEFAULT_EXPORT_OPTIONS, EXPORT_FORMATS, buildExport } from '@/lib/expor
 import { meta, rules } from '@/lib/rules';
 import { CATEGORY_ORDER, CATEGORY_THEME } from '@/lib/theme';
 import type { ExportFormat } from '@/lib/exporters';
+// 统一记账：pass / fail / **skip（独立状态，绝不计入 pass）**，退出码 0 / 2 / 1。
+import { check, finish, skip } from './lib/report';
 
 const here = path.dirname(url.fileURLToPath(import.meta.url));
 const webRoot = path.resolve(here, '..');
@@ -42,17 +44,12 @@ const probeScript = path.join(repoRoot, 'arsenal-server', 'scripts', 'parity-pro
 const beDir = path.join(repoRoot, 'arsenal-server', 'target', 'parity-be');
 const feDir = path.join(repoRoot, 'arsenal-server', 'target', 'parity-fe');
 
-let pass = 0;
-let fail = 0;
-function check(name: string, cond: boolean, detail?: string) {
-  if (cond) {
-    pass += 1;
-    console.log(`  \u2713 ${name}`);
-  } else {
-    fail += 1;
-    console.log(`  \u2717 ${name}${detail ? `\n      ${detail.split('\n').join('\n      ')}` : ''}`);
-  }
-}
+/**
+ * 环境缺件（bash / JDK17）时为真 —— 此时【4】【5】依赖后端产物的断言**未执行**，
+ * 记 skip 而不是 fail。真正的断言失败（两端产物不一致）仍然是 fail。
+ * 先置 null，【2】拿到探针结果后填。
+ */
+let envUnavailable: string | null = null;
 
 // ═══════════════════════════════════════════════════════════════
 // 【1】先断言「代码里的副本」与「数据」一致 —— 不依赖 JDK，先跑
@@ -128,18 +125,23 @@ const probe = spawnSync(
 );
 
 if (probe.error) {
-  check(
-    '后端探针能启动（需要 bash + JDK 17）',
-    false,
-    `${(probe.error as Error).message}\n` +
-      '      这条红不是「代码不一致」，是环境缺件。装了 bash + JDK 17 再跑。'
-  );
+  // spawn 本身就失败 = 连 bash 都没找到。这是环境缺件，**不是**「两端不一致」，所以记 skip。
+  envUnavailable = `后端探针无法启动：${(probe.error as Error).message}`;
+  skip('后端探针能启动（需要 bash + JDK 17）', envUnavailable);
 } else if (probe.status !== 0) {
-  check(
-    '后端探针成功导出',
-    false,
-    `退出码 ${probe.status}\n${(probe.stdout || '').trim()}\n${(probe.stderr || '').trim()}`
-  );
+  const out = `${probe.stdout || ''}\n${probe.stderr || ''}`;
+  // 「环境缺件」与「探针真的编不过」必须分开报：
+  //   前者 = 未执行（skip → 退出码 2），后者 = 真红（fail → 退出码 1）。
+  // 判据是探针输出里有没有环境缺件的特征串 —— 不精确，但两条路的输出都会原样打出来，
+  // 判错也能被人一眼看出（这是刻意的取舍：宁可让人复核，不要静默）。
+  const envLike = /command not found|No such file|no such file|JAVA_HOME|javac|not recognized|Permission denied/i.test(out);
+  if (envLike) {
+    envUnavailable = `后端探针退出码 ${probe.status}，输出像环境缺件（bash / JDK 17）：`
+      + out.trim().split('\n').slice(-4).join(' / ');
+    skip('后端探针成功导出', envUnavailable);
+  } else {
+    check('后端探针成功导出', false, `退出码 ${probe.status}\n${out.trim()}`);
+  }
 } else {
   check('后端探针成功导出', true);
   for (const line of (probe.stdout || '').split('\n').filter((l) => l.trim())) {
@@ -210,6 +212,11 @@ function readBoth(format: string): { be: string; fe: string } | null {
   const be = path.join(beDir, `${format}.txt`);
   const fe = path.join(feDir, `${format}.txt`);
   if (!fs.existsSync(be)) {
+    if (envUnavailable) {
+      // 探针根本没跑成 → 这一条是「未执行」，不是「两端不一致」。两者在报告里必须可区分。
+      skip(`${format}：两端产物比对（需要后端探针）`, envUnavailable);
+      return null;
+    }
     check(`${format}：后端产物存在`, false, `缺 ${be} —— 探针没跑成，先看上一条红`);
     return null;
   }
@@ -342,8 +349,13 @@ async function probeLive(): Promise<void> {
   }
 
   if (!stats || typeof stats.total !== 'number') {
-    console.log(`  · ${API_BASE} 上没检测到服务，跳过本节`);
-    console.log('    起服务后复跑：bash arsenal-server/scripts/run.sh && npm run verify:parity');
+    // 以前这里只 console.log 一句就 return —— 「没起服务」在总账里等于 0 项，
+    // 三节体检被**静默略过**，「全绿」的含义被高估。现在如实记 3 项未执行。
+    const why = `${API_BASE} 上没有活服务（起服务后复跑：bash arsenal-server/scripts/run.sh && npm run verify:parity）`;
+    console.log(`  · ${API_BASE} 上没检测到服务`);
+    skip('活服务：规则数 == 事实源', why);
+    skip('活服务：按严重度的分布 == 事实源', why);
+    skip('活服务：按分类的分布 == 事实源', why);
     return;
   }
 
@@ -365,7 +377,5 @@ async function probeLive(): Promise<void> {
 }
 
 probeLive().then(() => {
-  console.log(`\n${'─'.repeat(56)}`);
-  console.log(`通过 ${pass} 项，失败 ${fail} 项`);
-  process.exitCode = fail === 0 ? 0 : 1;
+  finish('parity');
 });

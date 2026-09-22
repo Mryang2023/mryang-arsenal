@@ -25,18 +25,8 @@ import {
   type ArchGraph,
 } from '@/lib/arch-graph';
 import { dimensions, emptyPicks, presetPicks, presets } from '@/lib/stack';
-
-let pass = 0;
-let fail = 0;
-function check(name: string, cond: boolean, detail = '') {
-  if (cond) {
-    pass += 1;
-    console.log(`  \u2713 ${name}`);
-  } else {
-    fail += 1;
-    console.log(`  \u2717 ${name}${detail ? `\n      ${detail}` : ''}`);
-  }
-}
+// 统一记账：pass / fail / **skip（独立状态，绝不计入 pass）**，退出码 0 / 2 / 1。
+import { check, finish } from './lib/report';
 
 const SLOTS = Object.keys(nodeArch);
 const standard = presetPicks('standard');
@@ -388,6 +378,4 @@ check(
   stories[0]?.source === 'preset'
 );
 
-console.log(`\n${'─'.repeat(52)}`);
-console.log(`通过 ${pass} / 失败 ${fail}`);
-process.exitCode = fail === 0 ? 0 : 1;
+finish('graph');

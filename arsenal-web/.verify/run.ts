@@ -27,6 +27,8 @@ import path from 'node:path';
 import url from 'node:url';
 import { lint } from '@/lib/engine';
 import { SAMPLES } from '@/lib/samples';
+// 统一记账：pass / fail / **skip（独立状态，绝不计入 pass）**，退出码 0 / 2 / 1。
+import { check, finish } from './lib/report';
 
 const here = path.dirname(url.fileURLToPath(import.meta.url));
 const rulesetPath = path.join(here, '..', 'src', 'generated', 'rules.json');
@@ -45,19 +47,6 @@ const BASELINE = {
   /** 写法规范的样本允许出现的违规数。0 是硬要求：假阳性会让人不再信报告 */
   cleanViolations: 0,
 };
-
-let pass = 0;
-let fail = 0;
-
-function check(name: string, cond: boolean, detail?: string) {
-  if (cond) {
-    pass += 1;
-    console.log(`  \u2713 ${name}`);
-  } else {
-    fail += 1;
-    console.log(`  \u2717 ${name}${detail ? ` \u2014 ${detail}` : ''}`);
-  }
-}
 
 // ═══════════════════════════════════════════════════════════════
 // 【1】规则池的口径必须自洽
@@ -258,7 +247,5 @@ check(
 );
 
 // ═══════════════════════════════════════════════════════════════
-console.log(`\n${'─'.repeat(56)}`);
-console.log(`通过 ${pass} 项，失败 ${fail} 项`);
 console.log(`累计命中规则 ${allHitRules.size} 条（基线 ${BASELINE.hitRules}）`);
-process.exitCode = fail === 0 ? 0 : 1;
+finish('engine');

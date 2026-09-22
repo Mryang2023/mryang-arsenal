@@ -40,22 +40,12 @@ import { buildTechArch, emptyEdits } from '@/lib/arch-canvas';
 import { archifyIrIssues, buildArchifyIr } from '@/lib/archify-ir';
 import { dimensionById, emptyPicks, presetPicks, presets } from '@/lib/stack';
 import type { StackPicks } from '@/lib/content-types';
+// 统一记账：pass / fail / **skip（独立状态，绝不计入 pass）**，退出码 0 / 2 / 1。
+import { check, finish, note, skip, skipItems, skipLayer } from './lib/report';
 
 const here = path.dirname(url.fileURLToPath(import.meta.url));
 const webRoot = path.resolve(here, '..');
 const tmpDir = path.join(webRoot, '.verify', 'tmp', 'archify-check');
-
-let pass = 0;
-let fail = 0;
-function check(name: string, cond: boolean, detail?: string) {
-  if (cond) {
-    pass += 1;
-    console.log(`  \u2713 ${name}`);
-  } else {
-    fail += 1;
-    console.log(`  \u2717 ${name}${detail ? `\n      ${detail.split('\n').join('\n      ')}` : ''}`);
-  }
-}
 
 // ═══════════════════════════════════════════════════════════════
 // 【0】找到对方的校验器。找不到就明说跳过
@@ -90,18 +80,28 @@ function findCli(): string | null {
 
 const cli = findCli();
 if (!cli) {
-  console.log('  \u26a0 未找到 wrench-ai —— 本层整体跳过');
-  console.log('    期望位置：~/.workbuddy/skills/wrench-ai/bin/wrench-ai.mjs');
-  console.log('    也可用环境变量 WRENCH_AI_CLI 指定入口。');
-  console.log('\n' + '─'.repeat(56));
-  console.log('通过 0 项，失败 0 项，跳过 1 层（九项构图检查**未执行**）');
-  process.exit(0);
+  // 环境缺件 → 本层整层**未执行**。以前这里是 `process.exit(0)`，
+  // 于是「八层全绿」里藏着「这一层根本没跑」—— 这正是本次要关掉的那种绿。
+  note('  \u26a0 未找到 wrench-ai —— 本层整体跳过（不是通过）');
+  note('    期望位置：~/.workbuddy/skills/wrench-ai/bin/wrench-ai.mjs');
+  note('    也可用环境变量 WRENCH_AI_CLI 指定入口。');
+  note('');
+  skipLayer('archify', '本机未安装通用绘图器 wrench-ai（候选路径与环境变量 WRENCH_AI_CLI 均未命中）');
+  // finish() 用 fs.writeSync 打状态行与写 layer-archify.json，都是同步的，
+  // 所以后面紧跟 process.exit 不会把关键输出截掉（Windows 下管道 stdout 是异步的）。
+  process.exit(finish('archify'));
 }
 console.log(`  入口：${cli}`);
 
+/**
+ * 上面已经排除了 `null`。显式取一次而不是靠 `process.exit()` 的 never 返回值做类型收窄 ——
+ * 收窄不会传进下面 `wrench()` 的函数体，`.verify/tsconfig.json` 一开就会报 TS2769。
+ */
+const cliPath: string = cli;
+
 /** 调一次它的 CLI，拿 JSON 结果 */
 function wrench(args: string[]): { ok: boolean; data?: unknown; raw: string } {
-  const r = spawnSync(process.execPath, [cli, ...args], {
+  const r = spawnSync(process.execPath, [cliPath, ...args], {
     cwd: webRoot,
     encoding: 'utf8',
     maxBuffer: 32 * 1024 * 1024,
@@ -414,10 +414,7 @@ interface BackendProbe {
 const serverRoot = path.resolve(webRoot, '..', 'arsenal-server');
 const backendProbeScript = path.join(serverRoot, 'scripts', 'archify-probe.sh');
 
-if (!cli) {
-  // 上面已经报过「没装绘图器」了，这里不重复报错 —— 环境缺件报两次，人会以为有两处坏了
-  check('后端出图服务：跳过（本机没装通用绘图器）', true);
-} else if (!fs.existsSync(backendProbeScript)) {
+if (!fs.existsSync(backendProbeScript)) {
   check('后端探针脚本存在', false, backendProbeScript);
 } else {
   // 只喂三份：服务层的问题与「样本多少」无关，多喂只是多花时间（一份约 1 秒）。
@@ -443,7 +440,13 @@ if (!cli) {
     const p = JSON.parse(fs.readFileSync(receiptPath, 'utf8')) as BackendProbe;
 
     if (!p.available) {
-      check(`后端出图服务：跳过（${p.code}）—— 这一层的绿不含服务结论`, true, p.reason ?? '');
+      // 服务不可达 = 下面那 9 条服务侧断言**一条都没执行**。
+      // 以前这里是 `check(..., true)` —— 把「跳过」计进了 pass，于是「全绿」里含 9 条假绿。
+      skipItems(
+        '后端出图服务侧断言',
+        `后端出图服务不可达（${p.code}）${p.reason ? `：${p.reason}` : ''}`,
+        9
+      );
     } else {
       check(
         `服务自己找得到 node 与技能入口（${p.nodeBinary} ${p.nodeVersion}）`,
@@ -522,5 +525,4 @@ if (!cli) {
 }
 
 console.log(`\n${'─'.repeat(56)}`);
-console.log(`通过 ${pass} 项，失败 ${fail} 项（样例 ${built.length} 例）`);
-process.exitCode = fail === 0 ? 0 : 1;
+finish('archify', `（样例 ${built.length} 例）`);

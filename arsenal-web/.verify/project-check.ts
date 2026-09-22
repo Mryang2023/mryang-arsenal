@@ -47,19 +47,8 @@ import { ARCH_GLYPHS } from '@/lib/arch-glyphs';
 import { svgMotionStyle } from '@/lib/arch-motion';
 import { TECH_ICONS } from '@/lib/tech-icons';
 import { ICON_CATEGORIES, iconAssets } from '@/lib/icon-assets';
-
-let pass = 0;
-let fail = 0;
-
-function check(name: string, cond: boolean, detail?: string) {
-  if (cond) {
-    pass += 1;
-    console.log(`  \u2713 ${name}`);
-  } else {
-    fail += 1;
-    console.log(`  \u2717 ${name}${detail ? ` \u2014 ${detail}` : ''}`);
-  }
-}
+// 统一记账：pass / fail / **skip（独立状态，绝不计入 pass）**，退出码 0 / 2 / 1。
+import { check, finish } from './lib/report';
 
 const here = path.dirname(url.fileURLToPath(import.meta.url));
 const tmpDir = path.join(here, 'tmp');
@@ -1291,7 +1280,5 @@ console.log('\n【15】代码扫描映射表契约');
 
 zipChecks().then(() => {
   profileChecks();
-  console.log(`\n${'─'.repeat(56)}`);
-  console.log(`通过 ${pass} 项，失败 ${fail} 项`);
-  process.exit(fail === 0 ? 0 : 1);
+  process.exit(finish('project'));
 });
