@@ -42,7 +42,9 @@ import Inspector from './Inspector';
 import ProjectTree from './ProjectTree';
 import SlotBlock from './SlotBlock';
 import ArchDiagram from './ArchDiagram';
+import DeliveryDeck from './DeliveryDeck';
 import { savePicksSnapshot } from '@/lib/picks-store';
+import { emptyMeta, withParam, withTopology, type StackPicksMeta } from '@/lib/topology';
 import { TONE } from './palette';
 
 /**
@@ -79,6 +81,13 @@ interface TabSpec {
 
 export default function StackComposer() {
   const [picks, setPicks] = useState<StackPicks>(() => presetPicks('standard'));
+  /**
+   * 集群形态与参数。与 `picks` **平行**的一条通道 ——
+   * 选型回答「装哪块零件」，形态回答「装几个、怎么摆」。
+   * 两者一起被持久化、一起进产物：清单里的副本数、架构图上的叠层、
+   * 形态图的框数全部来自这里，没有第二处写死的数字。
+   */
+  const [meta, setMeta] = useState<StackPicksMeta>(() => emptyMeta());
   const [presetId, setPresetId] = useState<string | null>('standard');
   const [activeDim, setActiveDim] = useState<string | null>(null);
   const [tab, setTab] = useState<TabId>('build');
@@ -95,8 +104,8 @@ export default function StackComposer() {
    * 这是一条跨页契约，只有这一处写、只有 TechArch 一处读。
    */
   useEffect(() => {
-    savePicksSnapshot(picks);
-  }, [picks]);
+    savePicksSnapshot(picks, meta);
+  }, [picks, meta]);
 
   const audit = useMemo(() => auditArchitecture(picks), [picks]);
   const composed = useMemo(() => composeStack(picks), [picks]);
@@ -126,8 +135,12 @@ export default function StackComposer() {
     return map;
   }, [audit]);
 
-  const meta = STATUS_META[audit.status];
-  const tone = TONE[meta.tone === 'bad' ? 'bad' : meta.tone === 'warn' ? 'warn' : 'ok'];
+  // 同上：`meta` 已是形态/参数的 useState，状态文案改名 `statusMeta`，
+  // 否则 138 行与 90 行同名重复声明，编译不过。
+  const statusMeta = STATUS_META[audit.status];
+  const tone = TONE[
+    statusMeta.tone === 'bad' ? 'bad' : statusMeta.tone === 'warn' ? 'warn' : 'ok'
+  ];
 
   const hazardCount = audit.blockers.length + audit.risks.length + audit.notes.length;
   const buildLabel = picks.build === 'gradle' ? 'build.gradle' : 'pom.xml';
@@ -166,6 +179,9 @@ export default function StackComposer() {
 
   function applyPicks(next: StackPicks, preset: string | null) {
     setPicks(next);
+    // 换预设 = 换一整套发言。形态与参数是上一套留下的发言，必须一起清掉 ——
+    // 否则「切到最小骨架」之后，K8s 清单里还写着上一套的 5 副本。
+    setMeta(emptyMeta());
     setPresetId(preset);
     setExported(null);
   }
@@ -183,6 +199,20 @@ export default function StackComposer() {
     setExported(null);
   }
 
+  /** 换集群形态。只写 meta，不碰 picks —— 形态不是「选项」的一部分 */
+  function pickTopology(dimId: string, modeId: string) {
+    setMeta((m) => withTopology(m, dimId, modeId));
+    setPresetId(null);
+    setExported(null);
+  }
+
+  /** 滑杆。五条参数写进 meta.params，产物侧一律从 `paramValue()` 读 */
+  function setParam(key: string, value: number) {
+    setMeta((m) => withParam(m, key, value));
+    setPresetId(null);
+    setExported(null);
+  }
+
   /**
    * 跳到架构图。
    *
@@ -190,12 +220,17 @@ export default function StackComposer() {
    * 得有一个首屏就能看见的入口，否则功能等于不存在。
    */
   const productsRef = useRef<HTMLElement | null>(null);
+  const deckRef = useRef<HTMLDivElement | null>(null);
+
+  /**
+   * 跳到交付预览。
+   *
+   * 预览常驻在右栏（宽屏）／装配区下方（窄屏）。窄屏上它离首屏很远，
+   * 所以这颗按钮必须能把人送过去 —— 否则「看架构图」等于不存在。
+   */
   function focusArch() {
-    setTab('arch');
-    setShowArtifacts(true);
-    // 等页签内容渲染完再滚，否则滚到的是旧高度
     requestAnimationFrame(() => {
-      productsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      deckRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     });
   }
 
@@ -226,7 +261,7 @@ export default function StackComposer() {
           </span>
           <div className="min-w-0">
             <p className="text-[14px] font-semibold leading-tight" style={{ color: tone.color }}>
-              {meta.label}
+              {statusMeta.label}
             </p>
             <p className="mt-1 text-2xs leading-relaxed text-fgMuted">
               {audit.status === 'broken' ? (
@@ -245,7 +280,7 @@ export default function StackComposer() {
                 </>
               ) : (
                 <>
-                  {meta.summary}
+                  {statusMeta.summary}
                   {hazardCount > 0 && (
                     <>
                       　其中{' '}
@@ -322,9 +357,14 @@ export default function StackComposer() {
         </div>
       </div>
 
-      {/* ── 画布 + 装配面板 ───────────────────────────────── */}
-      <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_340px]">
+      {/* ── 左：装配 ───────────── 右：交付预览（常驻，实时） ───── */}
+      <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(0,1.05fr)]">
         <div className="space-y-2">
+          <p className="rounded-md border border-line bg-surface px-4 py-2.5 text-[10px] leading-[15px] text-fgMuted">
+            点任意方块 → 在右侧选零件、换<span className="text-fg">集群形态</span>（单实例 / 主从 /
+            组复制 / 分片 / 云原生，图形化切换）；右侧的交付预览会立刻跟着变。
+            下方五根滑杆直接写进 yaml 与交付清单。
+          </p>
           {lanes.map((lane, laneIdx) => {
             const slotIds = slotsOfLane(lane.id);
             /** 参与请求链路的槽位顺序；其余槽位是旁路件（如迁移工具） */
@@ -384,6 +424,9 @@ export default function StackComposer() {
                             active={activeDim === dimId}
                             onClick={() => setActiveDim(dimId)}
                             onClear={() => clear(dimId)}
+                            picks={picks}
+                            meta={meta}
+                            onTopology={pickTopology}
                           />
                         </span>
                       );
@@ -395,15 +438,32 @@ export default function StackComposer() {
           })}
         </div>
 
-        <Inspector
-          audit={audit}
-          activeDim={activeDim}
-          picks={picks}
-          onPick={pick}
-          onClear={clear}
-          onClose={() => setActiveDim(null)}
-          onFocusDim={(d) => setActiveDim(d)}
-        />
+        <div ref={deckRef} className="scroll-mt-4 space-y-4 xl:sticky xl:top-4 xl:self-start">
+          {/* 零件库只在选中某个方块时出现；没选中时右栏整块留给交付预览 ——
+              预览是常驻的，不能被一个空面板挤到屏幕外面去。
+              「这套组合能不能跑」的结论没有丢：它就是预览里「总览」那一块。 */}
+          {activeDim && (
+            <Inspector
+              audit={audit}
+              activeDim={activeDim}
+              picks={picks}
+              meta={meta}
+              onPick={pick}
+              onClear={clear}
+              onTopology={pickTopology}
+              onClose={() => setActiveDim(null)}
+              onFocusDim={(d) => setActiveDim(d)}
+            />
+          )}
+
+          <DeliveryDeck
+            picks={picks}
+            meta={meta}
+            audit={audit}
+            composed={composed}
+            onParam={setParam}
+          />
+        </div>
       </div>
 
       {/* ── 产物 ──────────────────────────────────────────── */}

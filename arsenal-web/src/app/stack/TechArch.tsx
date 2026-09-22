@@ -7,6 +7,7 @@ import { projectDoc } from '@/lib/project';
 import type { StackPicks } from '@/lib/content-types';
 import { TECH_ICONS, iconName, type TechIcon } from '@/lib/tech-icons';
 import {
+  CANVAS_THEME_OPTIONS,
   buildTechArch,
   buildTechArchSvg,
   emptyEdits,
@@ -17,7 +18,8 @@ import {
 } from '@/lib/arch-canvas';
 import { archifyIrFilename, archifyIrIssues, buildArchifyIr } from '@/lib/archify-ir';
 import { presetPicks } from '@/lib/stack';
-import { loadPicksSnapshot } from '@/lib/picks-store';
+import { loadSnapshot } from '@/lib/picks-store';
+import { emptyMeta, nodeTopologyMap, type StackPicksMeta } from '@/lib/topology';
 import {
   arsenalApiBase,
   deliverArchify,
@@ -108,8 +110,16 @@ export default function TechArch({ picks: picksProp }: { picks?: StackPicks }) {
   // 装配台传选型进来；架构图谱页不传 —— 读 localStorage 里的最新快照，
   // 在装配台改选型，这里挂载时自动跟上。没有快照（首次访问）回落 standard 预设。
   const [storedPicks, setStoredPicks] = useState<StackPicks | null>(null);
+  /**
+   * 形态与参数。**必须和选型一起读** —— 只读选型的话，装配台上把数据库切成
+   * 「分库分表」之后，这一页画的还是单实例：两个页面各说一套，而且都不报错。
+   */
+  const [storedMeta, setStoredMeta] = useState<StackPicksMeta>(() => emptyMeta());
   useEffect(() => {
-    if (!picksProp) setStoredPicks(loadPicksSnapshot());
+    if (picksProp) return;
+    const snap = loadSnapshot();
+    setStoredPicks(snap.picks);
+    setStoredMeta(snap.meta);
   }, [picksProp]);
   const picks = picksProp ?? storedPicks ?? presetPicks('standard');
   const followsAssembly = !picksProp;
@@ -145,7 +155,10 @@ export default function TechArch({ picks: picksProp }: { picks?: StackPicks }) {
     }
   }, [edits]);
 
-  const arch = useMemo(() => buildTechArch(picks, edits), [picks, edits]);
+  const arch = useMemo(
+    () => buildTechArch(picks, edits, { topology: nodeTopologyMap(picks, storedMeta) }),
+    [picks, edits, storedMeta]
+  );
 
   const svg = useMemo(
     () =>
@@ -434,15 +447,11 @@ export default function TechArch({ picks: picksProp }: { picks?: StackPicks }) {
       {/* 工具条 */}
       <div className="panel flex flex-wrap items-center gap-x-4 gap-y-2 p-2.5">
         <div className="flex items-center gap-1 rounded border border-line p-0.5">
-          {(
-            [
-              ['dark', '深色'],
-              ['light', '文档浅色'],
-            ] as [CanvasTheme, string][]
-          ).map(([id, label]) => (
+          {CANVAS_THEME_OPTIONS.map(({ id, label, hint }) => (
             <button
               key={id}
               type="button"
+              title={hint}
               onClick={() => setTheme(id)}
               className={
                 'rounded px-2.5 py-1 text-2xs transition-colors ' +

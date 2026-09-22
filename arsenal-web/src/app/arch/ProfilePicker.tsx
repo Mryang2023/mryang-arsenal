@@ -3,6 +3,7 @@
 import { useCallback, useRef, useState } from 'react';
 import type { ArchProfile, ProfileSummary } from '@/lib/arch-profile';
 import { loadCustomProfiles, saveCustomProfiles, validateImport } from './profile-store';
+import CodeIntake from '@/components/CodeIntake';
 
 /**
  * 项目档案选择器 —— 这是「六视图泛化」在界面上的那一半。
@@ -220,6 +221,17 @@ export default function ProfilePicker({
             <code className="mono mx-1">{'{{token}}'}</code>
             能不能解析 —— 解不开的 token 会原样显示在图上，看着像页面坏了，所以在这里就拦掉。
           </p>
+
+          <div className="mt-3 border-t border-line pt-3">
+            <p className="mb-2 text-[10px] leading-[15px] text-fgFaint">
+              懒得从空文件写？扫一遍代码仓库，把扫描读得到的部分先填进档案骨架，
+              读不到的（业务定位、消费方、非目标）留 TODO 由你补。走的是同一套校验。
+            </p>
+            <CodeIntake
+              variant="profile"
+              onProfile={(profile) => doImport(JSON.stringify(profile))}
+            />
+          </div>
         </div>
       )}
     </div>

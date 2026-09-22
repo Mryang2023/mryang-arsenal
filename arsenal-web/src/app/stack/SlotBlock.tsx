@@ -2,7 +2,9 @@
 
 import { capLabel, capsOf, needsOf, nodeArch } from '@/lib/arch';
 import type { SlotState } from '@/lib/arch';
-import type { StackOption } from '@/lib/content-types';
+import type { StackOption, StackPicks } from '@/lib/content-types';
+import type { StackPicksMeta } from '@/lib/topology';
+import TopologyPicker from './TopologyPicker';
 import { TONE } from './palette';
 
 /**
@@ -23,6 +25,12 @@ export default function SlotBlock({
   active,
   onClick,
   onClear,
+  /** 选型快照 —— 形态选择器要读 `picks[dimId]` 讲清楚「当前这一档零件」 */
+  picks,
+  /** 与 `picks` 平行的形态/参数通道；只有带形态表态的维度才画出选择器 */
+  meta,
+  /** 点选形态时写回 `meta.topology[dimId]` */
+  onTopology,
 }: {
   dimId: string;
   state: SlotState;
@@ -32,6 +40,9 @@ export default function SlotBlock({
   active: boolean;
   onClick: () => void;
   onClear: () => void;
+  picks: StackPicks;
+  meta: StackPicksMeta;
+  onTopology: (dimId: string, modeId: string) => void;
 }) {
   const node = nodeArch[dimId];
   if (!node) return null;
@@ -48,6 +59,7 @@ export default function SlotBlock({
   const needs = picked && option ? needsOf(dimId, option.id) : [];
 
   return (
+    <div className="flex shrink-0 flex-col self-start">
     <button
       type="button"
       data-dim={dimId}
@@ -172,5 +184,16 @@ export default function SlotBlock({
         </span>
       )}
     </button>
+      {/* 形态选择器：只有带形态表态的维度（database / cache / search / mq / web，
+          外加全局 clustertopology）且已选好零件时才画出来；其余维度
+          topologyChoices 返回空，TopologyPicker 自行返回 null */}
+      <TopologyPicker
+        dimId={dimId}
+        option={option}
+        picks={picks}
+        meta={meta}
+        onPick={onTopology}
+      />
+    </div>
   );
 }

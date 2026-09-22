@@ -30,6 +30,9 @@
 11. **页面契约是两处，改一处不报错**：「页签 id（`TabId`）」↔「渲染分支（`tab === 'x'`）」，漏一处 = 按钮在、点进去空白、零报错（技术架构图就这么空过一阵）。同理「导航项 ↔ 路由页面」「`savePicksSnapshot` ↔ `loadPicksSnapshot`」。只有把**源码当数据断言**才抓得住 —— `project-check.ts`【13】，解析前先 `stripComments()`。
 12. **加一类文件型事实源要同时改四处**：`sync-content.mjs`（形状闸门）+ 前端 resolver + `project-check.ts`（契约）+ README 目录树。只加上游 → `src/generated/*.json` 缺文件 → 构建期炸在 import 上。
 13. **多份并行 Edit 同一文件必丢**（已踩 3 次）。丢掉的编辑**不报错**、`tsc` 也 0 错，症状是「明明改了、行为还是旧的」⟹ 同一文件多处改动必须**重读改动处或重跑校验层**。
+14. **给老文件加 prop/state 前，先 grep 这个名字在文件里已有的声明**。`Inspector.tsx` / `StackComposer.tsx` 各新加一个 `meta: StackPicksMeta`，撞上文件里早有的 `const meta = STATUS_META[audit.status]` ⟹ 同作用域重复声明，**编译不过**；更坏的是它同时是语义错（`<Picker meta={meta}>` 把状态文案当形态数据传，`{meta.label}` 又取状态文案），一个名字三个指向、读代码看不出来。`DeliveryDeck.tsx` 因为当初把它叫 `meta0` 才躲过 —— 靠起名运气不是机制。
+    - 规矩：**「状态文案」类局部变量统一叫 `statusMeta`**（不叫 `meta`）；新增同名标识符一律先 grep。
+    - 这是 13 的**近亲但不同源**：13 是编辑丢失（无人报错），这是命名碰撞（只有编译器会报）。**「只改代码不跑编译」时它是最容易漏的一类** ⟹ 至少把新增/改动的标识符逐个 grep 一遍声明。
 
 ## 六视图 = 项目档案驱动（2026-09-21）
 
@@ -62,9 +65,14 @@
 
 ## 校验与运行
 
-- `npm run verify` = 35（架构判定）+ 59（图与交互）+ **321**（结构/导出 + 导航与页签契约 + 项目档案契约）+ 17（引擎）+ 12（前后端一致性）+ 29（Archify）= **473 项**。改某层项数要同步四处：`arsenal-profiles/arsenal.json` 的 `verifyChain`（`arch-views.ts` 的常量已改为由它派生）、`project-check.ts` 手写总数、README 总数、README 表分项。
+- `npm run verify` = 35（架构）+ 59（图与交互）+ 33（场景案例）+ 406（结构/导出 + 导航与页签 + 项目档案 + 图标资产 + 扫描映射表契约）+ 17（引擎）+ 12（前后端一致性）+ 31（Archify）+ 35（代码扫描）= **628 项**。改某层项数要同步四处：`arsenal-profiles/arsenal.json` 的 `verifyChain`（`arch-views.ts` 的常量已改为由它派生）、`project-check.ts` 手写总数、README 总数、README 表分项。**改完 arsenal.json 必须重跑 `sync-content.mjs`**（`VERIFY_TOTAL` 来自 `src/generated/profiles.json`）。
   - ⚠️ `VERIFY_CHAIN.reduce(...) === VERIFY_TOTAL` 是**半恒真的** ⟹ 只有手写数字起作用，「各层实际跑了多少项」无人守门（引擎 14→17 全靠人发现）。让各层报实测值互比 —— 尚未做。
 - `verify:parity` 起后端实跑（bash + JDK 17）；`verify:archify` 没装技能时明说跳过并退出 0。
+- ⚠️ **safe-delete 守卫按「一次工具调用」累计**（`BULK_STATE_DIR`）⟹ `npm run verify` 八层挤在一个 turn 里，后面的层必被拦（典型：`verify:scan` 的 `rm -rf target/scan-probe` 133 文件）。修法照 `next-run.mjs`：**只给该子进程** `CODEBUDDY_SAFE_DELETE_ENABLED=0`，作用域不外溢。
+- ⚠️ **`.verify/**` 不在 tsconfig 里** ⟹ `next build` 与 `tsc --noEmit` 都不看它，坏 import 只在**运行时**炸（整层 unhandled TypeError，而不是一条红断言）。改完 `.verify` 里 import 的形状必须**实跑那一层**，别信 tsc。
+- ⚠️ **同名函数跨模块 = 静默选错**：`buildTechArchFromFacts` 曾在 `facts-arch` / `scan-graph` 各一份、返回形状不同（`{model,picks,unmatched}` vs `{arch,detail,notes}`）。引错一个照样编译过、运行炸。**加模块前先 grep 同名导出**。
+- ⚠️ **多会话并发**：同一仓库可能有另一个会话在跑（夜跑链）。它改 `src/lib/*` 期间，`npm run build` / 全量 verify 的绿**不归你背书**；动它的文件前先取两次 md5 确认没有活写手。
+- **`CASES_MODULES` 只许有一份**（在 `tools/build-content.py`）。`tools/content/cases/__init__.py` 里那份是死的 —— 改它等于新场景「写了但不生成」，而且不报错。
 - 后端：`bash arsenal-server/scripts/run.sh`（`ARSENAL_PORT` 换端口）。**JDK 17 在 `C:/Users/Administrator/.jdks/corretto-17.0.12`**（PATH 上是 21）。`SKIP_COMPILE=1` 只跳编译。
   - ⚠️ 托管环境注入 `SERVER__PORT=3743`（双下划线是 Spring 层级写法，**优先级高于 application.yml**）→ 现象是抢宿主端口报 `Port 3743 was already in use`。run.sh 已用 `--server.port` 钉住。后台启动必须让 task 持有进程。
   - ⚠️ **改规则必重启后端**：RuleLoader 启动时一次性载入，不重启时 `/api/stats` 一脸正常地报旧条数。

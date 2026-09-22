@@ -61,7 +61,7 @@
     }
   ],
   "count": 81,
-  "bitmapCount": 0,
+  "bitmapCount": 18,
   "icons": [
     {
       "key": "user",
@@ -74,7 +74,7 @@
         "终端用户"
       ],
       "vector": "user",
-      "bitmap": "",
+      "bitmap": "actor/user.png",
       "subject": "a single person bust silhouette"
     },
     {
@@ -88,7 +88,7 @@
         "后台"
       ],
       "vector": "admin",
-      "bitmap": "",
+      "bitmap": "actor/admin.png",
       "subject": "a person bust with a small shield badge"
     },
     {
@@ -242,7 +242,7 @@
         "K8s"
       ],
       "vector": "pod",
-      "bitmap": "",
+      "bitmap": "compute/pod.png",
       "subject": "a hexagon containing a small square"
     },
     {
@@ -312,7 +312,7 @@
         "托管"
       ],
       "vector": "cloud",
-      "bitmap": "",
+      "bitmap": "compute/cloud.png",
       "subject": "a simple cloud outline"
     },
     {
@@ -368,7 +368,7 @@
         "边缘"
       ],
       "vector": "cdn",
-      "bitmap": "",
+      "bitmap": "network/cdn.png",
       "subject": "a center node with four edge nodes around it"
     },
     {
@@ -382,7 +382,7 @@
         "安全"
       ],
       "vector": "waf",
-      "bitmap": "",
+      "bitmap": "network/waf.png",
       "subject": "a shield with horizontal grid lines"
     },
     {
@@ -564,7 +564,7 @@
         "OSS"
       ],
       "vector": "objectstore",
-      "bitmap": "",
+      "bitmap": "storage/objectstore.png",
       "subject": "a bucket with a handle"
     },
     {
@@ -592,7 +592,7 @@
         "OLAP"
       ],
       "vector": "warehouse",
-      "bitmap": "",
+      "bitmap": "storage/warehouse.png",
       "subject": "three stacked cylinder layers"
     },
     {
@@ -648,7 +648,7 @@
         "一致"
       ],
       "vector": "disttxn",
-      "bitmap": "",
+      "bitmap": "middleware/disttxn.png",
       "subject": "three nodes in a triangle with a bar"
     },
     {
@@ -662,7 +662,7 @@
         "调用"
       ],
       "vector": "rpc",
-      "bitmap": "",
+      "bitmap": "middleware/rpc.png",
       "subject": "two boxes with arrows going both ways"
     },
     {
@@ -760,7 +760,7 @@
         "通知"
       ],
       "vector": "alerting",
-      "bitmap": "",
+      "bitmap": "observe/alerting.png",
       "subject": "a bell with a clapper"
     },
     {
@@ -774,7 +774,7 @@
         "大盘"
       ],
       "vector": "dashboard",
-      "bitmap": "",
+      "bitmap": "observe/dashboard.png",
       "subject": "a half gauge with a needle"
     },
     {
@@ -872,7 +872,7 @@
         "密钥"
       ],
       "vector": "kms",
-      "bitmap": "",
+      "bitmap": "security/kms.png",
       "subject": "a padlock with a keyhole"
     },
     {
@@ -914,7 +914,7 @@
         "密文"
       ],
       "vector": "encrypt",
-      "bitmap": "",
+      "bitmap": "security/encrypt.png",
       "subject": "a closed padlock"
     },
     {
@@ -984,7 +984,7 @@
         "构建"
       ],
       "vector": "cicd",
-      "bitmap": "",
+      "bitmap": "delivery/cicd.png",
       "subject": "two circles joined by crossing arrows"
     },
     {
@@ -1082,7 +1082,7 @@
         "回退"
       ],
       "vector": "rollback",
-      "bitmap": "",
+      "bitmap": "delivery/rollback.png",
       "subject": "a circular arrow pointing back"
     },
     {
@@ -1110,7 +1110,7 @@
         "多份"
       ],
       "vector": "replica",
-      "bitmap": "",
+      "bitmap": "topology/replica.png",
       "subject": "three squares side by side"
     },
     {
@@ -1138,7 +1138,7 @@
         "分库"
       ],
       "vector": "sharding",
-      "bitmap": "",
+      "bitmap": "topology/sharding.png",
       "subject": "a square divided into four"
     },
     {

@@ -506,15 +506,15 @@ console.log('\n【9】六大架构视图数据层');
       MUST_LIMIT
   );
 
-  // ⑥ 项目视图：验证链分项之和 = 总数 = 620（与 README 同源，改口径两处一起改）
+  // ⑥ 项目视图：验证链分项之和 = 总数 = 662（与 README 同源，改口径两处一起改）
   //
   // 注意前半句是恒等式 —— VERIFY_TOTAL 的定义就是那个 reduce，永远相等。
-  // 真正起作用的只有后半句那个手写的 620，所以「各层实际跑了多少项」没有守门：
+  // 真正起作用的只有后半句那个手写的 628，所以「各层实际跑了多少项」没有守门：
   // 这次给引擎加了 3 项断言，实测 17 而 VERIFY_CHAIN 仍写着 14，整套 verify 照样全绿。
   // 要让这个数字有约束力，得让各层把自己的实测项数写出来再比 —— 尚未做。
   check(
     '项目视图：验证链分项之和 = 总数',
-    VERIFY_CHAIN.reduce((n, v) => n + v.count, 0) === VERIFY_TOTAL && VERIFY_TOTAL === 620
+    VERIFY_CHAIN.reduce((n, v) => n + v.count, 0) === VERIFY_TOTAL && VERIFY_TOTAL === 662
   );
   check('项目视图：里程碑含 MCP 适配层', PROJECT_ROADMAP.some((m) => m.name.includes('MCP')));
 }

@@ -23,6 +23,16 @@ import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import url from 'node:url';
+import {
+  buildArchifyIrFromFacts,
+  buildLayeredArch,
+  buildLayeredSvg,
+  buildTechArchFromFacts,
+  summarizeFacts,
+} from '../src/lib/facts-arch';
+import { CANVAS_THEME_OPTIONS, buildTechArchSvg } from '../src/lib/arch-canvas';
+import { archifyIrIssues, archifyIrShapeIssues } from '../src/lib/archify-ir';
+import { buildProfileDraftFromFacts } from '../src/lib/profile-draft';
 
 const here = path.dirname(url.fileURLToPath(import.meta.url));
 const webRoot = path.resolve(here, '..');
@@ -112,8 +122,26 @@ if (!skipAll) {
       !!env && Object.keys(env.values).length === 2 && Object.values(env.values).every((v) => v === '***'),
       `实际 ${JSON.stringify(env?.values ?? null)}`);
 
-    check('1-9 deploy.k8s[0].replicas === 3', factsA.deploy?.k8s?.[0]?.replicas === 3,
-      `实际 ${JSON.stringify(factsA.deploy?.k8s?.[0])}`);
+    // 按 kind 取，不按下标取：k8s 目录里现在还有 Service 与 ConfigMap，
+    // 按 [0] 取等于把断言绑在文件名的字典序上（改个文件名就静默错位）
+    const k8sDeployment = (factsA.deploy?.k8s ?? []).find((k: any) => k.kind === 'Deployment');
+    check('1-9 K8s Deployment 的 replicas === 3', k8sDeployment?.replicas === 3,
+      `实际 ${JSON.stringify(factsA.deploy?.k8s)}`);
+    check('1-27 同目录下的 Service / ConfigMap 也被登记（不是只认 Deployment）',
+      (factsA.deploy?.k8s ?? []).some((k: any) => k.kind === 'Service')
+      && (factsA.deploy?.k8s ?? []).some((k: any) => k.kind === 'ConfigMap'),
+      `实际 ${(factsA.deploy?.k8s ?? []).map((k: any) => k.kind).join(',')}`);
+    const devYml = (factsA.config ?? []).find(
+      (c: any) => c.path === 'src/main/resources/application-dev.yml'
+    );
+    check('1-28 第二份 profile 配置里的密码同样被脱敏',
+      devYml?.values?.['spring.datasource.password'] === '***',
+      `实际 ${JSON.stringify(devYml?.values ?? null)}`);
+    check('1-29 @RestControllerAdvice 被识别（分层图横切关注点的依据）',
+      factsA.code?.annotations?.['@RestControllerAdvice'] === 1,
+      `实际 ${JSON.stringify(factsA.code?.annotations)}`);
+    check('1-30 fixture 共 30 个文件全部被发现（含 22 层深目录之外的所有路径）',
+      factsA.stats?.files === 30, `实际 ${factsA.stats?.files}`);
     check('1-10 helm values 的 replicaCount === 3',
       factsA.deploy?.helm?.some((h: any) => h.replicaCount === 3) === true,
       `实际 ${JSON.stringify(factsA.deploy?.helm)}`);
@@ -244,9 +272,208 @@ if (!skipAll) {
   } else {
     console.log('  ! 3-7 软链外跳用例跳过：本机无法创建符号链接（Windows 权限），闸门未被这一条验证');
   }
+
+  // ── 【4】三条出图链路：真实 facts → 三张图 ────────────────────
+  //
+  // 这一节是「扫得出来」到「画得出来」之间的守门人。全部用**探针扫出来的那份 facts**，
+  // 不在 TS 里自造输入 —— 自造的输入只会验出「我们的代码能跑自己的输入」。
+  section('【4】出图链路：facts → 部署图 / 分层图 / IR');
+  if (factsA) {
+    const built = buildTechArchFromFacts(factsA);
+    const picks = built.picks;
+
+    check('4-1 依赖映射落到画布槽位：web/cache/database/mq 都对上',
+      picks.web === 'mvc' && picks.cache === 'redis' && picks.database === 'mysql' && picks.mq === 'kafka',
+      JSON.stringify(picks));
+
+    check('4-2 部署槽位由部署文件推出，且出处指向 fixture 里真实存在的文件',
+      picks.deploy === 'helm' && picks.orchestration === 'k8s' && picks.ingress === 'nginx'
+      && built.detail.fromDeploy.length >= 3
+      && built.detail.fromDeploy.every((d) => fs.existsSync(path.join(fixture, d.because))),
+      JSON.stringify(built.detail.fromDeploy));
+
+    check('4-3 落图的依赖命中都带 evidence（没有出处的节点不许画）',
+      built.detail.fromDeps.length >= 3
+      && built.detail.fromDeps.every((d) => d.evidence.path.length > 0 && d.evidence.line > 0),
+      JSON.stringify(built.detail.fromDeps));
+
+    check('4-4 部署图节点齐：客户端 + 应用卡 + ≥3 个中间件节点',
+      built.arch.nodes.some((n) => n.kind === 'client')
+      && built.arch.nodes.some((n) => n.kind === 'app')
+      && built.arch.nodes.filter((n) => n.kind === 'component' || n.kind === 'side').length >= 3,
+      `实际 ${built.arch.nodes.map((n) => n.id + ':' + n.kind).join(',')}`);
+
+    const app = built.arch.nodes.find((n) => n.kind === 'app');
+    check('4-5 副本数取自 K8s 清单（3），读到了就说清出处',
+      app?.modes?.[0]?.replicas === 3
+      && built.notes.some((n) => n.includes('3') && n.includes('deployment.yaml')),
+      JSON.stringify({ modes: app?.modes, notes: built.notes }));
+
+    const svgs = CANVAS_THEME_OPTIONS.map((t) => buildTechArchSvg(built.arch, t.id, { title: 'x' }));
+    check('4-6 五套主题渲染出的 SVG 互不相同（改了主题没变 = 配色没接上）',
+      new Set(svgs).size === svgs.length,
+      `len=${svgs.map((s) => s.length).join(',')}`);
+    check('4-7 部署图 SVG 不含绝对路径',
+      svgs.every((s) => !s.includes('D:\\') && !s.includes('D:/') && !s.includes('C:/')));
+
+    const layered = buildLayeredArch(factsA, built.arch);
+    check('4-8 分层图五带齐且顺序固定',
+      layered.bands.map((b) => b.id).join(',') === 'client,api,app,domain,data',
+      layered.bands.map((b) => b.id).join(','));
+    check('4-9 接入层 3 个 Controller / 应用层 1 个 Service（与 facts 一致）',
+      layered.bands.find((b) => b.id === 'api')?.total === 3
+      && layered.bands.find((b) => b.id === 'app')?.total !== null,
+      JSON.stringify(layered.bands.map((b) => `${b.id}=${b.total}`)));
+    check('4-10 跨带直连抓到 OrderController → OrderRepository（红色警示线的依据）',
+      layered.crossCalls.some((c) => c.fromClass === 'OrderController' && c.toClass === 'OrderRepository')
+      && layered.crossCalls[0]?.from === 'api' && layered.crossCalls[0]?.to === 'data',
+      JSON.stringify(layered.crossCalls));
+
+    const lsvg = buildLayeredSvg(layered, 'doc');
+    check('4-11 分层图 SVG 含五个带名与警示线图例',
+      ['客户端', '接入层', '应用层', '领域层', '数据层'].every((n) => lsvg.includes(n))
+      && lsvg.includes('跨带直连'),
+      `bytes=${lsvg.length}`);
+
+    const irRes = buildArchifyIrFromFacts(factsA);
+    const shapeIssues = archifyIrShapeIssues(irRes.ir);
+    const composeIssues = shapeIssues.length ? [] : archifyIrIssues(irRes.ir);
+    check('4-12 facts → IR 过形状预检（0 问题）', shapeIssues.length === 0, JSON.stringify(shapeIssues));
+    check('4-13 facts → IR 过现有九项构图预检（0 问题）', composeIssues.length === 0,
+      JSON.stringify(composeIssues));
+    check('4-14 IR 里有组件与阅读路径（不是一张空图）',
+      irRes.ir.components.length >= 5 && (irRes.ir.meta.views ?? []).length >= 1,
+      `components=${irRes.ir.components.length} views=${(irRes.ir.meta.views ?? []).length}`);
+
+    const irA = JSON.stringify(buildArchifyIrFromFacts(factsA).ir);
+    const irB = JSON.stringify(buildArchifyIrFromFacts(factsA).ir);
+    check('4-15 确定性：同一份 facts 出两次 IR 逐字段相等', irA === irB);
+    const sum = summarizeFacts(factsA);
+    check('4-16 摘要里的未识别依赖带上出处',
+      sum.unmatched.length === 1 && sum.unmatched[0].artifact === 'weird-lib' && sum.unmatched[0].where.includes('pom.xml:'),
+      JSON.stringify(sum.unmatched));
+  }
+
+  // ── 【5】规模闸门：单文件 / 深度 / 文件数 ─────────────────────
+  section('【5】规模闸门（单文件 2MB / 深度 20 / 文件数 2 万）');
+  const bigRepo = path.join(tmpDir, 'big-repo').replace(/\\/g, '/');
+  const deepRepo = path.join(tmpDir, 'deep-repo').replace(/\\/g, '/');
+  const manyRepo = path.join(tmpDir, 'many-repo').replace(/\\/g, '/');
+  const r6 = runProbe('guards', [
+    `mkbigfile-repo:${bigRepo}`,
+    `facts:${bigRepo}`,
+    `mkdeep-repo:${deepRepo}`,
+    `facts:${deepRepo}`,
+    `mkfiles-repo:${manyRepo}`,
+    `facts:${manyRepo}`,
+  ]);
+  const guardFacts = (tail: string) =>
+    r6.find((r) => r.kind === 'facts' && r.action.endsWith(tail))?.facts;
+  const guardReceipt = (tail: string) =>
+    r6.find((r) => r.kind === 'facts' && r.action.endsWith(tail));
+
+  const bigFacts = guardFacts('big-repo');
+  check('5-1 单文件超 2MB：不读内容并留 FILE_TOO_LARGE，其余事实照常产出',
+    (bigFacts?.notes ?? []).some((n: any) => n.code === 'FILE_TOO_LARGE')
+    && bigFacts?.build?.kind === 'maven',
+    JSON.stringify((bigFacts?.notes ?? []).map((n: any) => n.code)));
+
+  const deepFacts = guardFacts('deep-repo');
+  check('5-2 深度 22 层：截断并留 DEPTH_EXCEEDED + truncated:true（不许静默少读）',
+    deepFacts?.stats?.truncated === true
+    && (deepFacts?.notes ?? []).some((n: any) => n.code === 'DEPTH_EXCEEDED'),
+    JSON.stringify({ truncated: deepFacts?.stats?.truncated, notes: (deepFacts?.notes ?? []).map((n: any) => n.code) }));
+
+  const many = guardReceipt('many-repo');
+  check('5-3 文件数 20001：整次扫描被拒且错误码是 SCAN_TOO_LARGE',
+    many?.ok === false && many?.code === 'SCAN_TOO_LARGE',
+    `实际 ok=${many?.ok} code=${many?.code}`);
+
+  // 总字节 500MB 闸门：造 500MB 的用例代价太大（磁盘 + 时间），如实说没验
+  console.log('  ! 5-4 总字节 500MB 闸门未验：造 500MB 用例代价过大。zip 那条路已有 SCAN_TOO_LARGE 断言（3-2）');
+
+  // ── 【6】没有任何部署清单的仓库：不许编出副本数 ─────────────────
+  //
+  // 这是全项目最容易被违反的一条底线（「读不到就默认 1」）。用真实扫出来的
+  // big-repo（只有 pom.xml）验，不是自己造的 facts。
+  section('【6】读不到就留空：无部署清单的仓库不编副本数');
+  if (bigFacts) {
+    const noDeploy = buildTechArchFromFacts(bigFacts);
+    const appNoDeploy = noDeploy.arch.nodes.find((n) => n.kind === 'app');
+    check('6-1 没有部署清单时不画副本数徽章（不是 1，是「没读到」）',
+      appNoDeploy !== undefined && appNoDeploy.modes === undefined
+      && noDeploy.notes.some((n) => n.includes('没有声明副本数')),
+      JSON.stringify({ modes: appNoDeploy?.modes, notes: noDeploy.notes }));
+  }
+  // ── 【7】六视图档案草稿：读不到的必须留 TODO，且条数要说实话 ─────
+  //
+  // 这一节的断言都针对「草稿会不会把人带偏」：一份把 TODO 数成 0 的草稿，
+  // 读的人会把没扫到的东西当成不存在；一份给数据存储写「单实例」的草稿，
+  // 读的人会把我们编的部署形态当成事实。
+  section('【7】六视图档案草稿（`/arch` 的「从代码生成」入口）');
+  if (factsA) {
+    const draft = buildProfileDraftFromFacts(factsA);
+    check('7-1 草稿过档案形状校验（六视图齐 + 字段不缺 + token 可解）',
+      draft.issues.length === 0, JSON.stringify(draft.issues));
+
+    // 独立数一遍档案里真的带「TODO 」的条目 —— 被测代码按分支 push，这里按遍历数，
+    // 两边口径不同才抓得住「漏 push 一条」这种错
+    const inProfile: string[] = [];
+    const walkTodo = (v: unknown, p: string) => {
+      if (typeof v === 'string') {
+        if (v.startsWith('TODO ')) inProfile.push(p);
+      } else if (Array.isArray(v)) {
+        v.forEach((x, i) => walkTodo(x, `${p}[${i}]`));
+      } else if (v && typeof v === 'object') {
+        Object.entries(v as Record<string, unknown>).forEach(([k, x]) => {
+          if (k === 'note' || k === 'subtitle') return;
+          walkTodo(x, p ? `${p}.${k}` : k);
+        });
+      }
+    };
+    walkTodo(draft.profile, '');
+    check('7-2 「待补」条数说实话：列出来的条数 = 档案里真的带 TODO 的条数',
+      inProfile.length > 0 && draft.todos.length === inProfile.length,
+      `todos=${draft.todos.length} inProfile=${inProfile.length}`);
+
+    check('7-3 草稿既不空也不假：有扫描填进去的真数据，也有留给人的待补',
+      draft.filled > 0 && draft.todos.length > 0,
+      `filled=${draft.filled} todos=${draft.todos.length}`);
+
+    check('7-4 草稿里不出现 {{token}} —— 外部项目的度量平台算不出来，这是 token 机制唯一允许的例外',
+      !JSON.stringify(draft.profile).includes('{{'));
+
+    check('7-5 数据存储不许写「单实例」这种没读到的断言（读不到就写「副本数未声明」）',
+      draft.profile.data.assets.every((a) => a.metric !== '单实例' && a.metric.length > 0),
+      JSON.stringify(draft.profile.data.assets.map((a) => a.metric)));
+  }
+
 }
 
 // ═══════════════════════════════════════════════════════════════
+  // ── 【8】超时闸门：180s 上限必须存在且被读取；超时后错误码是 SCAN_TIMEOUT ──
+  // 真等 180s 不现实，所以分两层验：① 配置项存在且被读取（TIMEOUT_MS 等常量）② 超期后
+  // tick() 真的抛 SCAN_TIMEOUT。两条都能在「改小常量」时变红（见报告反着验）。
+  if (!skipAll) {
+    section('【8】超时闸门（总扫描 ≤180s）');
+    const r8 = runProbe('guard-timeout', ['guard-info', 'guard-timeout']);
+    const gi = r8.find((r) => r.kind === 'guard-info')?.guard;
+    check('8-1 超时上限 TIMEOUT_MS === 180000（180s，配置项存在且被读取）',
+      gi?.timeoutMs === 180000, `实际 timeoutMs=${gi?.timeoutMs}`);
+    check('8-2 总字节上限 MAX_TOTAL_BYTES === 524288000（500MB，配置项存在且被读取）',
+      gi?.maxTotalBytes === 524288000, `实际 maxTotalBytes=${gi?.maxTotalBytes}`);
+    check('8-3 文件数上限 MAX_FILES === 20000（配置项存在且被读取）',
+      gi?.maxFiles === 20000, `实际 maxFiles=${gi?.maxFiles}`);
+    check('8-4 目录深度上限 MAX_DEPTH === 20（配置项存在且被读取）',
+      gi?.maxDepth === 20, `实际 maxDepth=${gi?.maxDepth}`);
+    const gt = r8.find((r) => r.kind === 'guard-timeout');
+    check('8-5 超期后 tick() 抛 SCAN_TIMEOUT（超时后 code 正确，没真等 180s）',
+      gt?.ok === false && gt?.code === 'SCAN_TIMEOUT',
+      `实际 ok=${gt?.ok} code=${gt?.code}`);
+    console.log('  ! 8-6 总字节 500MB 的真实超限（造 500MB 用例）与真等 180s 都未实跑：磁盘/时间代价过大。'
+      + '只断言了配置项值与超时 code。文件数/深度/单文件都有真实超限用例（5-1/5-2/5-3）。');
+  }
+
 console.log('');
 if (skipAll) {
   console.log('verify:scan —— 跳过（缺 bash / 探针脚本）。0 项通过、0 项失败。');

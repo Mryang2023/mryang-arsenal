@@ -1083,6 +1083,375 @@ public final class ColumnRollout {
             {'title': 'gh-ost · GitHub', 'url': 'https://github.com/github/gh-ost'},
         ],
     },
+    {
+        'id': 'partition-archive',
+        'order': 7,
+        'goal': '让「删掉三年前的数据」变成一条秒级语句',
+        'layer': '数据生命周期',
+        'when': {'rows': ['r1b', 'r10b'], 'growth': ['g5x', 'g20x']},
+        'why': '亿级表最麻烦的操作不是查询，是删除。DELETE 一千万行会写满 undo、锁住大量行，'
+               '而且删完表空间不回收（文件还是那么大）。唯一可行的是分区 —— '
+               'DROP PARTITION 是元数据操作，秒级完成且立即释放磁盘。',
+        'decision': {
+            'question': '按什么分区？',
+            'options': [
+                '按主键范围 —— 与业务时间无关，归档时没法「按时间切」',
+                '按 created_at 月分区 —— 归档单位自然，跨月查询会命中多个分区',
+                '按 created_at 天分区 —— 粒度细，分区数量会膨胀（每天一批）',
+                '按 created_at 月分区 + 热点数据留在独立表',
+            ],
+            'chosen': '按月分区（分区总数控制在 36~60 之间），归档以「月」为单位整体搬迁',
+            'tradeoff': '分区表的唯一索引必须包含分区键，所以「按订单号全局唯一」这类约束要改造成 '
+                        '(biz_no, created_at) 的联合唯一键 —— 这会影响到所有按订单号查的接口。',
+        },
+        'sql': r"""-- 按月分区。分区键必须包含在每个唯一索引里 —— 这是分区表最容易被忽略的约束，
+-- 不满足时建表会直接报错（A PRIMARY KEY must include all columns in the partitioning function）。
+-- 换句话说：选择分区键 = 决定「哪些字段还能做全局唯一」，这是有业务代价的。
+CREATE TABLE `order_partitioned` (
+  `id`          BIGINT        NOT NULL COMMENT '全局唯一，趋势递增',
+  `biz_no`      VARCHAR(64)   NOT NULL COMMENT '订单号',
+  `user_id`     BIGINT        NOT NULL COMMENT '分片键：查询必须带上它',
+  `amount`      DECIMAL(14,2) NOT NULL,
+  `created_at`  DATETIME(3)   NOT NULL DEFAULT CURRENT_TIMESTAMP(3) COMMENT '分区键：按它按月切',
+  `updated_at`  DATETIME(3)   NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
+  PRIMARY KEY (`id`, `created_at`),
+  UNIQUE KEY `uk_biz_no_created` (`biz_no`, `created_at`),
+  KEY `idx_user_created` (`user_id`, `created_at` DESC)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci
+  COMMENT='订单表 · 按月分区，归档以月为单位整体搬迁'
+PARTITION BY RANGE COLUMNS(`created_at`) (
+  PARTITION p202609 VALUES LESS THAN ('2026-10-01'),
+  PARTITION p202610 VALUES LESS THAN ('2026-11-01'),
+  PARTITION p202611 VALUES LESS THAN ('2026-12-01'),
+  PARTITION pmax    VALUES LESS THAN (MAXVALUE)
+);""",
+        'code': r"""/**
+ * 场景：亿级行关系库读写 / 切片：分区与归档
+ * 适用参数：行数 ≥ 10 亿 · 年增 ≥ 5 倍
+ * 依赖规则：DATA-SCHM-001, DATA-SCHM-003, REL-CTNR-004, REL-LOG-003, REL-TIME-001
+ * JDK：17
+ */
+package com.example.order.archive;
+
+import java.time.YearMonth;
+import java.util.List;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.transaction.annotation.Transactional;
+
+/**
+ * 分区归档。全流程只有一条铁律：**先搬完、校验通过，才允许 DROP。**
+ * 顺序反了就是数据丢失，而且 DROP 之后没有 undo，备份是唯一的退路。
+ */
+
+public class PartitionArchiveJob {
+
+    private static final Logger log = LoggerFactory.getLogger(PartitionArchiveJob.class);
+
+    /** 单批搬迁行数。批太小则 DROP 前的校验要跑很久，批太大则单事务 undo 压力大。 */
+    private static final int BATCH_SIZE = 5000;
+
+    private final HotOrderRepository hotRepository;
+    private final ColdArchiveRepository coldRepository;
+
+    public PartitionArchiveJob(HotOrderRepository hotRepository,
+                               ColdArchiveRepository coldRepository) {
+        this.hotRepository = hotRepository;
+        this.coldRepository = coldRepository;
+    }
+
+    /**
+     * 归档一个月的分区。幂等设计：目标表用 (id, created_at) 联合主键，
+     * 重跑时重复行会被忽略 —— 任务可以在任何一步被中断后重跑，
+     * 这对「跨小时的长任务」是必须的，否则中断一次就要人工判断从哪继续。
+     */
+    public ArchiveReport archiveMonth(YearMonth month) {
+        long moved = 0L;
+        long lastId = 0L;
+        while (true) {
+            List<OrderRow> batch = hotRepository.pageMonth(month, lastId, BATCH_SIZE);
+            if (batch.isEmpty()) {
+                break;
+            }
+            coldRepository.insertIgnoreBatch(batch);
+            lastId = batch.get(batch.size() - 1).id();
+            moved += batch.size();
+            log.info("归档进度 month={} moved={} lastId={}", month, moved, lastId);
+        }
+
+        // 校验是 DROP 的前置条件，不是「顺便做一下」。三项都必须对上：
+        // 行数、金额合计、最大 id。只对行数会漏掉「行数相同但内容不同」的情况。
+        ArchiveCheck check = verify(month, moved);
+        if (!check.passed()) {
+            // 校验不过就不 DROP，让分区继续留着 —— 数据还在是最坏情况里最好的结果。
+            log.error("归档校验未通过，已跳过 DROP PARTITION month={} check={}", month, check.describe());
+            return ArchiveReport.of(month, moved, false, check.describe());
+        }
+
+        log.info("归档校验通过，执行 DROP PARTITION month={} rows={}", month, moved);
+        return ArchiveReport.of(month, moved, true, check.describe());
+    }
+
+    private ArchiveCheck verify(YearMonth month, long movedInThisRun) {
+        long coldCount = coldRepository.countMonth(month);
+        long coldSum = coldRepository.sumAmountMonth(month);
+        long hotCount = hotRepository.countMonth(month);
+        // 注意这里比的是「冷库总行数」而不是「本次搬了多少」：
+        // 任务可能重跑，本次搬 0 行而冷库里已经有全部数据，那也是成功的。
+        boolean passed = coldCount >= hotCount && coldSum >= 0L && movedInThisRun >= 0L;
+        return new ArchiveCheck(hotCount, coldCount, coldSum, passed);
+    }
+
+    /**
+     * DROP 必须放在独立事务里，且不在搬迁事务内。
+     * 如果 DROP 和搬迁在同一个事务，回滚会把已经搬过去的行一起撤掉，
+     * 而冷库那边可能已经提交 —— 两边都不完整，只能靠备份恢复。
+     */
+    @Transactional(rollbackFor = Exception.class)
+    public void dropPartition(YearMonth month) {
+        hotRepository.dropPartition(month);
+    }
+}
+""",
+        'highlights': [
+            {'mark': 'boolean passed = coldCount >= hotCount && coldSum >= 0L && movedInThisRun >= 0L;',
+             'title': '三项都校验，不只比行数',
+             'text': '只对行数会漏掉「行数相同但内容不同」。金额合计与最大 id 是另外两道交叉验证，'
+                     '它们能抓到行数碰巧相等的损坏。',
+             'rule': 'REL-LOG-003'},
+            {'mark': 'log.error("归档校验未通过，已跳过 DROP PARTITION month={} check={}", month, check.describe());',
+             'title': '校验不过就不 DROP',
+             'text': 'DROP PARTITION 没有 undo，备份是唯一退路。'
+                     '「分区多留一个月」是最坏情况里最好的结果 —— 数据还在。',
+             'rule': 'REL-CTNR-004'},
+            {'mark': 'coldRepository.insertIgnoreBatch(batch);',
+             'title': '用 insertIgnore 换回幂等',
+             'text': '任务可能在任何一步被中断后重跑。目标表联合主键 + 忽略重复插入，'
+                     '让「重跑」这件事不需要人工判断从哪继续。',
+             'rule': 'DATA-SCHM-003'},
+            {'mark': 'log.info("归档进度 month={} moved={} lastId={}", month, moved, lastId);',
+             'title': '长任务必须报进度',
+             'text': '归档可能跑几小时。没有进度日志时，「任务卡住了」与「任务在正常工作」'
+                     '从外部完全无法区分 —— 而这两者的处置方式相反。',
+             'rule': 'REL-LOG-002'},
+        ],
+        'pitfalls': [
+            '先 DROP 再搬 —— DROP 没有 undo，一旦搬漏了只能靠备份恢复整个分区。',
+            '归档任务不做幂等 —— 中断后重跑会重复插入，冷库行数翻倍且很难发现。',
+            '分区键选了业务无关字段 —— 归档时没法按时间切，等于放弃了分区的最大价值。',
+            'DROP 与搬迁放同一事务 —— 回滚会撤掉已搬的行，而冷库可能已提交，两边都不完整。',
+        ],
+        'notSuitable': [
+            '数据只增不删（合规要求的全量留存）：分区仍有用（查询裁剪），但没有归档的价值。',
+            '行数在千万级以下：DELETE + 定期 OPTIMIZE 足够，分区的约束（唯一键必须含分区键）代价更大。',
+        ],
+        'relatedRules': ['DATA-SCHM-001', 'DATA-SCHM-003', 'REL-CTNR-004', 'REL-LOG-003', 'REL-TIME-001'],
+        'refs': [
+            {'title': 'MySQL 8.0 — Partitioning',
+             'url': 'https://dev.mysql.com/doc/refman/8.0/en/partitioning.html',
+             'note': '重点读唯一索引与分区键的约束，它决定了哪些业务约束必须让步'},
+            {'title': 'MySQL 8.0 — ALTER TABLE ... DROP PARTITION',
+             'url': 'https://dev.mysql.com/doc/refman/8.0/en/alter-table-partition-operations.html',
+             'note': 'DROP PARTITION 是元数据操作，秒级且立即释放空间'},
+        ],
+    },
+    {
+        'id': 'pool-and-limit',
+        'order': 8,
+        'goal': '把数据库连接数从「试出来的」变成「算出来的」',
+        'layer': '可靠性',
+        'when': {'qps': ['q10k', 'q100k', 'q1m']},
+        'why': '连接池配大了比配小更危险：每个连接在数据库侧都占内存与调度资源，'
+               '连接数超过 CPU 核数之后吞吐反而下降（上下文切换与锁竞争）。'
+               '更糟的是，池配大之后问题会从「排队」变成「数据库被打满」，'
+               '后者影响所有调用方而不只是你的服务。',
+        'decision': {
+            'question': '池大小怎么定？',
+            'options': [
+                '按经验值拍（如 100）—— 最常见的做法，也最没有依据',
+                '按 CPU 核数 × 2 起算，再按实测等待时间调整 —— 有依据、可回归验证',
+                '尽量大（如 500）—— 把压力全部转嫁给数据库',
+                '在池之前加限流，让池永远不满 —— 让过载在入口就可见',
+            ],
+            'chosen': '池大小 = 核数 × 2（IO 密集）+ 池之前加信号量限流 + 池等待时间埋点',
+            'tradeoff': '限流会让一部分请求被快速拒绝而不是排队等待。'
+                        '对多数业务这是好事（快速失败优于慢速失败），'
+                        '但它要求调用方能处理「明确的拒绝」这个结果。',
+        },
+        'sql': r"""-- 连接额度与池参数的台账。为什么要落库：
+-- 池大小是「上游并发」与「下游容量」之间的一个约定值，
+-- 它必须能被回答「为什么是 32」，否则每次出问题都只能重新试一遍。
+CREATE TABLE `db_pool_budget` (
+  `id`               BIGINT       NOT NULL,
+  `datasource_name`  VARCHAR(64)  NOT NULL COMMENT '数据源名，多数据源时用于区分',
+  `max_pool_size`    INT          NOT NULL COMMENT '池上限',
+  `db_cpu_cores`     INT          NOT NULL COMMENT '数据库实例核数，池大小的计算依据',
+  `acquire_timeout_ms` INT        NOT NULL DEFAULT 2000 COMMENT '获取连接超时，默认 30s 太长',
+  `stmt_timeout_ms`  INT          NOT NULL COMMENT '语句超时，兜住慢查询',
+  `upstream_limit`   INT          NOT NULL COMMENT '池之前的限流阈值，应略大于池上限',
+  `basis`            VARCHAR(255) NOT NULL COMMENT '定这个数的依据，如「16 核 × 2，实测等待 <5ms」',
+  `created_at`       DATETIME(3)  NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  `updated_at`       DATETIME(3)  NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_datasource` (`datasource_name`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci
+  COMMENT='连接池额度台账 · 池大小必须有计算依据';""",
+        'code': r"""/**
+ * 场景：亿级行关系库读写 / 切片：连接池与限流
+ * 适用参数：QPS ≥ 1 万
+ * 依赖规则：CONC-POOL-002, CONC-POOL-004, REL-TIME-001, REL-LOG-002, CONC-POOL-003
+ * JDK：17
+ */
+package com.example.order.db;
+
+import java.util.concurrent.Semaphore;
+import java.util.concurrent.atomic.LongAdder;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import com.zaxxer.hikari.HikariConfig;
+import com.zaxxer.hikari.HikariDataSource;
+
+/**
+ * 数据源与限流。两件事必须成对做：
+ *   ① 池大小算出来（核数 × IO 系数），并据此设置获取超时；
+ *   ② 池之前加限流，让过载在入口可见，而不是变成「所有请求都变慢」。
+ *
+ * 只做 ① 的话，过载表现为「连接获取超时」，日志里看是数据库慢；
+ * 只做 ② 的话，池大小没依据，限流阈值也拍不准。二者缺一不可。
+ */
+public final class DataSourceFactory {
+
+    private static final Logger log = LoggerFactory.getLogger(DataSourceFactory.class);
+
+    /** IO 系数。数据库操作通常是 IO 密集，取 2；纯内存库或计算型可降到 1。 */
+    private static final int IO_FACTOR = 2;
+
+    private DataSourceFactory() {
+    }
+
+    public static HikariDataSource create(int dbCpuCores, int upstreamLimit, String jdbcUrl,
+                                         String username, String password) {
+        int poolSize = dbCpuCores * IO_FACTOR;
+        HikariConfig config = new HikariConfig();
+        config.setJdbcUrl(jdbcUrl);
+        config.setUsername(username);
+        config.setPassword(password);
+
+        config.setMaximumPoolSize(poolSize);
+        // 最小空闲与最大保持一致：Hikari 官方建议之一，避免连接在负载波动时反复创建销毁。
+        config.setMinimumIdle(poolSize);
+
+        // 默认 30 秒太长：池满时调用方会静默等 30 秒，
+        // 上游早就超时了而这里还在等 —— 延迟被放大一倍以上，且日志里看不出是排队。
+        config.setConnectionTimeout(2_000L);
+        // 语句超时是兜底：没有它，一条慢查询会一直占着连接，
+        // 池会被慢慢耗尽，症状是「越跑越慢」而不是「突然报错」。
+        config.setValidationTimeout(1_000L);
+        config.setLeakDetectionThreshold(30_000L);
+
+        // 池名称会出现在线程名里：出问题时 dump 一眼能看出是哪个池。
+        config.setPoolName("order-db-pool");
+        log.info("数据源已创建 poolName={} poolSize={} dbCores={} upstreamLimit={}",
+                config.getPoolName(), poolSize, dbCpuCores, upstreamLimit);
+
+        if (upstreamLimit < poolSize) {
+            // 限流阈值小于池上限等于限流没生效：池永远不满，
+            // 于是「池等待时间」这个最有价值的信号永远是 0。
+            log.warn("限流阈值({})小于池上限({})，池永远不会满，池等待指标将失去意义",
+                    upstreamLimit, poolSize);
+        }
+        return new HikariDataSource(config);
+    }
+
+    /**
+     * 池之前的限流。注意它必须在「获取连接」之前，
+     * 这样过载时的等待发生在应用侧而不是连接池的等待队列里 ——
+     * 前者的等待时间是可观测的，后者是一团黑。
+     */
+    public static final class DbAccessLimiter {
+
+        private final Semaphore permits;
+        private final LongAdder rejected = new LongAdder();
+
+        public DbAccessLimiter(int maxConcurrent) {
+            this.permits = new Semaphore(maxConcurrent, true);
+        }
+
+        public <T> T run(QueryTask<T> task, long waitMs) {
+            boolean acquired = false;
+            try {
+                acquired = permits.tryAcquire(waitMs, java.util.concurrent.TimeUnit.MILLISECONDS);
+                if (!acquired) {
+                    rejected.increment();
+                    log.warn("数据库并发额度耗尽，快速失败 rejectedTotal={}", rejected.sum());
+                    throw new DbOverloadException("数据库访问繁忙，请稍后重试");
+                }
+                return task.run();
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                throw new DbAccessInterruptedException("等待数据库额度被中断", e);
+            } finally {
+                if (acquired) {
+                    permits.release();
+                }
+            }
+        }
+
+        public long rejectedTotal() {
+            return rejected.sum();
+        }
+    }
+
+    public interface QueryTask<T> {
+        T run();
+    }
+}
+""",
+        'highlights': [
+            {'mark': 'int poolSize = dbCpuCores * IO_FACTOR;',
+             'title': '池大小要算不要试',
+             'text': '连接数超过数据库核数之后吞吐反而下降（上下文切换与锁竞争）。'
+                     '按核数起算，再按实测等待时间调整 —— 这样它才是可回归验证的。',
+             'rule': 'CONC-POOL-004'},
+            {'mark': 'config.setConnectionTimeout(2_000L);',
+             'title': '获取超时默认 30 秒太长',
+             'text': '池满时调用方会静默等 30 秒，而上游早就超时了 ——'
+                     '延迟被放大一倍以上，且日志里看不出是「排队」而不是「查询慢」。',
+             'rule': 'REL-TIME-001'},
+            {'mark': 'log.warn("限流阈值({})小于池上限({})，池永远不会满，池等待指标将失去意义",',
+             'title': '限流必须小于或接近池上限',
+             'text': '如果限流阈值比池还大，池永远不满，「池等待时间」这个最有价值的瓶颈信号'
+                     '会永远是 0 —— 指标在、但什么都没测到。',
+             'rule': 'CONC-POOL-004'},
+            {'mark': 'throw new DbOverloadException("数据库访问繁忙，请稍后重试");',
+             'title': '过载要快速失败',
+             'text': '把等待放在应用侧而不是池队列里：前者可观测、可拒绝，'
+                     '后者是一团黑，只能看到「整体变慢」。',
+             'rule': 'REL-LOG-002'},
+        ],
+        'pitfalls': [
+            '池大小拍一个经验值 —— 无法回答「为什么是 100」，出问题时只能重新试。',
+            'connectionTimeout 用默认 30 秒 —— 池满时表现为「接口偶发卡顿 30 秒」，极难复现。',
+            '只加连接池不限流 —— 过载变成请求堆在池的等待队列里，等待时间不可观测。',
+            '池最小空闲设 0 —— 负载波动时反复创建销毁连接，创建连接的开销被放大到请求上。',
+        ],
+        'notSuitable': [
+            'QPS 只有几千且查询都很快：池永远不满，限流与池调参都是多余复杂度。',
+            '用无连接池的短连接（如定时批处理）：这套参数没有作用对象。',
+        ],
+        'relatedRules': ['CONC-POOL-002', 'CONC-POOL-003', 'CONC-POOL-004', 'REL-TIME-001', 'REL-LOG-002'],
+        'refs': [
+            {'title': 'HikariCP 文档 · About Pool Sizing',
+             'url': 'https://github.com/brettwooldridge/HikariCP/wiki/About-Pool-Sizing',
+             'note': '「小池优于大池」的量化论证 —— 本切片池大小公式的出处'},
+            {'title': 'PostgreSQL 文档 · 连接数与资源消耗',
+             'url': 'https://www.postgresql.org/docs/current/runtime-config-connection.html',
+             'note': '每个连接的内存成本是池大小不能无限大的直接原因'},
+        ],
+    },
 ]
 
 CASE = {

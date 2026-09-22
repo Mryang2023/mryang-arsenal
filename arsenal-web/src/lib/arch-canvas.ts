@@ -249,7 +249,18 @@ function isNoneOption(optId: string | undefined): boolean {
   return !optId || optId === 'none';
 }
 
-export function buildTechArch(picks: StackPicks, edits: CanvasEdits = emptyEdits()): TechArch {
+export function buildTechArch(
+  picks: StackPicks,
+  edits: CanvasEdits = emptyEdits(),
+  opts: {
+    controlPlane?: boolean;
+    /**
+     * 形态覆盖表（由 `nodeTopologyMap()` 生成）。给了就**取代**静态的 `cluster` 声明，
+     * 于是「装配台上选了分片」这件事会真的画到图上：叠层数、×N 徽章一起变。
+     */
+    topology?: Record<string, { modes: { name: string; replicas: number }[]; mode: number }>;
+  } = {}
+): TechArch {
   const nodes: CanvasNode[] = [];
   const absent: { dimId: string; name: string }[] = [];
   const appTags: { label: string; value: string; icon: string }[] = [];
@@ -273,6 +284,7 @@ export function buildTechArch(picks: StackPicks, edits: CanvasEdits = emptyEdits
   const webSpec = canvasOpt('web', webOpt);
   const webIcon = webSpec?.icon ?? 'spring';
   const webPort = webSpec?.port;
+  const appTopo = opts.topology?.app;
   const appNode: CanvasNode = {
     id: 'app',
     title: `${displayName('web', webOpt)} 应用`,
@@ -285,6 +297,8 @@ export function buildTechArch(picks: StackPicks, edits: CanvasEdits = emptyEdits
     // 应用方块自己没有维度，它的品牌只能挂在 web 那一维的选项上
     brand: webSpec?.brand,
     archifyType: zoneArchifyType('app'),
+    modes: appTopo?.modes,
+    mode: appTopo?.mode,
     x: 0, y: 0, w: APP_W, h: 96,
   };
   nodes.push(appNode);
@@ -324,8 +338,11 @@ export function buildTechArch(picks: StackPicks, edits: CanvasEdits = emptyEdits
       zone: nodeZone,
       kind: isSide ? 'side' : 'component',
       tags: [],
-      modes: opt?.cluster,
-      mode: opt?.cluster ? (edits.clusters[dim.id] ?? 0) : undefined,
+      // 形态覆盖优先：装配台上选的集群形态比 architecture.json 里的静态声明更权威
+      modes: opts.topology?.[dim.id]?.modes ?? opt?.cluster,
+      mode:
+        opts.topology?.[dim.id]?.mode ??
+        (opt?.cluster ? (edits.clusters[dim.id] ?? 0) : undefined),
       port: opt?.port,
       // 类型先看选项自己的声明，再退回分区给的那一层性质
       archifyType: opt?.archifyType ?? zoneArchifyType(nodeZone),
@@ -379,7 +396,7 @@ export function buildTechArch(picks: StackPicks, edits: CanvasEdits = emptyEdits
 
   // ── 布局 ──
   const visible = nodes.filter((n) => !hidden.has(n.id));
-  layout(visible);
+  layout(visible, canvasZoneOrder(opts.controlPlane === true));
 
   // ── 位移 ──
   for (const n of nodes) {
@@ -419,15 +436,19 @@ export function buildTechArch(picks: StackPicks, edits: CanvasEdits = emptyEdits
   };
 }
 
-/** 按分区自顶向下排：每个分区一行，行内居中 */
-function layout(nodes: CanvasNode[]) {
+/**
+ * 按分区自顶向下排：每个分区一行，行内居中。
+ *
+ * `order` 由 `canvasZoneOrder()` 给出 —— 控制面分离只改这一个参数，
+ * 其余几何一寸不动（行高、行距、列宽全部照旧）。
+ */
+function layout(nodes: CanvasNode[], order: string[] = canvasZoneOrder()) {
   const byZone = new Map<string, CanvasNode[]>();
   for (const n of nodes) {
     const list = byZone.get(n.zone) ?? [];
     list.push(n);
     byZone.set(n.zone, list);
   }
-  const order = CANVAS_ZONES.map((z) => z.id);
   const widths = order.map((zid) => {
     const list = byZone.get(zid) ?? [];
     if (!list.length) return 0;
@@ -492,9 +513,20 @@ function zoneBoxes(nodes: CanvasNode[], _minX: number) {
 // 渲染
 // ─────────────────────────────────────────────────────────────
 
-export type CanvasTheme = 'dark' | 'light';
+/**
+ * 五套主题。前两套给屏幕（编辑器里看着舒服），后三套给**交付物**：
+ *
+ * - `doc` —— 白底黑线、去网格去辉光。要贴进 Word / 打印，屏幕上的辉光在纸上就是一片脏。
+ * - `slide` —— 深色大屏。投影仪对比度低，所以底色比 `dark` 更深、字更亮、线更粗一档。
+ * - `blueprint` —— 工程蓝图（深蓝底 + 冷白细线 + 明显网格）。给「架构评审」这种场合。
+ *
+ * 主题只改**呈现**，不改任何几何与判定 —— 同一份 `TechArch` 换主题重渲染，节点坐标逐像素不变。
+ */
+export type CanvasTheme = 'dark' | 'light' | 'doc' | 'slide' | 'blueprint';
 
-interface Palette {
+export interface Palette {
+  /** 底色是深的吗。渐变叠层、投影浓度这些跟明暗走，跟具体是哪一套无关 */
+  dark: boolean;
   bg0: string; bg1: string; grid: string; glow: string;
   zone: string; zoneLine: string;
   card: string; cardLine: string;
@@ -505,6 +537,7 @@ interface Palette {
 }
 
 const DARK: Palette = {
+  dark: true,
   bg0: '#0A0F0E', bg1: '#111A19', grid: 'rgba(255,255,255,0.035)', glow: 'rgba(120,200,180,0.10)',
   zone: 'rgba(255,255,255,0.022)', zoneLine: 'rgba(255,255,255,0.07)',
   card: '#16211F', cardLine: 'rgba(255,255,255,0.10)',
@@ -514,6 +547,7 @@ const DARK: Palette = {
   shadow: 'rgba(0,0,0,0.45)',
 };
 const LIGHT: Palette = {
+  dark: false,
   bg0: '#F6F8F7', bg1: '#EDF2F1', grid: 'rgba(20,40,40,0.045)', glow: 'rgba(40,120,110,0.07)',
   zone: 'rgba(255,255,255,0.75)', zoneLine: 'rgba(20,50,50,0.12)',
   card: '#FFFFFF', cardLine: 'rgba(20,50,50,0.14)',
@@ -523,29 +557,138 @@ const LIGHT: Palette = {
   shadow: 'rgba(20,40,40,0.14)',
 };
 
+/** 文档：纯白底、细灰线，打印出来不糊。网格与辉光都断开 —— 纸面不需要它们 */
+const DOC: Palette = {
+  dark: false,
+  bg0: '#FFFFFF', bg1: '#FBFCFC', grid: 'transparent', glow: 'transparent',
+  zone: 'rgba(15,35,35,0.018)', zoneLine: '#D6DEE1',
+  card: '#FFFFFF', cardLine: '#C4D0D4',
+  title: '#15201F', sub: '#556664', faint: '#869796',
+  edge: '#5C6B6A', edgeDashed: '#A6B4B3', labelBg: '#FFFFFF', labelFg: '#394847',
+  chipBg: '#F0F4F4', chipFg: '#485857',
+  shadow: 'rgba(20,40,40,0.07)',
+};
+
+/** 演示：比 dark 更暗的底、更亮的字，投影仪上才分得清 */
+const SLIDE: Palette = {
+  dark: true,
+  bg0: '#080D14', bg1: '#131C28', grid: 'rgba(255,255,255,0.028)', glow: 'rgba(90,159,212,0.16)',
+  zone: 'rgba(255,255,255,0.03)', zoneLine: 'rgba(255,255,255,0.10)',
+  card: '#1A2431', cardLine: 'rgba(255,255,255,0.14)',
+  title: '#F4F8FC', sub: '#AABBCB', faint: '#718397',
+  edge: '#7FA6C8', edgeDashed: '#455C74', labelBg: '#121B27', labelFg: '#C6D8E8',
+  chipBg: 'rgba(255,255,255,0.06)', chipFg: '#AABBCB',
+  shadow: 'rgba(0,0,0,0.55)',
+};
+
+/** 蓝图：深蓝底 + 冷白细线 + 明显网格。评审场合的「工程图纸」质感 */
+const BLUEPRINT: Palette = {
+  dark: true,
+  bg0: '#0B2340', bg1: '#08192E', grid: 'rgba(190,220,255,0.075)', glow: 'rgba(130,195,255,0.12)',
+  zone: 'rgba(255,255,255,0.035)', zoneLine: 'rgba(196,222,255,0.20)',
+  card: '#10304F', cardLine: 'rgba(170,210,255,0.30)',
+  title: '#EBF4FF', sub: '#AAC7E8', faint: '#6F92BA',
+  edge: '#93BBE2', edgeDashed: '#4D7496', labelBg: '#0A2138', labelFg: '#D4E8FB',
+  chipBg: 'rgba(150,200,255,0.10)', chipFg: '#AAC7E8',
+  shadow: 'rgba(0,10,25,0.55)',
+};
+
+const PALETTES: Record<CanvasTheme, Palette> = {
+  dark: DARK, light: LIGHT, doc: DOC, slide: SLIDE, blueprint: BLUEPRINT,
+};
+
+/**
+ * 取调色板。**分层的图与部署图必须共用这一处** ——
+ * 两套渲染器各自写一份配色，改了一处另一处不报错，两张图会慢慢变成两种风格。
+ */
+export function themePalette(theme: CanvasTheme): Palette {
+  return PALETTES[theme] ?? DARK;
+}
+
+/**
+ * 主题清单与中文名。**UI 不许自己再写一份** ——
+ * 主题列表写两处，改一处不报错：选择器里少了选项、或者选了却渲染成默认主题。
+ */
+export const CANVAS_THEME_OPTIONS: { id: CanvasTheme; label: string; hint: string }[] = [
+  { id: 'dark', label: '深色', hint: '屏幕阅读' },
+  { id: 'light', label: '浅色', hint: '屏幕阅读' },
+  { id: 'doc', label: '文档', hint: '白底去网格 · 贴进说明书 / 打印' },
+  { id: 'slide', label: '演示', hint: '高对比深色 · 投影用' },
+  { id: 'blueprint', label: '蓝图', hint: '工程图纸质感 · 评审用' },
+];
+
 /** 分区强调色 —— 按序循环，只用于装饰性描边与标题刻度，不承载语义 */
 const ZONE_ACCENTS = ['#5A9FD4', '#7FBF6A', '#D4A45A', '#9F7FC4', '#5FC4AF', '#C46A6A'];
+
+/**
+ * 控制面分区：注册/配置中心（mw）+ 观测运维（ops）。
+ *
+ * 这两个分区里的东西挂了，业务请求照样跑完 —— 代价是「你有多久才知道它挂了」。
+ * 所以它们在交付图上本该分开看，而不是和业务节点混在一列里。
+ */
+export const CONTROL_PLANE_ZONES = ['mw', 'ops'];
+
+/**
+ * 分区自上而下的顺序。
+ *
+ * 控制面分离打开时把控制面挪到最后 —— **「画在下方一条带里」是靠改版式顺序做到的**，
+ * 不是在原地画个虚线框假装分开。顺序一变，节点坐标与连线路径全部跟着重算，
+ * 所以它只能是 `buildTechArch` 的入参，不能是渲染期的装饰。
+ */
+export function canvasZoneOrder(controlPlane = false): string[] {
+  const ids = CANVAS_ZONES.map((z) => z.id);
+  if (!controlPlane) return ids;
+  return [
+    ...ids.filter((id) => !CONTROL_PLANE_ZONES.includes(id)),
+    ...ids.filter((id) => CONTROL_PLANE_ZONES.includes(id)),
+  ];
+}
 
 /** 页脚图例高度：图例是交付图的一部分，打印出来也得能读懂符号 */
 const FOOT_H = 44;
 
+export interface SvgExportOpts {
+  title?: string;
+  subtitle?: string;
+  /** 交互态：带 data-node 钩子、不放动效。导出的图不用它 */
+  hooks?: boolean;
+  /** 分区色带：每个分区铺一层极浅的强调色，远处一眼分清边界。缺省开 */
+  bands?: boolean;
+  /** 控制面 / 数据面分离。**必须与 buildTechArch 的同一个开关一起用** ——
+   *  版式已经分过了，这里只补分隔线与带名 */
+  controlPlane?: boolean;
+  /** 输出像素倍率。1 = 原尺寸；1.5 给 2400px 高清版（viewBox 不变，不会变形） */
+  scale?: number;
+  /** 文字最少化：节点上只留图标 + 名称，端口收进脚注、副标题与工程属性不画 */
+  lean?: boolean;
+}
+
 export function buildTechArchSvg(
   arch: TechArch,
   theme: CanvasTheme = 'dark',
-  opts: { title?: string; subtitle?: string; hooks?: boolean } = {}
+  opts: SvgExportOpts = {}
 ): string {
-  const p = theme === 'dark' ? DARK : LIGHT;
+  const p = themePalette(theme);
   const title = opts.title ?? '';
   const subtitle = opts.subtitle ?? '';
+  const scale = Math.max(1, opts.scale ?? 1);
+  const bands = opts.bands !== false;
+  const lean = opts.lean === true;
+  // 精简模式把端口从节点上摘下来，就必须在别处给回去 —— 否则图上是干净了，
+  // 「服务跑在哪个端口」这个信息直接消失。脚注就是那个「别处」。
+  const portList = arch.nodes
+    .filter((n) => n.port)
+    .map((n) => `${n.title} :${n.port}`);
+  const FOOT_NOTE_H = lean && portList.length ? 22 : 0;
   const headH = title ? 62 : 24;
   const W = arch.width;
-  const H = arch.height + headH + FOOT_H;
+  const H = arch.height + headH + FOOT_H + FOOT_NOTE_H;
   const dx = 0;
   const dy = headH;
   const o: string[] = [];
 
   o.push(
-    `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" ` +
+    `<svg xmlns="http://www.w3.org/2000/svg" width="${r(W * scale)}" height="${r(H * scale)}" viewBox="0 0 ${W} ${H}" ` +
     `role="img" aria-label="${escapeXml(title || '技术架构图')}">`
   );
   o.push(`<defs>` +
@@ -554,7 +697,7 @@ export function buildTechArchSvg(
     `<radialGradient id="ta-glow" cx="0.5" cy="0" r="0.75">` +
     `<stop offset="0" stop-color="${p.glow}"/><stop offset="1" stop-color="transparent"/></radialGradient>` +
     `<linearGradient id="ta-cardg" x1="0" y1="0" x2="0" y2="1">` +
-    `<stop offset="0" stop-color="#FFFFFF" stop-opacity="${theme === 'dark' ? 0.05 : 0.45}"/>` +
+    `<stop offset="0" stop-color="#FFFFFF" stop-opacity="${p.dark ? 0.05 : 0.45}"/>` +
     `<stop offset="1" stop-color="#FFFFFF" stop-opacity="0"/></linearGradient>` +
     `<pattern id="ta-grid" width="26" height="26" patternUnits="userSpaceOnUse">` +
     `<path d="M26 0H0V26" fill="none" stroke="${p.grid}" stroke-width="1"/></pattern>` +
@@ -592,6 +735,11 @@ export function buildTechArchSvg(
     const x = z.x + dx, y = z.y + dy, w = z.w, h = z.h;
     const accent = ZONE_ACCENTS[zi % ZONE_ACCENTS.length];
     o.push(`<rect x="${r(x)}" y="${r(y)}" width="${r(w)}" height="${r(h)}" rx="14" fill="${p.zone}" stroke="${p.zoneLine}" stroke-width="1"/>`);
+    // 分区色带：把强调色极浅地铺满整块分区。顶边那条细线在缩略图上会消失，
+    // 一层色带不会 —— 缩到 30% 也能看出「这里是三块，不是一块」。
+    if (bands) {
+      o.push(`<rect x="${r(x)}" y="${r(y)}" width="${r(w)}" height="${r(h)}" rx="14" fill="${accent}" opacity="${p.dark ? 0.055 : 0.04}"/>`);
+    }
     // 分区顶边强调条（内缩避开圆角）—— 远处一眼分清分区边界
     o.push(`<rect x="${r(x + 18)}" y="${r(y)}" width="${r(Math.max(0, w - 36))}" height="2.5" rx="1.25" fill="${accent}" opacity="0.55"/>`);
     // 标题悬浮在框外左上：节点正上方是连线标签的位置，标题挤进去必然打架。
@@ -606,6 +754,31 @@ export function buildTechArchSvg(
       `<text x="${r(x + 41 + textW(label, 11))}" y="${r(y - 6)}" text-anchor="middle">${nodeCount} 节点</text></g>`
     );
   });
+
+  // ── 控制面 / 数据面分离的标注 ──
+  //
+  // 版式顺序已经在 buildTechArch 里分过了，这里补的只是「读图的人怎么知道自己
+  // 在看哪一面」。带名右对齐，躲开分区自己的悬浮标题（那个在左侧）。
+  if (opts.controlPlane) {
+    const dataZones = arch.zones.filter((z) => !CONTROL_PLANE_ZONES.includes(z.zone.id));
+    const ctrlZones = arch.zones.filter((z) => CONTROL_PLANE_ZONES.includes(z.zone.id));
+    const bandMark = (text: string, top: number, dashed: boolean) => {
+      const y = top - 9;
+      return (
+        (dashed
+          ? `<line x1="${r(W - 520)}" y1="${r(y)}" x2="${r(W - 300)}" y2="${r(y)}" stroke="${p.zoneLine}" stroke-width="1" stroke-dasharray="6 5"/>`
+          : `<line x1="${r(W - 520)}" y1="${r(y)}" x2="${r(W - 300)}" y2="${r(y)}" stroke="${p.zoneLine}" stroke-width="1"/>`) +
+        `<text x="${r(W - 30)}" y="${r(y + 4)}" text-anchor="end" font-family="${FONT}" font-size="10.5" ` +
+        `font-weight="700" letter-spacing="1.1" fill="${p.faint}">${escapeXml(text)}</text>`
+      );
+    };
+    if (dataZones.length) {
+      o.push(bandMark('数据面 · 业务代码与它自己的数据', Math.min(...dataZones.map((z) => z.y + dy)), false));
+    }
+    if (ctrlZones.length) {
+      o.push(bandMark('控制面 · 注册 / 配置 / 观测', Math.min(...ctrlZones.map((z) => z.y + dy)), true));
+    }
+  }
 
   // ── 连线（先画线，节点压在上面） ──
   for (const [ei, e] of arch.edges.entries()) {
@@ -649,7 +822,7 @@ export function buildTechArchSvg(
         `fill="${p.card}" stroke="${p.cardLine}" stroke-width="1" opacity="${0.55 - i * 0.12}"/>`
       );
     }
-    o.push(nodeSvg(n, p, dx, dy, opts.hooks === true, ni));
+    o.push(nodeSvg(n, p, dx, dy, opts.hooks === true, ni, lean));
   }
 
   // ── 页脚图例：符号不解释，读图的人就得猜 ──
@@ -679,6 +852,15 @@ export function buildTechArchSvg(
     o.push(legendParts.join('') + brand);
   }
 
+  // ── 脚注：从节点上摘下来的东西在这儿还回去 ──
+  if (FOOT_NOTE_H) {
+    const ny = arch.height + headH + FOOT_H + 13;
+    o.push(
+      `<text x="30" y="${r(ny)}" font-family="${FONT}" font-size="10" fill="${p.faint}">` +
+      `端口：${escapeXml(portList.join('  ·  '))}</text>`
+    );
+  }
+
   o.push(`</svg>`);
   return o.join('\n');
 }
@@ -694,7 +876,9 @@ function nodeSvg(
   dy: number,
   hooks = false,
   /** 入场档位：节点按序号依次浮现（交互态不用，拖拽时元素在动会影响手感） */
-  rise = 0
+  rise = 0,
+  /** 精简模式：不画副标题、端口徽章、副本形态名、应用工程属性 */
+  lean = false
 ): string {
   const x = n.x + dx, y = n.y + dy, w = n.w, h = n.h;
   const brand = iconColor(n.icon);
@@ -727,14 +911,16 @@ function nodeSvg(
     `<text x="${r(tx)}" y="${r(y + 30)}" font-family="${FONT}" font-size="${titleFs}" font-weight="650" ` +
     `fill="${p.title}">${escapeXml(clipPx(n.title, titleAvail, titleFs))}</text>`
   );
-  o.push(
-    `<text x="${r(tx)}" y="${r(y + 45)}" font-family="${FONT}" font-size="10.5" ` +
-    `fill="${p.sub}">${escapeXml(clipPx(n.subtitle, w - 78 - (replicas > 1 ? 46 : 0), 10.5))}</text>`
-  );
+  if (!lean) {
+    o.push(
+      `<text x="${r(tx)}" y="${r(y + 45)}" font-family="${FONT}" font-size="10.5" ` +
+      `fill="${p.sub}">${escapeXml(clipPx(n.subtitle, w - 78 - (replicas > 1 ? 46 : 0), 10.5))}</text>`
+    );
+  }
 
   // 端口 / 集群徽章都放标题行右端：塞进副标题行会和「注册中心 / 配置中心」这类长说明打架
   let badgeX = x + w - 12;
-  if (n.port) {
+  if (n.port && !lean) {
     o.push(
       `<text x="${r(badgeX)}" y="${r(y + 30)}" font-family="${MONO}" font-size="10.5" ` +
       `text-anchor="end" fill="${p.faint}">:${escapeXml(n.port)}</text>`
@@ -746,7 +932,7 @@ function nodeSvg(
       `<text x="${r(badgeX)}" y="${r(y + 30)}" font-family="${MONO}" font-size="11" font-weight="700" ` +
       `text-anchor="end" fill="${brand}">×${replicas}</text>`
     );
-    const modeName = n.modes?.[n.mode ?? 0]?.name;
+    const modeName = lean ? undefined : n.modes?.[n.mode ?? 0]?.name;
     if (modeName) {
       o.push(
         `<text x="${r(badgeX)}" y="${r(y + 45)}" font-family="${FONT}" font-size="9.5" ` +
@@ -756,7 +942,7 @@ function nodeSvg(
   }
 
   // 应用卡的工程属性
-  if (n.kind === 'app' && n.tags.length) {
+  if (!lean && n.kind === 'app' && n.tags.length) {
     let ty = y + 62;
     const colW = (w - 26) / 2;
     n.tags.forEach((t, i) => {
@@ -829,7 +1015,7 @@ function edgeLabelPoint(a: CanvasNode, b: CanvasNode, dx: number, dy: number, la
  * 按像素宽度裁剪。中文全角 ≈ 1em，ASCII ≈ 0.55em —— 按字符数猜会把
  * 「注册中心 / 配置中心」这种长说明裁过头，或让标题压到端口上。
  */
-function textW(s: string, fontSize: number): number {
+export function textW(s: string, fontSize: number): number {
   let w = 0;
   for (const ch of s) w += ch.charCodeAt(0) > 0x2e7f ? fontSize : fontSize * 0.55;
   return w;

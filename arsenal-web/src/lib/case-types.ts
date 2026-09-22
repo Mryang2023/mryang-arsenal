@@ -78,6 +78,20 @@ export interface CaseConflict {
   text: string;
 }
 
+/**
+ * 互斥声明：某些 driver 的不同档位代表「两条互斥的技术路线」，
+ * 使部分切片在数学上不可能同时激活（JDK 17 与 21、组合过滤与聚合下钻）。
+ *
+ * 为什么要显式声明：不声明的话，「最多只能激活 5/6」这个现象
+ * 与「有切片永远不激活（死代码）」在外部看起来一模一样。
+ * 声明之后就分得开了 —— 而且它本身对读者有价值：
+ * 它说明「你得先在这些路线里选一条」。
+ */
+export interface ExclusiveGroup {
+  drivers: string[];
+  note: string;
+}
+
 export interface CaseDef {
   id: string;
   order: number;
@@ -90,6 +104,8 @@ export interface CaseDef {
   drivers: Driver[];
   conflicts: CaseConflict[];
   slices: CaseSlice[];
+  /** 使「全激活」不可能成立的互斥 driver。空/缺省表示本场景可以全激活 */
+  exclusiveGroups?: ExclusiveGroup[];
   notSuitableFor: { when: Record<string, string[]>; reason: string }[];
   benchmark: {
     title: string;

@@ -5,6 +5,8 @@ import Link from 'next/link';
 import type { ArchLink, ArchNode, CasePlan, CaseSlice } from '@/lib/case-types';
 import { cases, casesMeta, casesStats, defaultParams } from '@/lib/case-cases';
 import { planToPrompt, sliceFileName, synthCase } from '@/lib/case-synth';
+import { DIAGRAM_PALETTE, textWidth } from '@/lib/arch-diagram';
+import { buildZip } from '@/lib/zip-lite';
 import CodeBlock from '@/components/CodeBlock';
 
 const KIND_COLOR: Record<string, string> = {
@@ -15,61 +17,84 @@ const KIND_COLOR: Record<string, string> = {
   security: '#E5484D',
 };
 
+/** 图上文字与底色统一走 arch-diagram 的调色板，避免这里再定义一套会漂移的颜色。 */
+const P = DIAGRAM_PALETTE.dark;
+
+/**
+ * 节点宽度按文字实际宽度算。
+ *
+ * 写死宽度在「样本元数据」这类中文标签上会溢出 —— SVG 的文字不会自动换行，
+ * 溢出后表现为「标签压在节点边框上」，而且只在某些场景才出现。
+ * 字符宽度规则（CJK≈1em、ASCII≈0.55em）复用 arch-diagram 的实现，
+ * 这样图上文字与全站其他图的度量完全一致。
+ */
+function nodeWidth(label: string): number {
+  return Math.max(88, Math.round(textWidth(label, 11.5)) + 28);
+}
+
 /**
  * 建议架构图。
  *
- * 为什么不用 arch-diagram.ts：那个绘图器的输入是「选型台的泳道 + 槽位」，
- * 而场景案例的架构是「自由节点 + 连线」，硬套会把节点塞进不属于它的泳道。
- * 这里按 tier 分层画，零依赖、纯函数，与项目其余部分同一种手绘 SVG 做法。
+ * 为什么不直接调 buildArchDiagram：它的输入是 `picks: StackPicks + audit: ArchAudit`，
+ * 泳道来自 arch.lanes 常量（7 条固定泳道），而场景的架构是「自由节点 + 连线」——
+ * 硬套会把「对象存储」这类节点塞进它不属于的泳道，产出一张语义错误的图。
+ * 所以这里复用它的**底层**（字符宽度、调色板），布局仍按场景自己的 tier 分层。
  */
 function ArchSuggestion({ nodes, links }: { nodes: ArchNode[]; links: ArchLink[] }) {
   if (!nodes.length) return null;
 
-  const NODE_W = 104;
   const NODE_H = 34;
-  const GAP_X = 16;
-  const GAP_Y = 52;
+  const GAP_X = 14;
+  const GAP_Y = 46;
 
   const tiers = [...new Set(nodes.map((n) => n.tier))].sort((a, b) => a - b);
-  const pos = new Map<string, { x: number; y: number }>();
-  const maxCols = Math.max(...tiers.map((t) => nodes.filter((n) => n.tier === t).length));
-  const W = Math.max(360, maxCols * (NODE_W + GAP_X) + GAP_X);
+  const widthOf = new Map(nodes.map((n) => [n.id, nodeWidth(n.label)]));
+  const rowWidth = (t: number) => {
+    const row = nodes.filter((n) => n.tier === t);
+    return row.reduce((sum, n) => sum + (widthOf.get(n.id) ?? 0), 0) + Math.max(0, row.length - 1) * GAP_X;
+  };
+  const widest = Math.max(360, ...tiers.map(rowWidth));
+  const W = widest + GAP_X * 2;
 
+  const pos = new Map<string, { x: number; y: number; w: number }>();
   tiers.forEach((t, ti) => {
     const row = nodes.filter((n) => n.tier === t);
-    const rowW = row.length * NODE_W + (row.length - 1) * GAP_X;
-    const startX = (W - rowW) / 2;
-    row.forEach((n, i) => {
-      pos.set(n.id, { x: startX + i * (NODE_W + GAP_X), y: GAP_Y + ti * (NODE_H + GAP_Y) });
+    // 每行按「最宽行」居中：不居中时上下层左边界参差，连线看起来全是斜的。
+    let x = GAP_X + (widest - rowWidth(t)) / 2;
+    const y = GAP_Y + ti * (NODE_H + GAP_Y);
+    row.forEach((n) => {
+      const w = widthOf.get(n.id) ?? 88;
+      pos.set(n.id, { x, y, w });
+      x += w + GAP_X;
     });
   });
 
   const H = GAP_Y + tiers.length * (NODE_H + GAP_Y);
 
   return (
-    <svg viewBox={`0 0 ${W} ${H}`} className="w-full" style={{ maxHeight: 260 }} role="img"
+    <svg viewBox={`0 0 ${W} ${H}`} className="w-full" style={{ maxHeight: 280 }} role="img"
       aria-label="建议架构图">
       <defs>
         <marker id="case-arrow" markerWidth="7" markerHeight="7" refX="6" refY="3"
           orient="auto" markerUnits="strokeWidth">
-          <path d="M0,0 L6,3 L0,6 z" fill="#3A4A44" />
+          <path d="M0,0 L6,3 L0,6 z" fill={P.spine} />
         </marker>
       </defs>
       {links.map((l, i) => {
         const a = pos.get(l.from);
         const b = pos.get(l.to);
         if (!a || !b) return null;
-        const x1 = a.x + NODE_W / 2;
+        const x1 = a.x + a.w / 2;
         const y1 = a.y + NODE_H;
-        const x2 = b.x + NODE_W / 2;
+        const x2 = b.x + b.w / 2;
         const y2 = b.y;
         const my = (y1 + y2) / 2;
         return (
           <g key={i}>
             <path d={`M${x1},${y1} C${x1},${my} ${x2},${my} ${x2},${y2}`}
-              fill="none" stroke="#2C3A34" strokeWidth={1.2} markerEnd="url(#case-arrow)" />
+              fill="none" stroke={P.bandStroke} strokeWidth={1.2} markerEnd="url(#case-arrow)" />
             {l.label && (
-              <text x={(x1 + x2) / 2} y={my - 3} fontSize={9} fill="#6D7F77"
+              <text x={(x1 + x2) / 2} y={my - 3} fontSize={9} fill={P.fgFaint}
                 textAnchor="middle">{l.label}</text>
             )}
           </g>
@@ -78,13 +103,13 @@ function ArchSuggestion({ nodes, links }: { nodes: ArchNode[]; links: ArchLink[]
       {nodes.map((n) => {
         const p = pos.get(n.id);
         if (!p) return null;
-        const c = KIND_COLOR[n.kind] ?? '#5E6E67';
+        const c = KIND_COLOR[n.kind] ?? P.fgFaint;
         return (
           <g key={n.id}>
-            <rect x={p.x} y={p.y} width={NODE_W} height={NODE_H} rx={5}
-              fill="rgba(255,255,255,0.02)" stroke={c} strokeOpacity={0.5} />
-            <text x={p.x + NODE_W / 2} y={p.y + NODE_H / 2 + 4} fontSize={11.5}
-              fill="#D6E0DB" textAnchor="middle">{n.label}</text>
+            <rect x={p.x} y={p.y} width={p.w} height={NODE_H} rx={5}
+              fill={P.card} stroke={c} strokeOpacity={0.55} />
+            <text x={p.x + p.w / 2} y={p.y + NODE_H / 2 + 4} fontSize={11.5}
+              fill={P.fg} textAnchor="middle">{n.label}</text>
           </g>
         );
       })}
@@ -302,6 +327,34 @@ export default function CaseLab() {
     setTimeout(() => setToast(''), 2600);
   };
 
+  /**
+   * 导出整包：把当前参数下命中的切片打成 zip（DDL 汇总一份、每个切片一份 Java、外加 README）。
+   *
+   * 刻意只导出**命中的**切片 —— 未命中的那些是「这个参数下属于过度设计」，
+   * 混进包里等于把不适用方案一起交付出去。
+   */
+  const exportZip = () => {
+    const entries = plan.activeSlices.map(({ slice }) => ({
+      name: `${kase.id}/${String(slice.order).padStart(2, '0')}-${slice.id}.java`,
+      data: slice.code,
+    }));
+    const ddl = plan.activeSlices
+      .map(({ slice }) => `-- ${slice.order}. ${slice.goal}\n${slice.sql}`)
+      .join('\n\n');
+    entries.unshift({ name: `${kase.id}/schema.sql`, data: ddl });
+    entries.push({ name: `${kase.id}/README.md`, data: planToPrompt(plan) });
+
+    const zip = buildZip(entries);
+    const url = URL.createObjectURL(new Blob([zip as BlobPart], { type: 'application/zip' }));
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${kase.id}-${plan.activeSlices.length}slices.zip`;
+    a.click();
+    URL.revokeObjectURL(url);
+    setToast(`已导出 ${entries.length} 个文件（${Math.max(1, Math.round(zip.length / 1024))} KB）`);
+    setTimeout(() => setToast(''), 2600);
+  };
+
   const allOpen = plan.activeSlices.length > 0 &&
     plan.activeSlices.every(({ slice }) => openSlices[slice.id] !== false);
 
@@ -393,28 +446,56 @@ export default function CaseLab() {
             <p className="mt-1 text-[11.5px] leading-relaxed text-fgFaint">{kase.problem}</p>
           </div>
 
-          {kase.drivers.map((d) => (
-            <div key={d.id} className="rounded-lg border border-line bg-surface p-3">
-              <div className="flex items-baseline justify-between gap-2">
-                <span className="text-[12.5px] font-medium text-fg">{d.name}</span>
-                {d.unit && <span className="mono text-[10px] text-fgFaint">{d.unit}</span>}
+          {kase.drivers.map((d) => {
+            const selected = d.levels.find((lv) => lv.id === params[d.id]);
+            return (
+              <div key={d.id} className="rounded-lg border border-line bg-surface p-3">
+                <div className="flex items-baseline justify-between gap-2">
+                  <span className="text-[12.5px] font-medium text-fg">{d.name}</span>
+                  {d.unit && <span className="mono text-[10px] text-fgFaint">{d.unit}</span>}
+                </div>
+                {d.hint && <div className="mt-0.5 text-[11px] text-fgFaint">{d.hint}</div>}
+
+                {/* 段选器：整条轨道连通、各档等宽分割。比散按钮更能表达
+                    「这几个档位是同一个参数的取值」这件事 —— 散按钮看起来像并列的开关。 */}
+                <div className="mt-2 flex overflow-hidden rounded-md border border-line">
+                  {d.levels.map((lv, i) => {
+                    const on = params[d.id] === lv.id;
+                    return (
+                      <button key={lv.id} onClick={() => setLevel(d.id, lv.id)} title={lv.note ?? ''}
+                        aria-pressed={on}
+                        className={`mono flex-1 px-1 py-1 text-[11px] leading-tight transition-colors ${
+                          i > 0 ? 'border-l border-line' : ''
+                        } ${on
+                          ? 'bg-accent/15 font-medium text-fg'
+                          : 'text-fgMuted hover:bg-white/[0.03] hover:text-fg'}`}>
+                        {lv.label}
+                      </button>
+                    );
+                  })}
+                </div>
+                {selected?.note && (
+                  <div className="mt-1 text-[11px] leading-relaxed text-fgMuted">{selected.note}</div>
+                )}
               </div>
-              {d.hint && <div className="mt-0.5 text-[11px] text-fgFaint">{d.hint}</div>}
-              <div className="mt-2 flex flex-wrap gap-1">
-                {d.levels.map((lv) => {
-                  const on = params[d.id] === lv.id;
-                  return (
-                    <button key={lv.id} onClick={() => setLevel(d.id, lv.id)} title={lv.note ?? ''}
-                      className={`mono rounded border px-1.5 py-0.5 text-[11px] transition-colors ${on
-                        ? 'border-accent/50 bg-accent/10 text-fg'
-                        : 'border-line text-fgMuted hover:text-fg'}`}>
-                      {lv.label}
-                    </button>
-                  );
-                })}
-              </div>
+            );
+          })}
+
+          {/* 互斥路线：说出来比藏起来好 —— 否则读者看到「最多命中 5/6」会以为有 bug */}
+          {(kase.exclusiveGroups ?? []).length > 0 && (
+            <div className="rounded-lg border px-3 py-2.5"
+              style={{ borderColor: 'rgba(79,176,198,0.35)', background: 'rgba(79,176,198,0.05)' }}>
+              <div className="text-[12px] font-medium text-fg">⇄ 本场景有互斥路线</div>
+              {(kase.exclusiveGroups ?? []).map((g, i) => (
+                <div key={i} className="mt-1 text-[11.5px] leading-relaxed text-fgMuted">
+                  {g.note}
+                  <span className="mono ml-1 text-[10.5px] text-fgFaint">
+                    （互斥参数：{g.drivers.map((id) => kase.drivers.find((x) => x.id === id)?.name ?? id).join('、')}）
+                  </span>
+                </div>
+              ))}
             </div>
-          ))}
+          )}
 
           <button onClick={copyPrompt}
             className="w-full rounded-lg border border-accent/40 bg-accent/[0.06] px-3 py-2 text-[12.5px] font-medium text-fg transition-colors hover:bg-accent/10">
@@ -466,6 +547,10 @@ export default function CaseLab() {
                   Object.fromEntries(kase.slices.map((s) => [s.id, !allOpen])))}
                   className="mono rounded border border-line px-1.5 py-0.5 text-[10.5px] hover:text-fg">
                   {allOpen ? '全部收起' : '展开全部'}
+                </button>
+                <button onClick={exportZip}
+                  className="mono rounded border border-accent/40 bg-accent/[0.06] px-1.5 py-0.5 text-[10.5px] text-fg hover:bg-accent/10">
+                  导出整包 .zip
                 </button>
               </span>
             </div>

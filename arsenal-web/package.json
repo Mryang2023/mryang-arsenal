@@ -7,6 +7,7 @@
     "sync": "node scripts/sync-rules.mjs && node scripts/sync-content.mjs",
     "sync:rules": "node scripts/sync-rules.mjs",
     "sync:content": "node scripts/sync-content.mjs",
+    "icons:rasterize": "node scripts/icons-rasterize.mjs",
     "predev": "npm run sync",
     "dev": "node scripts/next-run.mjs dev -p 3010",
     "prebuild": "npm run sync",

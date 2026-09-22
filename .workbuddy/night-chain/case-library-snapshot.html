@@ -1,0 +1,926 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>场景案例库 · 快照（6 场景 / 40 切片）</title>
+<style>
+  :root{
+    --bg:#0B1114; --panel:#121A1E; --panel2:#161F24; --line:rgba(255,255,255,.09);
+    --fg:#E7EFEC; --mut:#93A39C; --faint:#6B7B75; --brass:#D9A441;
+    --warn:#E5A33D; --red:#E5484D; --green:#56C596;
+    --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,"Liberation Mono",monospace;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--fg);
+       font:14px/1.7 -apple-system,"Segoe UI","Microsoft YaHei",sans-serif}
+  .wrap{max-width:1240px;margin:0 auto;padding:36px 24px 72px}
+  h1{margin:0 0 6px;font-size:24px;letter-spacing:.01em}
+  .kicker{font:11px var(--mono);letter-spacing:.14em;text-transform:uppercase;color:var(--faint)}
+  .kpi{display:flex;flex-wrap:wrap;gap:10px;margin:18px 0 6px}
+  .kpi div{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:10px 14px}
+  .kpi b{display:block;font-size:20px;color:var(--brass);font-family:var(--mono)}
+  .kpi span{font-size:11px;color:var(--mut)}
+  .lead{color:var(--mut);font-size:12.5px;margin:14px 0 28px;max-width:900px}
+  .scene{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:20px;margin:18px 0}
+  .scene-head{display:flex;gap:14px;align-items:center;flex-wrap:wrap}
+  .glyph{font-size:26px}
+  .scene-head h2{margin:0;font-size:17px}
+  .idx{font:11px var(--mono);color:var(--faint);vertical-align:2px}
+  .sub{margin:2px 0 0;font-size:12px;color:var(--mut)}
+  .badges{margin-left:auto;display:flex;gap:6px;flex-wrap:wrap}
+  .badge{font:10.5px var(--mono);color:var(--mut);border:1px solid var(--line);
+         border-radius:999px;padding:2px 9px;background:var(--panel2)}
+  .problem{margin:12px 0 0;font-size:13px;color:#CFDAD6}
+  .grid{display:grid;gap:12px;margin-top:14px}
+  .box{background:var(--panel2);border:1px solid var(--line);border-radius:8px;padding:12px 14px}
+  .box-t{margin:0 0 8px;font:10px var(--mono);letter-spacing:.12em;text-transform:uppercase;color:var(--faint)}
+  .box ul{margin:0;padding-left:18px;color:var(--mut);font-size:12.5px}
+  table{border-collapse:collapse;width:100%}
+  .drivers th{text-align:left;font-weight:600;color:var(--fg);font-size:12.5px;
+              padding:5px 10px 5px 0;white-space:nowrap;vertical-align:top}
+  .drivers td{padding:5px 10px 5px 0;vertical-align:top}
+  .u{color:var(--faint);font:10px var(--mono);margin-left:4px}
+  .lv{font:11px var(--mono);color:var(--brass);border:1px solid rgba(217,164,65,.35);
+      border-radius:4px;padding:1px 6px;margin-right:4px;display:inline-block}
+  .hint{color:var(--faint);font-size:11.5px}
+  .slices{margin-top:16px}
+  .slices th{text-align:left;font:10px var(--mono);letter-spacing:.1em;text-transform:uppercase;
+             color:var(--faint);border-bottom:1px solid var(--line);padding:0 10px 7px 0}
+  .slices td{border-bottom:1px solid rgba(255,255,255,.05);padding:9px 10px 9px 0;vertical-align:top}
+  .slices .num{font:11px var(--mono);color:var(--faint);width:26px}
+  .goal{font-size:12.5px}
+  .mono{font-family:var(--mono)}
+  .id{font-size:10.5px;color:var(--faint);margin-top:2px}
+  .when{font-size:11.5px;color:var(--mut)}
+  .rules{font-size:10px;color:var(--brass);white-space:nowrap}
+  .layer{font:10px var(--mono);border:1px solid var(--line);border-radius:4px;
+         padding:1px 6px;color:var(--mut);white-space:nowrap}
+  .note{margin-top:12px;border-radius:8px;padding:10px 13px;font-size:12px;
+        background:var(--panel2);border:1px solid var(--line);color:var(--mut)}
+  .note.warn{border-color:rgba(229,163,61,.4);color:#E8C88E}
+  .note.exclusive{border-color:rgba(217,164,65,.35);color:#E3D0A6}
+  footer{margin-top:34px;color:var(--faint);font-size:11.5px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <p class="kicker">arsenal · /cases · 事实源快照</p>
+  <h1>场景案例库 · 6 个场景</h1>
+  <div class="kpi">
+    <div><b>6</b><span>场景</span></div>
+    <div><b>40</b><span>条件切片</span></div>
+    <div><b>149</b><span>锚点备注</span></div>
+    <div><b>3546</b><span>切片 SQL+Java 行</span></div>
+    <div><b>33</b><span>引用的真实规则</span></div>
+  </div>
+  <p class="lead">
+    这份是**快照报告**，不是产品页 —— 产品页是 <span class="mono">/cases</span>（参数一点即重算、代码高亮、可导出整包 .zip）。
+    每个场景声明一组驱动参数（档位离散），每条代码切片带 <span class="mono">when</span> 条件：
+    <b>命中的给代码，没命中的必须写明为什么不适用</b>（不许静默省略）。
+    合成引擎 <span class="mono">case-synth.ts</span> 是纯函数，5427 组参数已穷举守恒（命中 + 未命中 == 切片总数，一个都不丢）。
+  </p>
+  
+  <section class="scene">
+    <header class="scene-head">
+      <span class="glyph">▨</span>
+      <div>
+        <h2>亿级行关系库读写 <span class="idx">#1</span></h2>
+        <p class="sub">单表行数破亿之后，索引救不了你</p>
+      </div>
+      <div class="badges">
+        <span class="badge">电商,金融,物联网,物流</span>
+        <span class="badge">8 切片</span>
+        <span class="badge">886 行</span>
+        <span class="badge">24 条规则</span>
+      </div>
+    </header>
+
+    <p class="problem">单表行数以亿计、QPS 数千到数万，深分页超时、统计查询拖垮主库、加索引没效果、改表锁死几小时。</p>
+
+    <div class="grid">
+      <div class="box">
+        <p class="box-t">症状（复现这份方案要能对上号）</p>
+        <ul><li>翻页越往后越慢，第 1000 页直接超时</li><li>一条统计 SQL 跑起来，所有在线接口跟着变慢</li><li>明明有索引，EXPLAIN 却还是全表扫</li><li>ALTER TABLE 加个字段，几小时没结束</li></ul>
+      </div>
+      <div class="box">
+        <p class="box-t">驱动参数（6 维 · 档位离散）</p>
+        <table class="drivers">
+          <tbody>
+          <tr>
+            <th>并发量<span class="u">QPS</span></th>
+            <td><span class="lv">1 千</span><span class="lv">1 万</span><span class="lv">10 万</span><span class="lv">100 万</span></td>
+            <td class="hint">峰值读+写，不是均值</td>
+          </tr><tr>
+            <th>数据规模<span class="u">行</span></th>
+            <td><span class="lv">1000 万</span><span class="lv">1 亿</span><span class="lv">10 亿</span><span class="lv">100 亿</span></td>
+            <td class="hint">单表最大表的行数</td>
+          </tr><tr>
+            <th>读写比</th>
+            <td><span class="lv">9:1 读多</span><span class="lv">1:1</span><span class="lv">1:9 写多</span></td>
+            <td class="hint">决定索引与副本的取舍方向</td>
+          </tr><tr>
+            <th>一致性</th>
+            <td><span class="lv">强一致</span><span class="lv">有界延迟一致</span><span class="lv">最终一致</span></td>
+            <td class="hint">写后能不能立刻读到</td>
+          </tr><tr>
+            <th>P99 目标</th>
+            <td><span class="lv">&lt;50ms</span><span class="lv">&lt;200ms</span><span class="lv">&lt;1s</span></td>
+            <td class="hint">越紧的手段越少</td>
+          </tr><tr>
+            <th>增长预期</th>
+            <td><span class="lv">年增 &lt;1 倍</span><span class="lv">年增 5 倍</span><span class="lv">年增 20 倍</span></td>
+            <td class="hint">决定要不要现在就上分片</td>
+          </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    
+    <div class="note warn"><b>参数组合本身矛盾</b>（页面顶部标黄）：
+           <span class="mono">[object Object]</span>：<br><span class="mono">[object Object]</span>：<br><span class="mono">[object Object]</span>：<br><span class="mono">[object Object]</span>：</div>
+
+    <table class="slices">
+      <thead>
+        <tr><th>#</th><th>层</th><th>切片</th><th>什么时候适用（when）</th><th>锚点</th><th>关联规则</th></tr>
+      </thead>
+      <tbody>
+      <tr>
+        <td class="num">1</td>
+        <td><span class="layer">设计</span></td>
+        <td>
+          <div class="goal">选出经得起时间考验的分片键</div>
+          <div class="mono id">shard-key</div>
+        </td>
+        <td class="when">数据规模 ∈ {1 亿 / r1b / 100 亿}；查询 QPS ∈ {1 万 / q100k / q1m}</td>
+        <td class="num">3</td>
+        <td class="mono rules">DATA-SCHM-001<br>DATA-SQL-001</td>
+      </tr><tr>
+        <td class="num">2</td>
+        <td><span class="layer">数据访问</span></td>
+        <td>
+          <div class="goal">用 keyset 分页替掉 OFFSET 深分页</div>
+          <div class="mono id">keyset-page</div>
+        </td>
+        <td class="when">数据规模 ∈ {1 亿 / r1b / 100 亿}</td>
+        <td class="num">3</td>
+        <td class="mono rules">DATA-SQL-001<br>DATA-SQL-002</td>
+      </tr><tr>
+        <td class="num">3</td>
+        <td><span class="layer">数据访问</span></td>
+        <td>
+          <div class="goal">写多场景下的批量提交与连接池调参</div>
+          <div class="mono id">batch-write</div>
+        </td>
+        <td class="when">读写比 ∈ {1:1 / 1:9 写多}</td>
+        <td class="num">4</td>
+        <td class="mono rules">CONC-POOL-002<br>CONC-POOL-001<br>REL-EXCP-002<br>DATA-SQL-003</td>
+      </tr><tr>
+        <td class="num">4</td>
+        <td><span class="layer">并发</span></td>
+        <td>
+          <div class="goal">高并发读路径：虚拟线程 + 自建线程池 + 限流</div>
+          <div class="mono id">read-path</div>
+        </td>
+        <td class="when">查询 QPS ∈ {1 万 / q100k / q1m}</td>
+        <td class="num">4</td>
+        <td class="mono rules">CONC-THRD-001<br>CONC-POOL-003<br>CONC-THRD-002<br>CONC-POOL-001</td>
+      </tr><tr>
+        <td class="num">5</td>
+        <td><span class="layer">设计</span></td>
+        <td>
+          <div class="goal">把统计查询从主库挪走</div>
+          <div class="mono id">async-aggregate</div>
+        </td>
+        <td class="when">数据规模 ∈ {r1b / 100 亿}</td>
+        <td class="num">4</td>
+        <td class="mono rules">SVC-TX-001<br>DATA-SQL-002<br>CONC-POOL-001<br>REL-LOG-001</td>
+      </tr><tr>
+        <td class="num">6</td>
+        <td><span class="layer">运维</span></td>
+        <td>
+          <div class="goal">不停服改表结构</div>
+          <div class="mono id">online-ddl</div>
+        </td>
+        <td class="when">增长预期 ∈ {年增 5 倍 / 年增 20 倍}</td>
+        <td class="num">3</td>
+        <td class="mono rules">DATA-SCHM-003<br>REL-EXCP-001<br>REL-LOG-002</td>
+      </tr><tr>
+        <td class="num">7</td>
+        <td><span class="layer">数据生命周期</span></td>
+        <td>
+          <div class="goal">让「删掉三年前的数据」变成一条秒级语句</div>
+          <div class="mono id">partition-archive</div>
+        </td>
+        <td class="when">数据规模 ∈ {r1b / 100 亿}；增长预期 ∈ {年增 5 倍 / 年增 20 倍}</td>
+        <td class="num">4</td>
+        <td class="mono rules">REL-LOG-003<br>REL-CTNR-004<br>DATA-SCHM-003<br>REL-LOG-002</td>
+      </tr><tr>
+        <td class="num">8</td>
+        <td><span class="layer">可靠性</span></td>
+        <td>
+          <div class="goal">把数据库连接数从「试出来的」变成「算出来的」</div>
+          <div class="mono id">pool-and-limit</div>
+        </td>
+        <td class="when">查询 QPS ∈ {1 万 / q100k / q1m}</td>
+        <td class="num">4</td>
+        <td class="mono rules">CONC-POOL-004<br>REL-TIME-001<br>REL-LOG-002</td>
+      </tr>
+      </tbody>
+    </table>
+
+    <div class="note"><b>这些场景不适用</b>：[object Object]；[object Object]</div>
+  </section>
+
+  <section class="scene">
+    <header class="scene-head">
+      <span class="glyph">⧉</span>
+      <div>
+        <h2>基因 / DNA 序列海量存取 <span class="idx">#2</span></h2>
+        <p class="sub">序列别进关系库，位点查询才救得回来</p>
+      </div>
+      <div class="badges">
+        <span class="badge">医疗,基因检测,科研,生物信息</span>
+        <span class="badge">8 切片</span>
+        <span class="badge">913 行</span>
+        <span class="badge">25 条规则</span>
+      </div>
+    </header>
+
+    <p class="problem">单样本序列 GB 级、样本数百万到十亿；患者高频查询位点区间要求亚秒，测序仪还在持续批量导入。</p>
+
+    <div class="grid">
+      <div class="box">
+        <p class="box-t">症状（复现这份方案要能对上号）</p>
+        <ul><li>数据库体积膨胀到数十 TB，备份跑不完</li><li>主从延迟从秒级涨到小时级</li><li>位点查询要么全表扫要么回表，P99 上不去</li><li>加一个字段的 ALTER 跑几小时</li></ul>
+      </div>
+      <div class="box">
+        <p class="box-t">驱动参数（6 维 · 档位离散）</p>
+        <table class="drivers">
+          <tbody>
+          <tr>
+            <th>并发量<span class="u">QPS</span></th>
+            <td><span class="lv">100</span><span class="lv">1 千</span><span class="lv">1 万</span><span class="lv">10 万</span></td>
+            <td class="hint">位点查询为主</td>
+          </tr><tr>
+            <th>数据规模<span class="u">样本</span></th>
+            <td><span class="lv">1 万</span><span class="lv">100 万</span><span class="lv">1 亿</span><span class="lv">10 亿</span></td>
+            <td class="hint">单样本序列可达 GB 级</td>
+          </tr><tr>
+            <th>读写比</th>
+            <td><span class="lv">9:1 读多</span><span class="lv">1:1</span><span class="lv">1:9 写多</span></td>
+            <td class="hint">导入期 vs 查询期差别极大</td>
+          </tr><tr>
+            <th>一致性</th>
+            <td><span class="lv">强一致</span><span class="lv">有界延迟一致</span><span class="lv">最终一致</span></td>
+            <td class="hint">报告能不能读旧值</td>
+          </tr><tr>
+            <th>P99 目标</th>
+            <td><span class="lv">&lt;50ms</span><span class="lv">&lt;200ms</span><span class="lv">&lt;1s</span></td>
+            <td class="hint">针对位点区间查询</td>
+          </tr><tr>
+            <th>增长预期</th>
+            <td><span class="lv">年增 &lt;1 倍</span><span class="lv">年增 5 倍</span><span class="lv">年增 20 倍</span></td>
+            <td class="hint">测序量通常是超线性增长</td>
+          </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    
+    <div class="note warn"><b>参数组合本身矛盾</b>（页面顶部标黄）：
+           <span class="mono">[object Object]</span>：<br><span class="mono">[object Object]</span>：<br><span class="mono">[object Object]</span>：</div>
+
+    <table class="slices">
+      <thead>
+        <tr><th>#</th><th>层</th><th>切片</th><th>什么时候适用（when）</th><th>锚点</th><th>关联规则</th></tr>
+      </thead>
+      <tbody>
+      <tr>
+        <td class="num">1</td>
+        <td><span class="layer">设计</span></td>
+        <td>
+          <div class="goal">序列本体不进关系库</div>
+          <div class="mono id">storage-layering</div>
+        </td>
+        <td class="when">数据规模 ∈ {s1m / s100m / s1b}</td>
+        <td class="num">4</td>
+        <td class="mono rules">DATA-SCHM-001<br>REL-EXCP-001<br>SEC-DATA-001</td>
+      </tr><tr>
+        <td class="num">2</td>
+        <td><span class="layer">设计</span></td>
+        <td>
+          <div class="goal">变异位点表：分区 + 复合索引列序</div>
+          <div class="mono id">variant-ddl</div>
+        </td>
+        <td class="when">数据规模 ∈ {s1m / s100m / s1b}</td>
+        <td class="num">4</td>
+        <td class="mono rules">DATA-SCHM-002<br>DATA-SQL-001<br>DATA-SQL-002</td>
+      </tr><tr>
+        <td class="num">3</td>
+        <td><span class="layer">数据访问</span></td>
+        <td>
+          <div class="goal">位点区间查询：命中索引、不回表</div>
+          <div class="mono id">range-query</div>
+        </td>
+        <td class="when">P99 目标 ∈ {&lt;50ms / &lt;200ms}</td>
+        <td class="num">4</td>
+        <td class="mono rules">DATA-SQL-001<br>CONC-POOL-003<br>REL-EXCP-003</td>
+      </tr><tr>
+        <td class="num">4</td>
+        <td><span class="layer">数据访问</span></td>
+        <td>
+          <div class="goal">大序列的流式读写与断点续传</div>
+          <div class="mono id">stream-blob</div>
+        </td>
+        <td class="when">数据规模 ∈ {s1m / s100m / s1b}</td>
+        <td class="num">4</td>
+        <td class="mono rules">DATA-SCHM-001<br>REL-EXCP-002<br>REL-LOG-003</td>
+      </tr><tr>
+        <td class="num">5</td>
+        <td><span class="layer">数据访问</span></td>
+        <td>
+          <div class="goal">测序仪批量导入，不停服、不影响在线查询</div>
+          <div class="mono id">bulk-import</div>
+        </td>
+        <td class="when">读写比 ∈ {1:1 / 1:9 写多}</td>
+        <td class="num">4</td>
+        <td class="mono rules">CONC-POOL-002<br>CONC-POOL-001<br>DATA-SQL-003<br>REL-LOG-001</td>
+      </tr><tr>
+        <td class="num">6</td>
+        <td><span class="layer">安全</span></td>
+        <td>
+          <div class="goal">患者数据脱敏与审计（医疗场景不可省）</div>
+          <div class="mono id">audit-mask</div>
+        </td>
+        <td class="when"></td>
+        <td class="num">4</td>
+        <td class="mono rules">SEC-LOG-001<br>REL-LOG-002<br>SEC-DATA-002</td>
+      </tr><tr>
+        <td class="num">7</td>
+        <td><span class="layer">数据生命周期</span></td>
+        <td>
+          <div class="goal">让「查三年前的老样本」不占用热数据的资源</div>
+          <div class="mono id">cold-tier-routing</div>
+        </td>
+        <td class="when">数据规模 ∈ {s100m / s1b}；增长预期 ∈ {年增 5 倍 / 年增 20 倍}</td>
+        <td class="num">4</td>
+        <td class="mono rules">REL-TIME-001<br>REL-CTNR-005<br>REL-CTNR-004<br>REL-LOG-002</td>
+      </tr><tr>
+        <td class="num">8</td>
+        <td><span class="layer">缓存</span></td>
+        <td>
+          <div class="goal">把最热的位点查询压在缓存层，且敢于设长 TTL</div>
+          <div class="mono id">hotspot-variant-cache</div>
+        </td>
+        <td class="when">查询 QPS ∈ {1 万 / q100k}；P99 目标 ∈ {&lt;50ms / &lt;200ms}</td>
+        <td class="num">4</td>
+        <td class="mono rules">REL-CTNR-005<br>REL-LOG-002<br>CONC-POOL-004<br>SEC-DATA-001</td>
+      </tr>
+      </tbody>
+    </table>
+
+    <div class="note"><b>这些场景不适用</b>：[object Object]；[object Object]</div>
+  </section>
+
+  <section class="scene">
+    <header class="scene-head">
+      <span class="glyph">⇶</span>
+      <div>
+        <h2>高吞吐 IO 与虚拟线程 <span class="idx">#3</span></h2>
+        <p class="sub">虚拟线程解决等待，不解决算力</p>
+      </div>
+      <div class="badges">
+        <span class="badge">网关,聚合服务,数据同步,内容平台</span>
+        <span class="badge">6 切片</span>
+        <span class="badge">606 行</span>
+        <span class="badge">11 条规则</span>
+      </div>
+    </header>
+
+    <p class="problem">在途任务从几千涨到上百万，线程池开始排队或被拖垮，不确定该用虚拟线程还是继续调池参数。</p>
+
+    <div class="grid">
+      <div class="box">
+        <p class="box-t">症状（复现这份方案要能对上号）</p>
+        <ul><li>并发一上来线程栈就把内存吃光</li><li>一个慢下游把整个应用拖慢</li><li>队列越堆越长但监控看不出异常</li><li>升到 JDK 21 后吞吐没有变化</li></ul>
+      </div>
+      <div class="box">
+        <p class="box-t">驱动参数（6 维 · 档位离散）</p>
+        <table class="drivers">
+          <tbody>
+          <tr>
+            <th>在途任务数<span class="u">个</span></th>
+            <td><span class="lv">1 千</span><span class="lv">1 万</span><span class="lv">10 万</span><span class="lv">100 万</span></td>
+            <td class="hint">同一时刻压在系统里的任务，不是 TPS</td>
+          </tr><tr>
+            <th>运行时</th>
+            <td><span class="lv">JDK 17</span><span class="lv">JDK 21+</span></td>
+            <td class="hint">虚拟线程是 21 才有的正式能力</td>
+          </tr><tr>
+            <th>IO 占比</th>
+            <td><span class="lv">IO 密集 9:1</span><span class="lv">各半 1:1</span><span class="lv">CPU 密集 1:9</span></td>
+            <td class="hint">本场景权重最高的参数</td>
+          </tr><tr>
+            <th>单次体量</th>
+            <td><span class="lv">几十 KB</span><span class="lv">几 MB</span><span class="lv">几百 MB以上</span></td>
+            <td class="hint">一次读写搬运多少字节</td>
+          </tr><tr>
+            <th>结果顺序</th>
+            <td><span class="lv">无所谓</span><span class="lv">分区内有序</span><span class="lv">全局有序</span></td>
+            <td class="hint">决定能不能乱序并发</td>
+          </tr><tr>
+            <th>P99 目标</th>
+            <td><span class="lv">&lt;50ms</span><span class="lv">&lt;200ms</span><span class="lv">&lt;1s</span></td>
+            <td class="hint">越紧，能容忍的排队越少</td>
+          </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="note exclusive"><b>互斥路线</b>（数学上拼不出「全激活」，所以声明成数据而不是藏起来）：
+           <span class="mono">jdk</span> —— JDK 21 与 JDK 17 是两条互斥的技术路线：升了 21 就用虚拟线程，留在 17 就只能池化。所以「虚拟线程编排」与「有界平台线程池」不会同时激活 ——你要做的是先定 JDK，再走对应的那条路。</div>
+    <div class="note warn"><b>参数组合本身矛盾</b>（页面顶部标黄）：
+           <span class="mono">[object Object]</span>：<br><span class="mono">[object Object]</span>：<br><span class="mono">[object Object]</span>：<br><span class="mono">[object Object]</span>：</div>
+
+    <table class="slices">
+      <thead>
+        <tr><th>#</th><th>层</th><th>切片</th><th>什么时候适用（when）</th><th>锚点</th><th>关联规则</th></tr>
+      </thead>
+      <tbody>
+      <tr>
+        <td class="num">1</td>
+        <td><span class="layer">并发编排</span></td>
+        <td>
+          <div class="goal">用结构化并发把扇出任务的生命周期收在一处</div>
+          <div class="mono id">structured-scope</div>
+        </td>
+        <td class="when">运行时 ∈ {JDK 21+}；在途任务数 ∈ {1 万 / 10 万 / 100 万}</td>
+        <td class="num">4</td>
+        <td class="mono rules">REL-EXCP-004<br>REL-TIME-001<br>REL-EXCP-001<br>REL-LOG-003</td>
+      </tr><tr>
+        <td class="num">2</td>
+        <td><span class="layer">并发模型</span></td>
+        <td>
+          <div class="goal">按「等待」而不是「任务」来定并发度</div>
+          <div class="mono id">virtual-thread-fanout</div>
+        </td>
+        <td class="when">运行时 ∈ {JDK 21+}；IO 占比 ∈ {IO 密集 9:1 / 各半 1:1}</td>
+        <td class="num">4</td>
+        <td class="mono rules">REL-TIME-001<br>REL-EXCP-001<br>CONC-POOL-003<br>CONC-POOL-001</td>
+      </tr><tr>
+        <td class="num">3</td>
+        <td><span class="layer">并发模型</span></td>
+        <td>
+          <div class="goal">JDK 17 或 CPU 密集场景下把线程池真正建对</div>
+          <div class="mono id">bounded-pool</div>
+        </td>
+        <td class="when">运行时 ∈ {JDK 17}</td>
+        <td class="num">4</td>
+        <td class="mono rules">CONC-POOL-004<br>CONC-POOL-002<br>CONC-POOL-001</td>
+      </tr><tr>
+        <td class="num">4</td>
+        <td><span class="layer">可靠性</span></td>
+        <td>
+          <div class="goal">给每个下游划独立额度，避免一个慢下游拖垮全部</div>
+          <div class="mono id">bulkhead-timeout</div>
+        </td>
+        <td class="when">在途任务数 ∈ {1 万 / 10 万 / 100 万}</td>
+        <td class="num">4</td>
+        <td class="mono rules">REL-TIME-001<br>REL-EXCP-002<br>CONC-POOL-004<br>REL-LOG-003</td>
+      </tr><tr>
+        <td class="num">5</td>
+        <td><span class="layer">数据访问</span></td>
+        <td>
+          <div class="goal">大对象读写不要整块进堆</div>
+          <div class="mono id">stream-payload</div>
+        </td>
+        <td class="when">单次体量 ∈ {几 MB / 几百 MB以上}</td>
+        <td class="num">3</td>
+        <td class="mono rules">REL-EXCP-004<br>REL-LOG-003</td>
+      </tr><tr>
+        <td class="num">6</td>
+        <td><span class="layer">可观测性</span></td>
+        <td>
+          <div class="goal">让过载在监控上显形，而不是变成延迟</div>
+          <div class="mono id">backpressure-observe</div>
+        </td>
+        <td class="when">在途任务数 ∈ {10 万 / 100 万}</td>
+        <td class="num">3</td>
+        <td class="mono rules">CONC-POOL-004<br>REL-LOG-002<br>REL-LOG-003</td>
+      </tr>
+      </tbody>
+    </table>
+
+    <div class="note"><b>这些场景不适用</b>：[object Object]；[object Object]</div>
+  </section>
+
+  <section class="scene">
+    <header class="scene-head">
+      <span class="glyph">⧉</span>
+      <div>
+        <h2>热点数据与多级缓存 <span class="idx">#4</span></h2>
+        <p class="sub">缓存不是开关，是关于「陈旧多久算错」的决策</p>
+      </div>
+      <div class="badges">
+        <span class="badge">电商,内容,社交,票务</span>
+        <span class="badge">6 切片</span>
+        <span class="badge">652 行</span>
+        <span class="badge">13 条规则</span>
+      </div>
+    </header>
+
+    <p class="problem">少数键吃掉大部分流量，数据库读不过来；加缓存之后又出现脏数据、击穿、缓存本身成为热点。</p>
+
+    <div class="grid">
+      <div class="box">
+        <p class="box-t">症状（复现这份方案要能对上号）</p>
+        <ul><li>热点键过期瞬间数据库连接被打满</li><li>多副本之间读到不一样的数据</li><li>缓存命中率上不去</li><li>加了缓存但 P99 没降反而更抖</li></ul>
+      </div>
+      <div class="box">
+        <p class="box-t">驱动参数（6 维 · 档位离散）</p>
+        <table class="drivers">
+          <tbody>
+          <tr>
+            <th>热点集中度</th>
+            <td><span class="lv">均匀无热点</span><span class="lv">前 1% 键占 50%</span><span class="lv">前 0.1% 键占 80%</span></td>
+            <td class="hint">少数键吃掉多少流量</td>
+          </tr><tr>
+            <th>读 QPS<span class="u">QPS</span></th>
+            <td><span class="lv">1 千</span><span class="lv">1 万</span><span class="lv">10 万</span></td>
+            <td class="hint">峰值读，不含写</td>
+          </tr><tr>
+            <th>工作集大小</th>
+            <td><span class="lv">几百 MB</span><span class="lv">几 GB</span><span class="lv">几十 GB</span></td>
+            <td class="hint">热数据实际占多少内存，不是总数据量</td>
+          </tr><tr>
+            <th>一致性要求</th>
+            <td><span class="lv">强一致</span><span class="lv">秒级可见</span><span class="lv">分钟级可接受</span></td>
+            <td class="hint">本场景权重最高的参数</td>
+          </tr><tr>
+            <th>副本数<span class="u">个</span></th>
+            <td><span class="lv">1 个</span><span class="lv">4 个</span><span class="lv">32 个</span></td>
+            <td class="hint">本地缓存的一致性代价随它上升</td>
+          </tr><tr>
+            <th>P99 目标</th>
+            <td><span class="lv">&lt;5ms</span><span class="lv">&lt;50ms</span><span class="lv">&lt;200ms</span></td>
+            <td class="hint">越紧越依赖本地缓存</td>
+          </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    
+    <div class="note warn"><b>参数组合本身矛盾</b>（页面顶部标黄）：
+           <span class="mono">[object Object]</span>：<br><span class="mono">[object Object]</span>：<br><span class="mono">[object Object]</span>：</div>
+
+    <table class="slices">
+      <thead>
+        <tr><th>#</th><th>层</th><th>切片</th><th>什么时候适用（when）</th><th>锚点</th><th>关联规则</th></tr>
+      </thead>
+      <tbody>
+      <tr>
+        <td class="num">1</td>
+        <td><span class="layer">缓存</span></td>
+        <td>
+          <div class="goal">本地缓存必须同时有容量上限与过期时间</div>
+          <div class="mono id">local-cache-bounded</div>
+        </td>
+        <td class="when">P99 目标 ∈ {l5}；热点集中度 ∈ {前 1% 键占 50% / 前 0.1% 键占 80%}</td>
+        <td class="num">4</td>
+        <td class="mono rules">REL-CTNR-005<br>CONC-POOL-004<br>REL-LOG-002</td>
+      </tr><tr>
+        <td class="num">2</td>
+        <td><span class="layer">缓存</span></td>
+        <td>
+          <div class="goal">多副本下让本地缓存「及时知道别人改了数据」</div>
+          <div class="mono id">two-level-invalidation</div>
+        </td>
+        <td class="when">副本数 ∈ {4 个 / 32 个}；P99 目标 ∈ {l5}；一致性要求 ∈ {秒级可见 / 分钟级可接受}</td>
+        <td class="num">3</td>
+        <td class="mono rules">REL-CTNR-005<br>REL-LOG-003<br>CONC-POOL-004</td>
+      </tr><tr>
+        <td class="num">3</td>
+        <td><span class="layer">缓存</span></td>
+        <td>
+          <div class="goal">热点键过期时只让一个请求回源</div>
+          <div class="mono id">stampede-singleflight</div>
+        </td>
+        <td class="when">热点集中度 ∈ {前 1% 键占 50% / 前 0.1% 键占 80%}；查询 QPS ∈ {1 万 / q100k}</td>
+        <td class="num">3</td>
+        <td class="mono rules">CONC-POOL-004<br>REL-TIME-001<br>REL-EXCP-001</td>
+      </tr><tr>
+        <td class="num">4</td>
+        <td><span class="layer">缓存</span></td>
+        <td>
+          <div class="goal">把「查不到的数据」挡在数据库之前</div>
+          <div class="mono id">penetration-bloom</div>
+        </td>
+        <td class="when">热点集中度 ∈ {前 0.1% 键占 80%}；查询 QPS ∈ {1 万 / q100k}</td>
+        <td class="num">3</td>
+        <td class="mono rules">SEC-INPUT-001<br>CONC-POOL-004<br>REL-LOG-002</td>
+      </tr><tr>
+        <td class="num">5</td>
+        <td><span class="layer">缓存</span></td>
+        <td>
+          <div class="goal">写路径的顺序错一步，缓存就会长期脏</div>
+          <div class="mono id">write-invalidate-order</div>
+        </td>
+        <td class="when">一致性要求 ∈ {强一致 / 秒级可见}；副本数 ∈ {1 个 / 4 个 / 32 个}</td>
+        <td class="num">4</td>
+        <td class="mono rules">SVC-TX-002<br>REL-LOG-003<br>CONC-POOL-004<br>SVC-TX-003</td>
+      </tr><tr>
+        <td class="num">6</td>
+        <td><span class="layer">缓存</span></td>
+        <td>
+          <div class="goal">把单个热键拆成多个，突破单分片上限</div>
+          <div class="mono id">extreme-hotkey-split</div>
+        </td>
+        <td class="when">热点集中度 ∈ {前 0.1% 键占 80%}；查询 QPS ∈ {q100k}</td>
+        <td class="num">3</td>
+        <td class="mono rules">CONC-POOL-004<br>REL-LOG-002<br>REL-CTNR-005</td>
+      </tr>
+      </tbody>
+    </table>
+
+    <div class="note"><b>这些场景不适用</b>：[object Object]；[object Object]</div>
+  </section>
+
+  <section class="scene">
+    <header class="scene-head">
+      <span class="glyph">⇄</span>
+      <div>
+        <h2>异步流水线与最终一致 <span class="idx">#5</span></h2>
+        <p class="sub">不要买「恰好一次」，要自己实现它</p>
+      </div>
+      <div class="badges">
+        <span class="badge">电商,支付,订单,供应链</span>
+        <span class="badge">6 切片</span>
+        <span class="badge">593 行</span>
+        <span class="badge">16 条规则</span>
+      </div>
+    </header>
+
+    <p class="problem">跨服务的数据靠消息同步，但会出现「库改了消息没发」「消息重复导致重复扣款」「对不上却查不出原因」。</p>
+
+    <div class="grid">
+      <div class="box">
+        <p class="box-t">症状（复现这份方案要能对上号）</p>
+        <ul><li>数据对不上一半靠人工补</li><li>重复消费导致重复业务效果</li><li>消息积压后顺序全乱</li><li>死信队列没人看</li></ul>
+      </div>
+      <div class="box">
+        <p class="box-t">驱动参数（6 维 · 档位离散）</p>
+        <table class="drivers">
+          <tbody>
+          <tr>
+            <th>消息吞吐<span class="u">条/秒</span></th>
+            <td><span class="lv">1 千</span><span class="lv">1 万</span><span class="lv">10 万</span></td>
+            <td class="hint">峰值，不是均值</td>
+          </tr><tr>
+            <th>消费失败率</th>
+            <td><span class="lv">&lt; 0.1%</span><span class="lv">1%</span><span class="lv">10%</span></td>
+            <td class="hint">决定重试与死信的量级</td>
+          </tr><tr>
+            <th>一致窗口</th>
+            <td><span class="lv">秒级</span><span class="lv">分钟级</span><span class="lv">小时级</span></td>
+            <td class="hint">两条链路最长允许差多久</td>
+          </tr><tr>
+            <th>跨服务数<span class="u">个</span></th>
+            <td><span class="lv">2 个</span><span class="lv">5 个</span><span class="lv">10 个</span></td>
+            <td class="hint">一次业务要改几个系统的数据</td>
+          </tr><tr>
+            <th>投递语义</th>
+            <td><span class="lv">至多一次</span><span class="lv">至少一次</span><span class="lv">要求恰好一次</span></td>
+            <td class="hint">本场景权重最高的参数</td>
+          </tr><tr>
+            <th>顺序要求</th>
+            <td><span class="lv">无序</span><span class="lv">同一业务键有序</span><span class="lv">全局有序</span></td>
+            <td class="hint">决定分区键怎么选</td>
+          </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    
+    <div class="note warn"><b>参数组合本身矛盾</b>（页面顶部标黄）：
+           <span class="mono">[object Object]</span>：<br><span class="mono">[object Object]</span>：<br><span class="mono">[object Object]</span>：<br><span class="mono">[object Object]</span>：</div>
+
+    <table class="slices">
+      <thead>
+        <tr><th>#</th><th>层</th><th>切片</th><th>什么时候适用（when）</th><th>锚点</th><th>关联规则</th></tr>
+      </thead>
+      <tbody>
+      <tr>
+        <td class="num">1</td>
+        <td><span class="layer">一致性</span></td>
+        <td>
+          <div class="goal">让「改库」与「发消息」要么都成，要么都不成</div>
+          <div class="mono id">transactional-outbox</div>
+        </td>
+        <td class="when">投递语义 ∈ {至少一次 / 要求恰好一次}；跨服务数 ∈ {5 个 / 10 个}</td>
+        <td class="num">4</td>
+        <td class="mono rules">SVC-TX-002<br>DATA-SQL-004<br>REL-CTNR-004<br>REL-RETRY-001</td>
+      </tr><tr>
+        <td class="num">2</td>
+        <td><span class="layer">一致性</span></td>
+        <td>
+          <div class="goal">让重复投递不会造成重复业务效果</div>
+          <div class="mono id">idempotent-consume</div>
+        </td>
+        <td class="when">投递语义 ∈ {至少一次 / 要求恰好一次}</td>
+        <td class="num">3</td>
+        <td class="mono rules">SVC-TX-001<br>REL-LOG-003<br>SVC-EXCP-001</td>
+      </tr><tr>
+        <td class="num">3</td>
+        <td><span class="layer">可靠性</span></td>
+        <td>
+          <div class="goal">把「暂时失败」与「永远失败」分开处理</div>
+          <div class="mono id">retry-backoff-dlq</div>
+        </td>
+        <td class="when">消费失败率 ∈ {&lt; 0.1% / 1% / 10%}</td>
+        <td class="num">4</td>
+        <td class="mono rules">REL-RETRY-001<br>REL-TIME-001<br>REL-EXCP-002<br>REL-EXCP-001</td>
+      </tr><tr>
+        <td class="num">4</td>
+        <td><span class="layer">一致性</span></td>
+        <td>
+          <div class="goal">用对账兜住「所有自动机制都漏掉的那部分」</div>
+          <div class="mono id">reconcile-compensate</div>
+        </td>
+        <td class="when">一致窗口 ∈ {分钟级 / 小时级}；跨服务数 ∈ {5 个 / 10 个}</td>
+        <td class="num">4</td>
+        <td class="mono rules">REL-CTNR-004<br>CONC-POOL-004<br>REL-LOG-002<br>REL-LOG-003</td>
+      </tr><tr>
+        <td class="num">5</td>
+        <td><span class="layer">一致性</span></td>
+        <td>
+          <div class="goal">把跨服务的补偿编排写成可读的代码</div>
+          <div class="mono id">saga-orchestration</div>
+        </td>
+        <td class="when">跨服务数 ∈ {5 个 / 10 个}；一致窗口 ∈ {秒级 / 分钟级}</td>
+        <td class="num">4</td>
+        <td class="mono rules">SVC-TX-003<br>REL-CTNR-004<br>REL-LOG-003<br>SVC-EXCP-001</td>
+      </tr><tr>
+        <td class="num">6</td>
+        <td><span class="layer">消息</span></td>
+        <td>
+          <div class="goal">用分区键拿到「刚好够用」的顺序保证</div>
+          <div class="mono id">partition-ordering</div>
+        </td>
+        <td class="when">顺序要求 ∈ {同一业务键有序 / 全局有序}；消息吞吐 ∈ {1 万 / 10 万}</td>
+        <td class="num">3</td>
+        <td class="mono rules">DATA-SQL-004<br>CONC-POOL-004<br>REL-LOG-002</td>
+      </tr>
+      </tbody>
+    </table>
+
+    <div class="note"><b>这些场景不适用</b>：[object Object]；[object Object]</div>
+  </section>
+
+  <section class="scene">
+    <header class="scene-head">
+      <span class="glyph">▦</span>
+      <div>
+        <h2>宽表、检索与分析 <span class="idx">#6</span></h2>
+        <p class="sub">关系库不是不够快，是索引结构不对路</p>
+      </div>
+      <div class="badges">
+        <span class="badge">电商,运营,风控,日志分析</span>
+        <span class="badge">6 切片</span>
+        <span class="badge">628 行</span>
+        <span class="badge">16 条规则</span>
+      </div>
+    </header>
+
+    <p class="problem">既要按任意维度组合过滤、又要模糊搜索、还要聚合统计，关系库加索引加到写不动，查询还是慢。</p>
+
+    <div class="grid">
+      <div class="box">
+        <p class="box-t">症状（复现这份方案要能对上号）</p>
+        <ul><li>索引加了很多但查询没变快</li><li>模糊搜索只能全表扫</li><li>聚合报表一跑就拖慢线上</li><li>索引与库的数据对不上</li></ul>
+      </div>
+      <div class="box">
+        <p class="box-t">驱动参数（6 维 · 档位离散）</p>
+        <table class="drivers">
+          <tbody>
+          <tr>
+            <th>数据规模<span class="u">行</span></th>
+            <td><span class="lv">100 万</span><span class="lv">1 亿</span><span class="lv">100 亿</span></td>
+            <td class="hint">单表最大表的行数</td>
+          </tr><tr>
+            <th>可过滤维度<span class="u">个</span></th>
+            <td><span class="lv">3 个</span><span class="lv">10 个</span><span class="lv">30 个</span></td>
+            <td class="hint">用户可以按几个字段随意组合筛选</td>
+          </tr><tr>
+            <th>查询形态</th>
+            <td><span class="lv">精确点查</span><span class="lv">多条件组合过滤</span><span class="lv">多维聚合下钻</span></td>
+            <td class="hint">决定要不要预聚合</td>
+          </tr><tr>
+            <th>新鲜度</th>
+            <td><span class="lv">实时（秒级）</span><span class="lv">准实时（分钟级）</span><span class="lv">离线（T+1）</span></td>
+            <td class="hint">本场景权重很高的参数</td>
+          </tr><tr>
+            <th>查询 QPS<span class="u">QPS</span></th>
+            <td><span class="lv">10</span><span class="lv">1 千</span><span class="lv">1 万</span></td>
+            <td class="hint">峰值</td>
+          </tr><tr>
+            <th>P99 目标</th>
+            <td><span class="lv">&lt;50ms</span><span class="lv">&lt;500ms</span><span class="lv">&lt;5s</span></td>
+            <td class="hint">越紧越依赖预计算</td>
+          </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="note exclusive"><b>互斥路线</b>（数学上拼不出「全激活」，所以声明成数据而不是藏起来）：
+           <span class="mono">mode</span> —— 组合过滤与聚合下钻是两种不同的查询形态：前者靠倒排索引承接任意维度组合，后者靠预聚合把计算提前做完。同一套参数下只有其中一种形态成立，所以「检索与权威数据分离」与「预聚合降级」不会同时激活。</div>
+    <div class="note warn"><b>参数组合本身矛盾</b>（页面顶部标黄）：
+           <span class="mono">[object Object]</span>：<br><span class="mono">[object Object]</span>：<br><span class="mono">[object Object]</span>：</div>
+
+    <table class="slices">
+      <thead>
+        <tr><th>#</th><th>层</th><th>切片</th><th>什么时候适用（when）</th><th>锚点</th><th>关联规则</th></tr>
+      </thead>
+      <tbody>
+      <tr>
+        <td class="num">1</td>
+        <td><span class="layer">存储选型</span></td>
+        <td>
+          <div class="goal">把「查得到」与「查得准」分给两个存储</div>
+          <div class="mono id">search-projection</div>
+        </td>
+        <td class="when">可过滤维度 ∈ {10 个 / 30 个}；查询形态 ∈ {多条件组合过滤}</td>
+        <td class="num">3</td>
+        <td class="mono rules">DATA-SQL-002<br>REL-LOG-002<br>WEB-CTRL-005</td>
+      </tr><tr>
+        <td class="num">2</td>
+        <td><span class="layer">数据建模</span></td>
+        <td>
+          <div class="goal">用冗余换掉运行时的关联与计算</div>
+          <div class="mono id">wide-table-model</div>
+        </td>
+        <td class="when">可过滤维度 ∈ {10 个 / 30 个}；查询形态 ∈ {多条件组合过滤 / 多维聚合下钻}</td>
+        <td class="num">4</td>
+        <td class="mono rules">SEC-INPUT-001<br>WEB-CTRL-005<br>DATA-SCHM-001<br>DATA-SQL-001</td>
+      </tr><tr>
+        <td class="num">3</td>
+        <td><span class="layer">分析</span></td>
+        <td>
+          <div class="goal">把「任意维度下钻」收敛成有限的预计算组合</div>
+          <div class="mono id">precompute-rollup</div>
+        </td>
+        <td class="when">查询形态 ∈ {多维聚合下钻}；新鲜度 ∈ {实时（秒级） / 准实时（分钟级）}；P99 目标 ∈ {&lt;50ms / &lt;500ms}</td>
+        <td class="num">4</td>
+        <td class="mono rules">SVC-EXCP-001<br>CONC-POOL-004<br>REL-CTNR-004<br>REL-EXCP-001</td>
+      </tr><tr>
+        <td class="num">4</td>
+        <td><span class="layer">数据访问</span></td>
+        <td>
+          <div class="goal">组合索引的列序决定这条索引有没有用</div>
+          <div class="mono id">composite-index-order</div>
+        </td>
+        <td class="when">可过滤维度 ∈ {3 个 / 10 个}；查询形态 ∈ {多条件组合过滤}</td>
+        <td class="num">4</td>
+        <td class="mono rules">DATA-SQL-002<br>REL-LOG-002<br>DATA-SQL-001</td>
+      </tr><tr>
+        <td class="num">5</td>
+        <td><span class="layer">一致性</span></td>
+        <td>
+          <div class="goal">让索引与权威数据「可核对地」保持一致</div>
+          <div class="mono id">sync-pipeline</div>
+        </td>
+        <td class="when">可过滤维度 ∈ {10 个 / 30 个}；新鲜度 ∈ {实时（秒级） / 准实时（分钟级）}</td>
+        <td class="num">4</td>
+        <td class="mono rules">DATA-SQL-004<br>REL-LOG-003<br>REL-TIME-001<br>REL-CTNR-004</td>
+      </tr><tr>
+        <td class="num">6</td>
+        <td><span class="layer">可观测性</span></td>
+        <td>
+          <div class="goal">给分析类查询装上护栏</div>
+          <div class="mono id">query-guard</div>
+        </td>
+        <td class="when">查询形态 ∈ {多条件组合过滤 / 多维聚合下钻}；查询 QPS ∈ {1 千 / 1 万}</td>
+        <td class="num">5</td>
+        <td class="mono rules">CONC-POOL-004<br>REL-EXCP-001<br>WEB-CTRL-005<br>REL-LOG-002</td>
+      </tr>
+      </tbody>
+    </table>
+
+    <div class="note"><b>这些场景不适用</b>：[object Object]；[object Object]</div>
+  </section>
+  <footer>
+    数据来源：<span class="mono">tools/content/cases/*.py</span> →
+    <span class="mono">python tools/build-content.py</span> →
+    <span class="mono">arsenal-cases/*.json</span> →
+    <span class="mono">node scripts/sync-content.mjs</span> →
+    <span class="mono">src/generated/cases.json</span>。
+    本页由该产物一次性渲染，不参与产品构建。
+  </footer>
+</div>
+</body>
+</html>

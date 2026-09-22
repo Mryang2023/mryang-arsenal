@@ -1142,6 +1142,339 @@ public final class AccessAuditor implements AutoCloseable {
             {'title': 'GA4GH — 数据访问与审计规范', 'url': 'https://www.ga4gh.org/'},
         ],
     },
+    {
+        'id': 'cold-tier-routing',
+        'order': 7,
+        'goal': '让「查三年前的老样本」不占用热数据的资源',
+        'layer': '数据生命周期',
+        'when': {'rows': ['s100m', 's1b'], 'growth': ['g5x', 'g20x']},
+        'why': '测序量年年翻倍，三年前的样本可能再也没人查，但它仍然占着最贵的存储、'
+               '还在被备份、还在拖慢主从。分层不是优化，是不分层就撑不到第三年的问题。',
+        'decision': {
+            'question': '冷层用什么存储？',
+            'options': [
+                '同一种对象存储的不同存储类别（标准 / 低频 / 归档）—— 接口一致，成本差几十倍',
+                '独立的冷存储系统 —— 隔离彻底，但多一套系统要维护',
+                '就留在对象存储标准层不降级 —— 管理最简，成本最高',
+                '冷层单独一套对象存储 + 独立账号 —— 安全隔离最好，运维最重',
+            ],
+            'chosen': '同一对象存储的不同存储类别（标准 / 低频 / 归档），按样本年龄自动降级',
+            'tradeoff': '归档类别的对象**不能直接读** —— 必须先发解冻请求，之后几小时才可读'
+                        '（标准档 3~5 小时）。这个特性会彻底改变接口的形态：'
+                        '「取序列」不再是一个同步方法，而是一个「提交任务 + 轮询结果」的流程。'
+                        '能不能接受这个改变，是这个方案能不能用的前提。',
+        },
+        'sql': r"""-- 分层的落点是元数据表上的一个字段，而不是「根据时间现算」。
+-- 现算的问题是分层规则会变（3 个月改成 6 个月），改规则时现算的实现要改代码 + 发版，
+-- 而落库的实现只需要更新一次数据 —— 差异在规则第一次调整时就会体现出来。
+CREATE TABLE `genome_sample_tier` (
+  `id`             BIGINT       NOT NULL,
+  `sample_id`      BIGINT       NOT NULL COMMENT '样本 id',
+  `tier`           TINYINT      NOT NULL COMMENT '0热(标准) 1温(低频) 2冷(归档)',
+  `object_bucket`  VARCHAR(64)  NOT NULL COMMENT '所在桶，分层时可能换桶',
+  `object_key`     VARCHAR(255) NOT NULL COMMENT '对象键',
+  `restored`       TINYINT      NOT NULL DEFAULT 0 COMMENT '冷层是否已解冻（解冻后有时效，会再冷回去）',
+  `restore_expire_at` DATETIME(3) NULL COMMENT '解冻有效期。归档存储的解冻是有时间窗的',
+  `tier_changed_at` DATETIME(3) NOT NULL COMMENT '最近一次分层变更时刻',
+  `created_at`     DATETIME(3)  NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  `updated_at`     DATETIME(3)  NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_sample_id` (`sample_id`),
+  KEY `idx_tier_changed` (`tier`, `tier_changed_at`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci
+  COMMENT='样本分层元数据 · 分层的依据落库，不现算';""",
+        'code': r"""/**
+ * 场景：基因 / DNA 序列海量存取 / 切片：冷热分层与查询路由
+ * 适用参数：样本 ≥ 1 亿 · 年增 ≥ 5 倍
+ * 依赖规则：REL-TIME-001, REL-CTNR-004, REL-LOG-002, REL-CTNR-005
+ * JDK：17
+ */
+package com.example.genome.tier;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+/**
+ * 分层读取。整个类的形态由一件事决定：**归档存储的对象不能直接读**。
+ * 它必须先解冻，之后几小时才可读，而且解冻有有效期（会再冷回去）。
+ * 所以「取序列」在这里不是一个同步方法，是「提交任务 + 查状态」。
+ */
+public class TieredSequenceReader {
+
+    private static final Logger log = LoggerFactory.getLogger(TieredSequenceReader.class);
+
+    private final SampleMetadataRepository metadataRepository;
+    private final ObjectStoreClient objectStore;
+    private final RestoreTaskQueue restoreQueue;
+
+    public TieredSequenceReader(SampleMetadataRepository metadataRepository,
+                                ObjectStoreClient objectStore,
+                                RestoreTaskQueue restoreQueue) {
+        this.metadataRepository = metadataRepository;
+        this.objectStore = objectStore;
+        this.restoreQueue = restoreQueue;
+    }
+
+    public SequenceResult read(long sampleId) {
+        SampleMetadata meta = metadataRepository.find(sampleId);
+        if (meta == null) {
+            throw new SampleNotFoundException("样本不存在 sampleId=" + sampleId);
+        }
+
+        // 路由依据取自元数据字段，而不是「根据创建时间现算」：
+        // 分层规则会变（3 个月改成 6 个月），现算的实现要改代码发版，落库的只改一次数据。
+        if (meta.tier() == StorageTier.HOT) {
+            return SequenceResult.ready(objectStore.get(meta.objectKey()));
+        }
+
+        // 这一步是整个分层的代价兑现处。冷层没解冻时必须返回「进行中」而不是阻塞等待 ——
+        // 一个同步接口等 3 小时，等于把可用性问题伪装成性能问题。
+        if (!meta.restored()) {
+            restoreQueue.submit(sampleId, meta.objectKey());
+            log.info("冷层样本需先解冻，已提交异步任务 sampleId={} tier={}", sampleId, meta.tier());
+            return SequenceResult.pending(sampleId, "样本已归档，解冻任务已提交，通常数小时内可读");
+        }
+
+        SequenceResult result = SequenceResult.ready(objectStore.get(meta.objectKey()));
+        // 冷查询的延迟与热查询不在一个量级，把实际耗时记下来，
+        // 前端才能给出诚实的提示，而不是让用户以为系统卡住了。
+        log.info("冷层读取完成 sampleId={} bytes={}", sampleId, result.sizeBytes());
+        return result;
+    }
+
+    /**
+     * 分层降级任务。幂等的写法是「以元数据里的 tier 为目标状态」而不是「+1 级」——
+     * 后者在重跑时会把样本一路降到最冷的层，而它可能上周刚被查过。
+     */
+    public int demoteBatch(int batchSize) {
+        var candidates = metadataRepository.findDemoteCandidates(batchSize);
+        int moved = 0;
+        for (SampleMetadata candidate : candidates) {
+            if (!metadataRepository.compareAndSetTier(candidate.id(), candidate.tier(),
+                    StorageTier.COLD)) {
+                // 没抢到说明别的实例已经处理了它 —— 跳过而不是重试，
+                // 重试等于两个实例互相抢，做无用功。
+                continue;
+            }
+            objectStore.changeStorageClass(candidate.objectKey(), StorageTier.COLD);
+            moved++;
+        }
+        log.info("分层降级完成 moved={}/{}", moved, candidates.size());
+        return moved;
+    }
+}
+""",
+        'highlights': [
+            {'mark': 'if (!meta.restored()) {',
+             'title': '归档对象不能直接读',
+             'text': '这是整个冷热分层最容易踩的坑：归档存储（如 S3 Glacier）必须先发解冻请求，'
+                     '之后 3~5 小时才可读，而解冻还有有效期。'
+                     '不知道这一点，接口会被设计成同步阻塞几小时。',
+             'rule': 'REL-TIME-001'},
+            {'mark': 'return SequenceResult.pending(sampleId, "样本已归档，解冻任务已提交，通常数小时内可读");',
+             'title': '返回「进行中」而不是阻塞',
+             'text': '同步接口等 3 小时等于把可用性问题伪装成性能问题 ——'
+                     '调用方看到的是超时，而真正的原因是「这个数据本来就不在这里」。',
+             'rule': 'REL-CTNR-005'},
+            {'mark': 'if (!metadataRepository.compareAndSetTier(candidate.id(), candidate.tier(),\n                    StorageTier.COLD)) {',
+             'title': '分层靠目标状态，不靠「+1 级」',
+             'text': '「+1 级」在重跑时会把样本一路降到最冷的层，而它可能上周刚被查过。'
+                     '以目标状态 + CAS 更新才既幂等又不会误降。',
+             'rule': 'REL-CTNR-004'},
+            {'mark': 'log.info("分层降级完成 moved={}/{}", moved, candidates.size());',
+             'title': '降级量要能看趋势',
+             'text': '每月降级多少、热层剩多少，决定了要不要调整分层阈值。'
+                     '没有这个数字，阈值只能靠猜。',
+             'rule': 'REL-LOG-002'},
+        ],
+        'pitfalls': [
+            '把「取序列」设计成同步接口 —— 冷层样本会阻塞几小时，而且在压测时完全复现不出来。',
+            '解冻后不记有效期 —— 归档存储的解冻有时效，过期会再冷回去，而系统以为它还是热的。',
+            '分层规则写死在代码里 —— 改规则（3 个月改 6 个月）要发版，而这是纯运营调整。',
+            '降级任务用「+1 级」而不是目标状态 —— 重跑会把样本一路降到最冷层。',
+        ],
+        'notSuitable': [
+            '样本量在十万级：所有数据都在热层完全负担得起，分层只增加复杂度。',
+            '所有样本都要求秒级可读（如实时临床会诊）：归档型的解冻延迟本身就不满足需求。',
+        ],
+        'relatedRules': ['REL-TIME-001', 'REL-CTNR-004', 'REL-CTNR-005', 'REL-LOG-002'],
+        'refs': [
+            {'title': 'AWS S3 文档 · 存储类别与归档解冻',
+             'url': 'https://docs.aws.amazon.com/AmazonS3/latest/userguide/storage-class-intro.html',
+             'note': 'Glacier 各档的解冻时长与费用差异极大，选档前必须读这一节'},
+            {'title': 'AWS 基因组学最佳实践 · 数据分层',
+             'note': '序列数据与变异数据的分层策略不同：序列冷、位点热'},
+        ],
+    },
+    {
+        'id': 'hotspot-variant-cache',
+        'order': 8,
+        'goal': '把最热的位点查询压在缓存层，且敢于设长 TTL',
+        'layer': '缓存',
+        'when': {'qps': ['q10k', 'q100k'], 'latency': ['l50', 'l200']},
+        'why': '位点查询是高频小结果集，天然适合缓存。但它和普通业务缓存有个本质差别：'
+               '**基因数据是不可变的** —— 一个人的变异位点在报告签发后就固定了，'
+               '重新测序会产生新样本而不是改旧样本。所以这里不需要「写后失效」这套机制，'
+               'TTL 可以设得很长。这个领域判断比缓存技术本身更值钱。',
+        'decision': {
+            'question': '缓存该多激进？',
+            'options': [
+                '按通用业务缓存设短 TTL（分钟级）—— 保守，但浪费了「数据不可变」这个事实',
+                '长 TTL（小时级）+ 不做写后失效 —— 收益最大，前提是数据真的不可变',
+                '只缓存「有变异」的区间 —— 省内存，但空结果的重复回源没被处理',
+                '长 TTL + 布隆过滤器预检空区间',
+            ],
+            'chosen': '长 TTL（12 小时）+ 布隆过滤空区间 + L1/L2 两级',
+            'tradeoff': '长 TTL 的代价是「数据订正」变得困难 —— 如果某个样本的位点被人工修正，'
+                        '缓存最长要 12 小时才更新。所以必须保留一条「人工强制失效」的通道，'
+                        '并且这条通道要记审计（谁在什么时候失效了什么）。',
+        },
+        'sql': r"""-- 位点缓存的策略与强制失效通道。为什么要落库：
+-- 长 TTL 的前提是「数据不可变」，一旦有订正发生，就必须有一条能立刻生效的通道，
+-- 而且这条通道的每一次使用都要留痕 —— 医疗数据的缓存跳过是被审计关注的行为。
+CREATE TABLE `variant_cache_policy` (
+  `id`              BIGINT       NOT NULL,
+  `cache_name`      VARCHAR(64)  NOT NULL COMMENT '缓存名',
+  `ttl_seconds`     INT          NOT NULL COMMENT 'TTL，基因数据不可变所以可以很长',
+  `bloom_bucket`    INT          NOT NULL DEFAULT 1000000 COMMENT '布隆过滤的区间粒度（碱基）',
+  `force_evict_by`  VARCHAR(64)  NULL COMMENT '最近一次强制失效的操作者',
+  `force_evict_at`  DATETIME(3)  NULL COMMENT '强制失效时刻',
+  `force_evict_reason` VARCHAR(255) NULL COMMENT '失效原因（数据订正 / 报告撤回 / 误报）',
+  `created_at`      DATETIME(3)  NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  `updated_at`      DATETIME(3)  NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_cache_name` (`cache_name`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci
+  COMMENT='位点缓存策略 · 长 TTL 的前提是不可变，订正必须留痕';""",
+        'code': r"""/**
+ * 场景：基因 / DNA 序列海量存取 / 切片：位点热查询缓存
+ * 适用参数：QPS ≥ 1 万 · 位点查询 P99 < 200ms
+ * 依赖规则：REL-CTNR-005, REL-LOG-002, CONC-POOL-004, SEC-DATA-001
+ * JDK：17
+ */
+package com.example.genome.cache;
+
+import java.time.Duration;
+import java.util.List;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+/**
+ * 位点查询的二级缓存。
+ *
+ * TTL 设 12 小时是刻意的，也是本场景最值得抄的一条：**基因数据不可变**。
+ * 报告签发后位点就固定了，重测会产生新样本而不是改旧样本 ——
+ * 所以这里不需要「写后失效」这套复杂机制，只按样本生命周期设 TTL 即可。
+ */
+public class VariantCacheService {
+
+    private static final Logger log = LoggerFactory.getLogger(VariantCacheService.class);
+
+    /** 12 小时：不是拍出来的，是「报告签发后不再变更」这个业务事实的直接结果。 */
+    private static final Duration VARIANT_TTL = Duration.ofHours(12);
+
+    /** 布隆过滤的区间粒度（100 万碱基）。粒度太细则布隆体积大，太粗则假阳性高。 */
+    private static final long REGION_BUCKET = 1_000_000L;
+
+    private final VariantRepository variantRepository;
+    private final CacheClient l1;
+    private final CacheClient l2;
+    private final BloomFilter regionBloom;
+    private final CachePolicyRepository policyRepository;
+
+    public VariantCacheService(VariantRepository variantRepository, CacheClient l1, CacheClient l2,
+                               BloomFilter regionBloom, CachePolicyRepository policyRepository) {
+        this.variantRepository = variantRepository;
+        this.l1 = l1;
+        this.l2 = l2;
+        this.regionBloom = regionBloom;
+        this.policyRepository = policyRepository;
+    }
+
+    public List<Variant> query(String chrom, long start, long end) {
+        String regionKey = "variant:" + chrom + ":" + start + "-" + end;
+
+        List<Variant> cached = l1.list(regionKey);
+        if (cached != null) {
+            return cached;
+        }
+        List<Variant> fromL2 = l2.list(regionKey);
+        if (fromL2 != null) {
+            // 回填 L1：热区间会被反复查，L1 是这一层的主要收益来源。
+            l1.put(regionKey, fromL2, VARIANT_TTL);
+            return fromL2;
+        }
+
+        // 布隆过滤的是「这个区间有没有变异」。绝大多数区间是**没有**变异的 ——
+        // 正常人的绝大部分区间与参考基因组一致。这些空结果每次都回源一次，
+        // 是位点查询里最大的无效开销，而它换不来任何数据。
+        if (!regionBloom.mightContain(chrom + ":" + (start / REGION_BUCKET))) {
+            log.debug("区间无变异，跳过回源 chrom={} start={} end={}", chrom, start, end);
+            return List.of();
+        }
+
+        List<Variant> loaded = variantRepository.queryRegion(chrom, start, end);
+        l2.put(regionKey, loaded, VARIANT_TTL);
+        l1.put(regionKey, loaded, VARIANT_TTL);
+        return loaded;
+    }
+
+    /**
+     * 强制失效。这是长 TTL 方案的必要配套：数据订正、报告撤回都会让缓存里的结论变错，
+     * 而长 TTL 意味着「等它自己过期」最长达 12 小时 —— 医疗场景下这不成立。
+     */
+    public void forceEvict(String chrom, String operator, String reason) {
+        policyRepository.recordForceEvict("variant", operator, reason);
+        // 按染色体前缀失效而不是精确区间：订正往往影响的是一整段，
+        // 精确失效会留下「同一染色体上相邻区间结论不一致」的怪现象。
+        l1.evictByPrefix("variant:" + chrom + ":");
+        l2.evictByPrefix("variant:" + chrom + ":");
+        log.warn("位点缓存被强制失效 chrom={} operator={} reason={}", chrom, operator, reason);
+    }
+}
+""",
+        'highlights': [
+            {'mark': 'private static final Duration VARIANT_TTL = Duration.ofHours(12);',
+             'title': 'TTL 长是因为数据不可变',
+             'text': '这是本场景最值得抄的一条判断：报告签发后位点固定，重测产生新样本而不是改旧样本 ——'
+                     '所以不需要「写后失效」，TTL 可以设得很长。领域知识比缓存技术本身更值钱。',
+             'rule': 'REL-CTNR-005'},
+            {'mark': 'if (!regionBloom.mightContain(chrom + ":" + (start / REGION_BUCKET))) {',
+             'title': '绝大多数区间没有变异',
+             'text': '正常人的绝大部分区间与参考基因组一致。这些空结果每次回源一次，'
+                     '是位点查询里最大的无效开销 —— 而且它换不来任何数据。',
+             'rule': 'REL-LOG-002'},
+            {'mark': 'l1.evictByPrefix("variant:" + chrom + ":");',
+             'title': '失效按前缀而不是精确区间',
+             'text': '订正往往影响一整段。精确失效会留下「同一染色体上相邻区间结论不一致」的怪现象，'
+                     '而这种不一致在报告里是灾难性的。',
+             'rule': 'CONC-POOL-004'},
+            {'mark': 'log.warn("位点缓存被强制失效 chrom={} operator={} reason={}", chrom, operator, reason);',
+             'title': '强制失效必须留痕',
+             'text': '医疗数据场景下，「谁让缓存跳过了最新数据」是审计会问的第一个问题。'
+                     '操作者与原因必须进日志和数据表。',
+             'rule': 'SEC-DATA-001'},
+        ],
+        'pitfalls': [
+            '照搬通用业务的短 TTL —— 浪费了「数据不可变」这个免费的优势，命中率无谓地低。',
+            '设了长 TTL 却没做强制失效 —— 数据订正后最长 12 小时用户仍看到旧结论。',
+            '只缓存有变异的区间 —— 空结果的重复回源是最主要的无效开销，恰好被漏掉了。',
+            '缓存里放未脱敏的样本标识 —— 缓存通常比数据库更易被访问，脱敏层级不能降。',
+        ],
+        'notSuitable': [
+            'QPS 只有几百：数据库直接扛得住，缓存带来的一致性问题不值得。',
+            '位点数据会被频繁订正（如科研迭代期）：不可变前提不成立，长 TTL 会持续给出错误结论。',
+        ],
+        'relatedRules': ['REL-CTNR-005', 'REL-LOG-002', 'CONC-POOL-004', 'SEC-DATA-001'],
+        'refs': [
+            {'title': 'GA4GH · 变异数据模型与查询规范',
+             'url': 'https://www.ga4gh.org/',
+             'note': '变异位点的标准表达（染色体 + 位置 + 参考/替代碱基），是索引设计的依据'},
+            {'title': '论文 · 布隆过滤器在基因组区间查询中的应用',
+             'note': '区间查询的稀疏性（大部分区间无变异）是布隆在这里有效的原因'},
+        ],
+    },
 ]
 
 CASE = {

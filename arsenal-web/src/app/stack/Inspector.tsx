@@ -3,8 +3,10 @@
 import { capLabel, capsOf, needsOf, nodeArch, STATUS_META } from '@/lib/arch';
 import type { ArchAudit, ArchGap } from '@/lib/arch';
 import type { StackOption, StackPicks } from '@/lib/content-types';
+import type { StackPicksMeta } from '@/lib/topology';
 import { dimensionById } from '@/lib/stack';
 import GapCard from './GapCard';
+import TopologyPicker from './TopologyPicker';
 import { TONE } from './palette';
 
 /**
@@ -19,21 +21,33 @@ export default function Inspector({
   audit,
   activeDim,
   picks,
+  meta,
   onPick,
   onClear,
+  onTopology,
   onClose,
   onFocusDim,
 }: {
   audit: ArchAudit;
   activeDim: string | null;
   picks: StackPicks;
+  /** 形态与参数。形态不是「选项」的一部分，所以走单独一条通道 */
+  meta: StackPicksMeta;
   onPick: (dimId: string, optId: string) => void;
   onClear: (dimId: string) => void;
+  onTopology: (dimId: string, modeId: string) => void;
   onClose: () => void;
   onFocusDim: (dimId: string) => void;
 }) {
-  const meta = STATUS_META[audit.status];
-  const tone = TONE[meta.tone === 'bad' ? 'bad' : meta.tone === 'warn' ? 'warn' : 'ok'];
+  // 注意：`meta` 这个标识符在本文件里有两个含义 ——
+  //   ① 外层 prop `meta: StackPicksMeta`（形态与参数，要透传给 Picker）
+  //   ② 这里的状态文案（STATUS_META[status]）
+  // 两者同名过，TS 直接 `Cannot redeclare block-scoped variable`，而且 53 行
+  // 会把状态文案当成形态数据传下去。状态文案一律叫 `statusMeta`。
+  const statusMeta = STATUS_META[audit.status];
+  const tone = TONE[
+    statusMeta.tone === 'bad' ? 'bad' : statusMeta.tone === 'warn' ? 'warn' : 'ok'
+  ];
   const total =
     audit.blockers.length + audit.gaps.length + audit.risks.length + audit.notes.length;
 
@@ -43,8 +57,10 @@ export default function Inspector({
         <Picker
           dimId={activeDim}
           picks={picks}
+          meta={meta}
           onPick={onPick}
           onClear={onClear}
+          onTopology={onTopology}
           onClose={onClose}
         />
       ) : (
@@ -58,13 +74,13 @@ export default function Inspector({
                 {audit.status === 'runnable' ? '✓' : audit.status === 'incomplete' ? '!' : '×'}
               </span>
               <h2 className="text-[13px] font-semibold" style={{ color: tone.color }}>
-                {meta.label}
+                {statusMeta.label}
               </h2>
               <span className="mono ml-auto text-[10px] text-fgFaint">
                 {total > 0 ? `${total} 条结论` : '无结论'}
               </span>
             </div>
-            <p className="mt-1.5 text-2xs leading-relaxed text-fgMuted">{meta.summary}</p>
+            <p className="mt-1.5 text-2xs leading-relaxed text-fgMuted">{statusMeta.summary}</p>
 
             <div className="mt-3 grid grid-cols-3 gap-2">
               <Metric label="已装配" value={`${audit.stats.filled}/${audit.stats.total}`} />
@@ -177,14 +193,18 @@ function Group({
 function Picker({
   dimId,
   picks,
+  meta,
   onPick,
   onClear,
+  onTopology,
   onClose,
 }: {
   dimId: string;
   picks: StackPicks;
+  meta: StackPicksMeta;
   onPick: (dimId: string, optId: string) => void;
   onClear: (dimId: string) => void;
+  onTopology: (dimId: string, modeId: string) => void;
   onClose: () => void;
 }) {
   const dim = dimensionById.get(dimId);
@@ -277,6 +297,18 @@ function Picker({
             );
           })}
         </ul>
+
+        {/* 形态选择器紧挨着零件库——选完零件，紧接着就是「几个实例、怎么摆」。
+            它是这台装配台从「选组件」变成「装配一个项目」的那一步。 */}
+        {currentOpt && (
+          <TopologyPicker
+            dimId={dimId}
+            option={currentOpt}
+            picks={picks}
+            meta={meta}
+            onPick={onTopology}
+          />
+        )}
 
         {currentOpt && <OptionDetail dimId={dimId} option={currentOpt} />}
 

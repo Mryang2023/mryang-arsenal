@@ -197,9 +197,14 @@ export default function IconGallery() {
               <p className="text-[14px] text-fg">没有匹配的图标</p>
               <p className="mx-auto mt-2 max-w-lg text-[12.5px] leading-relaxed text-fgMuted">
                 这件事本身是允许的：图标库是分批补的，缺的那张可以现在就生成。
-                下面是拼好的生图 prompt（风格前缀 + 主体），粘给生图工具即可，
-                产出后落 <span className="mono text-fg">public/icons/&lt;分类&gt;/&lt;key&gt;.png</span>
-                ，再在 <span className="mono text-fg">tools/content/icons.py</span> 里补上 bitmap 路径。
+                下面是拼好的生图 prompt（风格前缀 + 主体），粘给生图工具即可。
+                产出一张 1024 的方图后，缩到 512 落
+                <span className="mono text-fg"> public/icons/&lt;分类&gt;/&lt;key&gt;.png</span>
+                ，再到 <span className="mono text-fg">tools/content/icons.py</span> 的
+                <span className="mono text-fg">BITMAPS</span> 表里登记一行（key → 路径），
+                跑 <span className="mono text-fg">build-content.py</span> 与
+                <span className="mono text-fg">sync-content.mjs</span> 就完成一轮。
+                为什么必须缩：图标库的体积闸门是**全库 ≤6MB**，1024 原图一张就 200KB。
               </p>
               <pre className="mt-4 overflow-x-auto rounded-md border border-line bg-canvas px-4 py-3 text-left text-2xs leading-relaxed text-fgMuted">
                 {`flat vector icon, software architecture diagram symbol, thin uniform 2px stroke,\nsingle accent color {accent}, plain white background, centered, no text, no letters,\nno numbers, no watermark, minimal, technical, 512x512\n\nsubject: ${q || '<你要画的东西>'}`}
@@ -273,10 +278,16 @@ export default function IconGallery() {
             </div>
           )}
 
-          {list.length > 0 && mode === 'bitmap' && iconStats.bitmaps === 0 && (
+          {list.length > 0 && mode === 'bitmap' && iconStats.bitmaps < iconStats.total && (
             <p className="mt-4 rounded-md border border-line bg-surface px-4 py-3 text-[12px] leading-relaxed text-fgMuted">
-              位图一张都还没生成 —— 这是**已知状态**，不是故障。矢量已经全部就位，
-              架构图能直接用；位图是分批补的，补的流程写在空态那段的说明里。
+              {iconStats.bitmaps === 0
+                ? '位图一张都还没生成'
+                : `位图正在分批补：已有 ${iconStats.bitmaps} / ${iconStats.total} 张，剩下的还是空态`}
+              {' —— 这是已知状态，不是故障。'}矢量已经全部就位，架构图能直接用；
+              补图流程：生图 → 缩到 512 方图落
+              <span className="mono text-fg"> public/icons/&lt;分类&gt;/&lt;key&gt;.png</span>
+              → 在 <span className="mono text-fg">tools/content/icons.py</span> 的
+              <span className="mono text-fg">BITMAPS</span> 表里登记一行，再跑两条同步。
             </p>
           )}
         </section>

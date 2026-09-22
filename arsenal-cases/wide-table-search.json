@@ -1,0 +1,853 @@
+{
+  "case": {
+    "id": "wide-table-search",
+    "order": 6,
+    "name": "宽表检索：多条件组合、覆盖索引、列存、冷热分层",
+    "subtitle": "宽表列多 → 索引难建，量大 → 回表贵，组合多 → 大部分索引用不上",
+    "glyph": "▦",
+    "domain": [
+      "报表",
+      "BI",
+      "日志检索",
+      "广告"
+    ],
+    "problem": "几百列的宽表，业务要按各种条件组合查还要快，数据量特别大，建表与查询不当就会全表扫、回表、索引爆炸。",
+    "symptoms": [
+      "组合查询一复杂就全表扫，P99 直接上秒",
+      "加了索引但 EXPLAIN 还是回表，IO 翻倍",
+      "表越来越大，备份和全表 COUNT 都慢",
+      "想给 8 维每种组合都建索引，索引数爆炸"
+    ],
+    "drivers": [
+      {
+        "id": "rows",
+        "name": "数据规模",
+        "unit": "行",
+        "hint": "宽表行数",
+        "levels": [
+          {
+            "id": "r10m",
+            "label": "1000 万"
+          },
+          {
+            "id": "r100m",
+            "label": "1 亿"
+          },
+          {
+            "id": "r1b",
+            "label": "10 亿"
+          },
+          {
+            "id": "r10b",
+            "label": "100 亿"
+          }
+        ]
+      },
+      {
+        "id": "qps",
+        "name": "查询并发",
+        "unit": "QPS",
+        "hint": "检索请求速率",
+        "levels": [
+          {
+            "id": "q100",
+            "label": "100"
+          },
+          {
+            "id": "q1k",
+            "label": "1 千"
+          },
+          {
+            "id": "q10k",
+            "label": "1 万"
+          },
+          {
+            "id": "q100k",
+            "label": "10 万"
+          }
+        ]
+      },
+      {
+        "id": "dims",
+        "name": "查询维度数",
+        "unit": "",
+        "hint": "组合条件的列数",
+        "levels": [
+          {
+            "id": "d1",
+            "label": "单维"
+          },
+          {
+            "id": "d3",
+            "label": "3 维"
+          },
+          {
+            "id": "d8",
+            "label": "8 维"
+          }
+        ]
+      },
+      {
+        "id": "latency",
+        "name": "P99 目标",
+        "unit": "",
+        "hint": "检索延迟容忍",
+        "levels": [
+          {
+            "id": "l50",
+            "label": "<50ms"
+          },
+          {
+            "id": "l200",
+            "label": "<200ms"
+          },
+          {
+            "id": "l1s",
+            "label": "<1s"
+          }
+        ]
+      },
+      {
+        "id": "rw",
+        "name": "读写比",
+        "unit": "",
+        "hint": "决定列存/预计算取舍",
+        "levels": [
+          {
+            "id": "rw91",
+            "label": "9:1 读多"
+          },
+          {
+            "id": "rw11",
+            "label": "1:1"
+          },
+          {
+            "id": "rw19",
+            "label": "1:9 写多"
+          }
+        ]
+      },
+      {
+        "id": "cold",
+        "name": "冷热分层需求",
+        "unit": "",
+        "hint": "历史数据是否要分离",
+        "levels": [
+          {
+            "id": "hot",
+            "label": "全热"
+          },
+          {
+            "id": "mixed",
+            "label": "冷热混合"
+          },
+          {
+            "id": "cold",
+            "label": "需分层"
+          }
+        ]
+      }
+    ],
+    "conflicts": [
+      {
+        "when": {
+          "rows": [
+            "r10b"
+          ],
+          "latency": [
+            "l50"
+          ],
+          "dims": [
+            "d8"
+          ]
+        },
+        "text": "100 亿行 + P99<50ms + 8 维组合查询三者不可兼得：8 维任意组合无法被单一复合索引覆盖，必有条件触发回表或扫多索引。请把 P99 放宽到 200ms，或改为预计算物化视图（见「物化视图」切片）。"
+      },
+      {
+        "when": {
+          "rows": [
+            "r1b",
+            "r10b"
+          ],
+          "rw": [
+            "rw19"
+          ],
+          "cold": [
+            "cold"
+          ]
+        },
+        "text": "10 亿行 + 写多 + 需冷热分层：列存/预计算适合读多场景，写多会频繁重写列存文件，收益为负。这类场景应是「写进行存热表、异步物化到列存冷表」，而不是实时列存。"
+      },
+      {
+        "when": {
+          "qps": [
+            "q100k"
+          ],
+          "latency": [
+            "l50"
+          ],
+          "dims": [
+            "d8"
+          ]
+        },
+        "text": "10 万 QPS + P99<50ms + 8 维组合：单实例索引无论怎么建都扛不住，必须上缓存（覆盖高频组合）+ 限流，且接受低频组合走异步预计算。"
+      }
+    ],
+    "slices": [
+      {
+        "id": "composite-index-order",
+        "order": 1,
+        "goal": "复合索引列序与选择性",
+        "layer": "设计",
+        "when": {
+          "dims": [
+            "d3",
+            "d8"
+          ]
+        },
+        "why": "多条件组合查询，索引列的顺序决定能不能被用上。列序错了，查询带了列却走不上索引，等于全表扫。",
+        "decision": {
+          "question": "复合索引列怎么排？",
+          "options": [
+            "按字母顺序排 —— 索引前缀不匹配，白建",
+            "等值列在前、范围列在后、回表列用 INCLUDE —— 经典最优序",
+            "把低基数列放最前 —— 选择性差，过滤不掉行",
+            "每个组合建一个索引 —— 列数一多索引爆炸"
+          ],
+          "chosen": "等值列 → 范围列 → 排序列，回表列用 INCLUDE（覆盖）",
+          "tradeoff": "代价是索引只服务「最左前缀」能匹配的组合，任意排列的 8 维组合不可能全被一个索引覆盖。低频组合要另谋出路（见覆盖索引/物化视图）。"
+        },
+        "sql": "-- 宽表：列很多，但常用查询只带其中几列。索引只服务于高频组合。\nCREATE TABLE `wide_fact` (\n  `id`          BIGINT       NOT NULL,\n  `tenant_id`   BIGINT       NOT NULL,\n  `region`      SMALLINT     NOT NULL,\n  `category`    SMALLINT     NOT NULL,\n  `status`      TINYINT      NOT NULL,\n  `amount`      DECIMAL(14,2) NOT NULL,\n  `created_at`  DATETIME(3)  NOT NULL,\n  PRIMARY KEY (`id`),\n  -- 列序：等值(tenant_id,region,category) → 范围(status) → 排序(created_at)\n  -- amount 是回表列，用 INCLUDE 让它进索引但不参与排序，避免索引变宽拖慢写。\n  INDEX `idx_query` (`tenant_id`, `region`, `category`, `status`, `created_at`) INCLUDE (`amount`)\n) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='宽表事实表';",
+        "code": "/**\n * 场景：宽表检索 / 切片：复合索引列序\n * 适用参数：查询维度 ≥ 3\n * 依赖规则：DATA-SCHM-001, DATA-SQL-001, DATA-SQL-002\n * JDK：21\n */\npackage com.example.wide.query;\n\nimport org.springframework.jdbc.core.JdbcTemplate;\nimport javax.sql.DataSource;\nimport java.util.List;\n\n/**\n * 宽表组合查询。\n * 为什么列序是「等值→范围→排序」：B+ 树索引从左到右匹配，一旦碰到范围列（status），\n * 后面的列就只能用不上索引序。把范围列放后面，created_at 的排序就能吃上索引。\n */\npublic final class CompositeQuery {\n    private final JdbcTemplate jdbc;\n\n    public CompositeQuery(DataSource ds) {\n        this.jdbc = new JdbcTemplate(ds);\n    }\n\n    /** 显式列名，不用 SELECT *；参数占位符绑定，禁止拼接。 */\n    public List<Row> query(long tenantId, int region, int category, int status, int limit) {\n        // 对应 DDL 索引列序：INDEX idx_query(tenant_id, region, category, status, created_at) INCLUDE(amount)\n        // 列序必须与 idx_query 的前缀一致：tenant_id, region, category 是等值，status 是范围。\n        String sql = \"SELECT id, amount, created_at FROM wide_fact\"\n                + \" WHERE tenant_id = ? AND region = ? AND category = ? AND status = ?\"\n                + \" ORDER BY created_at DESC LIMIT ?\";\n        return jdbc.query(sql, (rs, n) -> new Row(rs.getLong(\"id\"), rs.getBigDecimal(\"amount\"),\n                rs.getTimestamp(\"created_at\").toLocalDateTime()),\n                tenantId, region, category, status, limit);\n    }\n\n    public record Row(long id, java.math.BigDecimal amount, java.time.LocalDateTime createdAt) {\n    }\n}\n",
+        "highlights": [
+          {
+            "mark": "INDEX idx_query(tenant_id, region, category, status, created_at) INCLUDE(amount)",
+            "title": "等值→范围→排序，回表列 INCLUDE",
+            "text": "B+ 树从左到右匹配，范围列(status)之后的列无法用索引序。amount 用 INCLUDE 进索引不拖宽。",
+            "rule": "DATA-SCHM-001"
+          },
+          {
+            "mark": "WHERE tenant_id = ? AND region = ? AND category = ? AND status = ?",
+            "title": "查询列序匹配索引前缀",
+            "text": "SQL 的等值列顺序必须与索引前缀一致，否则最左前缀匹配不上，索引等于白建。",
+            "rule": "DATA-SQL-001"
+          }
+        ],
+        "pitfalls": [
+          "把低基数列（如 status 只有几个值）放索引最前 —— 选择性差，过滤不掉行，索引几乎无效。",
+          "索引列序写成 (created_at, tenant_id) —— 范围排序列在前，tenant_id 的等值反而用不上索引序。",
+          "为 8 维每种组合都建索引 —— 索引数爆炸，写放大把写入拖死。"
+        ],
+        "notSuitable": [
+          "单维查询：单索引即可，复合索引列序讨论无意义。",
+          "数据量极小：全表扫都比建索引快，索引是负担。"
+        ],
+        "relatedRules": [
+          "DATA-SCHM-001",
+          "DATA-SQL-001",
+          "DATA-SQL-002",
+          "WEB-CTRL-005"
+        ],
+        "refs": [
+          {
+            "title": "Use the Index, Luke! — 复合索引列序",
+            "url": "https://use-the-index-luke.com/sql/where-clause/the-equals-operator/concatenated-keys"
+          },
+          {
+            "title": "MySQL 8.0 — Invisible / Descending Indexes",
+            "url": "https://dev.mysql.com/doc/refman/8.0/en/descending-indexes.html"
+          }
+        ]
+      },
+      {
+        "id": "covering-index",
+        "order": 2,
+        "goal": "覆盖索引避免回表",
+        "layer": "数据访问",
+        "when": {
+          "latency": [
+            "l50",
+            "l200"
+          ]
+        },
+        "why": "P99 压到 200ms 内，回表（从聚簇索引再取一次行）的随机 IO 是主要代价。如果查询的列全在索引里，EXPLAIN 会显示 Using index，一次索引扫描就出结果。",
+        "decision": {
+          "question": "怎么避免回表？",
+          "options": [
+            "SELECT * —— 回表取所有列，行宽大、IO 翻倍",
+            "覆盖索引（INCLUDE 回表列） —— Extra 出现 Using index",
+            "只查索引列 —— 最简单，但业务常要更多列",
+            "上缓存 —— 有效，但先要有正确索引"
+          ],
+          "chosen": "把查询用到的列纳入覆盖索引（INCLUDE），并只 SELECT 这些列",
+          "tradeoff": "代价是索引变宽、写入变慢（每写一行维护更多索引列）。所以覆盖索引只给真正高频、对延迟敏感的查询建，不是所有查询都覆盖。"
+        },
+        "sql": "-- 覆盖索引：查询的列全在索引里，EXPLAIN 的 Extra = Using index（不回表）。\n-- 用 INCLUDE 把 amount 作为非键列加进索引，不破坏 (tenant_id, created_at) 的排序结构。\nCREATE INDEX `idx_cover` ON `wide_fact`\n  (`tenant_id`, `created_at` DESC) INCLUDE (`status`, `amount`);\n\n-- 验证：Extra 必须出现 Using index 才是真覆盖，否则只是「用了索引」但仍回表。\nEXPLAIN SELECT status, amount FROM wide_fact\nWHERE tenant_id = 123 AND created_at >= '2026-09-01'\nORDER BY created_at DESC LIMIT 100;",
+        "code": "/**\n * 场景：宽表检索 / 切片：覆盖索引\n * 适用参数：P99 < 200ms\n * 依赖规则：DATA-SQL-002, DATA-SQL-001, WEB-CTRL-005\n * JDK：21\n */\npackage com.example.wide.query;\n\nimport org.springframework.jdbc.core.JdbcTemplate;\nimport javax.sql.DataSource;\nimport java.util.List;\n\n/**\n * 覆盖索引查询。\n * 为什么绝不用 SELECT *：回表取所有列会让行宽翻倍，P99 直接掉出 200ms。\n * 覆盖索引的价值就是把「查哪些列」和「索引有哪些列」对齐。\n */\npublic final class CoveringQuery {\n    private final JdbcTemplate jdbc;\n\n    public CoveringQuery(DataSource ds) {\n        this.jdbc = new JdbcTemplate(ds);\n    }\n\n    /** 只 SELECT 覆盖索引里有的列（status, amount），不碰其他宽列。 */\n    public List<Row> recent(long tenantId) {\n        // LIMIT 必须带上限：没有上限的 pageSize 会一次扫出海量行，缓冲池打穿。\n        String sql = \"SELECT status, amount, created_at FROM wide_fact\"\n                + \" WHERE tenant_id = ? AND created_at >= ? ORDER BY created_at DESC LIMIT ?\";\n        return jdbc.query(sql, (rs, n) -> new Row(rs.getInt(\"status\"), rs.getBigDecimal(\"amount\"),\n                rs.getTimestamp(\"created_at\").toLocalDateTime()), tenantId, startOfMonth(), 100);\n    }\n\n    private java.time.LocalDateTime startOfMonth() {\n        return java.time.LocalDateTime.now().withDayOfMonth(1).toLocalDate().atStartOfDay();\n    }\n\n    public record Row(int status, java.math.BigDecimal amount, java.time.LocalDateTime createdAt) {\n    }\n}\n",
+        "highlights": [
+          {
+            "mark": "SELECT status, amount, created_at FROM wide_fact",
+            "title": "只 SELECT 覆盖列",
+            "text": "SELECT * 会回表取所有宽列，行宽翻倍，P99 掉出 200ms。覆盖索引的价值就在列对齐。",
+            "rule": "DATA-SQL-002"
+          },
+          {
+            "mark": "ORDER BY created_at DESC LIMIT ?",
+            "title": "LIMIT 带上限",
+            "text": "无上限 pageSize 会一次扫海量行打穿缓冲池。服务端必须兜底上限，不能靠前端约定。",
+            "rule": "WEB-CTRL-005"
+          }
+        ],
+        "pitfalls": [
+          "用 SELECT * —— 回表代价是行宽的倍数，P99 目标下最贵的一处浪费。",
+          "覆盖索引建了但 SELECT 多查一列 —— 多那一列触发回表，覆盖失效。",
+          "不加 LIMIT —— 一个宽松条件扫出全表，覆盖索引也救不回来。"
+        ],
+        "notSuitable": [
+          "P99 宽松到 1s 以上：回表的代价可以接受，不必追求全覆盖。",
+          "查询列极不固定：无法用一个覆盖索引服务，应上列存。"
+        ],
+        "relatedRules": [
+          "DATA-SQL-002",
+          "DATA-SQL-001",
+          "WEB-CTRL-005",
+          "DATA-SCHM-001"
+        ],
+        "refs": [
+          {
+            "title": "Use the Index, Luke! — Index-Only Scan",
+            "url": "https://use-the-index-luke.com/sql/clustering/index-only-scan"
+          },
+          {
+            "title": "SQL Server — Included Columns (INCLUDE)",
+            "note": "非键列进索引不破坏排序结构"
+          }
+        ]
+      },
+      {
+        "id": "columnar-store",
+        "order": 3,
+        "goal": "列存 / 向量化面向分析列",
+        "layer": "设计",
+        "when": {
+          "rows": [
+            "r1b",
+            "r10b"
+          ]
+        },
+        "why": "十亿行以上，行存宽表做分析型扫描（按某几列聚合）要读整行所有列，IO 浪费极大。列存只读涉及的列，向量化批量处理，分析查询快一个数量级。",
+        "decision": {
+          "question": "分析查询怎么存？",
+          "options": [
+            "行存宽表做分析 —— 读整行所有列，IO 浪费",
+            "列存（Parquet/ClickHouse） —— 只读相关列，向量化批处理",
+            "建一堆二级索引 —— 列一多索引爆炸，写放大",
+            "全量导数仓 —— 最彻底，但链路长、时效差"
+          ],
+          "chosen": "热数据行存扛点查，分析列异步物化到列存（Parquet/列存引擎）",
+          "tradeoff": "代价是要维护「行存→列存」的同步链路，且列存有同步延迟。但十亿行上的分析查询，这个代价远小于行存全列扫描。"
+        },
+        "sql": "-- 行存热表保留点查所需的列；分析用的宽列异步同步到列存。\n-- 这里给出列存的「分区 + 排序」DDL 思路（以 ClickHouse 风格示意）：\n-- CREATE TABLE wide_columar (\n--   tenant_id UInt64, region UInt16, category UInt16,\n--   amount Decimal(14,2), created_at DateTime\n-- ) ENGINE = MergeTree\n-- PARTITION BY toYYYYMM(created_at)\n-- ORDER BY (tenant_id, region, category, created_at);  -- 排序键即索引\n--\n-- 关键：列存的 ORDER BY 同时是稀疏索引，决定扫描能否跳块（granule）。\nSELECT region, COUNT(*) FROM wide_columar\nWHERE tenant_id = 123 AND created_at >= '2026-09-01'\nGROUP BY region;  -- 只扫 tenant_id/created_at 涉及的列与块",
+        "code": "/**\n * 场景：宽表检索 / 切片：行存→列存同步\n * 适用参数：数据规模 ≥ 10 亿行\n * 依赖规则：DATA-SCHM-001, REL-CTNR-005, REL-LOG-002\n * JDK：21\n */\npackage com.example.wide.sync;\n\nimport java.util.List;\n\n/**\n * 行存热表 → 列存分析表的同步作业。\n * 为什么异步而非双写：双写要保证两个存储的事务一致，几乎做不到且把写路径拖死。\n * 异步同步有延迟但写路径干净，列存分析本就接受分钟级时延。\n */\npublic final class RowToColumnSync {\n    private final ChangeLogSource source;\n    private final ColumnStoreSink sink;\n\n    public RowToColumnSync(ChangeLogSource source, ColumnStoreSink sink) {\n        this.source = source;\n        this.sink = sink;\n    }\n\n    /** 批量拉变更、批量写列存。逐条写列存会丧失向量化批处理的优势。 */\n    public int syncBatch() {\n        List<Change> batch = source.poll(5000);\n        if (batch.isEmpty()) {\n            return 0;\n        }\n        // 批量写入列存：列存的优势在批，逐条 INSERT 等于自废武功。\n        sink.appendBatch(batch);\n        source.ack(batch);\n        return batch.size();\n    }\n\n    public interface ChangeLogSource {\n        List<Change> poll(int max);\n\n        void ack(List<Change> batch);\n    }\n\n    public interface ColumnStoreSink {\n        void appendBatch(List<Change> batch);\n    }\n\n    public record Change(long id, int region, int category, java.math.BigDecimal amount) {\n    }\n}\n",
+        "highlights": [
+          {
+            "mark": "sink.appendBatch(batch);",
+            "title": "批量写列存",
+            "text": "列存优势在向量化批处理，逐条 INSERT 等于自废武功。一次写一批才是列存的正确用法。",
+            "rule": "DATA-SCHM-001"
+          },
+          {
+            "mark": "List<Change> batch = source.poll(5000);",
+            "title": "批量拉取变更",
+            "text": "5000 一批平衡延迟与吞吐。太小批列存优势发挥不出，太大延迟高、内存压力大。",
+            "rule": "REL-LOG-002"
+          }
+        ],
+        "pitfalls": [
+          "双写行存和列存保事务一致 —— 做不到且把写路径拖死，应异步同步。",
+          "逐条写列存 —— 丧失向量化批处理优势，分析查询照样慢。",
+          "列存 ORDER BY 选错列 —— 稀疏索引跳不了块，扫描退化为全扫。"
+        ],
+        "notSuitable": [
+          "数据量不到 10 亿：行存加索引足够，列存链路是净成本。",
+          "纯点查无分析：列存优势用不上。"
+        ],
+        "relatedRules": [
+          "DATA-SCHM-001",
+          "REL-CTNR-005",
+          "REL-LOG-002",
+          "REL-EXCP-002"
+        ],
+        "refs": [
+          {
+            "title": "ClickHouse — MergeTree 引擎与 ORDER BY 稀疏索引",
+            "url": "https://clickhouse.com/docs/engines/table-engines/mergetree-family/mergetree"
+          },
+          {
+            "title": "Apache Parquet — 列存格式",
+            "url": "https://parquet.apache.org/docs/file-format/"
+          }
+        ]
+      },
+      {
+        "id": "hot-cold-tier",
+        "order": 4,
+        "goal": "冷热分层（覆盖真实缺口：归档与冷热分层）",
+        "layer": "设计",
+        "when": {
+          "cold": [
+            "cold",
+            "mixed"
+          ]
+        },
+        "why": "宽表历史数据越积越多，90% 查询只查近期，却要为一百亿行全量维护索引与缓冲。冷热分层让热数据小、缓冲命中率高，冷数据低成本归档。",
+        "decision": {
+          "question": "冷热怎么分？",
+          "options": [
+            "全量留热存储 —— 越存越慢，成本线性飙升",
+            "按时间分区 + 冷归档 —— 近期热、历史冷，DROP 旧分区秒级",
+            "按访问频率迁移 —— 精准但需统计",
+            "只留近期，更早删除 —— 最简单但丢历史"
+          ],
+          "chosen": "按时间分区：近 90 天热表，更早数据归档到对象存储/列存",
+          "tradeoff": "代价是查询要按时间路由，冷数据查询延迟高。但宽表 99% 查询查近期，代价可接受。"
+        },
+        "sql": "-- 按时间分区：历史数据 DROP PARTITION 是元数据操作秒级完成，DELETE 是行操作亿级要几小时。\nALTER TABLE wide_fact\n  PARTITION BY RANGE (TO_DAYS(created_at)) (\n    PARTITION p_hot  VALUES LESS THAN (TO_DAYS(NOW()) - 90),\n    PARTITION p_cold VALUES LESS THAN MAXVALUE\n  );\n\n-- 归档：把 90 天前数据导出到对象存储/列存后，DROP 旧分区。先导出再 DROP，顺序反了数据丢。\n-- 冷数据查询走列存表 wide_columar，不经过热表。\nALTER TABLE wide_fact DROP PARTITION p_cold;",
+        "code": "/**\n * 场景：宽表检索 / 切片：冷热分层\n * 适用参数：冷热分层需求 = 需分层 / 混合\n * 依赖规则：DATA-SCHM-001, REL-CTNR-005, REL-LOG-002\n * JDK：21\n */\npackage com.example.wide.tier;\n\nimport java.time.Instant;\nimport java.time.temporal.ChronoUnit;\n\n/**\n * 冷热分层路由。\n * 为什么按时间而不是访问频率：宽表历史查询分布极度偏斜（99% 查近期），\n * 按时间分层实现简单、效果足够；访问频率统计本身要额外存储与计算。\n */\npublic final class WideTierRouter {\n    /** 热层保留天数。超过即降级到冷存储。 */\n    private static final int HOT_DAYS = 90;\n\n    private WideTierRouter() {\n    }\n\n    /** 该记录应落在哪一层。查询时先打热表，未命中再打冷列存。 */\n    public static Tier tierOf(Instant createdAt, Instant now) {\n        long age = ChronoUnit.DAYS.between(createdAt, now);\n        return age <= HOT_DAYS ? Tier.HOT : Tier.COLD;\n    }\n\n    /** 是否到了归档时机：冷数据定期导出后删除热表分区。 */\n    public static boolean shouldArchive(Instant createdAt, Instant now) {\n        // 归档作业失败必须跳过而非裸删，否则冷数据凭空消失。\n        return ChronoUnit.DAYS.between(createdAt, now) > HOT_DAYS;\n    }\n\n    public enum Tier {\n        HOT, COLD\n    }\n}\n",
+        "highlights": [
+          {
+            "mark": "private static final int HOT_DAYS = 90;",
+            "title": "近 90 天热层",
+            "text": "宽表 99% 查询查近期。热层体积小，缓冲池命中率高；冷数据稀释索引是整库变慢主因。",
+            "rule": "DATA-SCHM-001"
+          },
+          {
+            "mark": "return ChronoUnit.DAYS.between(createdAt, now) > HOT_DAYS;",
+            "title": "按年龄归档",
+            "text": "按时间分层实现简单效果足够。归档失败必须跳过而非裸删，否则冷数据凭空消失。",
+            "rule": "REL-CTNR-005"
+          }
+        ],
+        "pitfalls": [
+          "全量留热存储 —— 越存越慢，缓冲池被冷数据冲掉。",
+          "归档先 DROP 再导出 —— 顺序反了数据直接丢，且不报错。",
+          "用访问频率分层却没统计能力 —— 分层退化成拍脑袋，路由错误。"
+        ],
+        "notSuitable": [
+          "全热数据（无历史查询分离需求）：分层路由是净复杂度。",
+          "数据量极小：分区与归档收益不抵维护成本。"
+        ],
+        "relatedRules": [
+          "DATA-SCHM-001",
+          "REL-CTNR-005",
+          "REL-LOG-002",
+          "DATA-SCHM-003"
+        ],
+        "refs": [
+          {
+            "title": "MySQL 8.0 — Partitioning by RANGE",
+            "url": "https://dev.mysql.com/doc/refman/8.0/en/partitioning-range.html"
+          },
+          {
+            "title": "TiDB / ClickHouse — 冷热分层实践",
+            "note": "热行存 + 冷列存的典型分层"
+          }
+        ]
+      },
+      {
+        "id": "bitmap-skip",
+        "order": 5,
+        "goal": "位图 / 跳数索引应对多条件组合",
+        "layer": "设计",
+        "when": {
+          "dims": [
+            "d8"
+          ]
+        },
+        "why": "8 维任意组合查询，单一复合索引最多覆盖最左前缀，其余条件只能回表过滤。位图索引/跳数索引（skip index）可以为每个低基数列独立建索引，组合时做位图交并。",
+        "decision": {
+          "question": "8 维组合怎么加速？",
+          "options": [
+            "为每个组合建复合索引 —— 列数一多索引爆炸",
+            "位图索引（每低基数列一个） —— 组合时位图 AND/OR",
+            "跳数索引（min/max per block） —— 扫描前跳过不可能命中的块",
+            "ES 之类的倒排 —— 最灵活但引入整套外部栈"
+          ],
+          "chosen": "低基数列建位图索引 + 高基数列建跳数索引，组合用位图运算",
+          "tradeoff": "代价是写时要维护位图（写放大），且位图对高基数列（如 user_id）不适用。位图适合「性别/状态/地区」这类低基数列。"
+        },
+        "sql": "-- 跳数索引（以 ClickHouse 风格示意）：每个 granule 记录 min/max，扫描前跳过不命中的块。\n-- CREATE TABLE wide_columar (...) ENGINE = MergeTree\n-- ORDER BY (tenant_id, created_at)\n-- SETTINGS index_granularity = 8192;\n-- 另对低基数列建 bitmap（以 Doris/Bitmap 示意）：\n-- CREATE INDEX idx_status ON wide_fact (status) USING BITMAP;\n-- 8 维组合：status=1 AND region=3 AND category=5 ... 各列位图 AND 即得命中行集合。\nSELECT COUNT(*) FROM wide_fact\nWHERE status = 1 AND region = 3 AND category = 5 AND tenant_id = 123;",
+        "code": "/**\n * 场景：宽表检索 / 切片：位图索引组合查询\n * 适用参数：查询维度 = 8 维\n * 依赖规则：DATA-SCHM-001, DATA-SQL-001, REL-EXCP-002\n * JDK：21\n */\npackage com.example.wide.bitmap;\n\nimport java.util.BitSet;\n\n/**\n * 多条件组合的位图求交。\n * 为什么用位图：8 维低基数列，每个列建一个 BitSet（行号→是否命中），\n * 组合条件就是多个 BitSet 做 AND，比嵌套循环过滤快几个数量级。\n */\npublic final class BitmapCombine {\n    /**\n     * 多个条件的位图求交：AND 语义。\n     * 空集合（无约束的条件）直接跳过，不能当成「全不匹配」。\n     */\n    public static BitSet and(BitSet... masks) {\n        BitSet result = null;\n        for (BitSet m : masks) {\n            if (m == null) {\n                continue; // 该条件无约束，跳过而不是当空集\n            }\n            if (result == null) {\n                result = (BitSet) m.clone();\n            } else {\n                result.and(m);\n            }\n        }\n        return result == null ? new BitSet() : result;\n    }\n\n    /** OR 语义（任一条件命中）。 */\n    public static BitSet or(BitSet... masks) {\n        BitSet result = new BitSet();\n        for (BitSet m : masks) {\n            if (m != null) {\n                result.or(m);\n            }\n        }\n        return result;\n    }\n}\n",
+        "highlights": [
+          {
+            "mark": "if (m == null) {",
+            "title": "无约束条件要跳过",
+            "text": "某维没给约束时位图为 null，必须跳过而非当空集处理，否则 AND 会把所有行过滤掉（静默错结果）。",
+            "rule": "REL-EXCP-002"
+          },
+          {
+            "mark": "result.and(m);",
+            "title": "位图求交即组合",
+            "text": "8 维低基数列各自一个 BitSet，组合条件就是多个位图 AND，比嵌套循环过滤快几个数量级。",
+            "rule": "DATA-SCHM-001"
+          }
+        ],
+        "pitfalls": [
+          "给高基数列（user_id）建位图 —— 基数接近行数，位图退化为行号集，毫无优势。",
+          "无约束条件当空集处理 —— 组合 AND 会把所有行过滤掉，返回空结果而不报错，极难发现。",
+          "为每个 8 维组合建复合索引 —— 索引数爆炸，写放大拖死写入。"
+        ],
+        "notSuitable": [
+          "查询维度 ≤ 3：复合索引即可，位图是额外复杂度。",
+          "全是高基数列：位图不适用，应上倒排/列存。"
+        ],
+        "relatedRules": [
+          "DATA-SCHM-001",
+          "DATA-SQL-001",
+          "REL-EXCP-002",
+          "DATA-SQL-002"
+        ],
+        "refs": [
+          {
+            "title": "Apache Doris — Bitmap 索引",
+            "url": "https://doris.apache.org/docs/dev/table-design/index/bitmap-index"
+          },
+          {
+            "title": "ClickHouse — Skipping Indexes",
+            "url": "https://clickhouse.com/docs/engines/table-engines/mergetree-family/mergetree#table_engine-mergetree-data_skipping-indexes"
+          }
+        ]
+      },
+      {
+        "id": "search-pushdown",
+        "order": 6,
+        "goal": "谓词下推与预聚合",
+        "layer": "数据访问",
+        "when": {
+          "qps": [
+            "q10k",
+            "q100k"
+          ]
+        },
+        "why": "高并发检索下，把过滤推到存储层（谓词下推）能大幅减少扫描与传输的数据量。而高频固定维度的聚合，应提前预计算而不是每次现算。",
+        "decision": {
+          "question": "高并发怎么降扫描量？",
+          "options": [
+            "应用层拉全量再过滤 —— 网络与内存双重浪费",
+            "谓词下推到存储层 —— 存储层就完成过滤",
+            "高频聚合预计算 —— 查时直接读结果",
+            "物化视图 —— 见下一切片"
+          ],
+          "chosen": "谓词下推（让引擎在扫描期就过滤）+ 高频聚合走预计算表",
+          "tradeoff": "代价是预计算表要保持与基表同步（见物化视图/对账）。但高并发下，少扫一万行就少一万行的 IO 与网络。"
+        },
+        "sql": "-- 谓词下推：把 WHERE 条件下推到扫描期，存储引擎在读盘时就过滤（而非读出后应用层筛）。\n-- 列存引擎天然支持；行存靠索引。这是为什么组合查询要尽量用索引列做等值/范围。\nSELECT region, COUNT(*) AS cnt\nFROM wide_fact\nWHERE tenant_id = 123 AND created_at >= '2026-09-01'   -- 这两列能下推\nGROUP BY region;\n\n-- 高频的固定维度聚合，预计算到汇总表，查询直接读：\nCREATE TABLE `wide_rollup_region` (\n  `tenant_id`   BIGINT       NOT NULL,\n  `stat_date`   DATE         NOT NULL,\n  `region`      SMALLINT     NOT NULL,\n  `cnt`         BIGINT       NOT NULL,\n  `amount_sum`  DECIMAL(18,2) NOT NULL,\n  PRIMARY KEY (`tenant_id`, `stat_date`, `region`)\n) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='按地区预聚合';",
+        "code": "/**\n * 场景：宽表检索 / 切片：谓词下推与预聚合\n * 适用参数：查询并发 ≥ 1 万\n * 依赖规则：DATA-SQL-002, WEB-CTRL-005, REL-LOG-002\n * JDK：21\n */\npackage com.example.wide.pushdown;\n\nimport org.springframework.jdbc.core.JdbcTemplate;\nimport javax.sql.DataSource;\nimport java.util.List;\n\n/**\n * 高并发检索：尽量让过滤发生在存储层。\n * 为什么应用层拉全量再筛不可取：高并发下每请求多传几万行，网络与内存同时爆。\n * 查询列必须显式、LIMIT 必须带上限。\n */\npublic final class PushdownQuery {\n    private final JdbcTemplate jdbc;\n\n    public PushdownQuery(DataSource ds) {\n        this.jdbc = new JdbcTemplate(ds);\n    }\n\n    /** 走预聚合表：查询直接读汇总结果，不扫基表。 */\n    public List<RegionRow> byRegion(long tenantId, java.time.LocalDate day) {\n        String sql = \"SELECT region, cnt, amount_sum FROM wide_rollup_region\"\n                + \" WHERE tenant_id = ? AND stat_date = ? ORDER BY cnt DESC LIMIT ?\";\n        return jdbc.query(sql, (rs, n) -> new RegionRow(rs.getInt(\"region\"),\n                rs.getLong(\"cnt\"), rs.getBigDecimal(\"amount_sum\")), tenantId, day, 100);\n    }\n\n    public record RegionRow(int region, long cnt, java.math.BigDecimal amountSum) {\n    }\n}\n",
+        "highlights": [
+          {
+            "mark": "WHERE tenant_id = ? AND stat_date = ? ORDER BY cnt DESC LIMIT ?",
+            "title": "读预聚合表",
+            "text": "高频固定维度聚合预计算后，查询直接读汇总结果，不再扫基表。高并发下这是数量级的节省。",
+            "rule": "DATA-SQL-002"
+          },
+          {
+            "mark": "ORDER BY cnt DESC LIMIT ?",
+            "title": "LIMIT 带上限",
+            "text": "无上限分页会一次扫海量行，缓冲池打穿。服务端必须兜底上限。",
+            "rule": "WEB-CTRL-005"
+          }
+        ],
+        "pitfalls": [
+          "应用层拉全量再过滤 —— 高并发下每请求多传几万行，网络内存双爆。",
+          "预聚合表与基表不同步 —— 查到的是过期汇总，静默错数据。",
+          "不加 LIMIT —— 一次扫全分区，预聚合的节省被抵消。"
+        ],
+        "notSuitable": [
+          "查询并发低：拉全量再筛代价可忽略。",
+          "聚合维度极不固定：无法预计算，应上列存现算。"
+        ],
+        "relatedRules": [
+          "DATA-SQL-002",
+          "WEB-CTRL-005",
+          "REL-LOG-002",
+          "DATA-SQL-001"
+        ],
+        "refs": [
+          {
+            "title": "Query Plan — Predicate Pushdown",
+            "note": "存储层提前过滤是扫描量下降的关键"
+          },
+          {
+            "title": "物化视图与预聚合",
+            "url": "https://en.wikipedia.org/wiki/Materialized_view"
+          }
+        ]
+      },
+      {
+        "id": "pagination-keyset",
+        "order": 7,
+        "goal": "宽表 keyset 分页",
+        "layer": "数据访问",
+        "when": {
+          "rows": [
+            "r100m",
+            "r1b",
+            "r10b"
+          ]
+        },
+        "why": "宽表数据量大，OFFSET 深分页（LIMIT 1000000,20）是「读前 N 行再丢弃」，行数破亿后代价从毫秒变秒级，用户翻得越深越慢。",
+        "decision": {
+          "question": "深分页怎么办？",
+          "options": [
+            "OFFSET 深分页 —— 扫过前 N 行再丢，亿级行上是秒级",
+            "keyset 游标 —— 用排序键做半开区间，代价恒定",
+            "限制最大翻页深度 —— 产品改交互",
+            "预计算每页 id 列表 —— 读时直接 IN"
+          ],
+          "chosen": "keyset 分页 + 限制最大翻页深度",
+          "tradeoff": "代价是不能直接跳到第 500 页。但亿级宽表上「任意跳页」本就是假承诺——它慢到没人真用。"
+        },
+        "sql": "-- 上一页最后一行 (created_at='2026-09-20 10:00:00.123', id=987654321)\n-- keyset：把排序键整体当元组比较，半开区间不重不漏。\nSELECT id, tenant_id, amount, created_at\nFROM   wide_fact\nWHERE  tenant_id = ?\n  AND  (created_at, id) < (?, ?)     -- 半开区间，严格小于游标\nORDER  BY created_at DESC, id DESC\nLIMIT  ?;\n\n-- 总数不实时算：宽表 COUNT(*) 扫整索引，UI 用估算值即可。\nSELECT TABLE_ROWS FROM information_schema.TABLES\nWHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'wide_fact';",
+        "code": "/**\n * 场景：宽表检索 / 切片：keyset 分页\n * 适用参数：数据规模 ≥ 1 亿行\n * 依赖规则：DATA-SQL-002, WEB-DTO-001, REL-EXCP-002\n * JDK：21\n */\npackage com.example.wide.page;\n\nimport org.springframework.jdbc.core.JdbcTemplate;\nimport javax.sql.DataSource;\nimport java.time.LocalDateTime;\nimport java.util.List;\n\n/**\n * keyset（游标）分页。\n * 为什么不用 OFFSET：OFFSET N 的代价是「读出前 N 行再丢弃」，\n * keyset 代价恒定——靠索引直接定位游标位置。两者在 1 万行差别看不出，亿级是两个数量级。\n */\npublic final class WideKeysetPage {\n    private static final int MAX_PAGE = 200;\n\n    private final JdbcTemplate jdbc;\n\n    public WideKeysetPage(DataSource ds) {\n        this.jdbc = new JdbcTemplate(ds);\n    }\n\n    public record Keyset(LocalDateTime createdAt, long id) {\n    }\n\n    public List<Row> page(long tenantId, Keyset cursor, int pageSize) {\n        int size = Math.min(Math.max(pageSize, 1), MAX_PAGE);\n        String base = \"SELECT id, tenant_id, amount, created_at FROM wide_fact\"\n                + \" WHERE tenant_id = ?\";\n        if (cursor == null) {\n            return jdbc.query(base + \" ORDER BY created_at DESC, id DESC LIMIT ?\",\n                    (rs, n) -> toRow(rs), tenantId, size);\n        }\n        // 半开区间 (created_at, id) < (?, ?)：索引键整体比较，能完整吃上复合索引。\n        return jdbc.query(base + \" AND (created_at, id) < (?, ?) ORDER BY created_at DESC, id DESC LIMIT ?\",\n                (rs, n) -> toRow(rs), tenantId, cursor.createdAt(), cursor.id(), size);\n    }\n\n    private Row toRow(java.sql.ResultSet rs) throws java.sql.SQLException {\n        return new Row(rs.getLong(\"id\"), rs.getLong(\"tenant_id\"),\n                rs.getBigDecimal(\"amount\"), rs.getTimestamp(\"created_at\").toLocalDateTime());\n    }\n\n    public record Row(long id, long tenantId, java.math.BigDecimal amount, LocalDateTime createdAt) {\n    }\n}\n",
+        "highlights": [
+          {
+            "mark": "AND (created_at, id) < (?, ?)",
+            "title": "行表达式半开区间",
+            "text": "MySQL 8.0 的 (a,b) < (?,?) 能完整吃上复合索引，不退化成 filesort，代价恒定。",
+            "rule": "DATA-SQL-002"
+          },
+          {
+            "mark": "private static final int MAX_PAGE = 200;",
+            "title": "页大小硬上限",
+            "text": "无上限 pageSize 会被前端传 10 万，缓冲池当场打穿。边界必须写服务端，不能靠约定。",
+            "rule": "WEB-DTO-001"
+          }
+        ],
+        "pitfalls": [
+          "用 OFFSET 深分页 —— 扫过前 N 行再丢弃，亿级行上是秒级。",
+          "游标只带 created_at 不带 id —— 毫秒级时间戳会重复，翻页漏行/重行。",
+          "不加 LIMIT 上限 —— 一次扫全表，keyset 也救不回。"
+        ],
+        "notSuitable": [
+          "必须支持任意跳页的后台管理：keyset 不适用，应改用 id 预取方案。",
+          "数据量小：OFFSET 足够快，keyset 复杂度不划算。"
+        ],
+        "relatedRules": [
+          "DATA-SQL-002",
+          "WEB-DTO-001",
+          "REL-EXCP-002",
+          "DATA-SQL-001"
+        ],
+        "refs": [
+          {
+            "title": "Use the Index, Luke! — Keyset Pagination",
+            "url": "https://use-the-index-luke.com/sql/partial-results/fetch-next-page"
+          },
+          {
+            "title": "MySQL 8.0 — Row Expressions",
+            "url": "https://dev.mysql.com/doc/refman/8.0/en/row-expressions.html"
+          }
+        ]
+      },
+      {
+        "id": "materialized-view",
+        "order": 8,
+        "goal": "物化视图与定时刷新（覆盖真实缺口：预计算/视图）",
+        "layer": "设计",
+        "when": {
+          "latency": [
+            "l50"
+          ]
+        },
+        "why": "P99 压到 50ms 且查询维度多，实时算（哪怕走索引）往往来不及。把高频查询的结果预先算好存成物化视图，查询直接读成品。",
+        "decision": {
+          "question": "极致延迟怎么拿？",
+          "options": [
+            "每次实时算 —— 简单，但 P99<50ms 难达标",
+            "物化视图定时刷新 —— 读成品，延迟=刷新间隔",
+            "增量维护物化视图 —— 实时但实现复杂",
+            "上缓存 —— 见缓存场景，但组合爆炸难全覆盖"
+          ],
+          "chosen": "高频固定查询建物化视图（定时全量/增量刷新），P99 从算变读",
+          "tradeoff": "代价是视图有刷新延迟（分钟级），且刷新作业要幂等可重跑。但 P99<50ms 下，这是把「计算」换成「读取」的唯一现实路径。"
+        },
+        "sql": "-- 物化视图：把高频聚合结果物化。以 MySQL 定时刷新示意。\nCREATE TABLE `mv_top_region_day` (\n  `tenant_id`   BIGINT       NOT NULL,\n  `stat_date`   DATE         NOT NULL,\n  `region`      SMALLINT     NOT NULL,\n  `cnt`         BIGINT       NOT NULL,\n  `amount_sum`  DECIMAL(18,2) NOT NULL,\n  `refreshed_at` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),\n  PRIMARY KEY (`tenant_id`, `stat_date`, `region`)\n) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='物化视图 · 每日地区 Top';\n\n-- 刷新：先算后换表（原子 rename），避免刷新中途读者看到半截数据。\n-- 用 INSERT ... SELECT 算好写临时表，再 RENAME 覆盖，保证读到的永远是完整视图。\nINSERT INTO mv_top_region_day_tmp\nSELECT tenant_id, CURDATE(), region, COUNT(*), SUM(amount)\nFROM wide_fact WHERE created_at >= CURDATE() - INTERVAL 1 DAY GROUP BY tenant_id, region;\nRENAME TABLE mv_top_region_day TO mv_top_region_day_old, mv_top_region_day_tmp TO mv_top_region_day;",
+        "code": "/**\n * 场景：宽表检索 / 切片：物化视图刷新\n * 适用参数：P99 < 50ms\n * 依赖规则：SVC-TX-001, REL-RETRY-001, REL-LOG-001\n * JDK：21\n */\npackage com.example.wide.mv;\n\nimport org.springframework.jdbc.core.JdbcTemplate;\nimport javax.sql.DataSource;\n\n/**\n * 物化视图刷新作业。\n * 为什么用「先写临时表再 RENAME」而不是「DELETE 再 INSERT」：\n * 后者在刷新中途会让读者看到半截/空数据，且 DELETE+INSERT 不是原子的。\n * RENAME 是元数据操作，读者要么看到旧表要么看到新表，不会出现中间态。\n */\npublic final class MaterializedViewRefresher {\n    private final JdbcTemplate jdbc;\n\n    public MaterializedViewRefresher(DataSource ds) {\n        this.jdbc = new JdbcTemplate(ds);\n    }\n\n    /** 刷新：算进临时表，再原子 rename 覆盖。失败只记日志，不抛异常中断整批。 */\n    public void refresh() {\n        try {\n            jdbc.update(\"INSERT INTO mv_top_region_day_tmp\"\n                    + \" SELECT tenant_id, CURDATE(), region, COUNT(*), SUM(amount)\"\n                    + \" FROM wide_fact WHERE created_at >= CURDATE() - INTERVAL 1 DAY GROUP BY tenant_id, region\");\n            // 原子切换：读者不会看到刷新中途的半截数据\n            jdbc.update(\"RENAME TABLE mv_top_region_day TO mv_top_region_day_old,\"\n                    + \" mv_top_region_day_tmp TO mv_top_region_day\");\n        } catch (RuntimeException ex) {\n            // 刷新失败不能让调度作业崩；记日志，下次重跑（INSERT 幂等可重跑）。\n            org.slf4j.LoggerFactory.getLogger(MaterializedViewRefresher.class)\n                    .error(\"mv refresh failed: {}\", ex.toString());\n        }\n    }\n}\n",
+        "highlights": [
+          {
+            "mark": "jdbc.update(\"RENAME TABLE mv_top_region_day TO mv_top_region_day_old,",
+            "title": "原子切换避免中间态",
+            "text": "DELETE+INSERT 非原子，刷新中途读者看到空/半截数据。RENAME 是元数据操作，读者只看到完整旧表或新表。",
+            "rule": "SVC-TX-001"
+          },
+          {
+            "mark": ".error(\"mv refresh failed: {}\", ex.toString());",
+            "title": "失败只记日志不中断",
+            "text": "刷新失败不能让调度作业崩；记日志，下次重跑。INSERT 是幂等的，重跑无害。",
+            "rule": "REL-LOG-001"
+          }
+        ],
+        "pitfalls": [
+          "DELETE 再 INSERT 刷新 —— 非原子，刷新中途读者看到空/半截数据。",
+          "刷新作业失败直接抛异常 —— 调度中断，视图越过期越久。",
+          "视图从不刷新 —— 读到的永远是第一次算的旧结果，静默错数据。"
+        ],
+        "notSuitable": [
+          "P99 宽松（≥200ms）：实时算即可，物化视图的刷新链路不划算。",
+          "查询维度极不固定：无法物化，应上列存现算。"
+        ],
+        "relatedRules": [
+          "SVC-TX-001",
+          "REL-RETRY-001",
+          "REL-LOG-001",
+          "REL-EXCP-001"
+        ],
+        "refs": [
+          {
+            "title": "Materialized View 模式",
+            "url": "https://en.wikipedia.org/wiki/Materialized_view"
+          },
+          {
+            "title": "MySQL — Atomic RENAME TABLE",
+            "url": "https://dev.mysql.com/doc/refman/8.0/en/rename-table.html"
+          }
+        ]
+      }
+    ],
+    "notSuitableFor": [
+      {
+        "when": {
+          "rows": [
+            "r10m"
+          ],
+          "dims": [
+            "d1"
+          ],
+          "qps": [
+            "q100"
+          ]
+        },
+        "reason": "1000 万行 + 单维查询 + 100 QPS：单表加一两个索引足够，复合索引列序、覆盖索引、列存、物化视图这套全是净成本。"
+      },
+      {
+        "when": {
+          "rows": [
+            "r10m",
+            "r100m"
+          ],
+          "latency": [
+            "l1s"
+          ],
+          "cold": [
+            "hot"
+          ]
+        },
+        "reason": "量级与延迟都很宽松且全热，本场景大部分切片不会激活。你真正要做的只是「把 WHERE 列建对索引」，不需要列存与分层。"
+      }
+    ],
+    "architecture": {
+      "nodes": [
+        {
+          "id": "app",
+          "label": "查询服务",
+          "kind": "backend",
+          "tier": 0
+        },
+        {
+          "id": "rowstore",
+          "label": "行存热表",
+          "kind": "database",
+          "tier": 1,
+          "whenAny": {
+            "rows": [
+              "r100m",
+              "r1b",
+              "r10b"
+            ]
+          }
+        },
+        {
+          "id": "index",
+          "label": "覆盖/复合索引",
+          "kind": "database",
+          "tier": 1,
+          "whenAny": {
+            "latency": [
+              "l50",
+              "l200"
+            ]
+          }
+        },
+        {
+          "id": "columnstore",
+          "label": "列存分析",
+          "kind": "database",
+          "tier": 2,
+          "whenAny": {
+            "rows": [
+              "r1b",
+              "r10b"
+            ],
+            "rw": [
+              "rw91"
+            ]
+          }
+        },
+        {
+          "id": "mv",
+          "label": "物化视图",
+          "kind": "database",
+          "tier": 2,
+          "whenAny": {
+            "latency": [
+              "l50"
+            ]
+          }
+        },
+        {
+          "id": "colds",
+          "label": "冷归档",
+          "kind": "cloud",
+          "tier": 3,
+          "whenAny": {
+            "cold": [
+              "cold",
+              "mixed"
+            ]
+          }
+        }
+      ],
+      "links": [
+        {
+          "from": "app",
+          "to": "rowstore",
+          "label": "点查"
+        },
+        {
+          "from": "app",
+          "to": "index",
+          "label": "走索引"
+        },
+        {
+          "from": "app",
+          "to": "columnstore",
+          "label": "分析"
+        },
+        {
+          "from": "app",
+          "to": "mv",
+          "label": "读成品"
+        },
+        {
+          "from": "rowstore",
+          "to": "colds",
+          "label": "归档"
+        }
+      ]
+    },
+    "sliceCount": 8,
+    "driverCount": 6,
+    "ruleCount": 13,
+    "lines": 447
+  }
+}

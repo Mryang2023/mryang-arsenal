@@ -1,0 +1,9 @@
+server:
+  port: 8081
+
+spring:
+  datasource:
+    url: jdbc:mysql://dev-mysql:3306/demo
+    username: demo
+    password: dev-secret-should-be-masked
+    driver-class-name: com.mysql.cj.jdbc.Driver

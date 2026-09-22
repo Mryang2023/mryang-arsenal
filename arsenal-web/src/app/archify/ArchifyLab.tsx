@@ -21,6 +21,7 @@ import {
 } from '@/lib/arsenal-api';
 import { downloadText } from '@/lib/zip';
 import CopyButton from '@/components/CopyButton';
+import CodeIntake from '@/components/CodeIntake';
 
 /**
  * Archify 出图台 —— 一个**与军火库选型无关**的出图入口。
@@ -55,6 +56,8 @@ export default function ArchifyLab() {
   const [busy, setBusy] = useState(false);
   const [artifact, setArtifact] = useState<Artifact | null>(null);
   const [copiedBytes, setCopiedBytes] = useState<number | null>(null);
+  /** 这份 IR 是从哪来的（手粘 / 选型 / 代码扫描）。出图后要能说清它的出处 */
+  const [sourceLabel, setSourceLabel] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -98,14 +101,22 @@ export default function ArchifyLab() {
     setCopiedBytes(null);
   }, []);
 
-  /** 用装配台当前的选型现场生成一份 IR —— 让本页开箱就有东西可出图。 */
-  const loadSample = useCallback(() => {
-    const picks = loadPicksSnapshot();
-    const ir = buildArchifyIr(buildTechArch(picks), { title: '军火库当前选型' });
+  /** 从别处拿来的 IR（选型快照 / 代码扫描）：填进输入框，并记住它的出处 */
+  const adoptIr = useCallback((ir: unknown, label: string) => {
     setText(JSON.stringify(ir, null, 2));
     setArtifact(null);
     setCopiedBytes(null);
+    setSourceLabel(label);
   }, []);
+
+  /** 用装配台当前的选型现场生成一份 IR —— 让本页开箱就有东西可出图。 */
+  const loadSample = useCallback(() => {
+    const picks = loadPicksSnapshot();
+    adoptIr(
+      buildArchifyIr(buildTechArch(picks), { title: '军火库当前选型' }),
+      '装配台当前选型快照'
+    );
+  }, [adoptIr]);
 
   const deliver = useCallback(async () => {
     if (precheck.kind !== 'ok') return;
@@ -136,8 +147,9 @@ export default function ArchifyLab() {
           </span>
         </h2>
         <p className="mt-1 max-w-[860px] text-[11px] leading-[18px] text-fgMuted">
-          粘贴或上传<strong className="font-semibold text-fg">任意项目</strong>的架构 IR，本页先做本地预检，再交给后端渲染成一张通过九项构图检查的
-          HTML 交付图。输入不限于军火库自己的选型 —— 契约只有一条：给一份 IR，还一张图。
+          粘贴或上传<strong className="font-semibold text-fg">任意项目</strong>的架构 IR，或直接从<strong className="font-semibold text-fg">代码仓库</strong>扫一份事实出来（本地目录 / https git / zip），
+          本页先做本地预检，再交给后端渲染成一张通过九项构图检查的 HTML 交付图。
+          输入不限于军火库自己的选型 —— 契约只有一条：给一份 IR，还一张图。
         </p>
       </div>
 
@@ -204,6 +216,14 @@ export default function ArchifyLab() {
               </div>
             )}
           </div>
+
+          <CodeIntake onIr={adoptIr} />
+
+          {sourceLabel && (
+            <p className="text-[10.5px] text-fgFaint">
+              IR 出处：<span className="text-fgMuted">{sourceLabel}</span>
+            </p>
+          )}
 
           <PrecheckCard state={precheck} />
 

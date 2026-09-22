@@ -5,13 +5,17 @@ import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 
 import java.io.IOException;
+import java.nio.file.FileVisitOption;
+import java.nio.file.FileVisitResult;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.SimpleFileVisitor;
+import java.nio.file.attribute.BasicFileAttributes;
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.EnumSet;
 import java.util.List;
-import java.util.stream.Stream;
 
 /**
  * 扫描编排：一个目录 → 一份 {@code ProjectFacts}。
@@ -51,8 +55,19 @@ public final class ProjectScanner {
     public ObjectNode scan(SourceResolver source) {
         long start = System.currentTimeMillis();
         try (source) {
-            List<Path> files = collect(source.root());
+            boolean[] collectFlags = new boolean[2];
+            List<Path> files = collect(source.root(), collectFlags);
             ScanContext ctx = new ScanContext(source.root(), files, mapper, ScanGuard.TIMEOUT_MS);
+            if (collectFlags[0]) {
+                ctx.warn(ScanNote.DEPTH_EXCEEDED,
+                        "目录深度超过 " + ScanGuard.MAX_DEPTH + " 层，更深的内容没有扫");
+                ctx.markTruncated();
+            }
+            if (collectFlags[1]) {
+                ctx.warn(ScanNote.TRUNCATED,
+                        "总字节超过上限 " + ScanGuard.MAX_TOTAL_BYTES / 1024 / 1024 + "MB，不再收集更多文件");
+                ctx.markTruncated();
+            }
             ObjectNode facts = mapper.createObjectNode();
             facts.put("schemaVersion", 1);
             facts.put("root", source.rootName());
@@ -113,30 +128,73 @@ public final class ProjectScanner {
     }
 
     /**
-     * 收集待读文件。跳过目录在 {@link ScanGuard#skipDir}；
-     * 每个文件都要过「真实路径在根内」这一关 —— 软链外跳在这里被拦下并留一条 note。
+     * 收集待读文件。
+     *
+     * <p>用 {@link java.nio.file.Files#walkFileTree} 而不是 {@code Files.walk}：
+     * 后者的跳过只能 {@code continue}，流本身照样会走进 {@code node_modules} 把几万个文件
+     * 枚举一遍（我们不读，但磁盘要转）。{@code SKIP_SUBTREE} 才是真的不进那个目录。
+     *
+     * <p>{@code flags[0]} = 有过深目录被截断，{@code flags[1]} = 总字节触顶被截断。
+     * 两者都**必须留 note**：扫描器悄悄少读一部分，事实 JSON 看起来就像「这个仓库就这么多」。
+     * 每个文件还要过「真实路径在根内」这一关 —— 软链外跳在这里被拦下。
      */
-    private List<Path> collect(Path root) {
+    private List<Path> collect(Path root, boolean[] flags) {
         List<Path> out = new ArrayList<>();
-        try (Stream<Path> walk = Files.walk(root, ScanGuard.MAX_DEPTH)) {
-            for (Path p : (Iterable<Path>) walk::iterator) {
-                if (p.equals(root)) continue;
-                String name = p.getFileName() == null ? "" : p.getFileName().toString();
-                if (Files.isDirectory(p)) {
-                    if (ScanGuard.skipDir(name)) continue;
-                    continue;
-                }
-                if (!Files.isRegularFile(p)) continue;
-                if (!ScanGuard.isInside(root, p)) {
-                    // 软链指向仓库外 —— 读了就等于把仓库外的东西塞进事实
-                    continue;
-                }
-                if (!ScanGuard.readable(name)) continue;
-                out.add(p);
-                if (out.size() > ScanGuard.MAX_FILES) {
-                    throw ScanException.tooLarge("文件数超过上限 " + ScanGuard.MAX_FILES);
-                }
-            }
+        long[] bytes = {0};
+        try {
+            Files.walkFileTree(root, EnumSet.noneOf(FileVisitOption.class), ScanGuard.MAX_DEPTH + 1,
+                    new SimpleFileVisitor<Path>() {
+                        @Override
+                        public FileVisitResult preVisitDirectory(Path dir, BasicFileAttributes attrs) {
+                            if (dir.equals(root)) return FileVisitResult.CONTINUE;
+                            String name = dir.getFileName() == null ? "" : dir.getFileName().toString();
+                            if (ScanGuard.skipDir(name)) return FileVisitResult.SKIP_SUBTREE;
+                            // 多走一层是为了「看得见过深」：不走就不知道有没有被截断
+                            if (ScanGuard.depth(root, dir) > ScanGuard.MAX_DEPTH) {
+                                flags[0] = true;
+                                return FileVisitResult.SKIP_SUBTREE;
+                            }
+                            return FileVisitResult.CONTINUE;
+                        }
+
+                        @Override
+                        public FileVisitResult visitFile(Path p, BasicFileAttributes attrs) {
+                            // maxDepth 边界上的**目录**会被 walkFileTree 报到这里来
+                            // （实测：22 层目录里 d21 走的是 visitFile，而它是个目录）。
+                            // 不判这一下，超深的部分就静默消失 —— 正是这一层要防的事。
+                            int d = ScanGuard.depth(root, p);
+                            if (attrs.isDirectory() || d > ScanGuard.MAX_DEPTH) {
+                                if (d > ScanGuard.MAX_DEPTH) flags[0] = true;
+                                return FileVisitResult.CONTINUE;
+                            }
+                            String name = p.getFileName() == null ? "" : p.getFileName().toString();
+                            if (!ScanGuard.isInside(root, p)) {
+                                // 软链指向仓库外 —— 读了就等于把仓库外的东西塞进事实
+                                return FileVisitResult.CONTINUE;
+                            }
+                            if (!ScanGuard.readable(name)) return FileVisitResult.CONTINUE;
+                            long size = attrs.size();
+                            if (bytes[0] + size > ScanGuard.MAX_TOTAL_BYTES) {
+                                // 不是拒绝这一次扫描，是到此为止：已收集的部分照样出事实
+                                flags[1] = true;
+                                return FileVisitResult.TERMINATE;
+                            }
+                            bytes[0] += size;
+                            out.add(p);
+                            if (out.size() > ScanGuard.MAX_FILES) {
+                                throw ScanException.tooLarge("文件数超过上限 " + ScanGuard.MAX_FILES);
+                            }
+                            return FileVisitResult.CONTINUE;
+                        }
+
+                        @Override
+                        public FileVisitResult visitFileFailed(Path p, IOException e) {
+                            // 单个文件读不了不该让整次扫描失败，跳过即可
+                            return FileVisitResult.CONTINUE;
+                        }
+                    });
+        } catch (ScanException e) {
+            throw e;
         } catch (IOException e) {
             throw ScanException.badRequest("目录无法遍历：" + e.getMessage());
         }

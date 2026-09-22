@@ -19,3 +19,20 @@
 1. **派子 agent 并行写数据模块时，让每个模块导出 `*_EXTRA` 由生成器合并**，而不是多人改同一份大文件 —— 本次五个数据模块 + 一份 canvas 元信息全程零编辑丢失。
 2. **加维度必须同时补全部预设**，否则新槽位是 `empty`/`missing-recommended`，`verify:arch` 会一次红三条。
 3. **改完 `arsenal.json` 的 verifyChain 必须重跑 `sync-content.mjs`**，`VERIFY_TOTAL` 才更新。
+
+---
+
+## 后续一轮 · 形态 UI 收尾 + 只读巡检（用户口述「只改代码，不要检验」）
+
+- **补完了第 2 棒欠的页面层**：`topology.ts` 的 `buildTopologySvg()` / `topologyModeSvg()` 落地，
+  新增 `DeliveryDeck.tsx`（九块动态交付台 + 四动作 + 五滑杆）与 `TopologyPicker.tsx`（图形化形态选择器），
+  并把 `nodeTopologyMap()` 接进 `arch-canvas`（架构图叠层随形态变）、`deploy.ts`（replicas 由
+  `effectiveAppReplicas` 算）、`picks-store`（双通道快照）、`TechArch.tsx`。
+- **只读巡检抓出一个 P0 编译级事故**：`Inspector.tsx` / `StackComposer.tsx` 新增 `meta: StackPicksMeta`
+  撞上早有的 `const meta = STATUS_META[audit.status]` → 同作用域重复声明，编译不过，
+  且 `<Picker meta={meta}>` 会把状态文案当形态数据传。**已改名 `statusMeta` 修掉**，并写进
+  项目 MEMORY.md 硬约定第 14 条。
+- **未做**：一次都没跑 `tsc` / `build` / verify（用户明令不改检验）；高阶技术可选项、四条新策略、
+  verify 四处数字同步、README 均未动。
+
+**下次接手第一件事**：这两个 TSR 组件**从未编译过**，先跑一次类型检查/构建再谈其余。

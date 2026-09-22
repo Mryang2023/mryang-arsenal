@@ -1,0 +1,954 @@
+# -*- coding: utf-8 -*-
+"""场景 5 · 异步管道：事务消息、幂等消费、顺序性、重试与死信、补偿。
+
+用户的原始提问：「我们下了单要异步通知库存、积分、物流，怎么保证不丢、不重、不乱序，
+失败了还能重试，最好能查到每一笔到底处理到哪了」。
+
+核心矛盾：异步解耦带来的「可靠性三连」—— 不丢、不重、不乱序 —— 每一项都要专门设计，
+而且彼此制约（要保证顺序就难并行，要保证不重就要幂等，要保证不丢就要重试+死信）。
+"""
+
+DRIVERS = [
+    {'id': 'tps', 'name': '管道吞吐', 'unit': 'msg/s', 'hint': '峰值消息速率',
+     'levels': [
+         {'id': 't1k', 'label': '1 千'},
+         {'id': 't10k', 'label': '1 万'},
+         {'id': 't100k', 'label': '10 万'},
+         {'id': 't1m', 'label': '100 万'},
+     ]},
+    {'id': 'delivery', 'name': '投递语义', 'unit': '', 'hint': '能接受哪种重复/丢失',
+     'levels': [
+         {'id': 'atleast', 'label': '至少一次'},
+         {'id': 'exactly', 'label': '精确一次'},
+         {'id': 'best', 'label': '尽力'},
+     ]},
+    {'id': 'failRate', 'name': '下游失败率', 'unit': '', 'hint': '决定重试/死信压力',
+     'levels': [
+         {'id': 'f0', 'label': '无失败'},
+         {'id': 'f001', 'label': '0.1%'},
+         {'id': 'f1', 'label': '1%'},
+         {'id': 'f10', 'label': '10%'},
+     ]},
+    {'id': 'window', 'name': '对账窗口', 'unit': '', 'hint': '多久核对一次最终一致',
+     'levels': [
+         {'id': 'wsec', 'label': '秒级'},
+         {'id': 'wmin', 'label': '分钟级'},
+         {'id': 'whour', 'label': '小时级'},
+         {'id': 'wday', 'label': '天级'},
+     ]},
+    {'id': 'services', 'name': '参与服务数', 'unit': '个', 'hint': '跨服务越多越需编排',
+     'levels': [
+         {'id': 's1', 'label': '1'},
+         {'id': 's5', 'label': '5'},
+         {'id': 's10', 'label': '10'},
+     ]},
+    {'id': 'order', 'name': '顺序性要求', 'unit': '', 'hint': '消息间的先后约束',
+     'levels': [
+         {'id': 'onone', 'label': '无序'},
+         {'id': 'okey', 'label': '按 key 分区有序'},
+         {'id': 'oall', 'label': '全局有序'},
+     ]},
+]
+
+CONFLICTS = [
+    {'when': {'delivery': ['exactly'], 'order': ['oall'], 'tps': ['t1m']},
+     'text': '精确一次 + 全局有序 + 百万 msg/s 三者不可兼得：精确一次要去重/事务，全局有序要单分区串行，'
+             '两者叠加吞吐必然受限。请放宽为「按 key 有序 + 至少一次 + 消费端幂等」，或接受更低吞吐。'},
+    {'when': {'delivery': ['exactly'], 'services': ['s10'], 'window': ['wday']},
+     'text': '精确一次 + 10 个服务 + 天级对账窗口：跨 10 个服务的精确一次要做分布式事务或复杂协调，'
+             '而天级窗口又让不一致长期不被发现。要么缩短窗口，要么降级为至少一次+幂等。'},
+    {'when': {'failRate': ['f10'], 'delivery': ['exactly']},
+     'text': '下游 10% 失败率 + 精确一次：重试会把失败消息反复投递，精确一次的协调开销被放大成主要成本。'
+             '先把下游失败率压下去，再谈精确一次。'},
+]
+
+NOT_SUITABLE_FOR = [
+    {'when': {'services': ['s1'], 'tps': ['t1k'], 'delivery': ['best']},
+     'reason': '单服务 + 1 千 msg/s + 尽力投递：直接同步调用或简单 MQ 就够了，事务消息、Saga、死信这一套全是净成本。'},
+    {'when': {'services': ['s1'], 'window': ['wsec']},
+     'reason': '只有 1 个服务且要求秒级对账：没有跨服务不一致需要核对，这条切片不会激活，'
+               '你真正要的是「本地事务别出错」而不是「异步管道最终一致」。'},
+]
+
+SLICES = [
+    {
+        'id': 'transactional-outbox',
+        'order': 1,
+        'goal': '事务消息：本地事务与发消息的原子性',
+        'layer': '设计',
+        'when': {'delivery': ['atleast', 'exactly'], 'services': ['s5', 's10']},
+        'why': '下单后_notify 库存/积分/物流，如果「写库」和「发消息」分两步，任何一步失败都会不一致：'
+               '库写了消息没发，或消息发了库没写。必须用事务消息保证原子。',
+        'decision': {
+            'question': '本地事务和发消息怎么保证原子？',
+            'options': [
+                '先写库再发消息（裸发） —— 发消息失败就丢，库消息不一致',
+                '事务内发消息 —— 事务回滚了消息却发出去了，反向不一致',
+                '本地事务表（Outbox）+ 轮询/CDC 转发 —— 写库和写 outbox 同事务，后台转发',
+                'MQ 事务消息（半消息） —— 依赖 MQ 事务能力，但仍有边界',
+            ],
+            'chosen': '本地事务表 Outbox：业务表与 outbox 表同库同事务，后台轮询/CDC 转发到 MQ',
+            'tradeoff': '代价是多一张 outbox 表 + 一个转发作业，且转发要幂等（消息可能重复）。'
+                        '但这是唯一把「写库」和「发消息」绑死在同一事务里的做法。',
+        },
+        'sql': r"""-- 发件箱：与业务表同库同事务写入。后台作业或 CDC 读它转发到 MQ。
+CREATE TABLE `outbox_event` (
+  `id`          BIGINT       NOT NULL AUTO_INCREMENT,
+  `aggregate_id` VARCHAR(64) NOT NULL COMMENT '聚合根 id（如订单号）',
+  `event_type`  VARCHAR(64)  NOT NULL,
+  `payload`     JSON         NOT NULL COMMENT '事件内容，供下游消费',
+  `status`      TINYINT      NOT NULL DEFAULT 0 COMMENT '0待发 1已发 2失败',
+  `created_at`  DATETIME(3)  NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  PRIMARY KEY (`id`),
+  KEY `idx_status_created` (`status`, `created_at`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='事务发件箱 · 与业务同事务';""",
+        'code': r"""/**
+ * 场景：异步管道 / 切片：事务发件箱 Outbox
+ * 适用参数：投递语义 = 至少一次/精确一次 且 参与服务 ≥ 5
+ * 依赖规则：SVC-TX-001, SVC-TX-002, SVC-TX-003
+ * JDK：21
+ */
+package com.example.pipe.outbox;
+
+import org.springframework.stereotype.Repository;
+import org.springframework.transaction.annotation.Transactional;
+
+import javax.sql.DataSource;
+import java.sql.Connection;
+import java.sql.PreparedStatement;
+
+/**
+ * Outbox 写入。
+ * 为什么不能用 @Transactional 里直接调 MQ 发消息（SVC-TX-003 明确禁止）：
+ * 事务方法内执行远程调用/发消息，事务提交前消息就可能已发出，
+ * 一旦事务回滚，消息却已经出去了 —— 反向不一致，比「没发」更难查。
+ * 正确做法：业务写入与 outbox 写入同事务，消息由独立作业转发。
+ */
+@Repository
+public class OutboxWriter {
+    private final DataSource ds;
+
+    public OutboxWriter(DataSource ds) {
+        this.ds = ds;
+    }
+
+    /** 业务写与 outbox 写必须在同一个本地事务里：要么都成，要么都回滚。 */
+    @Transactional(rollbackFor = Exception.class)
+    public void writeOrderWithEvent(String orderId, String payload) throws Exception {
+        try (Connection c = ds.getConnection()) {
+            c.setAutoCommit(false);
+            try (PreparedStatement ps = c.prepareStatement(
+                    "INSERT INTO orders (order_id, status) VALUES (?, 'NEW')")) {
+                ps.setString(1, orderId);
+                ps.executeUpdate();
+            }
+            // outbox 与 orders 同连接同事务：这一步成功，上面的订单才真正可关联。
+            try (PreparedStatement ps = c.prepareStatement(
+                    "INSERT INTO outbox_event (aggregate_id, event_type, payload, status)"
+                            + " VALUES (?, 'ORDER_CREATED', ?, 0)")) {
+                ps.setString(1, orderId);
+                ps.setString(2, payload);
+                ps.executeUpdate();
+            }
+            c.commit();
+        }
+    }
+}
+""",
+        'highlights': [
+            {'mark': '@Transactional(rollbackFor = Exception.class)',
+             'title': '业务与 outbox 同事务',
+             'text': '业务写与 outbox 写必须在同一本地事务：要么都成要么都回滚，这是「写库和发消息原子」的唯一落地方式。',
+             'rule': 'SVC-TX-001'},
+            {'mark': 'c.commit();',
+             'title': '事务内不碰 MQ',
+             'text': '@Transactional 方法内禁止发远程消息（SVC-TX-003）：事务未提交消息就发出去，回滚后消息却已出，反向不一致。',
+             'rule': 'SVC-TX-003'},
+        ],
+        'pitfalls': [
+            '事务内直接发 MQ —— 提交前消息已发，回滚后反向不一致。',
+            '@Transactional 不设 rollbackFor —— 检查异常不回滚，outbox 与业务数据分裂。',
+            'outbox 与业务不在同一事务 —— 两边各自成功失败，失去原子性。',
+        ],
+        'notSuitable': [
+            '单服务且同步调用：没有跨服务最终一致问题，直接调用更清楚。',
+            '投递语义是「尽力」：不要求不丢，outbox 的复杂度不划算。',
+        ],
+        'relatedRules': ['SVC-TX-001', 'SVC-TX-002', 'SVC-TX-003', 'REL-EXCP-001'],
+        'refs': [
+            {'title': 'Outbox Pattern — Microservice.io',
+             'url': 'https://microservices.io/patterns/data/transactional-outbox.html'},
+            {'title': 'Debezium — CDC 转发 Outbox', 'url': 'https://debezium.io/documentation/reference/stable/transformations/outbox-event-router.html'},
+        ],
+    },
+    {
+        'id': 'idempotent-consume',
+        'order': 2,
+        'goal': '幂等消费（重复消息只生效一次）',
+        'layer': '设计',
+        'when': {'delivery': ['atleast', 'exactly']},
+        'why': '至少一次语义下，同一条消息会被投递多次（重试、重放、分区再均衡都会造成重复）。'
+               '如果消费逻辑不是幂等的，重复消费就会重复扣款、重复发券。',
+        'decision': {
+            'question': '怎么保证幂等？',
+            'options': [
+                '不处理重复 —— 重复消息重复生效，下游数据错乱',
+                '用消息 id 去重表 —— 每条消息先查「是否已处理」',
+                '业务主键幂等（UPSERT/状态机） —— 同一业务 id 重复操作无副作用',
+                '乐观锁版本号 —— 版本不匹配直接跳过',
+            ],
+            'chosen': '消息去重表（message_id 唯一键）+ 业务状态机兜底',
+            'tradeoff': '代价是每次消费多一次去重查/插。但相比重复扣款，这个开销必须付。'
+                        '去重表要和业务写同事务，否则「处理了但没记去重」会重复。',
+        },
+        'sql': r"""-- 消费去重表：message_id 唯一键，重复消息 INSERT 命中冲突即跳过。
+CREATE TABLE `consume_dedup` (
+  `message_id`  VARCHAR(64)  NOT NULL COMMENT 'MQ 投递的消息唯一 id',
+  `biz_key`     VARCHAR(64)  NOT NULL COMMENT '业务幂等键（如 订单号+事件类型）',
+  `handled_at`  DATETIME(3)  NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  PRIMARY KEY (`message_id`),
+  KEY `idx_biz` (`biz_key`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='消费去重 · 防重复生效';""",
+        'code': r"""/**
+ * 场景：异步管道 / 切片：幂等消费
+ * 适用参数：投递语义 = 至少一次 / 精确一次
+ * 依赖规则：DATA-SQL-001, SVC-EXCP-001, REL-RETRY-001
+ * JDK：21
+ */
+package com.example.pipe.idempotent;
+
+import java.util.Set;
+
+/**
+ * 幂等消费闸门。
+ * 为什么去重要用 message_id 而不是只靠业务键：业务键可能合法重复（真实两次下单），
+ * message_id 才是 MQ 这一跳的「同一封邮件」标识，区分「重投」与「真重下单」。
+ */
+public final class IdempotentConsumer {
+    private final DedupDao dao;
+
+    public IdempotentConsumer(DedupDao dao) {
+        this.dao = dao;
+    }
+
+    /**
+     * 尝试消费。返回 false 表示这封消息已处理过（重投），应跳过。
+     * INSERT IGNORE：命中唯一键冲突返回 0，原子且跨实例可靠（比内存 Set 稳）。
+     */
+    public boolean tryConsume(String messageId) {
+        int affected = dao.insertIgnore(messageId);
+        return affected > 0;
+    }
+
+    /** 批量去重：一次事务插一批，冲突的返回 0 但不影响其余。 */
+    public Set<String> filterNew(Set<String> ids) {
+        return dao.insertIgnoreBatch(ids);
+    }
+
+    public interface DedupDao {
+        int insertIgnore(String messageId);
+
+        Set<String> insertIgnoreBatch(Set<String> messageIds);
+    }
+}
+""",
+        'highlights': [
+            {'mark': 'int affected = dao.insertIgnore(messageId);',
+             'title': 'INSERT IGNORE 去重',
+             'text': '命中唯一键冲突返回 0，原子且跨实例可靠。内存 Set 在多消费者下会漏判重复。',
+             'rule': 'DATA-SQL-001'},
+            {'mark': 'return affected > 0;',
+             'title': '返回是否首次',
+             'text': 'false = 重投，调用方跳过。把「重复投递」做成可接受的语义，而不是靠运气。',
+             'rule': 'REL-RETRY-001'},
+        ],
+        'pitfalls': [
+            '用内存 Set 去重 —— 多实例各一份视图，重复照样生效。',
+            '去重表与业务写不同事务 —— 「处理了但没记去重」导致同一消息二次生效。',
+            '用业务键代替 message_id —— 真实两次下单会被误判为重复而丢消息。',
+        ],
+        'notSuitable': [
+            '投递语义是「尽力」且下游可重复生效：去重开销不划算。',
+            '消息天然不重复（如只发一次的同步通道）：不需要。',
+        ],
+        'relatedRules': ['DATA-SQL-001', 'SVC-EXCP-001', 'REL-RETRY-001', 'REL-EXCP-002'],
+        'refs': [
+            {'title': 'Kafka — Idempotent Consumer',
+             'url': 'https://kafka.apache.org/documentation/#semantics'},
+            {'title': '《Designing Data-Intensive Applications》— Duplicate Suppression',
+             'note': '用唯一键做幂等去重'},
+        ],
+    },
+    {
+        'id': 'retry-backoff-dlq',
+        'order': 3,
+        'goal': '重试、退避与死信队列',
+        'layer': '设计',
+        'when': {'failRate': ['f001', 'f1', 'f10']},
+        'why': '下游失败率一旦大于 0，就必须有重试。但「无脑重试」会把瞬时故障放大成持续打击，'
+               '还会把死消息（永远失败的）反复消费占满资源。',
+        'decision': {
+            'question': '失败怎么处理？',
+            'options': [
+                '同步无限重试 —— 调用方线程被占，故障扩散',
+                '固定间隔重试 —— 所有消费者同步重试，制造重试风暴',
+                '指数退避 + 抖动 + 最大次数 —— 给下游恢复时间，错峰',
+                '超过重试上限进死信 —— 不阻塞正常消息，人工/定时补偿',
+            ],
+            'chosen': '指数退避（带抖动）+ 上限 N 次，超限进死信队列',
+            'tradeoff': '代价是要运维死信队列（消费、排查、重投）。但比起「坏消息占满消费线程」，死信是必须的泄压阀。',
+        },
+        'sql': r"""-- 死信表：超过重试上限的消息落这里，不阻塞主队列，等人工或定时补偿。
+CREATE TABLE `dead_letter` (
+  `id`          BIGINT       NOT NULL AUTO_INCREMENT,
+  `topic`       VARCHAR(128) NOT NULL,
+  `payload`     JSON         NOT NULL,
+  `last_error`  VARCHAR(512) NOT NULL COMMENT '最后一次失败原因',
+  `retry_count` INT          NOT NULL DEFAULT 0,
+  `created_at`  DATETIME(3)  NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  PRIMARY KEY (`id`),
+  KEY `idx_created` (`created_at`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='死信 · 超限消息泄压阀';""",
+        'code': r"""/**
+ * 场景：异步管道 / 切片：重试退避与死信
+ * 适用参数：下游失败率 > 0（0.1% / 1% / 10%）
+ * 依赖规则：REL-RETRY-001, REL-TIME-001, SVC-EXCP-001
+ * JDK：21
+ */
+package com.example.pipe.retry;
+
+import java.util.concurrent.ThreadLocalRandom;
+import java.util.concurrent.TimeUnit;
+
+/**
+ * 退避计算器。
+ * 为什么用指数退避 + 抖动：固定间隔会让所有消费者同步重试，制造「重试风暴」；
+ * 指数给下游恢复时间，抖动避免多个消费者在同一时刻一起重试（共振）。
+ */
+public final class Backoff {
+    private static final long BASE_MS = 200L;
+    private static final int MAX_RETRIES = 5;
+
+    private Backoff() {
+    }
+
+    /** 第 n 次重试前该等多久。返回 200ms * 2^n 再叠 ±50% 抖动。 */
+    public static long waitMillis(int attempt) {
+        if (attempt <= 0 || attempt > MAX_RETRIES) {
+            throw new IllegalArgumentException("非法重试次数：" + attempt);
+        }
+        long exp = BASE_MS * (1L << (attempt - 1));
+        // 抖动：±50%，避免多消费者共振打同一下游
+        double jitter = 0.5 + ThreadLocalRandom.current().nextDouble();
+        return (long) (exp * jitter);
+    }
+
+    public static boolean shouldDeadLetter(int attempt) {
+        // 超过上限进死信，不阻塞主队列
+        return attempt > MAX_RETRIES;
+    }
+
+    public static void sleepSafe(long ms) throws InterruptedException {
+        // 禁止裸 Thread.sleep 做业务等待的语义混淆；这里仅退避，用 TimeUnit 明确单位。
+        TimeUnit.MILLISECONDS.sleep(ms);
+    }
+}
+""",
+        'highlights': [
+            {'mark': 'long exp = BASE_MS * (1L << (attempt - 1));',
+             'title': '指数退避',
+             'text': '每次重试间隔翻倍，给下游恢复时间。固定间隔会造成重试风暴——所有消费者同步打回来。',
+             'rule': 'REL-RETRY-001'},
+            {'mark': 'double jitter = 0.5 + ThreadLocalRandom.current().nextDouble();',
+             'title': '抖动防共振',
+             'text': '多个消费者若同一时刻重试会共振打同一下游。±50% 抖动把重试时间打散。',
+             'rule': 'REL-TIME-001'},
+            {'mark': 'return attempt > MAX_RETRIES;',
+             'title': '超限进死信',
+             'text': '坏消息（永远失败）不能无限重试占满消费线程。超过上限进死信，是主队列的泄压阀。',
+             'rule': 'SVC-EXCP-001'},
+        ],
+        'pitfalls': [
+            '同步无限重试 —— 调用方线程被占，故障从下游扩散到上游。',
+            '固定间隔重试 —— 所有消费者同步重试，制造重试风暴。',
+            '死信无人运维 —— 超限消息堆积，业务缺口越积越大，且不被发现。',
+        ],
+        'notSuitable': [
+            '下游失败率 0：不需要重试与死信的整套机制。',
+            '消息可随意丢弃（纯埋点）：直接跳过失败即可。',
+        ],
+        'relatedRules': ['REL-RETRY-001', 'REL-TIME-001', 'SVC-EXCP-001', 'REL-EXCP-002'],
+        'refs': [
+            {'title': 'AWS — Exponential Backoff and Jitter',
+             'url': 'https://aws.amazon.com/blogs/architecture/exponential-backoff-and-jitter/'},
+            {'title': 'RESILIENCE4J — Retry & TimeLimiter', 'url': 'https://resilience4j.readme.io/docs/retry'},
+        ],
+    },
+    {
+        'id': 'reconcile-compensate',
+        'order': 4,
+        'goal': '对账与补偿（最终一致兜底）',
+        'layer': '设计',
+        'when': {'window': ['wmin', 'whour'], 'services': ['s5', 's10']},
+        'why': '异步管道里，即使有幂等和重试，仍可能因各种边界（消息丢失、消费失败未进死信、时钟偏移）'
+               '导致跨服务数据不一致。必须有一个对账作业定期核对并补偿。',
+        'decision': {
+            'question': '不一致怎么兜底？',
+            'options': [
+                '不管 —— 不一致永久存在，越积越多',
+                '实时强一致（分布式事务） —— 吞吐与可用性代价极高',
+                '定时对账 + 补偿 —— 分钟/小时级核对，发现缺口就补',
+                '人工对账 —— 慢且不可靠',
+            ],
+            'chosen': '定时对账作业（按 window）+ 自动补偿，补偿要幂等可重跑',
+            'tradeoff': '代价是有一致性窗口（分钟到小时级），且补偿逻辑要幂等（可能重复补偿）。'
+                        '但这是异步架构下唯一现实的「最终一致」保证。',
+        },
+        'sql': r"""-- 对账快照：记录每个聚合根在各服务的预期状态，核对时发现缺口就生成补偿任务。
+CREATE TABLE `reconcile_cursor` (
+  `biz_key`     VARCHAR(64)  NOT NULL,
+  `expect_state` TINYINT    NOT NULL COMMENT '主服务预期状态',
+  `actual_state` TINYINT    NOT NULL DEFAULT 0 COMMENT '从服务实际状态',
+  `last_check`  DATETIME(3) NOT NULL,
+  `fixed`       TINYINT     NOT NULL DEFAULT 0 COMMENT '0未补偿 1已补偿',
+  PRIMARY KEY (`biz_key`),
+  KEY `idx_unfixed` (`fixed`, `last_check`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='对账游标 · 驱动补偿';""",
+        'code': r"""/**
+ * 场景：异步管道 / 切片：对账与补偿
+ * 适用参数：对账窗口 = 分钟/小时级 且 参与服务 ≥ 5
+ * 依赖规则：SVC-TX-001, REL-RETRY-001, REL-LOG-001
+ * JDK：21
+ */
+package com.example.pipe.reconcile;
+
+/**
+ * 对账作业。
+ * 为什么补偿必须可重跑：对账作业本身会失败、会重跑、会漏查，不幂等的补偿跑第二次就造出新错误。
+ * 用「UPSERT 目标状态」而不是「再发一次命令」做补偿，重复跑无害。
+ */
+public final class Reconciler {
+    private final StateDao dao;
+    private final Compensator comp;
+
+    public Reconciler(StateDao dao, Compensator comp) {
+        this.dao = dao;
+        this.comp = comp;
+    }
+
+    /** 扫描未补偿缺口并补偿。失败只记日志不抛异常，保证作业能继续扫下一批。 */
+    public int reconcileBatch() {
+        int fixed = 0;
+        for (Gap g : dao.unfixedGaps()) {
+            try {
+                // 补偿用 UPSERT（幂等）：重复跑不会重复生效
+                comp.upsertExpected(g.bizKey(), g.expectState());
+                dao.markFixed(g.bizKey());
+                fixed++;
+            } catch (RuntimeException ex) {
+                // 单条失败不该停掉整批；记日志便于后续人工/重跑。
+                org.slf4j.LoggerFactory.getLogger(Reconciler.class)
+                        .error("reconcile failed key={} err={}", g.bizKey(), ex.toString());
+            }
+        }
+        return fixed;
+    }
+
+    public record Gap(String bizKey, int expectState) {
+    }
+
+    public interface StateDao {
+        java.util.List<Gap> unfixedGaps();
+        void markFixed(String bizKey);
+    }
+
+    public interface Compensator {
+        void upsertExpected(String bizKey, int expectState);
+    }
+}
+""",
+        'highlights': [
+            {'mark': 'comp.upsertExpected(g.bizKey(), g.expectState());',
+             'title': '补偿用 UPSERT 幂等',
+             'text': '对账作业会重跑，不幂等的补偿跑第二次造出新错。UPSERT 目标状态重复跑无害。',
+             'rule': 'SVC-TX-001'},
+            {'mark': '.error("reconcile failed key={} err={}", g.bizKey(), ex.toString());',
+             'title': '单条失败记日志不中断',
+             'text': '禁止 System.out，用 SLF4J 占位符；单条缺口不该停掉整批扫描，否则越积越多。',
+             'rule': 'REL-LOG-001'},
+        ],
+        'pitfalls': [
+            '补偿用「再发一次命令」而非 UPSERT —— 重跑时重复生效，造出新错。',
+            '对账作业失败直接抛异常 —— 整批中断，缺口越积越多。',
+            '不做对账 —— 异步边界的不一致永久存在，最终靠客诉才发现。',
+        ],
+        'notSuitable': [
+            '参与服务只有 1 个：没有跨服务不一致需要核对。',
+            '对账窗口秒级且强一致：直接同步调用即可，不需要对账兜底。',
+        ],
+        'relatedRules': ['SVC-TX-001', 'REL-RETRY-001', 'REL-LOG-001', 'REL-EXCP-001'],
+        'refs': [
+            {'title': '最终一致性 — Reconciliation 模式', 'note': '定时核对 + 幂等补偿是异步架构的兜底'},
+            {'title': '《Patterns of Enterprise Application Architecture》— 补偿事务',
+             'url': 'https://martinfowler.com/eaaCatalog/'},
+        ],
+    },
+    {
+        'id': 'saga-orchestration',
+        'order': 5,
+        'goal': 'Saga 编排（跨服务长事务）',
+        'layer': '设计',
+        'when': {'services': ['s5', 's10']},
+        'why': '下单要依次调库存、积分、物流等多个服务，任一步失败都要把前面的步骤撤销。'
+               '分布式事务（2PC）锁资源太久、可用性差，Saga 用「一系列本地事务 + 补偿」更合适。',
+        'decision': {
+            'question': '跨服务长事务怎么做？',
+            'options': [
+                '2PC 分布式事务 —— 锁资源久、可用性差、任一参与者挂了全卡住',
+                'Saga 编排（Orchestration） —— 中心协调器驱动各步，失败发补偿',
+                'Saga 协同（Choreography） —— 事件驱动，无中心但难追踪',
+                '干脆不做 —— 不一致靠客诉发现',
+            ],
+            'chosen': 'Saga 编排：协调器驱动各步本地事务，每步配补偿动作',
+            'tradeoff': '代价是补偿逻辑要自己写且必须幂等，且中间状态对外可见（订单「部分完成」）。'
+                        '但比起 2PC 锁死资源，Saga 的可用性高得多。',
+        },
+        'sql': r"""-- Saga 执行表：记录每一步的执行与补偿状态，便于追踪与重跑。
+CREATE TABLE `saga_step` (
+  `saga_id`     VARCHAR(64)  NOT NULL,
+  `step_no`     TINYINT      NOT NULL,
+  `service`     VARCHAR(32)  NOT NULL,
+  `state`       TINYINT      NOT NULL DEFAULT 0 COMMENT '0待执行 1成功 2已补偿',
+  `compensated` TINYINT      NOT NULL DEFAULT 0,
+  `updated_at`  DATETIME(3)  NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  PRIMARY KEY (`saga_id`, `step_no`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='Saga 步骤状态';""",
+        'code': r"""/**
+ * 场景：异步管道 / 切片：Saga 编排协调器
+ * 适用参数：参与服务 ≥ 5
+ * 依赖规则：SVC-TX-002, SVC-EXCP-001, REL-RETRY-001
+ * JDK：21
+ */
+package com.example.pipe.saga;
+
+import java.util.List;
+
+/**
+ * Saga 协调器。
+ * 为什么失败要发补偿而不是回滚：跨服务没有共享事务，只有「正向步骤 + 对应反向补偿」。
+ * 协调器必须记录每步状态，这样进程崩溃重启后能「续跑」或「从失败步开始补偿」。
+ */
+public final class SagaOrchestrator {
+    private final SagaStore store;
+    private final List<Step> steps;
+
+    public SagaOrchestrator(SagaStore store, List<Step> steps) {
+        this.store = store;
+        this.steps = steps;
+    }
+
+    /** 正向执行；任一步失败，从它往前补偿已成功的步骤。 */
+    public void run(String sagaId) {
+        int done = store.completedSteps(sagaId);
+        for (int i = done; i < steps.size(); i++) {
+            Step s = steps.get(i);
+            try {
+                s.forward();
+                store.markSuccess(sagaId, i);
+            } catch (RuntimeException ex) {
+                // 补偿必须反向、幂等：已成功的步骤逐个撤销
+                for (int j = i; j >= 0; j--) {
+                    steps.get(j).compensate();
+                    store.markCompensated(sagaId, j);
+                }
+                throw new SagaAbortedException(sagaId, i, ex);
+            }
+        }
+    }
+
+    public interface Step {
+        void forward();
+
+        void compensate();
+    }
+
+    public interface SagaStore {
+        int completedSteps(String sagaId);
+
+        void markSuccess(String sagaId, int stepNo);
+
+        void markCompensated(String sagaId, int stepNo);
+    }
+
+    public static class SagaAbortedException extends RuntimeException {
+        public SagaAbortedException(String sagaId, int step, Throwable cause) {
+            super("saga " + sagaId + " aborted at step " + step, cause);
+        }
+    }
+}
+""",
+        'highlights': [
+            {'mark': 'store.markSuccess(sagaId, i);',
+             'title': '每步持久化状态',
+             'text': '协调器崩溃重启后能「续跑」而非从头，避免重复执行已成功的步骤。状态必须落库而不是只留内存。',
+             'rule': 'SVC-TX-002'},
+            {'mark': 'for (int j = i; j >= 0; j--) {',
+             'title': '反向补偿已成功步',
+             'text': '跨服务无共享事务，失败只能靠补偿撤销已成功的步骤。顺序必须反向，且每步补偿要幂等。',
+             'rule': 'REL-RETRY-001'},
+        ],
+        'pitfalls': [
+            '补偿不幂等 —— 重跑 Saga 时同一补偿生效两次，造出反向错误。',
+            '不记录步骤状态 —— 协调器崩溃后无法续跑，只能整 saga 重来，已成功步被重复执行。',
+            '用 2PC 做长事务 —— 锁资源太久，任一参与者挂了整条链路卡死。',
+        ],
+        'notSuitable': [
+            '单服务：没有跨服务事务，本地事务就够了。',
+            '所有步骤必须强一致原子提交：Saga 有中间可见状态，不满足。',
+        ],
+        'relatedRules': ['SVC-TX-002', 'SVC-EXCP-001', 'REL-RETRY-001', 'REL-EXCP-001'],
+        'refs': [
+            {'title': 'Saga Pattern — Microservice.io',
+             'url': 'https://microservices.io/patterns/data/saga.html'},
+            {'title': '《Designing Data-Intensive Applications》— 分布式事务与 Saga',
+             'note': '2PC vs Saga 的可用性与一致性权衡'},
+        ],
+    },
+    {
+        'id': 'partition-ordering',
+        'order': 6,
+        'goal': '顺序性：分区有序与全局有序',
+        'layer': '设计',
+        'when': {'order': ['okey', 'oall'], 'tps': ['t10k', 't100k', 't1m']},
+        'why': '很多业务要求「同一用户的事件按顺序处理」（如余额变更），否则会出现「先减后加」变「先加后减」的错误。'
+               '但全局有序等于单分区串行，吞吐上不去。',
+        'decision': {
+            'question': '顺序性怎么保证？',
+            'options': [
+                '全局单分区有序 —— 绝对有序，但吞吐被单分区锁死',
+                '按 key 分区有序 —— 同 key 同分区保序，不同 key 并行',
+                '不保证顺序 —— 简单，但状态类业务会错',
+                '消费端按版本号丢弃旧消息 —— 允许乱序到达但只认新版本',
+            ],
+            'chosen': '按业务 key 分区（同 key 落同分区保序）+ 消费端版本号兜底',
+            'tradeoff': '代价是 key 分布不均会热点（见热点问题），且全局跨 key 的顺序不保证。'
+                        '但「按 key 有序」覆盖了绝大多数状态类业务，吞吐还能横向扩展。',
+        },
+        'sql': r"""-- 消费端版本号：每条事件带单调递增的 seq，旧 seq 直接丢弃，防乱序导致的状态回退。
+CREATE TABLE `state_version` (
+  `biz_key`   VARCHAR(64) NOT NULL,
+  `version`   BIGINT      NOT NULL DEFAULT 0 COMMENT '已应用的最大事件 seq',
+  `state`     JSON        NOT NULL,
+  PRIMARY KEY (`biz_key`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='状态版本 · 乱序兜底';""",
+        'code': r"""/**
+ * 场景：异步管道 / 切片：分区有序与版本号兜底
+ * 适用参数：顺序性 = 按 key 有序/全局有序 且 吞吐 ≥ 1 万
+ * 依赖规则：DATA-SQL-001, CONC-POOL-001, REL-EXCP-002
+ * JDK：21
+ */
+package com.example.pipe.ordering;
+
+/**
+ * 乱序兜底：只应用比当前版本更新的事件，旧事件直接丢弃。
+ * 为什么需要它：即使按 key 分区保序，分区再均衡、重放也可能让旧事件后到。
+ * 版本号是最后一道防线，保证「先减后加」永远不会因为顺序翻转为「先加后减」。
+ */
+public final class VersionedState {
+    private final StateDao dao;
+
+    public VersionedState(StateDao dao) {
+        this.dao = dao;
+    }
+
+    /** 应用事件。eventSeq <= 当前版本直接丢弃（旧事件后到）。 */
+    public void apply(String bizKey, long eventSeq, String newState) {
+        long cur = dao.currentVersion(bizKey);
+        if (eventSeq <= cur) {
+            // 旧事件：不是错误，是正常兜底，不能当异常处理（异常语义被污染会掩盖真错误）。
+            return;
+        }
+        dao.upsert(bizKey, eventSeq, newState);
+    }
+
+    public interface StateDao {
+        long currentVersion(String bizKey);
+
+        void upsert(String bizKey, long version, String state);
+    }
+}
+""",
+        'highlights': [
+            {'mark': 'if (eventSeq <= cur) {',
+             'title': '旧事件直接丢弃',
+             'text': '分区再均衡/重放会让旧事件后到。版本号兜底是最后防线，保证状态不会被旧事件回退。',
+             'rule': 'DATA-SQL-001'},
+            {'mark': 'return;',
+             'title': '旧事件不是异常',
+             'text': '兜底逻辑用正常 return，不能用异常表达（异常语义被污染会掩盖真正的故障）。',
+             'rule': 'REL-EXCP-002'},
+        ],
+        'pitfalls': [
+            '全局单分区保序 —— 吞吐被单分区锁死，百万 msg/s 不可能达成。',
+            '不处理乱序 —— 重放/再均衡后旧事件后到，状态回退（先加后减）。',
+            '用异常表达「旧事件」 —— 异常语义被污染，真正故障被掩盖。',
+        ],
+        'notSuitable': [
+            '业务本就无序（如独立埋点）：不需要任何顺序保证。',
+            '吞吐低且可接受单分区：全局有序更简单直接。',
+        ],
+        'relatedRules': ['DATA-SQL-001', 'CONC-POOL-001', 'REL-EXCP-002', 'REL-EXCP-001'],
+        'refs': [
+            {'title': 'Kafka — Partitioning & Ordering Guarantees',
+             'url': 'https://kafka.apache.org/documentation/#intro_concepts_and_terms'},
+            {'title': '事件溯源 — 版本号/序列号兜底', 'note': '只应用大于当前版本的事件'},
+        ],
+    },
+    {
+        'id': 'monitor-tracing',
+        'order': 7,
+        'goal': '可观测：链路追踪与消费进度',
+        'layer': '运维',
+        'when': {'tps': ['t100k', 't1m']},
+        'why': '百万级 msg/s 下，一旦某环节积压或消费失败，没有可观测就等于盲飞：'
+               '你不知道消息卡在哪、重投了多少次、死信涨多快。',
+        'decision': {
+            'question': '可观测怎么做？',
+            'options': [
+                '不观测 —— 积压了都不知道，客诉才发现',
+                '只记日志 —— 量大后日志淹没信号，无法聚合',
+                '埋 TraceID + Lag 指标 —— 一条消息全链路可追溯，积压可告警',
+                '只监控 MQ 服务端 —— 看不到消费端业务成功率',
+            ],
+            'chosen': '全链路 TraceID 透传 + 消费 Lag/死信数/重试率指标上报',
+            'tradeoff': '代价是每条消息带 TraceID 透传，且要接指标系统。'
+                        '但高吞吐下「看不见」的代价远大于这点开销。',
+        },
+        'sql': r"""-- 消费进度对账：记录每个分区已提交 offset，与生产者水位比对就能算出 Lag。
+CREATE TABLE `consume_progress` (
+  `group_topic` VARCHAR(128) NOT NULL,
+  `partition`   INT          NOT NULL,
+  `committed`   BIGINT       NOT NULL DEFAULT 0 COMMENT '已提交 offset',
+  `updated_at`  DATETIME(3)  NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  PRIMARY KEY (`group_topic`, `partition`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='消费进度 · 算 Lag';""",
+        'code': r"""/**
+ * 场景：异步管道 / 切片：可观测与链路追踪
+ * 适用参数：管道吞吐 ≥ 10 万 msg/s
+ * 依赖规则：REL-LOG-002, REL-LOG-003, REL-CTNR-003
+ * JDK：21
+ */
+package com.example.pipe.observe;
+
+/**
+ * 消费埋点。
+ * 为什么 TraceID 要透传而不是每步重新生成：一条消息跨多个服务，只有同一个 TraceID
+ * 才能把全链路串起来。透传靠在消息头里带，而不是靠线程局部变量（跨线程/跨进程会丢）。
+ */
+public final class TraceContext {
+    public static final String TRACE_KEY = "X-Trace-Id";
+
+    private TraceContext() {
+    }
+
+    /** 从入站消息取 TraceID，没有就新生成。保证全链路同一标识。 */
+    public static String resolve(MessageHeaders headers) {
+        String t = headers.get(TRACE_KEY);
+        return (t != null && !t.isBlank()) ? t : java.util.UUID.randomUUID().toString();
+    }
+
+    /** 向下游消息头写入，保持透传。 */
+    public static void propagate(MessageBuilder mb, String traceId) {
+        mb.setHeader(TRACE_KEY, traceId);
+    }
+
+    public interface MessageHeaders {
+        String get(String key);
+    }
+
+    public interface MessageBuilder {
+        void setHeader(String key, String value);
+    }
+}
+""",
+        'highlights': [
+            {'mark': 'public static final String TRACE_KEY = "X-Trace-Id";',
+             'title': 'TraceID 统一键',
+             'text': '全链路追踪的前提是同一个 key。命名统一才能被各中间件识别与透传。',
+             'rule': 'REL-LOG-002'},
+            {'mark': 'return (t != null && !t.isBlank()) ? t : java.util.UUID.randomUUID().toString();',
+             'title': '有则透传，无则生成',
+             'text': '保证一条消息全链路同一 TraceID。用 UUID 兜底而非抛异常，入口消息不一定带。',
+             'rule': 'REL-LOG-003'},
+        ],
+        'pitfalls': [
+            '每步重新生成 TraceID —— 全链路串不起来，无法定位卡点。',
+            '只监控 MQ 服务端 —— 看不到消费端业务成功率，积压根因被掩盖。',
+            '用线程局部变量传 TraceID —— 跨线程/跨进程丢失，异步链路断掉。',
+        ],
+        'notSuitable': [
+            '吞吐极低（如 1 千 msg/s）：问题肉眼可见，重观测设施不划算。',
+            '纯单机内存管道：没有跨进程链路需要追踪。',
+        ],
+        'relatedRules': ['REL-LOG-002', 'REL-LOG-003', 'REL-CTNR-003', 'REL-EXCP-002'],
+        'refs': [
+            {'title': 'OpenTelemetry — Context Propagation',
+             'url': 'https://opentelemetry.io/docs/concepts/context-propagation/'},
+            {'title': 'Kafka — Consumer Lag 监控', 'url': 'https://kafka.apache.org/documentation/#impl_consumermetrics'},
+        ],
+    },
+    {
+        'id': 'dlq-replay',
+        'order': 8,
+        'goal': '死信重放与运维闭环（覆盖真实缺口：死信重放）',
+        'layer': '运维',
+        'when': {},
+        'why': '死信队列不是终点：消息进死信意味着业务缺口（扣款没完成、通知没发）。'
+               '如果只进不出，缺口永远在。必须有「排查 → 修复 → 重放 → 验证」的闭环。',
+        'decision': {
+            'question': '死信怎么处理？',
+            'options': [
+                '进死信就不管 —— 业务缺口永久存在',
+                '手工改库补数 —— 无记录、易错、不可审计',
+                '排查修复后重放死信 —— 可审计、可重跑',
+                '自动重放不修复 —— 同样的错反复进死信，死循环',
+            ],
+            'chosen': '死信可查询 + 修复后按批次重放 + 重放结果回写',
+            'tradeoff': '代价是要做死信管理界面/作业，且重放前要确认根因已修复（否则重放进死循环）。'
+                        '但这是异步管道「最终一致」能被信任的前提。',
+        },
+        'sql': r"""-- 死信重放记录：每次重放哪批、结果如何，可审计可重跑。
+CREATE TABLE `dead_letter_replay` (
+  `replay_id`   VARCHAR(64)  NOT NULL,
+  `dead_ids`    JSON         NOT NULL COMMENT '本次重放的死信 id 列表',
+  `result`      TINYINT      NOT NULL DEFAULT 0 COMMENT '0进行 1成功 2部分失败',
+  `operator`    VARCHAR(64)  NOT NULL COMMENT '操作人/自动任务',
+  `created_at`  DATETIME(3)  NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  PRIMARY KEY (`replay_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='死信重放审计';""",
+        'code': r"""/**
+ * 场景：异步管道 / 切片：死信重放闭环
+ * 适用参数：恒真 —— 死信必须能被消费，否则是业务缺口
+ * 依赖规则：REL-LOG-002, SVC-EXCP-001, REL-RETRY-001
+ * JDK：21
+ */
+package com.example.pipe.dlq;
+
+import java.util.List;
+
+/**
+ * 死信重放。
+ * 为什么重放前必须确认根因已修复：没修复就重放，同样的错会立刻再进死信，
+ * 形成「重放 → 失败 → 再进死信」的死循环，把重放作业也拖死。
+ */
+public final class DeadLetterReplayer {
+    private final DeadLetterDao dlq;
+    private final Consumer processor;
+
+    public DeadLetterReplayer(DeadLetterDao dlq, Consumer processor) {
+        this.dlq = dlq;
+        this.processor = processor;
+    }
+
+    /** 按批次重放。只重放被标记可重放的；失败的留在死信，不强行清空。 */
+    public ReplayResult replayBatch(String batchId, List<String> deadIds) {
+        int ok = 0, fail = 0;
+        for (String id : deadIds) {
+            try {
+                processor.process(dlq.payloadOf(id));
+                dlq.remove(id);
+                ok++;
+            } catch (RuntimeException ex) {
+                // 失败留在死信，记录原因；不抛异常中断整批。
+                dlq.updateError(id, ex.toString());
+                fail++;
+            }
+        }
+        return new ReplayResult(batchId, ok, fail);
+    }
+
+    public record ReplayResult(String batchId, int ok, int fail) {
+    }
+
+    public interface Consumer {
+        void process(String payload);
+    }
+
+    public interface DeadLetterDao {
+        String payloadOf(String id);
+
+        void remove(String id);
+
+        void updateError(String id, String err);
+    }
+}
+""",
+        'highlights': [
+            {'mark': 'dlq.remove(id);',
+             'title': '成功才移除',
+             'text': '重放成功才从死信删除。失败的留在死信并记录原因，绝不强行清空——强行清空等于承认缺口。',
+             'rule': 'REL-LOG-002'},
+            {'mark': 'dlq.updateError(id, ex.toString());',
+             'title': '失败留痕不中断',
+             'text': '单条失败只更新错误原因，不抛异常中断整批，否则剩下的死信永远没机会重放。',
+             'rule': 'SVC-EXCP-001'},
+        ],
+        'pitfalls': [
+            '重放前不修复根因 —— 同样的错立刻再进死信，死循环拖死重放作业。',
+            '重放失败强行清空死信 —— 业务缺口被「清掉」而非修复，等于掩盖问题。',
+            '死信无审计 —— 谁重放、重放哪批、结果如何都说不清，合规与排障都失控。',
+        ],
+        'notSuitable': [
+            '消息可随意丢弃（纯埋点）：死信不需要重放闭环。',
+            '下游永远修不好（外部依赖彻底下线）：重放无意义，应走人工补偿。',
+        ],
+        'relatedRules': ['REL-LOG-002', 'SVC-EXCP-001', 'REL-RETRY-001', 'REL-EXCP-001'],
+        'refs': [
+            {'title': 'Kafka — Dead Letter Queue 模式', 'note': '死信必须可被消费、重放、审计'},
+            {'title': '《Designing Data-Intensive Applications》— 错误处理与重放',
+             'note': '失败消息的闭环处理是异步系统的信任基础'},
+        ],
+    },
+]
+
+CASE = {
+    'id': 'async-pipeline',
+    'order': 5,
+    'name': '异步管道：事务消息、幂等消费、顺序性、重试与死信、补偿',
+    'subtitle': '解耦带来「不丢不重不乱序」三连考验，每一项都要专门设计',
+    'glyph': '⧖',
+    'domain': ['电商', '交易', '物流', '通知'],
+    'problem': '下单要异步通知库存/积分/物流，怎么保证不丢、不重、不乱序，'
+               '失败了能重试进死信，最好能查到每笔处理到哪了。',
+    'symptoms': [
+        '下游一抖，消息重试风暴把整个服务打挂',
+        '重复消费导致用户被扣两次款',
+        '消息顺序乱了，余额先加后减变成先减后加',
+        '死信队列只进不出，业务缺口越积越大',
+    ],
+    'drivers': DRIVERS,
+    'conflicts': CONFLICTS,
+    'slices': SLICES,
+    'notSuitableFor': NOT_SUITABLE_FOR,
+    'architecture': {
+        'nodes': [
+            {'id': 'producer', 'label': '生产者', 'kind': 'backend', 'tier': 0},
+            {'id': 'outbox', 'label': '发件箱', 'kind': 'database', 'tier': 1,
+             'whenAny': {'delivery': ['atleast', 'exactly'], 'services': ['s5', 's10']}},
+            {'id': 'mq', 'label': '消息队列', 'kind': 'messagebus', 'tier': 2},
+            {'id': 'consumer', 'label': '消费者', 'kind': 'backend', 'tier': 3,
+             'whenAny': {'services': ['s5', 's10']}},
+            {'id': 'dlq', 'label': '死信队列', 'kind': 'messagebus', 'tier': 3,
+             'whenAny': {'failRate': ['f001', 'f1', 'f10']}},
+            {'id': 'reconciler', 'label': '对账补偿', 'kind': 'backend', 'tier': 4,
+             'whenAny': {'window': ['wmin', 'whour', 'wday'], 'services': ['s5', 's10']}},
+        ],
+        'links': [
+            {'from': 'producer', 'to': 'outbox', 'label': '同事务'},
+            {'from': 'outbox', 'to': 'mq', 'label': '转发'},
+            {'from': 'mq', 'to': 'consumer', 'label': '消费'},
+            {'from': 'mq', 'to': 'dlq', 'label': '超限'},
+            {'from': 'reconciler', 'to': 'consumer', 'label': '补偿'},
+        ],
+    },
+}

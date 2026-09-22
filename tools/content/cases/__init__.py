@@ -5,6 +5,8 @@
     cookbook 回答「一个功能标准该怎么写」——无参数，直接看。
     cases    回答「在这些约束下该怎么设计」——选场景 + 调参数。
 
-新增场景：写一个模块导出 CASE，再加进 CASES_MODULES。
+新增场景：写一个模块导出 CASE（形状照抄 huge_rowcount.py），
+然后把模块名加进 **tools/build-content.py 的 CASES_MODULES**。
+注意清单只有那一份 —— 本文件曾经也放过一份同名常量，没人读它，
+结果是「加了新场景却什么都没发生」且不报错。
 """
-CASES_MODULES = ('cases/huge_rowcount', 'cases/genomic_sequence')

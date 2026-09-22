@@ -50,6 +50,40 @@ STYLE_PREFIX = (
 )
 
 
+# 已经生成好的位图：key → 相对 `arsenal-web/public/icons/` 的路径。
+#
+# 为什么单独一张表，而不是在下面 81 行 `_i(...)` 里各写一个 `bitmap=` 参数：
+# 位图是**分批**补的（一批 15-20 张）。参数散在 81 行里，补第二批就得逐行
+# diff 找没填的那 63 行，改漏一行的报错会指向一行跟真正漏的那行无关的代码。
+# 集中成一张表之后，「这一批生成了哪几张」是一个 20 行的 diff，肉眼能核。
+#
+# 路径必须与图标的 `category` 一致（`actor/user.png` 配 `category='actor'`）——
+# 这条由 `build-content.py` 的 build_icons() 硬校验，写错当场中断。
+#
+# 为空串是**合法状态**：意思是「这张还没生成」。
+BITMAPS = {
+    # ── 第 1 批 · 9 个类目各 2 张（试点批）────────────────────
+    'user': 'actor/user.png',
+    'admin': 'actor/admin.png',
+    'pod': 'compute/pod.png',
+    'cloud': 'compute/cloud.png',
+    'cdn': 'network/cdn.png',
+    'waf': 'network/waf.png',
+    'objectstore': 'storage/objectstore.png',
+    'warehouse': 'storage/warehouse.png',
+    'rpc': 'middleware/rpc.png',
+    'disttxn': 'middleware/disttxn.png',
+    'alerting': 'observe/alerting.png',
+    'dashboard': 'observe/dashboard.png',
+    'kms': 'security/kms.png',
+    'encrypt': 'security/encrypt.png',
+    'cicd': 'delivery/cicd.png',
+    'rollback': 'delivery/rollback.png',
+    'replica': 'topology/replica.png',
+    'sharding': 'topology/sharding.png',
+}
+
+
 def _i(key, name, en, category, tags, subject):
     return dict(
         key=key,
@@ -60,7 +94,7 @@ def _i(key, name, en, category, tags, subject):
         # 矢量 key 与资产 key 同名：改 tech-icons.ts 的 key 会在这里立刻炸，
         # 而不是等页面上出现一排灰方块
         vector=key,
-        bitmap='',
+        bitmap=BITMAPS.get(key, ''),
         subject=subject,
     )
 

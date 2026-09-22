@@ -1,6 +1,8 @@
 import com.arsenal.scan.ProjectScanner;
 import com.arsenal.scan.ScanException;
 import com.arsenal.scan.ScanRulesLoader;
+import com.arsenal.scan.ScanContext;
+import com.arsenal.scan.ScanGuard;
 import com.arsenal.scan.SourceResolver;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
@@ -11,6 +13,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.List;
 
 /**
  * 扫描引擎的端到端探针（校验工具，不进 src/main/java）。
@@ -26,6 +29,12 @@ import java.nio.file.Paths;
  *   facts:<目录>      扫描本地目录，回带完整 ProjectFacts
  *   zip:<zip 文件>    上传式扫描（复用 SourceResolver.fromZip 的闸门）
  *   git:<url>         git 输入（闸门应当拒绝非 https）
+ *   mkbigfile-repo:<目录>  造 3MB 单文件（单文件闸门）
+ *   mkdeep-repo:<目录>     造 22 层深目录（深度闸门）
+ *   mkfiles-repo:<目录>    造 20001 个文件（文件数闸门）
+ *   mkbigfile-repo:<目录>  造 3MB 单文件（单文件闸门）
+ *   mkdeep-repo:<目录>     造 22 层深目录（深度闸门）
+ *   mkfiles-repo:<目录>    造 20001 个文件（文件数闸门）
  *   rules:            回带映射表条数
  *
  * 每个动作独立成一条收据：失败也写进结果里（带 code），
@@ -77,6 +86,65 @@ public class ScanProbe {
         }
     }
 
+
+    /**
+     * 造一个含 3MB 单文件的目录。
+     *
+     * 验的是「单文件闸门」：它不该让整次扫描失败 —— 该文件的**内容**不读、
+     * 留一条 FILE_TOO_LARGE，其余事实照常产出。这跟 zip 那条路不同
+     * （zip 在解包时就抛 TOO_LARGE，因为解包本身才是风险）。
+     */
+    private static void makeBigFileRepo(String dir) throws Exception {
+        Path d = Paths.get(dir);
+        Files.createDirectories(d);
+        byte[] chunk = new byte[64 * 1024];
+        java.util.Arrays.fill(chunk, (byte) 'a');
+        Path f = d.resolve("Big.java");
+        try (var out = Files.newOutputStream(f)) {
+            out.write("class Big { String pad = \"".getBytes(StandardCharsets.UTF_8));
+            for (int i = 0; i < 3 * 1024 * 1024 / chunk.length; i += 1) {
+                out.write(chunk);
+            }
+            out.write("\"; }".getBytes(StandardCharsets.UTF_8));
+        }
+        Files.writeString(d.resolve("pom.xml"),
+                "<project><modelVersion>4.0.0</modelVersion><artifactId>big</artifactId></project>\n",
+                StandardCharsets.UTF_8);
+    }
+
+    /** 造一个 22 层深的目录（上限是 20）。深度闸门应当截断并留 note，而不是静默少读 */
+    private static void makeDeepRepo(String dir) throws Exception {
+        Path p = Paths.get(dir);
+        Files.createDirectories(p);
+        for (int i = 1; i <= 22; i += 1) {
+            p = p.resolve("d" + i);
+        }
+        Files.createDirectories(p);
+        Files.writeString(p.resolve("Deep.java"), "class Deep {}\n", StandardCharsets.UTF_8);
+        Files.writeString(Paths.get(dir).resolve("Top.java"), "class Top {}\n", StandardCharsets.UTF_8);
+    }
+
+    /** 造 20001 个文件：文件数闸门应当直接拒绝整次扫描（SCAN_TOO_LARGE） */
+    private static void makeManyFilesRepo(String dir) throws Exception {
+        Path p = Paths.get(dir);
+        Files.createDirectories(p);
+        for (int i = 0; i < 20_001; i += 1) {
+            Path f = p.resolve("F" + i + ".java");
+            // 幂等：已存在就跳过。createFile 对已存在文件会抛，重跑 verify 就炸在这里
+            if (Files.notExists(f)) {
+                Files.write(f, new byte[0]);
+            }
+        }
+    }
+
+
+    /**
+     * 造一个含 3MB 单文件的目录。
+     *
+     * 验的是「单文件闸门」：它不该让整次扫描失败 —— 该文件的**内容**不读、
+     * 留一条 FILE_TOO_LARGE，其余事实照常产出。这跟 zip 那条路不同
+     * （zip 在解包时就抛 TOO_LARGE，因为解包本身才是风险）。
+     */
     public static void main(String[] args) throws Exception {
         if (args.length < 2) {
             System.out.println("用法: ScanProbe <out.json> <动作...>");
@@ -115,6 +183,18 @@ public class ScanProbe {
                     }
                     case "mkzip-escape" -> makeZip(value, true, false);
                     case "mkzip-large" -> makeZip(value, false, true);
+                    case "mkbigfile-repo" -> {
+                        makeBigFileRepo(value);
+                        receipt.put("ok", true);
+                    }
+                    case "mkdeep-repo" -> {
+                        makeDeepRepo(value);
+                        receipt.put("ok", true);
+                    }
+                    case "mkfiles-repo" -> {
+                        makeManyFilesRepo(value);
+                        receipt.put("ok", true);
+                    }
                     case "mksymlink" -> {
                         ObjectNode n = mapper.createObjectNode();
                         n.put("created", makeSymlink(value));
@@ -127,6 +207,33 @@ public class ScanProbe {
                         n.put("file", scanner.rulesFile().toString().replace('\\', '/'));
                         receipt.put("ok", true);
                         receipt.set("rules", n);
+                    }
+                    case "guard-info" -> {
+                        // 把 ScanGuard 的四个常量（规模 / 时间闸门）原样回吐，让前端的断言能核对
+                        // 「配置项存在且被读取」—— 改小常量就能让对应的断言变红
+                        ObjectNode n = mapper.createObjectNode();
+                        n.put("maxFiles", ScanGuard.MAX_FILES);
+                        n.put("maxTotalBytes", ScanGuard.MAX_TOTAL_BYTES);
+                        n.put("maxDepth", ScanGuard.MAX_DEPTH);
+                        n.put("timeoutMs", ScanGuard.TIMEOUT_MS);
+                        n.put("maxFileBytes", ScanGuard.MAX_FILE_BYTES);
+                        receipt.put("ok", true);
+                        receipt.set("guard", n);
+                    }
+                    case "guard-timeout" -> {
+                        // 超时闸门：不真等 180s，直接造一个已经过期的 ScanContext，
+                        // 验 tick() 真的抛 SCAN_TIMEOUT（超时后 code 正确）
+                        try {
+                            ScanContext ctx = new ScanContext(Paths.get("."), List.of(), mapper, -1000L);
+                            ctx.tick();
+                            receipt.put("ok", false);
+                            receipt.put("code", "NO_TIMEOUT_THROWN");
+                            receipt.put("message", "超期后 tick() 没抛异常（闸门没拦住）");
+                        } catch (ScanException e) {
+                            receipt.put("ok", false);
+                            receipt.put("code", e.code());
+                            receipt.put("message", e.getMessage());
+                        }
                     }
                     default -> {
                         receipt.put("ok", false);

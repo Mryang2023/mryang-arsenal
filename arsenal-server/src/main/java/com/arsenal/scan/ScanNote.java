@@ -25,6 +25,8 @@ public record ScanNote(
     public static final String UNMAPPED_DEPENDENCY = "UNMAPPED_DEPENDENCY";
     /** 规模触顶，扫描被截断 */
     public static final String TRUNCATED = "TRUNCATED";
+    /** 目录深度触顶。Files.walk 到深度上限是**静默停下**的，不留这条就会显得「仓库就这么大」 */
+    public static final String DEPTH_EXCEEDED = "DEPTH_EXCEEDED";
     /** 期望里有、实际没有的字段（读不到就 null，但要说清读不到） */
     public static final String VALUE_MISSING = "VALUE_MISSING";
     /** 安全闸门拦下的东西 */

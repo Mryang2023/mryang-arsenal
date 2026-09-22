@@ -33,8 +33,17 @@ STACK_MODULES = ('stack_base', 'stack_data', 'stack_mw', 'stack_cross', 'stack_d
 CANVAS_MODULES = ('stack_canvas_extra',)
 
 # 场景案例库的来源模块（与 STACK_MODULES 同一套写法：加一个场景就在这里加一行，
-# 漏了等于没写 —— 生成器不会去找目录里「碰巧存在」的文件）
-CASES_MODULES = ('cases/huge_rowcount', 'cases/genomic_sequence')
+# 漏了等于没写 —— 生成器不会去找目录里「碰巧存在」的文件）。
+# ⚠️ 这是**唯一**的清单来源。content/cases/__init__.py 里曾经也有一份同名常量，
+# 谁都不读它 —— 改了那边不报错，只是新场景静默不生成。已删除，不要再造第二份。
+CASES_MODULES = (
+    'cases/huge_rowcount',
+    'cases/genomic_sequence',
+    'cases/high_throughput_io',
+    'cases/hotspot_cache',
+    'cases/async_pipeline',
+    'cases/wide_table_search',
+)
 
 # Archify（通用绘图器）的组件类型枚举。写在这里是因为它是**对方**的词汇表：
 # 我们只能往里映射，不能自己加第八类 —— 加了会在导出期被它的 JSON Schema 拒掉。
@@ -771,6 +780,15 @@ def build_icons():
                 full = os.path.join(public_icons, bmp.replace('/', os.sep))
                 if not os.path.exists(full):
                     problems.append('%s 登记了位图但磁盘上没有：public/icons/%s' % (at, bmp))
+                # 目录前缀必须等于自己的 category。同步脚本只查「存在 + 路径合法」，
+                # 所以「图在 compute/ 下、图标却归在 actor」这种错两侧都不会响：
+                # 页面按分组去找它，找到的是另一个目录下的名字 —— 表现是灰方块，
+                # 而错误信息指向「文件不存在」，跟真正的错因差了十万八千里。
+                elif bmp.split('/')[0] != ic.get('category'):
+                    problems.append(
+                        '%s 的位图目录「%s」与它的 category「%s」不一致：%s'
+                        % (at, bmp.split('/')[0], ic.get('category'), bmp)
+                    )
 
     # ② 九大类不能空着 —— 空分类在侧栏上就是一个点了没反应的按钮
     for cid in cat_ids:

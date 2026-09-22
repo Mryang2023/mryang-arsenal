@@ -1,6 +1,6 @@
 import type { ComposedStack, StackPicks } from './content-types';
 import { renderYaml } from './stack';
-import { appReplicas, type StackPicksMeta } from './topology';
+import { effectiveAppReplicas, type StackPicksMeta } from './topology';
 
 /**
  * 部署清单生成器：把「交付形态」这一维的选型落成可以直接 kubectl apply / docker compose up 的文件。
@@ -712,6 +712,41 @@ function placeholderOf(key: string): string {
   return 'CHANGE_ME';
 }
 
+/**
+ * 多副本的调度约束。
+ *
+ * 副本数 > 1 才输出 —— 只有一个 Pod 时写反亲和不产生任何调度效果，
+ * 那是一条永远不生效、却让读清单的人以为「已经做了高可用」的配置。
+ *
+ * 用 `preferred` 而不是 `required`：`required` 在节点数少于副本数时会让多余的
+ * Pod 永远 Pending（两个节点要三个副本），这是一次「为了高可用而彻底不可用」的
+ * 经典事故。所以反亲和表达偏好，真正的均衡交给 topologySpreadConstraints。
+ */
+function affinityBlock(c: K8sCtx): string {
+  if (c.replicas <= 1) {
+    return '      # 单副本：不写反亲和 —— 只有一个 Pod，亲和规则不会产生任何调度效果';
+  }
+  return `      # 反亲和 + 拓扑分散：副本落在同一个节点上，节点一挂副本数就从 N 掉到 N-1，
+      # 冗余等于没做。这两条一起写才成立：反亲和表达「尽量别放一起」，
+      # topologySpreadConstraints 保证「真的散开了」。
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              podAffinityTerm:
+                topologyKey: kubernetes.io/hostname
+                labelSelector:
+                  matchLabels:
+                    app: ${c.app}
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector:
+            matchLabels:
+              app: ${c.app}`;
+}
+
 function deployment(c: K8sCtx): string {
   const envFrom = [
     '          envFrom:',
@@ -720,6 +755,7 @@ function deployment(c: K8sCtx): string {
     '            - secretRef:',
     `                name: ${c.app}`,
   ].join('\n');
+  const affinity = affinityBlock(c);
   return `# Deployment：副本数、资源、探针、优雅停机，四件事缺一项都会有一类故障没人管。
 #
 # 探针的三个角色各不相同，不要互相代替：
@@ -756,6 +792,7 @@ spec:
       # 这里是整条链路的总预算，必须比它大 —— 相等就等于没给信号传播留时间
       terminationGracePeriodSeconds: ${c.grace}
       serviceAccountName: ${c.app}
+${affinity}
       securityContext:
         runAsNonRoot: true
         runAsUser: 10001
@@ -1430,10 +1467,10 @@ export function buildDeployPlan(
     app,
     port,
     image: `registry.example.com/${app}:1.0.0`,
-    // 副本数一律由集群形态算出来 —— 这里写死一个数字，就意味着
-    // 「用户在装配台上选了三节点，导出的清单里还是单副本」。
-    // 没做形态表态时 appReplicas 给 1：那是用户没说话，不是我们替他选了。
-    replicas: appReplicas(picks, opts.meta),
+    // 副本数一律算出来 —— 这里写死一个数字，就意味着「用户在装配台上选了三节点、
+    // 或者把副本数滑杆拉到 5，导出的清单里还是单副本」。
+    // 来源顺序：副本数滑杆 > 集群形态 > 1（没人表态就是 1，不是我们替他选了）。
+    replicas: effectiveAppReplicas(picks, opts.meta),
     grace: gracePeriod(composed),
     probes: probeEndpoints(picks),
     plain,

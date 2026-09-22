@@ -66,7 +66,9 @@ tools/content/*.py  →  python tools/build-content.py  →  arsenal-{cookbook,s
 
 ### 铁律 3 · verify 总数要同步四处
 
-当前总数 **473**，分项：`arch 35 / graph 59 / project 321 / engine 17 / parity 12 / archify 29`。
+当前总数以 `NIGHT-RUN.md` §六 为准（2026-09-22 实测 **620**，八层：
+`arch 35 / graph 59 / cases 25 / project 406 / engine 17 / parity 12 / archify 31 / scan 35`）。
+本节早先写的 473 是首轮夜跑前的基线，已作废。
 
 改了任何一层，这四处都要一起改：
 

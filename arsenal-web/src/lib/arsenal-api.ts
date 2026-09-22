@@ -1,3 +1,5 @@
+import type { ProjectFacts } from './facts-arch';
+
 /**
  * 军火库后端（arsenal-server）的调用层。
  *
@@ -207,4 +209,85 @@ export async function deliverArchify(ir: unknown): Promise<DeliverOutcome> {
     receipt: d.receipt as ArchifyReceipt,
     elapsedMs: d.elapsedMs,
   };
+}
+
+// ─────────────────────────────────────────────────────────────
+// 代码扫描（后端 com.arsenal.scan）
+//
+// 扫描是一次**只读**动作：给一个目录 / zip / https git 地址，拿回一份事实 JSON。
+// 三类结果必须分开表示 ——「后端不在」「输入被拒」「扫出来了」在页面上要说三句不同的话。
+// ─────────────────────────────────────────────────────────────
+
+export type ScanSource = { kind: 'path'; value: string } | { kind: 'git'; value: string };
+
+export type ScanOutcome =
+  | { kind: 'facts'; facts: ProjectFacts }
+  /** 闸门拒了这次输入（路径逃逸 / 超限 / 协议不允许 / 路径不存在）。code 是后端给的错误码 */
+  | { kind: 'rejected'; code: string; message: string }
+  | { kind: 'offline'; message: string };
+
+/**
+ * 扫描超时给到后端自身上限（180s）之上：让**后端**先超时并说清是哪一步超的，
+ * 我们这边抢先掐断的话，用户只会看到一个没有上下文的 abort。
+ */
+const SCAN_TIMEOUT_MS = 200_000;
+
+async function readScanResponse(res: Response): Promise<ScanOutcome> {
+  let body: ApiEnvelope<ProjectFacts>;
+  try {
+    body = (await res.json()) as ApiEnvelope<ProjectFacts>;
+  } catch {
+    return {
+      kind: 'rejected',
+      code: `HTTP_${res.status}`,
+      message: `后端返回的不是 JSON（HTTP ${res.status}）`,
+    };
+  }
+  if (!body.success || !body.data) {
+    return {
+      kind: 'rejected',
+      code: body.code ?? `HTTP_${res.status}`,
+      message: body.message ?? `扫描失败（HTTP ${res.status}）`,
+    };
+  }
+  return { kind: 'facts', facts: body.data };
+}
+
+/** 扫本地目录或 https git 地址。两者走同一个接口，由请求体里的 kind 区分 */
+export async function scanFacts(source: ScanSource): Promise<ScanOutcome> {
+  const base = arsenalApiBase();
+  let res: Response;
+  try {
+    res = await fetchWithTimeout(
+      `${base}/api/scan/facts`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ source }),
+      },
+      SCAN_TIMEOUT_MS
+    );
+  } catch (e) {
+    return { kind: 'offline', message: offlineMessage(e) };
+  }
+  return readScanResponse(res);
+}
+
+/**
+ * 上传一个 zip 扫。
+ *
+ * 这里**不设 Content-Type**：multipart 的 boundary 由浏览器生成，
+ * 手工写一个不带 boundary 的头，后端会以 415 拒掉。
+ */
+export async function scanUpload(file: File): Promise<ScanOutcome> {
+  const base = arsenalApiBase();
+  const form = new FormData();
+  form.append('file', file);
+  let res: Response;
+  try {
+    res = await fetchWithTimeout(`${base}/api/scan/upload`, { method: 'POST', body: form }, SCAN_TIMEOUT_MS);
+  } catch (e) {
+    return { kind: 'offline', message: offlineMessage(e) };
+  }
+  return readScanResponse(res);
 }
