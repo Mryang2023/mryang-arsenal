@@ -159,6 +159,19 @@ function grade(score) {
   return '严重违规';
 }
 
+// 规则实际声明的层，按降级顺序 regex → ast → llm → manual（与 Rule.Check.layer() 一致）。
+// 一条规则可以有多个层，所以是复合标签（「正则+AST」）而不是猜一个。
+// 忽略 check.manual 的后果是：22 条人工检查说明在检索里完全不可见。
+function layersOf(r) {
+  const c = r.check || {};
+  const parts = [];
+  if (c.regex?.pattern) parts.push('正则');
+  if (c.ast?.query) parts.push('AST');
+  if (typeof c.llm === 'string' && c.llm.length > 0) parts.push('语义');
+  if (c.manual) parts.push('人工');
+  return parts.length ? parts.join('+') : '未声明';
+}
+
 // ──────────────────────────────────────────────── 工具实现
 function searchRules({ query, severity, category }) {
   const q = (query || '').trim().toLowerCase();
@@ -167,17 +180,22 @@ function searchRules({ query, severity, category }) {
   for (const r of RULES) {
     if (severity && r.severity !== severity) continue;
     if (category && r.category !== category) continue;
+    const c = r.check || {};
+    // 字段名以 arsenal-rules/**.json 为准：title / rationale / bad / good / check.{regex,ast,llm,manual}。
+    // 这里曾读 r.description / r.badExample / r.goodExample / check.llm.query —— 四个都不存在，
+    // 后果是「反例、正例、LLM 提示词、人工说明」全都搜不到，且每条结果标题后跟一个空行。
     const blob = [
       r.id,
       r.title,
-      r.description,
+      r.rationale,
       r.severity,
       r.category,
       (r.tags || []).join(' '),
-      (r.check?.ast?.query || ''),
-      (r.check?.llm?.query || ''),
-      (r.badExample || '').slice(0, 200),
-      (r.goodExample || '').slice(0, 200),
+      c.ast?.query || '',
+      typeof c.llm === 'string' ? c.llm : '',
+      c.manual || '',
+      (r.bad || '').slice(0, 200),
+      (r.good || '').slice(0, 200),
     ]
       .join(' ')
       .toLowerCase();
@@ -185,8 +203,7 @@ function searchRules({ query, severity, category }) {
   }
   if (!out.length) return `没有匹配「${query}」的规范条目。`;
   const lines = out.slice(0, 20).map((r) => {
-    const layer = r.check?.regex?.pattern ? '正则' : r.check?.ast?.query ? 'AST' : r.check?.llm ? '语义' : '人工';
-    return `• [${r.severity}] ${r.id}（${r.category}·${layer}）${r.title}\n  ${r.description || ''}`;
+    return `• [${r.severity}] ${r.id}（${r.category}·${layersOf(r)}）${r.title}\n  ${r.rationale || ''}`;
   });
   const more = out.length > 20 ? `\n…另有 ${out.length - 20} 条，缩小关键词查看。` : '';
   return `匹配到 ${out.length} 条：\n` + lines.join('\n') + more;
@@ -233,6 +250,7 @@ function lintCode({ filename, content }) {
     const isViolation = c.expect === 'absent' ? hits.length > 0 : hits.length === 0;
     if (!isViolation) continue;
     const seenLines = new Set();
+    const before = violations.length;
     for (const h of hits) {
       const { line } = locate(h.index);
       if (seenLines.has(line)) continue;
@@ -248,20 +266,44 @@ function lintCode({ filename, content }) {
         });
       }
     }
+    // expect=present 型的违规是「一条都没找到」，hits 为空时上面那个循环什么都不做 ——
+    // 所以过去这两条规则在 MCP 里**永远不触发**（0 违规，白送满分）。
+    // 与 src/lib/engine.ts:254、LintEngine.java:142-147 同一逻辑：补一条「未找到必需内容」。
+    if (c.expect === 'present' && violations.length === before && violations.length < 50) {
+      violations.push({
+        ruleId: c.rule.id,
+        severity: c.rule.severity,
+        title: c.rule.title,
+        line: 1,
+        snippet: `未找到必需内容：${c.rule.title}`,
+        message: '缺少必需写法',
+      });
+    }
   }
 
   const perRule = new Map();
-  for (const v of violations) perRule.set(v.ruleId, (perRule.get(v.ruleId) ?? 0) + 1);
+  for (const v of violations) {
+    const cur = perRule.get(v.ruleId);
+    if (cur) cur.count += 1;
+    else perRule.set(v.ruleId, { severity: v.severity, count: 1 });
+  }
+  // 评分基数必须与前端一致，不许自己另算一套：
+  // 这里曾写死 `6`，于是 SHOULD 被扣 6（应 2）、MAY 被扣 6（应 0）—— 基数错 3 倍，
+  // 而死常量 SEVERITY_PENALTY 就在文件顶部（0 引用）。基数出处：
+  // src/lib/theme.ts 的 SEVERITY_THEME.penalty 与 Severity.java。
+  // 每规则递增上限 4 与总分下限 0 照抄 src/lib/engine.ts 的 `Math.min(count - 1, 4)`。
+  const PER_RULE_EXTRA_CAP = 4;
   let penalty = 0;
-  for (const [, count] of perRule) penalty += 6 + Math.min(count - 1, 4);
+  for (const [, r] of perRule) {
+    penalty += (SEVERITY_PENALTY[r.severity] ?? 0) + Math.min(r.count - 1, PER_RULE_EXTRA_CAP);
+  }
   const score = Math.max(0, Math.min(100, 100 - penalty));
 
   const vLines = violations
     .sort((a, b) => a.line - b.line)
     .map((v) => `✗ [${v.severity}] ${v.ruleId} L${v.line} ${v.title}\n    ${v.snippet}`);
   const sLines = skipped.slice(0, 12).map((r) => {
-    const layer = r.check?.ast?.query ? 'AST' : r.check?.llm ? '语义' : '人工';
-    return `• ${r.id}（${layer}）${r.title}`;
+    return `• ${r.id}（${layersOf(r)}）${r.title}`;
   });
   const summary =
     `合规分 ${score}/100（${grade(score)}）｜违规 ${violations.length} 条｜` +
@@ -281,7 +323,7 @@ function getPrompt({ severity }) {
     .filter(Boolean);
   const rules = RULES.filter((r) => r.status === 'active' && wanted.includes(r.severity));
   const lines = rules.map((r) => {
-    const frag = r.promptFragment || r.description || '';
+    const frag = r.promptFragment || r.rationale || '';
     return `- [${r.severity}] ${r.id} ${r.title}：${frag}`;
   });
   return (
