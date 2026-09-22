@@ -495,15 +495,24 @@ console.log('\n【9】六大架构视图数据层');
       MUST_LIMIT
   );
 
-  // ⑥ 项目视图：验证链分项之和 = 总数 = 662（与 README 同源，改口径两处一起改）
+  // ⑥ 项目视图：验证链**形状**检查 —— 分项之和 = verifyTotal。
   //
-  // 注意前半句是恒等式 —— VERIFY_TOTAL 的定义就是那个 reduce，永远相等。
-  // 真正起作用的只有后半句那个手写的 628，所以「各层实际跑了多少项」没有守门：
-  // 这次给引擎加了 3 项断言，实测 17 而 VERIFY_CHAIN 仍写着 14，整套 verify 照样全绿。
-  // 要让这个数字有约束力，得让各层把自己的实测项数写出来再比 —— 尚未做。
+  // ⚠️ 这是一句**恒等式**：`VERIFY_TOTAL` 的定义就是 `VERIFY_CHAIN` 的 reduce
+  // （见 `src/lib/arch-views.ts:213-216`），两边同时从同一份档案派生，永远相等。
+  // 它只说明「档案里链与总数自洽」，**不说明任何一层真的跑了那么多项**。
+  //
+  // 原先这句后面还挂着 `&& VERIFY_TOTAL === 662` —— 那个手写的 662 才是唯一
+  // 真正起作用的约束，而它是第五份手抄件（另外四份在档案 / README×2 / 本文件）。
+  // 手抄件的问题是：层内加了 3 项断言而数字没动，整套 verify 照样全绿
+  // （引擎层从 14 涨到 17 就是这么漏掉的）。
+  //
+  // 现在那个手写数字**删掉了**，改由链尾的 `verify:meta`（`.verify/meta-check.ts`）
+  // 读各层自己写出的 `layer-<key>.json`，逐层比「声明 X / 实测 Y」，不一致就红。
+  // 为什么守门必须放链尾：本层跑在八层的**中间**，执行时 engine/parity/archify/scan
+  // 还没开始，`layer-<key>.json` 根本不存在 —— 放这里只能读到半份或上一轮的陈旧文件。
   check(
-    '项目视图：验证链分项之和 = 总数',
-    VERIFY_CHAIN.reduce((n, v) => n + v.count, 0) === VERIFY_TOTAL && VERIFY_TOTAL === 662
+    '项目视图：验证链分项之和 = 总数（恒等式，形状检查；实测项数归 verify:meta）',
+    VERIFY_CHAIN.reduce((n, v) => n + v.count, 0) === VERIFY_TOTAL
   );
   check('项目视图：里程碑含 MCP 适配层', PROJECT_ROADMAP.some((m) => m.name.includes('MCP')));
 }

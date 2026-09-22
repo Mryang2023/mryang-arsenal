@@ -17,10 +17,18 @@
  *    并且整体退出码是 **2** 而不是 0。
  *
  * ─────────────────────────────────────────────────────────────
+ * ─────────────────────────────────────────────────────────────
+ * 执行顺序（sync → typecheck → 八层 → meta），其中**闸门层**只有两个，
+ * 都不计入「八层项数合计」：
+ *   · `typecheck` —— 两类 tsc
+ *   · `verify:meta`（链尾）—— 读各层写出的 `layer-<key>.json`，
+ *     逐层比「声明 X / 实测 Y」。它必须链尾：`verify:project` 跑在八层中间，
+ *     执行时 engine/parity/archify/scan 还没跑，读不到它们的状态文件。
+ *
  * 退出码约定（与 README、`.verify/lib/report.ts` 同源；改口径三处一起改）：
  *   0 = 全绿，且**无任何跳过**
  *   2 = 绿（无失败），但存在跳过 —— 可交付，但报告里必须点名哪层跳了
- *   1 = 有失败（含：某层崩溃 / 没写出状态文件 / 空跑却报通过）
+ *   1 = 有失败（含：某层崩溃 / 没写出状态文件 / 空跑却报通过 / 元核对发现项数对不上）
  *
  * 用法：`npm run verify`（`preverify` 会先跑 sync；本脚本也会自己跑一次 sync，
  * 因为直接 `node scripts/verify-all.mjs` 时没有 preverify 兜底）。
@@ -179,6 +187,21 @@ for (const layer of LAYERS) {
   rows.push({ ...layer, declared, code, st, ms });
 }
 
+// ── 步骤 3：元核对（链尾 —— 必须在八层**全部跑完之后**）──────────────
+// 为什么单独一段、不塞进 `LAYERS`：
+//   · 它**不是 `verifyChain` 的成员**，没有声明项数，也不该并进「八层项数合计」
+//     （否则合计会与 README 的「共 662 项」对不上）；
+//   · 它守的是「前面八层各自报的实测项数」有没有与档案声明值跑偏 ——
+//     `verify:project` 跑在八层中间，读不到 engine/parity/archify/scan 的结果，
+//     所以这个守门只能挂在链尾。
+console.log(`\n${'═'.repeat(64)}`);
+console.log('▸ verify:meta（元核对 · 逐层比「声明 / 实测」；不并入八层项数合计）');
+console.log('═'.repeat(64));
+const metaStartedAt = Date.now();
+const metaCode = run('npm', ['run', 'verify:meta']);
+const metaMs = Date.now() - metaStartedAt;
+const metaSt = readLayerStatus('meta');
+
 // ── 汇总 ───────────────────────────────────────────────────────
 console.log(`\n${'═'.repeat(64)}`);
 console.log('汇总（数字全部来自各层写出的 layer-<key>.json，没有一个是手写的）');
@@ -218,8 +241,16 @@ for (const r of rows) {
   }
   if (s?.corrupt) problems.push(`[失败] ${r.name}：layer-${r.key}.json 结构不对`);
   if (!s) problems.push(`[失败] ${r.name}：没写出 layer-${r.key}.json（崩溃或未走到收尾）`);
-  if (r.code === 1) problems.push(`[失败] ${r.name}：有失败项（退出码 1）`);
-  else if (r.code !== 0 && r.code !== 2) problems.push(`[失败] ${r.name}：异常退出码 ${r.code}`);
+  if (r.code === 1) {
+    // 退出码 1 有两个来源：断言失败，或本层实测项数 ≠ 档案声明值（记账坏了）。
+    // 两者要点得出来，否则人看到「有失败项」会去翻断言行，而问题根本不在那儿。
+    const mm = s?.declaredMismatch;
+    problems.push(
+      mm
+        ? `[失败] ${r.name}：层项数对不上档案 —— 声明 ${mm.declared} / 实测 ${mm.total}`
+        : `[失败] ${r.name}：有失败项（退出码 1）`
+    );
+  } else if (r.code !== 0 && r.code !== 2) problems.push(`[失败] ${r.name}：异常退出码 ${r.code}`);
   if (s && s.fail > 0) problems.push(`[失败] ${r.name}：${s.fail} 项失败`);
   if (s && s.pass + s.fail + s.skip === 0 && r.code === 0) {
     // 「0 项却报通过」是最隐蔽的一种假绿：检查器空了，但没人知道
@@ -230,6 +261,28 @@ for (const r of rows) {
 
 console.log('─'.repeat(64));
 console.log(`${pad('合计', 18)}${pad(totalPass, 8)}${pad(totalSkip, 8)}${pad(totalFail, 8)}`);
+
+// 元核对单独一行：它是闸门（像 typecheck），**不并入八层项数**
+const metaPass = metaSt?.pass ?? null;
+const metaSkipN = metaSt?.skip ?? null;
+const metaFailN = metaSt?.fail ?? null;
+console.log(
+  `${pad('元核对（闸门）', 18)}${pad(metaPass === null ? '?' : metaPass, 8)}`
+  + `${pad(metaSkipN === null ? '?' : metaSkipN, 8)}${pad(metaFailN === null ? '?' : metaFailN, 8)}`
+  + `${pad(metaCode, 8)}${pad(secs(metaMs), 10)}闸门层（不计入八层项数；守各层声明值 vs 实测）`
+);
+if (metaCode !== 0 && metaCode !== 2) {
+  // 只有 1（有失败）与其它异常码才算问题；2 = 绿但存在跳过（例如某层整层未执行
+  // 导致它的项数无从独立核对），跳过项已在元核对里逐条点名，不重复判负。
+  problems.push(
+    `[失败] 元核对 verify:meta 退出码 ${metaCode} —— 有层的实测项数与档案声明值对不上（见上一段元核对的行）`
+  );
+}
+if (metaSt && typeof metaSt.exitCode === 'number' && metaSt.exitCode !== metaCode) {
+  problems.push(`[失败] 元核对：层自报退出码 ${metaSt.exitCode} / 进程实际 ${metaCode} —— 记账不可信`);
+}
+if (!metaSt) problems.push('[失败] 元核对：没写出 layer-meta.json（崩溃或未走到收尾）');
+else if (metaSt.fail > 0) problems.push(`[失败] 元核对：${metaSt.fail} 项断言失败`);
 
 if (syncCode !== 0) problems.push(`[失败] sync 退出码 ${syncCode}`);
 if (skippedLayers.length) {
