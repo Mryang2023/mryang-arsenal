@@ -10,7 +10,8 @@
 - 严重度 MUST/NEVER/SHOULD/MAY（37/13/18/1），**MUST+NEVER 硬上限 50** 已满。九大类：skeleton web service data concurrency reliability security test collab。
 - **规则字段名（勿臆造）**：`title` / `rationale`（**没有 `description`**）、`bad` / `good`（**不是 badExample/goodExample**）、`check.{regex,ast,llm,manual}`；`check.llm` 是**字符串**，`check.ast` 是 `{engine,query}`。
 - 选型台 **33 维 / 127 选项 / 6 预设 / 100 能力 / 21 策略 / 7 泳道**；`deploy` = jar·docker·k8s·helm（`src/lib/deploy.ts`）。
-- 引擎真实覆盖：**前端 35/69**（纯正则）、**后端 50/69**（35 正则 + 15 AST，用 JDK 自带 `jdk.compiler`，**不是 JavaParser**）、**LLM 0/43**。非正则层一律 skipped，绝不伪造判定。
+- 引擎真实覆盖：**前端 35/69**（纯正则）、**后端 42/69**（35 正则 + **7** AST，用 JDK 自带 `jdk.compiler`，**不是 JavaParser**）、**LLM 0/43**。非正则层一律 skipped，绝不伪造判定。
+  - ⚠️ 2026-09-23 终检棒实测纠正：此处原写「35 正则 + 15 AST = 50/69」是**错的**。15 是 `AstEngine.register()` 的检查器数，其中 **8 条因 `LintEngine` 的 `if (hasRegex) … else if (hasAst)` 在 API 路径上永不执行**。好文件 `executableRules=42`、坏文件 35，`AstLayer.declaredRules=7`。`arsenal-profiles/arsenal.json:377-379` 仍写 `status:todo`、第 490 行仍写 `JavaParser`，**都是过期结论**（归 plan-4 的 D-1/D-2）。
 
 ## 硬约定（违反即出事故）
 
