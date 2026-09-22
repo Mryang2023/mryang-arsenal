@@ -616,7 +616,11 @@ export function topologyModeSvg(
     case 'mgr':
     case 'cluster':
     case 'replicaset':
-      o.push(row(['A', 'B', 'C'], cy - 6));
+      // row() 自己往 o 里塞方块与连线，它没有返回值 —— 套一层 o.push 只会塞进一个 undefined，
+      // join 时化成空行，于是这几个形态少画方块与连线。typecheck 抓不到（row 返回 void 而
+      // o.push 收 string，是 TS2345），目前也没有自动断言守着这几种形态 —— 只有
+      // visual/shoot.mjs 的截图矩阵能间接发现（.verify/topology-check.ts 尚未创建）。
+      row(['A', 'B', 'C'], cy - 6);
       o.push(
         `<path d="M${rr(cx - 62)} ${rr(cy - 21)} A 62 26 0 0 1 ${rr(cx + 62)} ${rr(cy - 21)}" ` +
         `fill="none" stroke="${p.accent}" stroke-width="1.2" stroke-dasharray="3 3"/>`
@@ -661,7 +665,7 @@ export function topologyModeSvg(
     }
 
     case 'cloudnative':
-      o.push(row(['T', 'T', 'T'], cy - 14));
+      row(['T', 'T', 'T'], cy - 14);
       o.push(box(cx - 108, cy + 16, 216, 20, p, '共享存储 / 分布式事务', false, false));
       break;
 
