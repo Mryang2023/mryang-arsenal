@@ -1,0 +1,658 @@
+· 已起静态站 http://127.0.0.1:3021（root=D:\mryang\workspace\2026\arsenal\arsenal-web\out）
+
+── 视觉断言：15 URL × 3 视口 = 45 张 ──────────
+✗ home__desktop.png                      1 通过 / 6 失败 / 0 未适用
+      ✗ A2 main 一级子元素不越界 —— main 一级可见子元素 2 个，越界 1 个（clientWidth 1440）
+          · div.px-5.py-6 right=3213 越界 1773px
+      ✗ A3 图片全部加载成功 —— 图片 1 张，加载失败 1 张
+          · __probe_missing.png alt="probe-broken-image"
+      ✗ A4 固定/粘性元素互不遮挡 —— position:fixed|sticky 可见元素 2 个，相交 1 对
+          · div.flex.flex-wrap ∩ nav.hidden.px-3 = 240×320px
+      ✗ A5 正文对比度达标 —— 判定 42 个正文元素（另跳过 78 个），不达标 32 个，阈值 4.5:1
+          · "人查" 1.29:1 < 4.5:1（rgb(37,47,44) on rgb(19,25,23)，span.text-[15px].font-semibold）
+          · "规则库。分类 + 搜索 + 反例正例对照，任何一条 " 1.29:1 < 4.5:1（rgb(37,47,44) on rgb(19,25,23)，p.mt-3.flex-1）
+          · "打开规则库→" 1.29:1 < 4.5:1（rgb(37,47,44) on rgb(19,25,23)，span.mt-4.inline-flex）
+          · "拿代码验" 1.29:1 < 4.5:1（rgb(37,47,44) on rgb(19,25,23)，span.text-[15px].font-semibold）
+      ✗ A6 <h1> 唯一 —— <h1> 数量 2
+          · "杨先生的军火库"
+          · "PROBE 重复一级标题"
+      ✗ A7 页面底部无假高度 —— scrollHeight 5667 - 最后内容底部 4317 = 1351px 空白（上限 360px = 40vh）
+          · 最后一个可见元素：h1
+✗ home__tablet.png                       1 通过 / 6 失败 / 0 未适用
+      ✗ A2 main 一级子元素不越界 —— main 一级可见子元素 2 个，越界 1 个（clientWidth 1024）
+          · div.px-5.py-6 right=3213 越界 2189px
+      ✗ A3 图片全部加载成功 —— 图片 1 张，加载失败 1 张
+          · __probe_missing.png alt="probe-broken-image"
+      ✗ A4 固定/粘性元素互不遮挡 —— position:fixed|sticky 可见元素 2 个，相交 1 对
+          · div.flex.flex-wrap ∩ nav.hidden.px-3 = 240×320px
+      ✗ A5 正文对比度达标 —— 判定 42 个正文元素（另跳过 78 个），不达标 32 个，阈值 4.5:1
+          · "人查" 1.29:1 < 4.5:1（rgb(37,47,44) on rgb(19,25,23)，span.text-[15px].font-semibold）
+          · "规则库。分类 + 搜索 + 反例正例对照，任何一条 " 1.29:1 < 4.5:1（rgb(37,47,44) on rgb(19,25,23)，p.mt-3.flex-1）
+          · "打开规则库→" 1.29:1 < 4.5:1（rgb(37,47,44) on rgb(19,25,23)，span.mt-4.inline-flex）
+          · "拿代码验" 1.29:1 < 4.5:1（rgb(37,47,44) on rgb(19,25,23)，span.text-[15px].font-semibold）
+      ✗ A6 <h1> 唯一 —— <h1> 数量 2
+          · "杨先生的军火库"
+          · "PROBE 重复一级标题"
+      ✗ A7 页面底部无假高度 —— scrollHeight 5469 - 最后内容底部 4317 = 1153px 空白（上限 307px = 40vh）
+          · 最后一个可见元素：h1
+✗ home__mobile.png                       1 通过 / 6 失败 / 0 未适用
+      ✗ A2 main 一级子元素不越界 —— main 一级可见子元素 2 个，越界 1 个（clientWidth 390）
+          · div.px-5.py-6 right=3000 越界 2610px
+      ✗ A3 图片全部加载成功 —— 图片 1 张，加载失败 1 张
+          · __probe_missing.png alt="probe-broken-image"
+      ✗ A4 固定/粘性元素互不遮挡 —— position:fixed|sticky 可见元素 2 个，相交 1 对
+          · div.flex.flex-wrap ∩ nav.hidden.px-3 = 240×320px
+      ✗ A5 正文对比度达标 —— 判定 42 个正文元素（另跳过 78 个），不达标 32 个，阈值 4.5:1
+          · "人查" 1.29:1 < 4.5:1（rgb(37,47,44) on rgb(19,25,23)，span.text-[15px].font-semibold）
+          · "规则库。分类 + 搜索 + 反例正例对照，任何一条 " 1.29:1 < 4.5:1（rgb(37,47,44) on rgb(19,25,23)，p.mt-3.flex-1）
+          · "打开规则库→" 1.29:1 < 4.5:1（rgb(37,47,44) on rgb(19,25,23)，span.mt-4.inline-flex）
+          · "拿代码验" 1.29:1 < 4.5:1（rgb(37,47,44) on rgb(19,25,23)，span.text-[15px].font-semibold）
+      ✗ A6 <h1> 唯一 —— <h1> 数量 2
+          · "杨先生的军火库"
+          · "PROBE 重复一级标题"
+      ✗ A7 页面底部无假高度 —— scrollHeight 8651 - 最后内容底部 7385 = 1266px 空白（上限 338px = 40vh）
+          · 最后一个可见元素：h1
+✗ arch__desktop.png                      4 通过 / 3 失败 / 0 未适用
+      ✗ A2 main 一级子元素不越界 —— main 一级可见子元素 2 个，越界 1 个（clientWidth 1440）
+          · div.px-5.py-6 right=3213 越界 1773px
+      ✗ A4 固定/粘性元素互不遮挡 —— position:fixed|sticky 可见元素 2 个，相交 1 对
+          · div.flex.flex-wrap ∩ nav.hidden.px-3 = 240×320px
+      ✗ A7 页面底部无假高度 —— scrollHeight 2250 - 最后内容底部 900 = 1350px 空白（上限 360px = 40vh）
+          · 最后一个可见元素：div.mx-auto.flex
+✗ arch__tablet.png                       4 通过 / 3 失败 / 0 未适用
+      ✗ A2 main 一级子元素不越界 —— main 一级可见子元素 2 个，越界 1 个（clientWidth 1024）
+          · div.px-5.py-6 right=3213 越界 2189px
+      ✗ A4 固定/粘性元素互不遮挡 —— position:fixed|sticky 可见元素 2 个，相交 1 对
+          · div.flex.flex-wrap ∩ nav.hidden.px-3 = 240×320px
+      ✗ A7 页面底部无假高度 —— scrollHeight 1920 - 最后内容底部 768 = 1152px 空白（上限 307px = 40vh）
+          · 最后一个可见元素：div.mx-auto.flex
+✗ arch__mobile.png                       4 通过 / 3 失败 / 0 未适用
+      ✗ A2 main 一级子元素不越界 —— main 一级可见子元素 2 个，越界 1 个（clientWidth 390）
+          · div.px-5.py-6 right=3000 越界 2610px
+      ✗ A4 固定/粘性元素互不遮挡 —— position:fixed|sticky 可见元素 2 个，相交 1 对
+          · div.flex.flex-wrap ∩ nav.hidden.px-3 = 240×320px
+      ✗ A7 页面底部无假高度 —— scrollHeight 2121 - 最后内容底部 855 = 1267px 空白（上限 338px = 40vh）
+          · 最后一个可见元素：div.mx-auto.flex
+✗ archify__desktop.png                   3 通过 / 4 失败 / 0 未适用
+      ✗ A2 main 一级子元素不越界 —— main 一级可见子元素 2 个，越界 1 个（clientWidth 1440）
+          · div.px-5.py-6 right=3213 越界 1773px
+      ✗ A4 固定/粘性元素互不遮挡 —— position:fixed|sticky 可见元素 2 个，相交 1 对
+          · div.flex.flex-wrap ∩ nav.hidden.px-3 = 240×320px
+      ✗ A5 正文对比度达标 —— 判定 4 个正文元素（另跳过 31 个），不达标 1 个，阈值 4.5:1
+          · "后端连不上" 1.29:1 < 4.5:1（rgb(37,47,44) on rgb(19,25,23)，span.text-[12px].font-semibold）
+      ✗ A7 页面底部无假高度 —— scrollHeight 2250 - 最后内容底部 900 = 1350px 空白（上限 360px = 40vh）
+          · 最后一个可见元素：div.mx-auto.flex
+✗ archify__tablet.png                    3 通过 / 4 失败 / 0 未适用
+      ✗ A2 main 一级子元素不越界 —— main 一级可见子元素 2 个，越界 1 个（clientWidth 1024）
+          · div.px-5.py-6 right=3213 越界 2189px
+      ✗ A4 固定/粘性元素互不遮挡 —— position:fixed|sticky 可见元素 2 个，相交 1 对
+          · div.flex.flex-wrap ∩ nav.hidden.px-3 = 240×320px
+      ✗ A5 正文对比度达标 —— 判定 4 个正文元素（另跳过 31 个），不达标 1 个，阈值 4.5:1
+          · "后端连不上" 1.29:1 < 4.5:1（rgb(37,47,44) on rgb(19,25,23)，span.text-[12px].font-semibold）
+      ✗ A7 页面底部无假高度 —— scrollHeight 1920 - 最后内容底部 768 = 1152px 空白（上限 307px = 40vh）
+          · 最后一个可见元素：div.mx-auto.flex
+✗ archify__mobile.png                    3 通过 / 4 失败 / 0 未适用
+      ✗ A2 main 一级子元素不越界 —— main 一级可见子元素 2 个，越界 1 个（clientWidth 390）
+          · div.px-5.py-6 right=3000 越界 2610px
+      ✗ A4 固定/粘性元素互不遮挡 —— position:fixed|sticky 可见元素 2 个，相交 1 对
+          · div.flex.flex-wrap ∩ nav.hidden.px-3 = 240×320px
+      ✗ A5 正文对比度达标 —— 判定 4 个正文元素（另跳过 31 个），不达标 1 个，阈值 4.5:1
+          · "后端连不上" 1.29:1 < 4.5:1（rgb(37,47,44) on rgb(19,25,23)，span.text-[12px].font-semibold）
+      ✗ A7 页面底部无假高度 —— scrollHeight 2399 - 最后内容底部 1133 = 1266px 空白（上限 338px = 40vh）
+          · 最后一个可见元素：div.mx-auto.flex
+✗ blueprints__desktop.png                3 通过 / 4 失败 / 0 未适用
+      ✗ A2 main 一级子元素不越界 —— main 一级可见子元素 2 个，越界 1 个（clientWidth 1440）
+          · div.px-5.py-6 right=3213 越界 1773px
+      ✗ A4 固定/粘性元素互不遮挡 —— position:fixed|sticky 可见元素 2 个，相交 1 对
+          · div.flex.flex-wrap ∩ nav.hidden.px-3 = 240×320px
+      ✗ A5 正文对比度达标 —— 判定 16 个正文元素（另跳过 74 个），不达标 11 个，阈值 4.5:1
+          · "按场景查" 1.18:1 < 4.5:1（rgb(37,47,44) on rgb(26,34,32)，div.mt-1.5.text-[13px]）
+          · "当模板抄" 1.18:1 < 4.5:1（rgb(37,47,44) on rgb(26,34,32)，div.mt-1.5.text-[13px]）
+          · "当 AI 的参考" 1.18:1 < 4.5:1（rgb(37,47,44) on rgb(26,34,32)，div.mt-1.5.text-[13px]）
+          · "当自查清单" 1.18:1 < 4.5:1（rgb(37,47,44) on rgb(26,34,32)，div.mt-1.5.text-[13px]）
+      ✗ A7 页面底部无假高度 —— scrollHeight 2717 - 最后内容底部 1367 = 1350px 空白（上限 360px = 40vh）
+          · 最后一个可见元素：div.mx-auto.flex
+✗ blueprints__tablet.png                 3 通过 / 4 失败 / 0 未适用
+      ✗ A2 main 一级子元素不越界 —— main 一级可见子元素 2 个，越界 1 个（clientWidth 1024）
+          · div.px-5.py-6 right=3213 越界 2189px
+      ✗ A4 固定/粘性元素互不遮挡 —— position:fixed|sticky 可见元素 2 个，相交 1 对
+          · div.flex.flex-wrap ∩ nav.hidden.px-3 = 240×320px
+      ✗ A5 正文对比度达标 —— 判定 16 个正文元素（另跳过 74 个），不达标 11 个，阈值 4.5:1
+          · "按场景查" 1.18:1 < 4.5:1（rgb(37,47,44) on rgb(26,34,32)，div.mt-1.5.text-[13px]）
+          · "当模板抄" 1.18:1 < 4.5:1（rgb(37,47,44) on rgb(26,34,32)，div.mt-1.5.text-[13px]）
+          · "当 AI 的参考" 1.18:1 < 4.5:1（rgb(37,47,44) on rgb(26,34,32)，div.mt-1.5.text-[13px]）
+          · "当自查清单" 1.18:1 < 4.5:1（rgb(37,47,44) on rgb(26,34,32)，div.mt-1.5.text-[13px]）
+      ✗ A7 页面底部无假高度 —— scrollHeight 2519 - 最后内容底部 1367 = 1152px 空白（上限 307px = 40vh）
+          · 最后一个可见元素：div.mx-auto.flex
+✗ blueprints__mobile.png                 3 通过 / 4 失败 / 0 未适用
+      ✗ A2 main 一级子元素不越界 —— main 一级可见子元素 2 个，越界 1 个（clientWidth 390）
+          · div.px-5.py-6 right=3000 越界 2610px
+      ✗ A4 固定/粘性元素互不遮挡 —— position:fixed|sticky 可见元素 2 个，相交 1 对
+          · div.flex.flex-wrap ∩ nav.hidden.px-3 = 240×320px
+      ✗ A5 正文对比度达标 —— 判定 16 个正文元素（另跳过 74 个），不达标 11 个，阈值 4.5:1
+          · "按场景查" 1.18:1 < 4.5:1（rgb(37,47,44) on rgb(26,34,32)，div.mt-1.5.text-[13px]）
+          · "当模板抄" 1.18:1 < 4.5:1（rgb(37,47,44) on rgb(26,34,32)，div.mt-1.5.text-[13px]）
+          · "当 AI 的参考" 1.18:1 < 4.5:1（rgb(37,47,44) on rgb(26,34,32)，div.mt-1.5.text-[13px]）
+          · "当自查清单" 1.18:1 < 4.5:1（rgb(37,47,44) on rgb(26,34,32)，div.mt-1.5.text-[13px]）
+      ✗ A7 页面底部无假高度 —— scrollHeight 3443 - 最后内容底部 2177 = 1266px 空白（上限 338px = 40vh）
+          · 最后一个可见元素：div.mx-auto.flex
+✗ cases__desktop.png                     3 通过 / 4 失败 / 0 未适用
+      ✗ A2 main 一级子元素不越界 —— main 一级可见子元素 2 个，越界 1 个（clientWidth 1440）
+          · div.px-5.py-6 right=3213 越界 1773px
+      ✗ A4 固定/粘性元素互不遮挡 —— position:fixed|sticky 可见元素 12 个，相交 44 对
+          · div.flex.flex-wrap ∩ nav.hidden.px-3 = 240×320px
+          · div.text-2xs.uppercase ∩ div.flex.items-center = 240×320px
+          · div.text-2xs.uppercase ∩ div.rounded-lg.border = 240×308px
+          · div.text-2xs.uppercase ∩ div.rounded-lg.border = 240×308px
+      ✗ A5 正文对比度达标 —— 判定 46 个正文元素（另跳过 71 个），不达标 23 个，阈值 4.5:1
+          · "48" 1.29:1 < 4.5:1（rgb(37,47,44) on rgb(19,25,23)，div.mono.text-[19px]）
+          · "36" 1.29:1 < 4.5:1（rgb(37,47,44) on rgb(19,25,23)，div.mono.text-[19px]）
+          · "3694" 1.29:1 < 4.5:1（rgb(37,47,44) on rgb(19,25,23)，div.mono.text-[19px]）
+          · "39" 1.29:1 < 4.5:1（rgb(37,47,44) on rgb(19,25,23)，div.mono.text-[19px]）
+      ✗ A7 页面底部无假高度 —— scrollHeight 2593 - 最后内容底部 1243 = 1350px 空白（上限 360px = 40vh）
+          · 最后一个可见元素：div.mx-auto.flex
+✗ cases__tablet.png                      3 通过 / 4 失败 / 0 未适用
+      ✗ A2 main 一级子元素不越界 —— main 一级可见子元素 2 个，越界 1 个（clientWidth 1024）
+          · div.px-5.py-6 right=3213 越界 2189px
+      ✗ A4 固定/粘性元素互不遮挡 —— position:fixed|sticky 可见元素 12 个，相交 44 对
+          · div.flex.flex-wrap ∩ nav.hidden.px-3 = 240×320px
+          · div.text-2xs.uppercase ∩ div.flex.items-center = 240×320px
+          · div.text-2xs.uppercase ∩ div.rounded-lg.border = 240×308px
+          · div.text-2xs.uppercase ∩ div.rounded-lg.border = 240×308px
+      ✗ A5 正文对比度达标 —— 判定 46 个正文元素（另跳过 71 个），不达标 23 个，阈值 4.5:1
+          · "48" 1.29:1 < 4.5:1（rgb(37,47,44) on rgb(19,25,23)，div.mono.text-[19px]）
+          · "36" 1.29:1 < 4.5:1（rgb(37,47,44) on rgb(19,25,23)，div.mono.text-[19px]）
+          · "3694" 1.29:1 < 4.5:1（rgb(37,47,44) on rgb(19,25,23)，div.mono.text-[19px]）
+          · "39" 1.29:1 < 4.5:1（rgb(37,47,44) on rgb(19,25,23)，div.mono.text-[19px]）
+      ✗ A7 页面底部无假高度 —— scrollHeight 2395 - 最后内容底部 1243 = 1152px 空白（上限 307px = 40vh）
+          · 最后一个可见元素：div.mx-auto.flex
+✗ cases__mobile.png                      3 通过 / 4 失败 / 0 未适用
+      ✗ A2 main 一级子元素不越界 —— main 一级可见子元素 2 个，越界 1 个（clientWidth 390）
+          · div.px-5.py-6 right=3000 越界 2610px
+      ✗ A4 固定/粘性元素互不遮挡 —— position:fixed|sticky 可见元素 11 个，相交 55 对
+          · div.flex.flex-wrap ∩ nav.hidden.px-3 = 240×320px
+          · div.flex.flex-wrap ∩ div.text-2xs.uppercase = 220×296px
+          · div.flex.flex-wrap ∩ div.flex.items-center = 220×296px
+          · div.flex.flex-wrap ∩ div.rounded-lg.border = 220×284px
+      ✗ A5 正文对比度达标 —— 判定 46 个正文元素（另跳过 71 个），不达标 23 个，阈值 4.5:1
+          · "48" 1.29:1 < 4.5:1（rgb(37,47,44) on rgb(19,25,23)，div.mono.text-[19px]）
+          · "36" 1.29:1 < 4.5:1（rgb(37,47,44) on rgb(19,25,23)，div.mono.text-[19px]）
+          · "3694" 1.29:1 < 4.5:1（rgb(37,47,44) on rgb(19,25,23)，div.mono.text-[19px]）
+          · "39" 1.29:1 < 4.5:1（rgb(37,47,44) on rgb(19,25,23)，div.mono.text-[19px]）
+      ✗ A7 页面底部无假高度 —— scrollHeight 3168 - 最后内容底部 1966 = 1202px 空白（上限 338px = 40vh）
+          · 最后一个可见元素：p.mt-2.text-[12px]
+✗ check__desktop.png                     3 通过 / 4 失败 / 0 未适用
+      ✗ A2 main 一级子元素不越界 —— main 一级可见子元素 2 个，越界 1 个（clientWidth 1440）
+          · div.px-5.py-6 right=3213 越界 1773px
+      ✗ A4 固定/粘性元素互不遮挡 —— position:fixed|sticky 可见元素 2 个，相交 1 对
+          · div.flex.flex-wrap ∩ nav.hidden.px-3 = 240×320px
+      ✗ A5 正文对比度达标 —— 判定 4 个正文元素（另跳过 12 个），不达标 1 个，阈值 4.5:1
+          · "粘贴代码后会自动开始校验。" 1.29:1 < 4.5:1（rgb(37,47,44) on rgb(19,25,23)，p.mt-2.text-sm）
+      ✗ A7 页面底部无假高度 —— scrollHeight 2371 - 最后内容底部 1021 = 1350px 空白（上限 360px = 40vh）
+          · 最后一个可见元素：div.mx-auto.flex
+✗ check__tablet.png                      3 通过 / 4 失败 / 0 未适用
+      ✗ A2 main 一级子元素不越界 —— main 一级可见子元素 2 个，越界 1 个（clientWidth 1024）
+          · div.px-5.py-6 right=3213 越界 2189px
+      ✗ A4 固定/粘性元素互不遮挡 —— position:fixed|sticky 可见元素 2 个，相交 1 对
+          · div.flex.flex-wrap ∩ nav.hidden.px-3 = 240×320px
+      ✗ A5 正文对比度达标 —— 判定 4 个正文元素（另跳过 12 个），不达标 1 个，阈值 4.5:1
+          · "粘贴代码后会自动开始校验。" 1.29:1 < 4.5:1（rgb(37,47,44) on rgb(19,25,23)，p.mt-2.text-sm）
+      ✗ A7 页面底部无假高度 —— scrollHeight 2173 - 最后内容底部 1021 = 1152px 空白（上限 307px = 40vh）
+          · 最后一个可见元素：div.mx-auto.flex
+✗ check__mobile.png                      3 通过 / 4 失败 / 0 未适用
+      ✗ A2 main 一级子元素不越界 —— main 一级可见子元素 2 个，越界 1 个（clientWidth 390）
+          · div.px-5.py-6 right=3000 越界 2610px
+      ✗ A4 固定/粘性元素互不遮挡 —— position:fixed|sticky 可见元素 2 个，相交 1 对
+          · div.flex.flex-wrap ∩ nav.hidden.px-3 = 240×320px
+      ✗ A5 正文对比度达标 —— 判定 4 个正文元素（另跳过 12 个），不达标 1 个，阈值 4.5:1
+          · "粘贴代码后会自动开始校验。" 1.29:1 < 4.5:1（rgb(37,47,44) on rgb(19,25,23)，p.mt-2.text-sm）
+      ✗ A7 页面底部无假高度 —— scrollHeight 2287 - 最后内容底部 1021 = 1266px 空白（上限 338px = 40vh）
+          · 最后一个可见元素：div.mx-auto.flex
+✗ export__desktop.png                    3 通过 / 4 失败 / 0 未适用
+      ✗ A2 main 一级子元素不越界 —— main 一级可见子元素 2 个，越界 1 个（clientWidth 1440）
+          · div.px-5.py-6 right=3213 越界 1773px
+      ✗ A4 固定/粘性元素互不遮挡 —— position:fixed|sticky 可见元素 3 个，相交 1 对
+          · div.flex.flex-wrap ∩ nav.hidden.px-3 = 240×320px
+      ✗ A5 正文对比度达标 —— 判定 10 个正文元素（另跳过 51 个），不达标 9 个，阈值 4.5:1
+          · ".cursorrules" 1.29:1 < 4.5:1（rgb(37,47,44) on rgb(19,25,23)，span.text-[13px].font-semibold）
+          · "CLAUDE.md" 1.29:1 < 4.5:1（rgb(37,47,44) on rgb(19,25,23)，span.text-[13px].font-semibold）
+          · "规范书" 1.29:1 < 4.5:1（rgb(37,47,44) on rgb(19,25,23)，span.text-[13px].font-semibold）
+          · "MCP Server" 1.29:1 < 4.5:1（rgb(37,47,44) on rgb(19,25,23)，span.text-[13px].font-semibold）
+      ✗ A7 页面底部无假高度 —— scrollHeight 2548 - 最后内容底部 1198 = 1350px 空白（上限 360px = 40vh）
+          · 最后一个可见元素：div.mx-auto.flex
+✗ export__tablet.png                     3 通过 / 4 失败 / 0 未适用
+      ✗ A2 main 一级子元素不越界 —— main 一级可见子元素 2 个，越界 1 个（clientWidth 1024）
+          · div.px-5.py-6 right=3213 越界 2189px
+      ✗ A4 固定/粘性元素互不遮挡 —— position:fixed|sticky 可见元素 3 个，相交 1 对
+          · div.flex.flex-wrap ∩ nav.hidden.px-3 = 240×320px
+      ✗ A5 正文对比度达标 —— 判定 10 个正文元素（另跳过 51 个），不达标 9 个，阈值 4.5:1
+          · ".cursorrules" 1.29:1 < 4.5:1（rgb(37,47,44) on rgb(19,25,23)，span.text-[13px].font-semibold）
+          · "CLAUDE.md" 1.29:1 < 4.5:1（rgb(37,47,44) on rgb(19,25,23)，span.text-[13px].font-semibold）
+          · "规范书" 1.29:1 < 4.5:1（rgb(37,47,44) on rgb(19,25,23)，span.text-[13px].font-semibold）
+          · "MCP Server" 1.29:1 < 4.5:1（rgb(37,47,44) on rgb(19,25,23)，span.text-[13px].font-semibold）
+      ✗ A7 页面底部无假高度 —— scrollHeight 2350 - 最后内容底部 1198 = 1152px 空白（上限 307px = 40vh）
+          · 最后一个可见元素：div.mx-auto.flex
+✗ export__mobile.png                     3 通过 / 4 失败 / 0 未适用
+      ✗ A2 main 一级子元素不越界 —— main 一级可见子元素 2 个，越界 1 个（clientWidth 390）
+          · div.px-5.py-6 right=3000 越界 2610px
+      ✗ A4 固定/粘性元素互不遮挡 —— position:fixed|sticky 可见元素 2 个，相交 1 对
+          · div.flex.flex-wrap ∩ nav.hidden.px-3 = 240×320px
+      ✗ A5 正文对比度达标 —— 判定 10 个正文元素（另跳过 51 个），不达标 9 个，阈值 4.5:1
+          · ".cursorrules" 1.29:1 < 4.5:1（rgb(37,47,44) on rgb(19,25,23)，span.text-[13px].font-semibold）
+          · "CLAUDE.md" 1.29:1 < 4.5:1（rgb(37,47,44) on rgb(19,25,23)，span.text-[13px].font-semibold）
+          · "规范书" 1.29:1 < 4.5:1（rgb(37,47,44) on rgb(19,25,23)，span.text-[13px].font-semibold）
+          · "MCP Server" 1.29:1 < 4.5:1（rgb(37,47,44) on rgb(19,25,23)，span.text-[13px].font-semibold）
+      ✗ A7 页面底部无假高度 —— scrollHeight 3110 - 最后内容底部 1844 = 1266px 空白（上限 338px = 40vh）
+          · 最后一个可见元素：div.mx-auto.flex
+✗ icons__desktop.png                     3 通过 / 4 失败 / 0 未适用
+      ✗ A2 main 一级子元素不越界 —— main 一级可见子元素 2 个，越界 1 个（clientWidth 1440）
+          · div.px-5.py-6 right=3213 越界 1773px
+      ✗ A4 固定/粘性元素互不遮挡 —— position:fixed|sticky 可见元素 4 个，相交 2 对
+          · div.flex.flex-wrap ∩ nav.hidden.px-3 = 240×320px
+          · div.mb-2.px-1 ∩ div.mt-3.rounded-md = 240×316px
+      ✗ A5 正文对比度达标 —— 判定 17 个正文元素（另跳过 103 个），不达标 17 个，阈值 4.5:1
+          · "81" 1.29:1 < 4.5:1（rgb(37,47,44) on rgb(19,25,23)，div.stat-num.mt-1）
+          · "81" 1.29:1 < 4.5:1（rgb(37,47,44) on rgb(19,25,23)，div.stat-num.mt-1）
+          · "18" 1.29:1 < 4.5:1（rgb(37,47,44) on rgb(19,25,23)，div.stat-num.mt-1）
+          · "用户" 1.29:1 < 4.5:1（rgb(37,47,44) on rgb(19,25,23)，span.w-full.text-center）
+      ✗ A7 页面底部无假高度 —— scrollHeight 4775 - 最后内容底部 3425 = 1350px 空白（上限 360px = 40vh）
+          · 最后一个可见元素：div.mx-auto.flex
+✗ icons__tablet.png                      3 通过 / 4 失败 / 0 未适用
+      ✗ A2 main 一级子元素不越界 —— main 一级可见子元素 2 个，越界 1 个（clientWidth 1024）
+          · div.px-5.py-6 right=3213 越界 2189px
+      ✗ A4 固定/粘性元素互不遮挡 —— position:fixed|sticky 可见元素 4 个，相交 2 对
+          · div.flex.flex-wrap ∩ nav.hidden.px-3 = 240×320px
+          · div.mb-2.px-1 ∩ div.mt-3.rounded-md = 240×316px
+      ✗ A5 正文对比度达标 —— 判定 17 个正文元素（另跳过 103 个），不达标 17 个，阈值 4.5:1
+          · "81" 1.29:1 < 4.5:1（rgb(37,47,44) on rgb(19,25,23)，div.stat-num.mt-1）
+          · "81" 1.29:1 < 4.5:1（rgb(37,47,44) on rgb(19,25,23)，div.stat-num.mt-1）
+          · "18" 1.29:1 < 4.5:1（rgb(37,47,44) on rgb(19,25,23)，div.stat-num.mt-1）
+          · "用户" 1.29:1 < 4.5:1（rgb(37,47,44) on rgb(19,25,23)，span.w-full.text-center）
+      ✗ A7 页面底部无假高度 —— scrollHeight 5252 - 最后内容底部 4100 = 1152px 空白（上限 307px = 40vh）
+          · 最后一个可见元素：div.mx-auto.flex
+✗ icons__mobile.png                      3 通过 / 4 失败 / 0 未适用
+      ✗ A2 main 一级子元素不越界 —— main 一级可见子元素 2 个，越界 1 个（clientWidth 390）
+          · div.px-5.py-6 right=3000 越界 2610px
+      ✗ A4 固定/粘性元素互不遮挡 —— position:fixed|sticky 可见元素 4 个，相交 6 对
+          · div.flex.flex-wrap ∩ nav.hidden.px-3 = 240×320px
+          · div.flex.flex-wrap ∩ div.mb-2.px-1 = 220×296px
+          · div.flex.flex-wrap ∩ div.mt-3.rounded-md = 220×292px
+          · nav.hidden.px-3 ∩ div.mb-2.px-1 = 220×296px
+      ✗ A5 正文对比度达标 —— 判定 17 个正文元素（另跳过 103 个），不达标 17 个，阈值 4.5:1
+          · "81" 1.29:1 < 4.5:1（rgb(37,47,44) on rgb(19,25,23)，div.stat-num.mt-1）
+          · "81" 1.29:1 < 4.5:1（rgb(37,47,44) on rgb(19,25,23)，div.stat-num.mt-1）
+          · "18" 1.29:1 < 4.5:1（rgb(37,47,44) on rgb(19,25,23)，div.stat-num.mt-1）
+          · "用户" 1.29:1 < 4.5:1（rgb(37,47,44) on rgb(19,25,23)，span.w-full.text-center）
+      ✗ A7 页面底部无假高度 —— scrollHeight 9177 - 最后内容底部 7911 = 1266px 空白（上限 338px = 40vh）
+          · 最后一个可见元素：div.mx-auto.flex
+✗ rules__desktop.png                     3 通过 / 4 失败 / 0 未适用
+      ✗ A2 main 一级子元素不越界 —— main 一级可见子元素 2 个，越界 1 个（clientWidth 1440）
+          · div.px-5.py-6 right=3213 越界 1773px
+      ✗ A4 固定/粘性元素互不遮挡 —— position:fixed|sticky 可见元素 2 个，相交 1 对
+          · div.flex.flex-wrap ∩ nav.hidden.px-3 = 240×320px
+      ✗ A5 正文对比度达标 —— 判定 22 个正文元素（另跳过 98 个），不达标 12 个，阈值 4.5:1
+          · "命中 69 / 69 条" 1.29:1 < 4.5:1（rgb(37,47,44) on rgb(19,25,23)，span.text-xs.text-fgMuted）
+          · "69" 1.29:1 < 4.5:1（rgb(37,47,44) on rgb(19,25,23)，span.mono.text-fg）
+          · "配置必须按环境分离（application-{env" 1.29:1 < 4.5:1（rgb(37,47,44) on rgb(19,25,23)，p.mt-2.flex-1）
+          · "项目基于 Spring Boot 3.x，所有 AP" 1.29:1 < 4.5:1（rgb(37,47,44) on rgb(19,25,23)，p.mt-2.flex-1）
+      ✗ A7 页面底部无假高度 —— scrollHeight 7514 - 最后内容底部 6164 = 1350px 空白（上限 360px = 40vh）
+          · 最后一个可见元素：div.mx-auto.flex
+✗ rules__tablet.png                      3 通过 / 4 失败 / 0 未适用
+      ✗ A2 main 一级子元素不越界 —— main 一级可见子元素 2 个，越界 1 个（clientWidth 1024）
+          · div.px-5.py-6 right=3213 越界 2189px
+      ✗ A4 固定/粘性元素互不遮挡 —— position:fixed|sticky 可见元素 2 个，相交 1 对
+          · div.flex.flex-wrap ∩ nav.hidden.px-3 = 240×320px
+      ✗ A5 正文对比度达标 —— 判定 22 个正文元素（另跳过 98 个），不达标 12 个，阈值 4.5:1
+          · "命中 69 / 69 条" 1.29:1 < 4.5:1（rgb(37,47,44) on rgb(19,25,23)，span.text-xs.text-fgMuted）
+          · "69" 1.29:1 < 4.5:1（rgb(37,47,44) on rgb(19,25,23)，span.mono.text-fg）
+          · "配置必须按环境分离（application-{env" 1.29:1 < 4.5:1（rgb(37,47,44) on rgb(19,25,23)，p.mt-2.flex-1）
+          · "项目基于 Spring Boot 3.x，所有 AP" 1.29:1 < 4.5:1（rgb(37,47,44) on rgb(19,25,23)，p.mt-2.flex-1）
+      ✗ A7 页面底部无假高度 —— scrollHeight 7316 - 最后内容底部 6164 = 1152px 空白（上限 307px = 40vh）
+          · 最后一个可见元素：div.mx-auto.flex
+✗ rules__mobile.png                      3 通过 / 4 失败 / 0 未适用
+      ✗ A2 main 一级子元素不越界 —— main 一级可见子元素 2 个，越界 1 个（clientWidth 390）
+          · div.px-5.py-6 right=3000 越界 2610px
+      ✗ A4 固定/粘性元素互不遮挡 —— position:fixed|sticky 可见元素 2 个，相交 1 对
+          · div.flex.flex-wrap ∩ nav.hidden.px-3 = 240×320px
+      ✗ A5 正文对比度达标 —— 判定 22 个正文元素（另跳过 98 个），不达标 12 个，阈值 4.5:1
+          · "命中 69 / 69 条" 1.29:1 < 4.5:1（rgb(37,47,44) on rgb(19,25,23)，span.text-xs.text-fgMuted）
+          · "69" 1.29:1 < 4.5:1（rgb(37,47,44) on rgb(19,25,23)，span.mono.text-fg）
+          · "配置必须按环境分离（application-{env" 1.29:1 < 4.5:1（rgb(37,47,44) on rgb(19,25,23)，p.mt-2.flex-1）
+          · "项目基于 Spring Boot 3.x，所有 AP" 1.29:1 < 4.5:1（rgb(37,47,44) on rgb(19,25,23)，p.mt-2.flex-1）
+      ✗ A7 页面底部无假高度 —— scrollHeight 12910 - 最后内容底部 11644 = 1266px 空白（上限 338px = 40vh）
+          · 最后一个可见元素：div.mx-auto.flex
+✗ stack__desktop.png                     3 通过 / 4 失败 / 0 未适用
+      ✗ A2 main 一级子元素不越界 —— main 一级可见子元素 2 个，越界 1 个（clientWidth 1440）
+          · div.px-5.py-6 right=3213 越界 1773px
+      ✗ A4 固定/粘性元素互不遮挡 —— position:fixed|sticky 可见元素 3 个，相交 1 对
+          · div.flex.flex-wrap ∩ nav.hidden.px-3 = 240×320px
+      ✗ A5 正文对比度达标 —— 判定 1 个正文元素（另跳过 119 个），不达标 1 个，阈值 4.5:1
+          · "架构装配台" 1.4:1 < 4.5:1（rgb(37,47,44) on rgb(11,15,14)，h1.sr-only）
+      ✗ A7 页面底部无假高度 —— scrollHeight 7952 - 最后内容底部 6602 = 1350px 空白（上限 360px = 40vh）
+          · 最后一个可见元素：div.mx-auto.flex
+✗ stack__tablet.png                      3 通过 / 4 失败 / 0 未适用
+      ✗ A2 main 一级子元素不越界 —— main 一级可见子元素 2 个，越界 1 个（clientWidth 1024）
+          · div.px-5.py-6 right=3213 越界 2189px
+      ✗ A4 固定/粘性元素互不遮挡 —— position:fixed|sticky 可见元素 2 个，相交 1 对
+          · div.flex.flex-wrap ∩ nav.hidden.px-3 = 240×320px
+      ✗ A5 正文对比度达标 —— 判定 1 个正文元素（另跳过 119 个），不达标 1 个，阈值 4.5:1
+          · "架构装配台" 1.4:1 < 4.5:1（rgb(37,47,44) on rgb(11,15,14)，h1.sr-only）
+      ✗ A7 页面底部无假高度 —— scrollHeight 8004 - 最后内容底部 6852 = 1152px 空白（上限 307px = 40vh）
+          · 最后一个可见元素：div.mx-auto.flex
+✗ stack__mobile.png                      3 通过 / 4 失败 / 0 未适用
+      ✗ A2 main 一级子元素不越界 —— main 一级可见子元素 2 个，越界 1 个（clientWidth 390）
+          · div.px-5.py-6 right=3000 越界 2610px
+      ✗ A4 固定/粘性元素互不遮挡 —— position:fixed|sticky 可见元素 2 个，相交 1 对
+          · div.flex.flex-wrap ∩ nav.hidden.px-3 = 240×320px
+      ✗ A5 正文对比度达标 —— 判定 1 个正文元素（另跳过 119 个），不达标 1 个，阈值 4.5:1
+          · "架构装配台" 1.4:1 < 4.5:1（rgb(37,47,44) on rgb(11,15,14)，h1.sr-only）
+      ✗ A7 页面底部无假高度 —— scrollHeight 8161 - 最后内容底部 6895 = 1266px 空白（上限 338px = 40vh）
+          · 最后一个可见元素：div.mx-auto.flex
+✗ rules-COL-CODE-001__desktop.png        3 通过 / 4 失败 / 0 未适用
+      ✗ A2 main 一级子元素不越界 —— main 一级可见子元素 2 个，越界 1 个（clientWidth 1440）
+          · div.px-5.py-6 right=3213 越界 1773px
+      ✗ A4 固定/粘性元素互不遮挡 —— position:fixed|sticky 可见元素 6 个，相交 7 对
+          · div.flex.flex-wrap ∩ nav.hidden.px-3 = 240×320px
+          · div.panel.p-4 ∩ div.panel.p-4 = 240×308px
+          · div.panel.p-4 ∩ div.panel.p-4 = 240×308px
+          · div.panel.p-4 ∩ div.panel.p-4 = 240×308px
+      ✗ A5 正文对比度达标 —— 判定 18 个正文元素（另跳过 52 个），不达标 18 个，阈值 4.5:1
+          · "该类/方法的 Javadoc 是否存在？块标签（@p" 1.18:1 < 4.5:1（rgb(37,47,44) on rgb(26,34,32)，p.mt-2.5.rounded）
+          · "例外：重写父类方法的实现、以及 getXxx/isX" 1.18:1 < 4.5:1（rgb(37,47,44) on rgb(26,34,32)，p.mt-2.5.rounded）
+          · "语义层 · LLM 判定" 1.29:1 < 4.5:1（rgb(37,47,44) on rgb(19,25,23)，span.text-[13px].font-medium）
+          · "人工层 · 检查清单" 1.29:1 < 4.5:1（rgb(37,47,44) on rgb(19,25,23)，span.text-[13px].font-medium）
+      ✗ A7 页面底部无假高度 —— scrollHeight 2946 - 最后内容底部 1596 = 1350px 空白（上限 360px = 40vh）
+          · 最后一个可见元素：div.mx-auto.flex
+✗ rules-COL-CODE-001__tablet.png         3 通过 / 4 失败 / 0 未适用
+      ✗ A2 main 一级子元素不越界 —— main 一级可见子元素 2 个，越界 1 个（clientWidth 1024）
+          · div.px-5.py-6 right=3213 越界 2189px
+      ✗ A4 固定/粘性元素互不遮挡 —— position:fixed|sticky 可见元素 6 个，相交 7 对
+          · div.flex.flex-wrap ∩ nav.hidden.px-3 = 240×320px
+          · div.panel.p-4 ∩ div.panel.p-4 = 240×308px
+          · div.panel.p-4 ∩ div.panel.p-4 = 240×308px
+          · div.panel.p-4 ∩ div.panel.p-4 = 240×308px
+      ✗ A5 正文对比度达标 —— 判定 18 个正文元素（另跳过 52 个），不达标 18 个，阈值 4.5:1
+          · "该类/方法的 Javadoc 是否存在？块标签（@p" 1.18:1 < 4.5:1（rgb(37,47,44) on rgb(26,34,32)，p.mt-2.5.rounded）
+          · "例外：重写父类方法的实现、以及 getXxx/isX" 1.18:1 < 4.5:1（rgb(37,47,44) on rgb(26,34,32)，p.mt-2.5.rounded）
+          · "语义层 · LLM 判定" 1.29:1 < 4.5:1（rgb(37,47,44) on rgb(19,25,23)，span.text-[13px].font-medium）
+          · "人工层 · 检查清单" 1.29:1 < 4.5:1（rgb(37,47,44) on rgb(19,25,23)，span.text-[13px].font-medium）
+      ✗ A7 页面底部无假高度 —— scrollHeight 2748 - 最后内容底部 1596 = 1152px 空白（上限 307px = 40vh）
+          · 最后一个可见元素：div.mx-auto.flex
+✗ rules-COL-CODE-001__mobile.png         3 通过 / 4 失败 / 0 未适用
+      ✗ A2 main 一级子元素不越界 —— main 一级可见子元素 2 个，越界 1 个（clientWidth 390）
+          · div.px-5.py-6 right=3000 越界 2610px
+      ✗ A4 固定/粘性元素互不遮挡 —— position:fixed|sticky 可见元素 6 个，相交 15 对
+          · div.flex.flex-wrap ∩ nav.hidden.px-3 = 240×320px
+          · div.flex.flex-wrap ∩ div.panel.p-4 = 220×296px
+          · div.flex.flex-wrap ∩ div.panel.p-4 = 220×284px
+          · div.flex.flex-wrap ∩ div.panel.p-4 = 220×284px
+      ✗ A5 正文对比度达标 —— 判定 18 个正文元素（另跳过 52 个），不达标 18 个，阈值 4.5:1
+          · "该类/方法的 Javadoc 是否存在？块标签（@p" 1.18:1 < 4.5:1（rgb(37,47,44) on rgb(26,34,32)，p.mt-2.5.rounded）
+          · "例外：重写父类方法的实现、以及 getXxx/isX" 1.18:1 < 4.5:1（rgb(37,47,44) on rgb(26,34,32)，p.mt-2.5.rounded）
+          · "语义层 · LLM 判定" 1.29:1 < 4.5:1（rgb(37,47,44) on rgb(19,25,23)，span.text-[13px].font-medium）
+          · "人工层 · 检查清单" 1.29:1 < 4.5:1（rgb(37,47,44) on rgb(19,25,23)，span.text-[13px].font-medium）
+      ✗ A7 页面底部无假高度 —— scrollHeight 2886 - 最后内容底部 1620 = 1266px 空白（上限 338px = 40vh）
+          · 最后一个可见元素：div.mx-auto.flex
+✗ rules-REL-LOG-002__desktop.png         3 通过 / 4 失败 / 0 未适用
+      ✗ A2 main 一级子元素不越界 —— main 一级可见子元素 2 个，越界 1 个（clientWidth 1440）
+          · div.px-5.py-6 right=3213 越界 1773px
+      ✗ A4 固定/粘性元素互不遮挡 —— position:fixed|sticky 可见元素 6 个，相交 7 对
+          · div.flex.flex-wrap ∩ nav.hidden.px-3 = 240×320px
+          · div.panel.p-4 ∩ div.panel.p-4 = 240×308px
+          · div.panel.p-4 ∩ div.panel.p-4 = 240×308px
+          · div.panel.p-4 ∩ div.panel.p-4 = 240×308px
+      ✗ A5 正文对比度达标 —— 判定 18 个正文元素（另跳过 60 个），不达标 18 个，阈值 4.5:1
+          · "正则层 · 文本匹配" 1.29:1 < 4.5:1（rgb(37,47,44) on rgb(19,25,23)，span.text-[13px].font-medium）
+          · "阿里巴巴Java开发手册 异常日志·日志规约 §5【" 1.29:1 < 4.5:1（rgb(37,47,44) on rgb(19,25,23)，span.text-[13px].text-fg）
+          · "阿里巴巴Java开发手册 异常日志·日志规约【强制】" 1.29:1 < 4.5:1（rgb(37,47,44) on rgb(19,25,23)，span.text-[13px].text-fg）
+          · "禁止使用 System.out / System.e" 1.29:1 < 4.5:1（rgb(37,47,44) on rgb(19,25,23)，div.mt-0.5.truncate）
+      ✗ A7 页面底部无假高度 —— scrollHeight 2870 - 最后内容底部 1520 = 1350px 空白（上限 360px = 40vh）
+          · 最后一个可见元素：div.mx-auto.flex
+✗ rules-REL-LOG-002__tablet.png          3 通过 / 4 失败 / 0 未适用
+      ✗ A2 main 一级子元素不越界 —— main 一级可见子元素 2 个，越界 1 个（clientWidth 1024）
+          · div.px-5.py-6 right=3213 越界 2189px
+      ✗ A4 固定/粘性元素互不遮挡 —— position:fixed|sticky 可见元素 6 个，相交 7 对
+          · div.flex.flex-wrap ∩ nav.hidden.px-3 = 240×320px
+          · div.panel.p-4 ∩ div.panel.p-4 = 240×308px
+          · div.panel.p-4 ∩ div.panel.p-4 = 240×308px
+          · div.panel.p-4 ∩ div.panel.p-4 = 240×308px
+      ✗ A5 正文对比度达标 —— 判定 18 个正文元素（另跳过 60 个），不达标 18 个，阈值 4.5:1
+          · "正则层 · 文本匹配" 1.29:1 < 4.5:1（rgb(37,47,44) on rgb(19,25,23)，span.text-[13px].font-medium）
+          · "阿里巴巴Java开发手册 异常日志·日志规约 §5【" 1.29:1 < 4.5:1（rgb(37,47,44) on rgb(19,25,23)，span.text-[13px].text-fg）
+          · "阿里巴巴Java开发手册 异常日志·日志规约【强制】" 1.29:1 < 4.5:1（rgb(37,47,44) on rgb(19,25,23)，span.text-[13px].text-fg）
+          · "禁止使用 System.out / System.e" 1.29:1 < 4.5:1（rgb(37,47,44) on rgb(19,25,23)，div.mt-0.5.truncate）
+      ✗ A7 页面底部无假高度 —— scrollHeight 2672 - 最后内容底部 1520 = 1152px 空白（上限 307px = 40vh）
+          · 最后一个可见元素：div.mx-auto.flex
+✗ rules-REL-LOG-002__mobile.png          3 通过 / 4 失败 / 0 未适用
+      ✗ A2 main 一级子元素不越界 —— main 一级可见子元素 2 个，越界 1 个（clientWidth 390）
+          · div.px-5.py-6 right=3000 越界 2610px
+      ✗ A4 固定/粘性元素互不遮挡 —— position:fixed|sticky 可见元素 6 个，相交 15 对
+          · div.flex.flex-wrap ∩ nav.hidden.px-3 = 240×320px
+          · div.flex.flex-wrap ∩ div.panel.p-4 = 220×296px
+          · div.flex.flex-wrap ∩ div.panel.p-4 = 220×284px
+          · div.flex.flex-wrap ∩ div.panel.p-4 = 220×284px
+      ✗ A5 正文对比度达标 —— 判定 18 个正文元素（另跳过 60 个），不达标 18 个，阈值 4.5:1
+          · "正则层 · 文本匹配" 1.29:1 < 4.5:1（rgb(37,47,44) on rgb(19,25,23)，span.text-[13px].font-medium）
+          · "阿里巴巴Java开发手册 异常日志·日志规约 §5【" 1.29:1 < 4.5:1（rgb(37,47,44) on rgb(19,25,23)，span.text-[13px].text-fg）
+          · "阿里巴巴Java开发手册 异常日志·日志规约【强制】" 1.29:1 < 4.5:1（rgb(37,47,44) on rgb(19,25,23)，span.text-[13px].text-fg）
+          · "禁止使用 System.out / System.e" 1.29:1 < 4.5:1（rgb(37,47,44) on rgb(19,25,23)，div.mt-0.5.truncate）
+      ✗ A7 页面底部无假高度 —— scrollHeight 2810 - 最后内容底部 1544 = 1266px 空白（上限 338px = 40vh）
+          · 最后一个可见元素：div.mx-auto.flex
+✗ rules-WEB-DTO-001__desktop.png         3 通过 / 4 失败 / 0 未适用
+      ✗ A2 main 一级子元素不越界 —— main 一级可见子元素 2 个，越界 1 个（clientWidth 1440）
+          · div.px-5.py-6 right=3213 越界 1773px
+      ✗ A4 固定/粘性元素互不遮挡 —— position:fixed|sticky 可见元素 6 个，相交 7 对
+          · div.flex.flex-wrap ∩ nav.hidden.px-3 = 240×320px
+          · div.panel.p-4 ∩ div.panel.p-4 = 240×308px
+          · div.panel.p-4 ∩ div.panel.p-4 = 240×308px
+          · div.panel.p-4 ∩ div.panel.p-4 = 240×308px
+      ✗ A5 正文对比度达标 —— 判定 35 个正文元素（另跳过 59 个），不达标 35 个，阈值 4.5:1
+          · "该方法的返回值或参数类型是否为实体类（Entity/" 1.18:1 < 4.5:1（rgb(37,47,44) on rgb(26,34,32)，p.mt-2.5.rounded）
+          · "正则层 · 文本匹配" 1.29:1 < 4.5:1（rgb(37,47,44) on rgb(19,25,23)，span.text-[13px].font-medium）
+          · "语义层 · LLM 判定" 1.29:1 < 4.5:1（rgb(37,47,44) on rgb(19,25,23)，span.text-[13px].font-medium）
+          · "阿里巴巴Java开发手册 工程结构·分层领域模型" 1.29:1 < 4.5:1（rgb(37,47,44) on rgb(19,25,23)，span.text-[13px].text-fg）
+      ✗ A7 页面底部无假高度 —— scrollHeight 2854 - 最后内容底部 1504 = 1350px 空白（上限 360px = 40vh）
+          · 最后一个可见元素：div.mx-auto.flex
+✗ rules-WEB-DTO-001__tablet.png          3 通过 / 4 失败 / 0 未适用
+      ✗ A2 main 一级子元素不越界 —— main 一级可见子元素 2 个，越界 1 个（clientWidth 1024）
+          · div.px-5.py-6 right=3213 越界 2189px
+      ✗ A4 固定/粘性元素互不遮挡 —— position:fixed|sticky 可见元素 6 个，相交 7 对
+          · div.flex.flex-wrap ∩ nav.hidden.px-3 = 240×320px
+          · div.panel.p-4 ∩ div.panel.p-4 = 240×308px
+          · div.panel.p-4 ∩ div.panel.p-4 = 240×308px
+          · div.panel.p-4 ∩ div.panel.p-4 = 240×308px
+      ✗ A5 正文对比度达标 —— 判定 35 个正文元素（另跳过 59 个），不达标 35 个，阈值 4.5:1
+          · "该方法的返回值或参数类型是否为实体类（Entity/" 1.18:1 < 4.5:1（rgb(37,47,44) on rgb(26,34,32)，p.mt-2.5.rounded）
+          · "正则层 · 文本匹配" 1.29:1 < 4.5:1（rgb(37,47,44) on rgb(19,25,23)，span.text-[13px].font-medium）
+          · "语义层 · LLM 判定" 1.29:1 < 4.5:1（rgb(37,47,44) on rgb(19,25,23)，span.text-[13px].font-medium）
+          · "阿里巴巴Java开发手册 工程结构·分层领域模型" 1.29:1 < 4.5:1（rgb(37,47,44) on rgb(19,25,23)，span.text-[13px].text-fg）
+      ✗ A7 页面底部无假高度 —— scrollHeight 2656 - 最后内容底部 1504 = 1152px 空白（上限 307px = 40vh）
+          · 最后一个可见元素：div.mx-auto.flex
+✗ rules-WEB-DTO-001__mobile.png          3 通过 / 4 失败 / 0 未适用
+      ✗ A2 main 一级子元素不越界 —— main 一级可见子元素 2 个，越界 1 个（clientWidth 390）
+          · div.px-5.py-6 right=3000 越界 2610px
+      ✗ A4 固定/粘性元素互不遮挡 —— position:fixed|sticky 可见元素 6 个，相交 15 对
+          · div.flex.flex-wrap ∩ nav.hidden.px-3 = 240×320px
+          · div.flex.flex-wrap ∩ div.panel.p-4 = 220×296px
+          · div.flex.flex-wrap ∩ div.panel.p-4 = 220×284px
+          · div.flex.flex-wrap ∩ div.panel.p-4 = 220×284px
+      ✗ A5 正文对比度达标 —— 判定 35 个正文元素（另跳过 59 个），不达标 35 个，阈值 4.5:1
+          · "该方法的返回值或参数类型是否为实体类（Entity/" 1.18:1 < 4.5:1（rgb(37,47,44) on rgb(26,34,32)，p.mt-2.5.rounded）
+          · "正则层 · 文本匹配" 1.29:1 < 4.5:1（rgb(37,47,44) on rgb(19,25,23)，span.text-[13px].font-medium）
+          · "语义层 · LLM 判定" 1.29:1 < 4.5:1（rgb(37,47,44) on rgb(19,25,23)，span.text-[13px].font-medium）
+          · "阿里巴巴Java开发手册 工程结构·分层领域模型" 1.29:1 < 4.5:1（rgb(37,47,44) on rgb(19,25,23)，span.text-[13px].text-fg）
+      ✗ A7 页面底部无假高度 —— scrollHeight 2794 - 最后内容底部 1528 = 1266px 空白（上限 338px = 40vh）
+          · 最后一个可见元素：div.mx-auto.flex
+✗ blueprints-async-transaction__desktop.png 3 通过 / 4 失败 / 0 未适用
+      ✗ A2 main 一级子元素不越界 —— main 一级可见子元素 2 个，越界 1 个（clientWidth 1440）
+          · div.px-5.py-6 right=3213 越界 1773px
+      ✗ A4 固定/粘性元素互不遮挡 —— position:fixed|sticky 可见元素 3 个，相交 1 对
+          · div.flex.flex-wrap ∩ nav.hidden.px-3 = 240×320px
+      ✗ A5 正文对比度达标 —— 判定 54 个正文元素（另跳过 66 个），不达标 53 个，阈值 4.5:1
+          · "POST /imports" 1.29:1 < 4.5:1（rgb(37,47,44) on rgb(19,25,23)，span.text-[13px].font-medium）
+          · "建任务记录" 1.29:1 < 4.5:1（rgb(37,47,44) on rgb(19,25,23)，span.text-[13px].font-medium）
+          · "提交线程池" 1.29:1 < 4.5:1（rgb(37,47,44) on rgb(19,25,23)，span.text-[13px].font-medium）
+          · "分批处理" 1.29:1 < 4.5:1（rgb(37,47,44) on rgb(19,25,23)，span.text-[13px].font-medium）
+      ✗ A7 页面底部无假高度 —— scrollHeight 4426 - 最后内容底部 3076 = 1350px 空白（上限 360px = 40vh）
+          · 最后一个可见元素：div.mx-auto.flex
+✗ blueprints-async-transaction__tablet.png 3 通过 / 4 失败 / 0 未适用
+      ✗ A2 main 一级子元素不越界 —— main 一级可见子元素 2 个，越界 1 个（clientWidth 1024）
+          · div.px-5.py-6 right=3213 越界 2189px
+      ✗ A4 固定/粘性元素互不遮挡 —— position:fixed|sticky 可见元素 3 个，相交 1 对
+          · div.flex.flex-wrap ∩ nav.hidden.px-3 = 240×320px
+      ✗ A5 正文对比度达标 —— 判定 54 个正文元素（另跳过 66 个），不达标 53 个，阈值 4.5:1
+          · "POST /imports" 1.29:1 < 4.5:1（rgb(37,47,44) on rgb(19,25,23)，span.text-[13px].font-medium）
+          · "建任务记录" 1.29:1 < 4.5:1（rgb(37,47,44) on rgb(19,25,23)，span.text-[13px].font-medium）
+          · "提交线程池" 1.29:1 < 4.5:1（rgb(37,47,44) on rgb(19,25,23)，span.text-[13px].font-medium）
+          · "分批处理" 1.29:1 < 4.5:1（rgb(37,47,44) on rgb(19,25,23)，span.text-[13px].font-medium）
+      ✗ A7 页面底部无假高度 —— scrollHeight 4228 - 最后内容底部 3076 = 1152px 空白（上限 307px = 40vh）
+          · 最后一个可见元素：div.mx-auto.flex
+✗ blueprints-async-transaction__mobile.png 3 通过 / 4 失败 / 0 未适用
+      ✗ A2 main 一级子元素不越界 —— main 一级可见子元素 2 个，越界 1 个（clientWidth 390）
+          · div.px-5.py-6 right=3000 越界 2610px
+      ✗ A4 固定/粘性元素互不遮挡 —— position:fixed|sticky 可见元素 3 个，相交 3 对
+          · div.flex.flex-wrap ∩ nav.hidden.px-3 = 240×320px
+          · div.flex.flex-wrap ∩ div.mb-2.flex = 220×296px
+          · nav.hidden.px-3 ∩ div.mb-2.flex = 220×296px
+      ✗ A5 正文对比度达标 —— 判定 54 个正文元素（另跳过 66 个），不达标 53 个，阈值 4.5:1
+          · "POST /imports" 1.29:1 < 4.5:1（rgb(37,47,44) on rgb(19,25,23)，span.text-[13px].font-medium）
+          · "建任务记录" 1.29:1 < 4.5:1（rgb(37,47,44) on rgb(19,25,23)，span.text-[13px].font-medium）
+          · "提交线程池" 1.29:1 < 4.5:1（rgb(37,47,44) on rgb(19,25,23)，span.text-[13px].font-medium）
+          · "分批处理" 1.29:1 < 4.5:1（rgb(37,47,44) on rgb(19,25,23)，span.text-[13px].font-medium）
+      ✗ A7 页面底部无假高度 —— scrollHeight 5128 - 最后内容底部 3862 = 1266px 空白（上限 338px = 40vh）
+          · 最后一个可见元素：div.mx-auto.flex
+✗ blueprints-skeleton-config__desktop.png 3 通过 / 4 失败 / 0 未适用
+      ✗ A2 main 一级子元素不越界 —— main 一级可见子元素 2 个，越界 1 个（clientWidth 1440）
+          · div.px-5.py-6 right=3213 越界 1773px
+      ✗ A4 固定/粘性元素互不遮挡 —— position:fixed|sticky 可见元素 3 个，相交 1 对
+          · div.flex.flex-wrap ∩ nav.hidden.px-3 = 240×320px
+      ✗ A5 正文对比度达标 —— 判定 44 个正文元素（另跳过 76 个），不达标 43 个，阈值 4.5:1
+          · "pom.xml" 1.29:1 < 4.5:1（rgb(37,47,44) on rgb(19,25,23)，span.text-[13px].font-medium）
+          · "Application" 1.29:1 < 4.5:1（rgb(37,47,44) on rgb(19,25,23)，span.text-[13px].font-medium）
+          · "application.yml" 1.29:1 < 4.5:1（rgb(37,47,44) on rgb(19,25,23)，span.text-[13px].font-medium）
+          · "JacksonConfig" 1.29:1 < 4.5:1（rgb(37,47,44) on rgb(19,25,23)，span.text-[13px].font-medium）
+      ✗ A7 页面底部无假高度 —— scrollHeight 4474 - 最后内容底部 3124 = 1350px 空白（上限 360px = 40vh）
+          · 最后一个可见元素：div.mx-auto.flex
+✗ blueprints-skeleton-config__tablet.png 3 通过 / 4 失败 / 0 未适用
+      ✗ A2 main 一级子元素不越界 —— main 一级可见子元素 2 个，越界 1 个（clientWidth 1024）
+          · div.px-5.py-6 right=3213 越界 2189px
+      ✗ A4 固定/粘性元素互不遮挡 —— position:fixed|sticky 可见元素 3 个，相交 1 对
+          · div.flex.flex-wrap ∩ nav.hidden.px-3 = 240×320px
+      ✗ A5 正文对比度达标 —— 判定 44 个正文元素（另跳过 76 个），不达标 43 个，阈值 4.5:1
+          · "pom.xml" 1.29:1 < 4.5:1（rgb(37,47,44) on rgb(19,25,23)，span.text-[13px].font-medium）
+          · "Application" 1.29:1 < 4.5:1（rgb(37,47,44) on rgb(19,25,23)，span.text-[13px].font-medium）
+          · "application.yml" 1.29:1 < 4.5:1（rgb(37,47,44) on rgb(19,25,23)，span.text-[13px].font-medium）
+          · "JacksonConfig" 1.29:1 < 4.5:1（rgb(37,47,44) on rgb(19,25,23)，span.text-[13px].font-medium）
+      ✗ A7 页面底部无假高度 —— scrollHeight 4276 - 最后内容底部 3124 = 1152px 空白（上限 307px = 40vh）
+          · 最后一个可见元素：div.mx-auto.flex
+✗ blueprints-skeleton-config__mobile.png 3 通过 / 4 失败 / 0 未适用
+      ✗ A2 main 一级子元素不越界 —— main 一级可见子元素 2 个，越界 1 个（clientWidth 390）
+          · div.px-5.py-6 right=3000 越界 2610px
+      ✗ A4 固定/粘性元素互不遮挡 —— position:fixed|sticky 可见元素 3 个，相交 3 对
+          · div.flex.flex-wrap ∩ nav.hidden.px-3 = 240×320px
+          · div.flex.flex-wrap ∩ div.mb-2.flex = 220×296px
+          · nav.hidden.px-3 ∩ div.mb-2.flex = 220×296px
+      ✗ A5 正文对比度达标 —— 判定 44 个正文元素（另跳过 76 个），不达标 43 个，阈值 4.5:1
+          · "pom.xml" 1.29:1 < 4.5:1（rgb(37,47,44) on rgb(19,25,23)，span.text-[13px].font-medium）
+          · "Application" 1.29:1 < 4.5:1（rgb(37,47,44) on rgb(19,25,23)，span.text-[13px].font-medium）
+          · "application.yml" 1.29:1 < 4.5:1（rgb(37,47,44) on rgb(19,25,23)，span.text-[13px].font-medium）
+          · "JacksonConfig" 1.29:1 < 4.5:1（rgb(37,47,44) on rgb(19,25,23)，span.text-[13px].font-medium）
+      ✗ A7 页面底部无假高度 —— scrollHeight 5083 - 最后内容底部 3817 = 1266px 空白（上限 338px = 40vh）
+          · 最后一个可见元素：div.mx-auto.flex
+
+── 逐项汇总 ──────────────────────────────────────
+   （通过 + 失败 + 未适用 + 无从判定 = 总张数；后两项都不是通过）
+  ✓ A1 无横向溢出                 通过  45 / 失败   0 / 未适用   0 / 无从判定   0
+  ✗ A2 main 一级子元素不越界         通过   0 / 失败  45 / 未适用   0 / 无从判定   0
+  ✗ A3 图片全部加载成功              通过  42 / 失败   3 / 未适用   0 / 无从判定   0
+  ✗ A4 固定/粘性元素互不遮挡           通过   0 / 失败  45 / 未适用   0 / 无从判定   0
+  ✗ A5 正文对比度达标               通过   3 / 失败  42 / 未适用   0 / 无从判定   0
+  ✗ A6 <h1> 唯一               通过  42 / 失败   3 / 未适用   0 / 无从判定   0
+  ✗ A7 页面底部无假高度              通过   0 / 失败  45 / 未适用   0 / 无从判定   0
+
+  失败明细（每项断言各列最先命中的 6 张）：
+    A2 main 一级子元素不越界：45 张
+      home__desktop.png —— main 一级可见子元素 2 个，越界 1 个（clientWidth 1440）
+          · div.px-5.py-6 right=3213 越界 1773px
+      home__tablet.png —— main 一级可见子元素 2 个，越界 1 个（clientWidth 1024）
+          · div.px-5.py-6 right=3213 越界 2189px
+      home__mobile.png —— main 一级可见子元素 2 个，越界 1 个（clientWidth 390）
+          · div.px-5.py-6 right=3000 越界 2610px
+      arch__desktop.png —— main 一级可见子元素 2 个，越界 1 个（clientWidth 1440）
+          · div.px-5.py-6 right=3213 越界 1773px
+      arch__tablet.png —— main 一级可见子元素 2 个，越界 1 个（clientWidth 1024）
+          · div.px-5.py-6 right=3213 越界 2189px
+      arch__mobile.png —— main 一级可见子元素 2 个，越界 1 个（clientWidth 390）
+          · div.px-5.py-6 right=3000 越界 2610px
+      …另有 39 张同类
+    A3 图片全部加载成功：3 张
+      home__desktop.png —— 图片 1 张，加载失败 1 张
+          · __probe_missing.png alt="probe-broken-image"
+      home__tablet.png —— 图片 1 张，加载失败 1 张
+          · __probe_missing.png alt="probe-broken-image"
+      home__mobile.png —— 图片 1 张，加载失败 1 张
+          · __probe_missing.png alt="probe-broken-image"
+    A4 固定/粘性元素互不遮挡：45 张
+      home__desktop.png —— position:fixed|sticky 可见元素 2 个，相交 1 对
+          · div.flex.flex-wrap ∩ nav.hidden.px-3 = 240×320px
+      home__tablet.png —— position:fixed|sticky 可见元素 2 个，相交 1 对
+          · div.flex.flex-wrap ∩ nav.hidden.px-3 = 240×320px
+      home__mobile.png —— position:fixed|sticky 可见元素 2 个，相交 1 对
+          · div.flex.flex-wrap ∩ nav.hidden.px-3 = 240×320px
+      arch__desktop.png —— position:fixed|sticky 可见元素 2 个，相交 1 对
+          · div.flex.flex-wrap ∩ nav.hidden.px-3 = 240×320px
+      arch__tablet.png —— position:fixed|sticky 可见元素 2 个，相交 1 对
+          · div.flex.flex-wrap ∩ nav.hidden.px-3 = 240×320px
+      arch__mobile.png —— position:fixed|sticky 可见元素 2 个，相交 1 对
+          · div.flex.flex-wrap ∩ nav.hidden.px-3 = 240×320px
+      …另有 39 张同类
+    A5 正文对比度达标：42 张
+      home__desktop.png —— 判定 42 个正文元素（另跳过 78 个），不达标 32 个，阈值 4.5:1
+          · "人查" 1.29:1 < 4.5:1（rgb(37,47,44) on rgb(19,25,23)，span.text-[15px].font-semibold）
+          · "规则库。分类 + 搜索 + 反例正例对照，任何一条 " 1.29:1 < 4.5:1（rgb(37,47,44) on rgb(19,25,23)，p.mt-3.flex-1）
+          · "打开规则库→" 1.29:1 < 4.5:1（rgb(37,47,44) on rgb(19,25,23)，span.mt-4.inline-flex）
+          · "拿代码验" 1.29:1 < 4.5:1（rgb(37,47,44) on rgb(19,25,23)，span.text-[15px].font-semibold）
+      home__tablet.png —— 判定 42 个正文元素（另跳过 78 个），不达标 32 个，阈值 4.5:1
+          · "人查" 1.29:1 < 4.5:1（rgb(37,47,44) on rgb(19,25,23)，span.text-[15px].font-semibold）
+          · "规则库。分类 + 搜索 + 反例正例对照，任何一条 " 1.29:1 < 4.5:1（rgb(37,47,44) on rgb(19,25,23)，p.mt-3.flex-1）
+          · "打开规则库→" 1.29:1 < 4.5:1（rgb(37,47,44) on rgb(19,25,23)，span.mt-4.inline-flex）
+          · "拿代码验" 1.29:1 < 4.5:1（rgb(37,47,44) on rgb(19,25,23)，span.text-[15px].font-semibold）
+      home__mobile.png —— 判定 42 个正文元素（另跳过 78 个），不达标 32 个，阈值 4.5:1
+          · "人查" 1.29:1 < 4.5:1（rgb(37,47,44) on rgb(19,25,23)，span.text-[15px].font-semibold）
+          · "规则库。分类 + 搜索 + 反例正例对照，任何一条 " 1.29:1 < 4.5:1（rgb(37,47,44) on rgb(19,25,23)，p.mt-3.flex-1）
+          · "打开规则库→" 1.29:1 < 4.5:1（rgb(37,47,44) on rgb(19,25,23)，span.mt-4.inline-flex）
+          · "拿代码验" 1.29:1 < 4.5:1（rgb(37,47,44) on rgb(19,25,23)，span.text-[15px].font-semibold）
+      archify__desktop.png —— 判定 4 个正文元素（另跳过 31 个），不达标 1 个，阈值 4.5:1
+          · "后端连不上" 1.29:1 < 4.5:1（rgb(37,47,44) on rgb(19,25,23)，span.text-[12px].font-semibold）
+      archify__tablet.png —— 判定 4 个正文元素（另跳过 31 个），不达标 1 个，阈值 4.5:1
+          · "后端连不上" 1.29:1 < 4.5:1（rgb(37,47,44) on rgb(19,25,23)，span.text-[12px].font-semibold）
+      archify__mobile.png —— 判定 4 个正文元素（另跳过 31 个），不达标 1 个，阈值 4.5:1
+          · "后端连不上" 1.29:1 < 4.5:1（rgb(37,47,44) on rgb(19,25,23)，span.text-[12px].font-semibold）
+      …另有 36 张同类
+    A6 <h1> 唯一：3 张
+      home__desktop.png —— <h1> 数量 2
+          · "杨先生的军火库"
+          · "PROBE 重复一级标题"
+      home__tablet.png —— <h1> 数量 2
+          · "杨先生的军火库"
+          · "PROBE 重复一级标题"
+      home__mobile.png —— <h1> 数量 2
+          · "杨先生的军火库"
+          · "PROBE 重复一级标题"
+    A7 页面底部无假高度：45 张
+      home__desktop.png —— scrollHeight 5667 - 最后内容底部 4317 = 1351px 空白（上限 360px = 40vh）
+          · 最后一个可见元素：h1
+      home__tablet.png —— scrollHeight 5469 - 最后内容底部 4317 = 1153px 空白（上限 307px = 40vh）
+          · 最后一个可见元素：h1
+      home__mobile.png —— scrollHeight 8651 - 最后内容底部 7385 = 1266px 空白（上限 338px = 40vh）
+          · 最后一个可见元素：h1
+      arch__desktop.png —— scrollHeight 2250 - 最后内容底部 900 = 1350px 空白（上限 360px = 40vh）
+          · 最后一个可见元素：div.mx-auto.flex
+      arch__tablet.png —— scrollHeight 1920 - 最后内容底部 768 = 1152px 空白（上限 307px = 40vh）
+          · 最后一个可见元素：div.mx-auto.flex
+      arch__mobile.png —— scrollHeight 2121 - 最后内容底部 855 = 1267px 空白（上限 338px = 40vh）
+          · 最后一个可见元素：div.mx-auto.flex
+      …另有 39 张同类
+
+visual: 45 张 / 7 项断言 / 183 失败
+耗时 31.7s

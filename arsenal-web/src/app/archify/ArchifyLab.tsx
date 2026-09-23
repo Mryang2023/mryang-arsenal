@@ -140,12 +140,12 @@ export default function ArchifyLab() {
     <div className="space-y-4">
       {/* 页头：说清这一页与军火库选型无关 */}
       <div className="panel px-4 py-3" style={{ borderColor: 'rgba(217,164,65,0.32)' }}>
-        <h2 className="text-[14px] font-bold text-fg">
+        <h1 className="text-[14px] font-bold text-fg">
           Archify 出图台
           <span className="mono ml-2 text-[10px] font-normal uppercase tracking-[0.14em] text-fgFaint">
             ir in · html out
           </span>
-        </h2>
+        </h1>
         <p className="mt-1 max-w-[860px] text-[11px] leading-[18px] text-fgMuted">
           粘贴或上传<strong className="font-semibold text-fg">任意项目</strong>的架构 IR，或直接从<strong className="font-semibold text-fg">代码仓库</strong>扫一份事实出来（本地目录 / https git / zip），
           本页先做本地预检，再交给后端渲染成一张通过九项构图检查的 HTML 交付图。

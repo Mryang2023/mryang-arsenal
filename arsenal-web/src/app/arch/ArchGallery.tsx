@@ -123,7 +123,7 @@ export default function ArchGallery() {
             <Glyph name={VIEW_ICONS[tab]} size={17} color={view.accent} />
           </span>
           <div className="min-w-0">
-            <h2 className="text-[14px] font-bold text-fg">
+            <h1 className="text-[14px] font-bold text-fg">
               {view.name}
               <span className="mono ml-2 text-[10px] font-normal uppercase tracking-[0.14em] text-fgFaint">
                 {view.english}
@@ -131,7 +131,7 @@ export default function ArchGallery() {
               <span className="ml-2 rounded px-1.5 py-0.5 text-[9.5px] font-normal" style={{ background: 'rgba(217,164,65,0.12)', color: '#D9A441' }}>
                 {data.profileName}
               </span>
-            </h2>
+            </h1>
             <p className="mt-0.5 max-w-[820px] text-[10.5px] leading-[16px] text-fgMuted">{view.definition}</p>
           </div>
           {/* 封面插画：AI 生成，裁掉水印后压到 512px webp；装饰位，读图不靠它 */}

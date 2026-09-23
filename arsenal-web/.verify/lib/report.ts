@@ -4,7 +4,7 @@
  * ─────────────────────────────────────────────────────────────
  * 为什么需要它（这一层解决的是「说谎的绿」）：
  *
- * 改动之前，八层的收尾都是 `process.exitCode = fail === 0 ? 0 : 1`，
+ * 改动之前，九层的收尾都是 `process.exitCode = fail === 0 ? 0 : 1`，
  * 「跑不了」和「跑过了」都落进同一个 0。于是 `npm run verify` 打出的「全绿」
  * 可能实际只有五层在跑 —— 绿的含义被高估了。
  *
@@ -75,9 +75,10 @@ export const LAYER_NAMES: Record<string, string> = {
   parity: '前后端一致性',
   archify: 'Archify 链路',
   scan: '代码扫描',
+  visual: '视觉断言',
   // ⚠️ `meta` **不是 `verifyChain` 的成员** —— 它是链尾的元核对层：
-  // 专门读其它八层写出的 `layer-<key>.json` 去比对声明值，所以自己既没有声明项数
-  // （`declaredCount('meta')` 会返回 null）、也不参与「八层项数合计」。
+  // 专门读其它九层写出的 `layer-<key>.json` 去比对声明值，所以自己既没有声明项数
+  // （`declaredCount('meta')` 会返回 null）、也不参与「九层项数合计」。
   meta: '元核对',
 };
 
@@ -288,7 +289,7 @@ export function finish(layer: string, noteText?: string): 0 | 1 | 2 {
   }
   if (declaredMismatch) {
     // 本层自己的账都对不上档案 —— 当场判负（与断言失败同为退出码 1）。
-    // 链尾 verify:meta 会再报一次同样的两个数字（那里能一次看到八层全貌）。
+    // 链尾 verify:meta 会再报一次同样的两个数字（那里能一次看到九层全貌）。
     console.log(
       `  \u2717 本层项数对不上档案：声明 ${declaredMismatch.declared} / 实测 ${declaredMismatch.total}`
         + `${s.skip > 0 ? `（其中 ${s.skip} 项未执行）` : ''}`

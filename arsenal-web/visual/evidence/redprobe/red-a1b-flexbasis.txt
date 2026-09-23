@@ -1,0 +1,64 @@
+· 已起静态站 http://127.0.0.1:3021（root=D:\mryang\workspace\2026\arsenal\arsenal-web\out）
+
+── 视觉断言：15 URL × 3 视口 = 45 张 ──────────
+✓ home__desktop.png                      7 通过 / 0 失败 / 0 未适用
+✓ home__tablet.png                       7 通过 / 0 失败 / 0 未适用
+~ home__mobile.png                       6 通过 / 0 失败 / 1 未适用
+✓ arch__desktop.png                      7 通过 / 0 失败 / 0 未适用
+✓ arch__tablet.png                       7 通过 / 0 失败 / 0 未适用
+~ arch__mobile.png                       6 通过 / 0 失败 / 1 未适用
+✓ archify__desktop.png                   7 通过 / 0 失败 / 0 未适用
+✓ archify__tablet.png                    7 通过 / 0 失败 / 0 未适用
+~ archify__mobile.png                    6 通过 / 0 失败 / 1 未适用
+✓ blueprints__desktop.png                7 通过 / 0 失败 / 0 未适用
+✓ blueprints__tablet.png                 7 通过 / 0 失败 / 0 未适用
+~ blueprints__mobile.png                 6 通过 / 0 失败 / 1 未适用
+✓ cases__desktop.png                     7 通过 / 0 失败 / 0 未适用
+✓ cases__tablet.png                      7 通过 / 0 失败 / 0 未适用
+~ cases__mobile.png                      6 通过 / 0 失败 / 1 未适用
+✓ check__desktop.png                     7 通过 / 0 失败 / 0 未适用
+✓ check__tablet.png                      7 通过 / 0 失败 / 0 未适用
+~ check__mobile.png                      6 通过 / 0 失败 / 1 未适用
+✓ export__desktop.png                    7 通过 / 0 失败 / 0 未适用
+✓ export__tablet.png                     7 通过 / 0 失败 / 0 未适用
+~ export__mobile.png                     6 通过 / 0 失败 / 1 未适用
+✓ icons__desktop.png                     7 通过 / 0 失败 / 0 未适用
+✓ icons__tablet.png                      7 通过 / 0 失败 / 0 未适用
+~ icons__mobile.png                      6 通过 / 0 失败 / 1 未适用
+✓ rules__desktop.png                     7 通过 / 0 失败 / 0 未适用
+✓ rules__tablet.png                      7 通过 / 0 失败 / 0 未适用
+~ rules__mobile.png                      6 通过 / 0 失败 / 1 未适用
+✓ stack__desktop.png                     7 通过 / 0 失败 / 0 未适用
+✓ stack__tablet.png                      7 通过 / 0 失败 / 0 未适用
+~ stack__mobile.png                      6 通过 / 0 失败 / 1 未适用
+✓ rules-COL-CODE-001__desktop.png        7 通过 / 0 失败 / 0 未适用
+✓ rules-COL-CODE-001__tablet.png         7 通过 / 0 失败 / 0 未适用
+~ rules-COL-CODE-001__mobile.png         6 通过 / 0 失败 / 1 未适用
+✓ rules-REL-LOG-002__desktop.png         7 通过 / 0 失败 / 0 未适用
+✓ rules-REL-LOG-002__tablet.png          7 通过 / 0 失败 / 0 未适用
+~ rules-REL-LOG-002__mobile.png          6 通过 / 0 失败 / 1 未适用
+✓ rules-WEB-DTO-001__desktop.png         7 通过 / 0 失败 / 0 未适用
+✓ rules-WEB-DTO-001__tablet.png          7 通过 / 0 失败 / 0 未适用
+~ rules-WEB-DTO-001__mobile.png          6 通过 / 0 失败 / 1 未适用
+✓ blueprints-async-transaction__desktop.png 7 通过 / 0 失败 / 0 未适用
+✓ blueprints-async-transaction__tablet.png 7 通过 / 0 失败 / 0 未适用
+~ blueprints-async-transaction__mobile.png 6 通过 / 0 失败 / 1 未适用
+✓ blueprints-skeleton-config__desktop.png 7 通过 / 0 失败 / 0 未适用
+✓ blueprints-skeleton-config__tablet.png 7 通过 / 0 失败 / 0 未适用
+~ blueprints-skeleton-config__mobile.png 6 通过 / 0 失败 / 1 未适用
+
+── 逐项汇总 ──────────────────────────────────────
+   （通过 + 失败 + 未适用 + 无从判定 = 总张数；后两项都不是通过）
+  ✓ A1 无横向溢出                 通过  45 / 失败   0 / 未适用   0 / 无从判定   0
+  ✓ A2 main 一级子元素不越界         通过  45 / 失败   0 / 未适用   0 / 无从判定   0
+  ✓ A3 图片全部加载成功              通过  45 / 失败   0 / 未适用   0 / 无从判定   0
+  ✓ A4 固定/粘性元素互不遮挡           通过  30 / 失败   0 / 未适用  15 / 无从判定   0
+  ✓ A5 正文对比度达标               通过  45 / 失败   0 / 未适用   0 / 无从判定   0
+  ✓ A6 <h1> 唯一               通过  45 / 失败   0 / 未适用   0 / 无从判定   0
+  ✓ A7 页面底部无假高度              通过  45 / 失败   0 / 未适用   0 / 无从判定   0
+
+  未适用说明（不是通过，是本次这一项无处可判）：
+    ~ A4 固定/粘性元素互不遮挡：15 张 —— position:fixed|sticky 可见元素只有 0 个，凑不出「两两」
+
+visual: 45 张 / 7 项断言 / 0 失败
+耗时 40.0s

@@ -81,7 +81,7 @@ function findCli(): string | null {
 const cli = findCli();
 if (!cli) {
   // 环境缺件 → 本层整层**未执行**。以前这里是 `process.exit(0)`，
-  // 于是「八层全绿」里藏着「这一层根本没跑」—— 这正是本次要关掉的那种绿。
+  // 于是「九层全绿」里藏着「这一层根本没跑」—— 这正是本次要关掉的那种绿。
   note('  \u26a0 未找到 wrench-ai —— 本层整体跳过（不是通过）');
   note('    期望位置：~/.workbuddy/skills/wrench-ai/bin/wrench-ai.mjs');
   note('    也可用环境变量 WRENCH_AI_CLI 指定入口。');

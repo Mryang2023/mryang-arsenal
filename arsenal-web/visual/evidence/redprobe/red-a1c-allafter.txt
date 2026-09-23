@@ -1,0 +1,194 @@
+· 已起静态站 http://127.0.0.1:3021（root=D:\mryang\workspace\2026\arsenal\arsenal-web\out）
+
+── 视觉断言：15 URL × 3 视口 = 45 张 ──────────
+✗ home__desktop.png                      6 通过 / 1 失败 / 0 未适用
+      ✗ A1 无横向溢出 —— scrollWidth 3000 - clientWidth 1440 = 1560px
+          · 没有未被裁剪的越界元素 —— 溢出可能来自根元素自身或滚动条宽度
+✗ home__tablet.png                       6 通过 / 1 失败 / 0 未适用
+      ✗ A1 无横向溢出 —— scrollWidth 3000 - clientWidth 1024 = 1976px
+          · 没有未被裁剪的越界元素 —— 溢出可能来自根元素自身或滚动条宽度
+✗ home__mobile.png                       5 通过 / 1 失败 / 1 未适用
+      ✗ A1 无横向溢出 —— scrollWidth 3000 - clientWidth 390 = 2610px
+          · 没有未被裁剪的越界元素 —— 溢出可能来自根元素自身或滚动条宽度
+✗ arch__desktop.png                      6 通过 / 1 失败 / 0 未适用
+      ✗ A1 无横向溢出 —— scrollWidth 3000 - clientWidth 1440 = 1560px
+          · 没有未被裁剪的越界元素 —— 溢出可能来自根元素自身或滚动条宽度
+✗ arch__tablet.png                       6 通过 / 1 失败 / 0 未适用
+      ✗ A1 无横向溢出 —— scrollWidth 3000 - clientWidth 1024 = 1976px
+          · 没有未被裁剪的越界元素 —— 溢出可能来自根元素自身或滚动条宽度
+✗ arch__mobile.png                       5 通过 / 1 失败 / 1 未适用
+      ✗ A1 无横向溢出 —— scrollWidth 3000 - clientWidth 390 = 2610px
+          · 没有未被裁剪的越界元素 —— 溢出可能来自根元素自身或滚动条宽度
+✗ archify__desktop.png                   6 通过 / 1 失败 / 0 未适用
+      ✗ A1 无横向溢出 —— scrollWidth 3000 - clientWidth 1440 = 1560px
+          · 没有未被裁剪的越界元素 —— 溢出可能来自根元素自身或滚动条宽度
+✗ archify__tablet.png                    6 通过 / 1 失败 / 0 未适用
+      ✗ A1 无横向溢出 —— scrollWidth 3000 - clientWidth 1024 = 1976px
+          · 没有未被裁剪的越界元素 —— 溢出可能来自根元素自身或滚动条宽度
+✗ archify__mobile.png                    5 通过 / 1 失败 / 1 未适用
+      ✗ A1 无横向溢出 —— scrollWidth 3000 - clientWidth 390 = 2610px
+          · 没有未被裁剪的越界元素 —— 溢出可能来自根元素自身或滚动条宽度
+✗ blueprints__desktop.png                6 通过 / 1 失败 / 0 未适用
+      ✗ A1 无横向溢出 —— scrollWidth 3000 - clientWidth 1440 = 1560px
+          · 没有未被裁剪的越界元素 —— 溢出可能来自根元素自身或滚动条宽度
+✗ blueprints__tablet.png                 6 通过 / 1 失败 / 0 未适用
+      ✗ A1 无横向溢出 —— scrollWidth 3000 - clientWidth 1024 = 1976px
+          · 没有未被裁剪的越界元素 —— 溢出可能来自根元素自身或滚动条宽度
+✗ blueprints__mobile.png                 5 通过 / 1 失败 / 1 未适用
+      ✗ A1 无横向溢出 —— scrollWidth 3000 - clientWidth 390 = 2610px
+          · 没有未被裁剪的越界元素 —— 溢出可能来自根元素自身或滚动条宽度
+✗ cases__desktop.png                     6 通过 / 1 失败 / 0 未适用
+      ✗ A1 无横向溢出 —— scrollWidth 3000 - clientWidth 1440 = 1560px
+          · 没有未被裁剪的越界元素 —— 溢出可能来自根元素自身或滚动条宽度
+✗ cases__tablet.png                      6 通过 / 1 失败 / 0 未适用
+      ✗ A1 无横向溢出 —— scrollWidth 3000 - clientWidth 1024 = 1976px
+          · 没有未被裁剪的越界元素 —— 溢出可能来自根元素自身或滚动条宽度
+✗ cases__mobile.png                      5 通过 / 1 失败 / 1 未适用
+      ✗ A1 无横向溢出 —— scrollWidth 3000 - clientWidth 390 = 2610px
+          · 没有未被裁剪的越界元素 —— 溢出可能来自根元素自身或滚动条宽度
+✗ check__desktop.png                     6 通过 / 1 失败 / 0 未适用
+      ✗ A1 无横向溢出 —— scrollWidth 3000 - clientWidth 1440 = 1560px
+          · 没有未被裁剪的越界元素 —— 溢出可能来自根元素自身或滚动条宽度
+✗ check__tablet.png                      6 通过 / 1 失败 / 0 未适用
+      ✗ A1 无横向溢出 —— scrollWidth 3000 - clientWidth 1024 = 1976px
+          · 没有未被裁剪的越界元素 —— 溢出可能来自根元素自身或滚动条宽度
+✗ check__mobile.png                      5 通过 / 1 失败 / 1 未适用
+      ✗ A1 无横向溢出 —— scrollWidth 3000 - clientWidth 390 = 2610px
+          · 没有未被裁剪的越界元素 —— 溢出可能来自根元素自身或滚动条宽度
+✗ export__desktop.png                    6 通过 / 1 失败 / 0 未适用
+      ✗ A1 无横向溢出 —— scrollWidth 3000 - clientWidth 1440 = 1560px
+          · 没有未被裁剪的越界元素 —— 溢出可能来自根元素自身或滚动条宽度
+✗ export__tablet.png                     6 通过 / 1 失败 / 0 未适用
+      ✗ A1 无横向溢出 —— scrollWidth 3000 - clientWidth 1024 = 1976px
+          · 没有未被裁剪的越界元素 —— 溢出可能来自根元素自身或滚动条宽度
+✗ export__mobile.png                     5 通过 / 1 失败 / 1 未适用
+      ✗ A1 无横向溢出 —— scrollWidth 3000 - clientWidth 390 = 2610px
+          · 没有未被裁剪的越界元素 —— 溢出可能来自根元素自身或滚动条宽度
+✗ icons__desktop.png                     6 通过 / 1 失败 / 0 未适用
+      ✗ A1 无横向溢出 —— scrollWidth 3000 - clientWidth 1440 = 1560px
+          · 没有未被裁剪的越界元素 —— 溢出可能来自根元素自身或滚动条宽度
+✗ icons__tablet.png                      6 通过 / 1 失败 / 0 未适用
+      ✗ A1 无横向溢出 —— scrollWidth 3000 - clientWidth 1024 = 1976px
+          · 没有未被裁剪的越界元素 —— 溢出可能来自根元素自身或滚动条宽度
+✗ icons__mobile.png                      5 通过 / 1 失败 / 1 未适用
+      ✗ A1 无横向溢出 —— scrollWidth 3000 - clientWidth 390 = 2610px
+          · 没有未被裁剪的越界元素 —— 溢出可能来自根元素自身或滚动条宽度
+✗ rules__desktop.png                     6 通过 / 1 失败 / 0 未适用
+      ✗ A1 无横向溢出 —— scrollWidth 3000 - clientWidth 1440 = 1560px
+          · 没有未被裁剪的越界元素 —— 溢出可能来自根元素自身或滚动条宽度
+✗ rules__tablet.png                      6 通过 / 1 失败 / 0 未适用
+      ✗ A1 无横向溢出 —— scrollWidth 3000 - clientWidth 1024 = 1976px
+          · 没有未被裁剪的越界元素 —— 溢出可能来自根元素自身或滚动条宽度
+✗ rules__mobile.png                      5 通过 / 1 失败 / 1 未适用
+      ✗ A1 无横向溢出 —— scrollWidth 3000 - clientWidth 390 = 2610px
+          · 没有未被裁剪的越界元素 —— 溢出可能来自根元素自身或滚动条宽度
+✗ stack__desktop.png                     6 通过 / 1 失败 / 0 未适用
+      ✗ A1 无横向溢出 —— scrollWidth 3000 - clientWidth 1440 = 1560px
+          · 没有未被裁剪的越界元素 —— 溢出可能来自根元素自身或滚动条宽度
+✗ stack__tablet.png                      6 通过 / 1 失败 / 0 未适用
+      ✗ A1 无横向溢出 —— scrollWidth 3000 - clientWidth 1024 = 1976px
+          · 没有未被裁剪的越界元素 —— 溢出可能来自根元素自身或滚动条宽度
+          · （线索·被 pre.mono.overflow-x-auto/auto 裁剪）code「<?xml version="1.0" en」 right=1081 越界 57px
+          · （线索·被 pre.mono.overflow-x-auto/auto 裁剪）span「>」 right=1081 越界 57px
+          · （线索·被 pre.mono.overflow-x-auto/auto 裁剪）span「"http://maven.apache.o」 right=1074 越界 50px
+✗ stack__mobile.png                      5 通过 / 1 失败 / 1 未适用
+      ✗ A1 无横向溢出 —— scrollWidth 3000 - clientWidth 390 = 2610px
+          · 没有未被裁剪的越界元素 —— 溢出可能来自根元素自身或滚动条宽度
+          · （线索·被 pre.mono.overflow-x-auto/auto 裁剪）code「<?xml version="1.0" en」 right=848 越界 458px
+          · （线索·被 pre.mono.overflow-x-auto/auto 裁剪）span「>」 right=848 越界 458px
+          · （线索·被 pre.mono.overflow-x-auto/auto 裁剪）span「"http://maven.apache.o」 right=841 越界 451px
+✗ rules-COL-CODE-001__desktop.png        6 通过 / 1 失败 / 0 未适用
+      ✗ A1 无横向溢出 —— scrollWidth 3000 - clientWidth 1440 = 1560px
+          · 没有未被裁剪的越界元素 —— 溢出可能来自根元素自身或滚动条宽度
+✗ rules-COL-CODE-001__tablet.png         6 通过 / 1 失败 / 0 未适用
+      ✗ A1 无横向溢出 —— scrollWidth 3000 - clientWidth 1024 = 1976px
+          · 没有未被裁剪的越界元素 —— 溢出可能来自根元素自身或滚动条宽度
+✗ rules-COL-CODE-001__mobile.png         5 通过 / 1 失败 / 1 未适用
+      ✗ A1 无横向溢出 —— scrollWidth 3000 - clientWidth 390 = 2610px
+          · 没有未被裁剪的越界元素 —— 溢出可能来自根元素自身或滚动条宽度
+          · （线索·被 pre.mono.overflow-x-auto/auto 裁剪）code「/** * 获取用户 * @param id」 right=489 越界 99px
+          · （线索·被 pre.mono.overflow-x-auto/auto 裁剪）span「// 块标签后无描述，等同于没写」 right=489 越界 99px
+          · （线索·被 pre.mono.overflow-x-auto/auto 裁剪）code「/** * 按主键查询用户，查不到时返回 n」 right=413 越界 23px
+✗ rules-REL-LOG-002__desktop.png         6 通过 / 1 失败 / 0 未适用
+      ✗ A1 无横向溢出 —— scrollWidth 3000 - clientWidth 1440 = 1560px
+          · 没有未被裁剪的越界元素 —— 溢出可能来自根元素自身或滚动条宽度
+✗ rules-REL-LOG-002__tablet.png          6 通过 / 1 失败 / 0 未适用
+      ✗ A1 无横向溢出 —— scrollWidth 3000 - clientWidth 1024 = 1976px
+          · 没有未被裁剪的越界元素 —— 溢出可能来自根元素自身或滚动条宽度
+✗ rules-REL-LOG-002__mobile.png          5 通过 / 1 失败 / 1 未适用
+      ✗ A1 无横向溢出 —— scrollWidth 3000 - clientWidth 390 = 2610px
+          · 没有未被裁剪的越界元素 —— 溢出可能来自根元素自身或滚动条宽度
+          · （线索·被 pre.mono.overflow-x-auto/auto 裁剪）code「log.info("查询用户: " + us」 right=580 越界 190px
+          · （线索·被 pre.mono.overflow-x-auto/auto 裁剪）span「// debug 关闭时仍会序列化」 right=580 越界 190px
+          · （线索·被 pre.mono.overflow-x-auto/auto 裁剪）code「log(g?er)?\.(trace|deb」 right=490 越界 100px
+✗ rules-WEB-DTO-001__desktop.png         6 通过 / 1 失败 / 0 未适用
+      ✗ A1 无横向溢出 —— scrollWidth 3000 - clientWidth 1440 = 1560px
+          · 没有未被裁剪的越界元素 —— 溢出可能来自根元素自身或滚动条宽度
+✗ rules-WEB-DTO-001__tablet.png          6 通过 / 1 失败 / 0 未适用
+      ✗ A1 无横向溢出 —— scrollWidth 3000 - clientWidth 1024 = 1976px
+          · 没有未被裁剪的越界元素 —— 溢出可能来自根元素自身或滚动条宽度
+✗ rules-WEB-DTO-001__mobile.png          5 通过 / 1 失败 / 1 未适用
+      ✗ A1 无横向溢出 —— scrollWidth 3000 - clientWidth 390 = 2610px
+          · 没有未被裁剪的越界元素 —— 溢出可能来自根元素自身或滚动条宽度
+          · （线索·被 pre.mono.overflow-x-auto/auto 裁剪）code「public ApiResponse<Pag」 right=663 越界 273px
+          · （线索·被 pre.mono.overflow-x-auto/auto 裁剪）code「public Map<String,Obje」 right=638 越界 248px
+          · （线索·被 pre.mono.overflow-x-auto/auto 裁剪）span「// 直接返回实体，password 字段被」 right=638 越界 248px
+✗ blueprints-async-transaction__desktop.png 6 通过 / 1 失败 / 0 未适用
+      ✗ A1 无横向溢出 —— scrollWidth 3000 - clientWidth 1440 = 1560px
+          · 没有未被裁剪的越界元素 —— 溢出可能来自根元素自身或滚动条宽度
+✗ blueprints-async-transaction__tablet.png 6 通过 / 1 失败 / 0 未适用
+      ✗ A1 无横向溢出 —— scrollWidth 3000 - clientWidth 1024 = 1976px
+          · 没有未被裁剪的越界元素 —— 溢出可能来自根元素自身或滚动条宽度
+          · （线索·被 div.max-h-[620px].overflow-auto/auto 裁剪）table.w-full.border-collapse「1package com.example.i」 right=1051 越界 27px
+          · （线索·被 div.max-h-[620px].overflow-auto/auto 裁剪）tbody「1package com.example.i」 right=1051 越界 27px
+          · （线索·被 div.max-h-[620px].overflow-auto/auto 裁剪）tr「1package com.example.i」 right=1051 越界 27px
+✗ blueprints-async-transaction__mobile.png 5 通过 / 1 失败 / 1 未适用
+      ✗ A1 无横向溢出 —— scrollWidth 3000 - clientWidth 390 = 2610px
+          · 没有未被裁剪的越界元素 —— 溢出可能来自根元素自身或滚动条宽度
+          · （线索·被 div.max-h-[620px].overflow-auto/auto 裁剪）table.w-full.border-collapse「1package com.example.i」 right=818 越界 428px
+          · （线索·被 div.max-h-[620px].overflow-auto/auto 裁剪）tbody「1package com.example.i」 right=818 越界 428px
+          · （线索·被 div.max-h-[620px].overflow-auto/auto 裁剪）tr「1package com.example.i」 right=818 越界 428px
+✗ blueprints-skeleton-config__desktop.png 6 通过 / 1 失败 / 0 未适用
+      ✗ A1 无横向溢出 —— scrollWidth 3000 - clientWidth 1440 = 1560px
+          · 没有未被裁剪的越界元素 —— 溢出可能来自根元素自身或滚动条宽度
+✗ blueprints-skeleton-config__tablet.png 6 通过 / 1 失败 / 0 未适用
+      ✗ A1 无横向溢出 —— scrollWidth 3000 - clientWidth 1024 = 1976px
+          · 没有未被裁剪的越界元素 —— 溢出可能来自根元素自身或滚动条宽度
+✗ blueprints-skeleton-config__mobile.png 5 通过 / 1 失败 / 1 未适用
+      ✗ A1 无横向溢出 —— scrollWidth 3000 - clientWidth 390 = 2610px
+          · 没有未被裁剪的越界元素 —— 溢出可能来自根元素自身或滚动条宽度
+          · （线索·被 div.max-h-[620px].overflow-auto/auto 裁剪）table.w-full.border-collapse「1package com.example;2」 right=675 越界 285px
+          · （线索·被 div.max-h-[620px].overflow-auto/auto 裁剪）tbody「1package com.example;2」 right=675 越界 285px
+          · （线索·被 div.max-h-[620px].overflow-auto/auto 裁剪）tr「1package com.example;」 right=675 越界 285px
+
+── 逐项汇总 ──────────────────────────────────────
+   （通过 + 失败 + 未适用 + 无从判定 = 总张数；后两项都不是通过）
+  ✗ A1 无横向溢出                 通过   0 / 失败  45 / 未适用   0 / 无从判定   0
+  ✓ A2 main 一级子元素不越界         通过  45 / 失败   0 / 未适用   0 / 无从判定   0
+  ✓ A3 图片全部加载成功              通过  45 / 失败   0 / 未适用   0 / 无从判定   0
+  ✓ A4 固定/粘性元素互不遮挡           通过  30 / 失败   0 / 未适用  15 / 无从判定   0
+  ✓ A5 正文对比度达标               通过  45 / 失败   0 / 未适用   0 / 无从判定   0
+  ✓ A6 <h1> 唯一               通过  45 / 失败   0 / 未适用   0 / 无从判定   0
+  ✓ A7 页面底部无假高度              通过  45 / 失败   0 / 未适用   0 / 无从判定   0
+
+  失败明细（每项断言各列最先命中的 6 张）：
+    A1 无横向溢出：45 张
+      home__desktop.png —— scrollWidth 3000 - clientWidth 1440 = 1560px
+          · 没有未被裁剪的越界元素 —— 溢出可能来自根元素自身或滚动条宽度
+      home__tablet.png —— scrollWidth 3000 - clientWidth 1024 = 1976px
+          · 没有未被裁剪的越界元素 —— 溢出可能来自根元素自身或滚动条宽度
+      home__mobile.png —— scrollWidth 3000 - clientWidth 390 = 2610px
+          · 没有未被裁剪的越界元素 —— 溢出可能来自根元素自身或滚动条宽度
+      arch__desktop.png —— scrollWidth 3000 - clientWidth 1440 = 1560px
+          · 没有未被裁剪的越界元素 —— 溢出可能来自根元素自身或滚动条宽度
+      arch__tablet.png —— scrollWidth 3000 - clientWidth 1024 = 1976px
+          · 没有未被裁剪的越界元素 —— 溢出可能来自根元素自身或滚动条宽度
+      arch__mobile.png —— scrollWidth 3000 - clientWidth 390 = 2610px
+          · 没有未被裁剪的越界元素 —— 溢出可能来自根元素自身或滚动条宽度
+      …另有 39 张同类
+
+  未适用说明（不是通过，是本次这一项无处可判）：
+    ~ A4 固定/粘性元素互不遮挡：15 张 —— position:fixed|sticky 可见元素只有 0 个，凑不出「两两」
+
+visual: 45 张 / 7 项断言 / 45 失败
+耗时 31.7s

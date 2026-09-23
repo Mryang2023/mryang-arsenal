@@ -236,7 +236,12 @@ export default function RulesBrowser() {
           </button>
         </div>
       ) : view === 'card' ? (
-        <div className="grid gap-2.5 lg:grid-cols-2">
+        <div
+          // grid-cols-1 必须显式写：只写 lg:grid-cols-2 的话 mobile 走的是**隐式列**（auto），
+          // 列宽会被卡片的 min-content 撑到 399px（实测整页横向溢出 29px）。
+          // 显式 grid-cols-1 = repeat(1, minmax(0,1fr))，min 为 0 才压得住。
+          className="grid grid-cols-1 gap-2.5 lg:grid-cols-2"
+        >
           {list.map((r) => (
             <RuleCard key={r.id} rule={r} />
           ))}

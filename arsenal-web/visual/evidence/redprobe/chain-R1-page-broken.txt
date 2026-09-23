@@ -1,0 +1,87 @@
+
+> arsenal-web@0.1.0 verify:visual
+> tsx .verify/visual-check.ts
+
+
+【0】前置：视觉断言脚本 + 构建产物
+  ✓ 视觉断言脚本存在（visual/assert.mjs）
+  ✓ 构建产物存在（out/，断言测的是真实页面而不是旧报告）
+
+【1】实跑 45 张矩阵（node visual/assert.mjs）
+  ── 逐项汇总 ──────────────────────────────────────
+     （通过 + 失败 + 未适用 + 无从判定 = 总张数；后两项都不是通过）
+    ✗ A1 无横向溢出                 通过   0 / 失败  45 / 未适用   0 / 无从判定   0
+    ✓ A2 main 一级子元素不越界         通过  45 / 失败   0 / 未适用   0 / 无从判定   0
+    ✓ A3 图片全部加载成功              通过  45 / 失败   0 / 未适用   0 / 无从判定   0
+    ✓ A4 固定/粘性元素互不遮挡           通过  30 / 失败   0 / 未适用  15 / 无从判定   0
+    ✓ A5 正文对比度达标               通过  45 / 失败   0 / 未适用   0 / 无从判定   0
+    ✓ A6 <h1> 唯一               通过  45 / 失败   0 / 未适用   0 / 无从判定   0
+    ✓ A7 页面底部无假高度              通过  45 / 失败   0 / 未适用   0 / 无从判定   0
+  
+    失败明细（每项断言各列最先命中的 6 张）：
+      A1 无横向溢出：45 张
+        home__desktop.png —— scrollWidth 3000 - clientWidth 1440 = 1560px
+            · 没有未被裁剪的越界元素 —— 溢出可能来自根元素自身或滚动条宽度
+        home__tablet.png —— scrollWidth 3000 - clientWidth 1024 = 1976px
+            · 没有未被裁剪的越界元素 —— 溢出可能来自根元素自身或滚动条宽度
+        home__mobile.png —— scrollWidth 3000 - clientWidth 390 = 2610px
+            · 没有未被裁剪的越界元素 —— 溢出可能来自根元素自身或滚动条宽度
+        arch__desktop.png —— scrollWidth 3000 - clientWidth 1440 = 1560px
+            · 没有未被裁剪的越界元素 —— 溢出可能来自根元素自身或滚动条宽度
+        arch__tablet.png —— scrollWidth 3000 - clientWidth 1024 = 1976px
+            · 没有未被裁剪的越界元素 —— 溢出可能来自根元素自身或滚动条宽度
+        arch__mobile.png —— scrollWidth 3000 - clientWidth 390 = 2610px
+            · 没有未被裁剪的越界元素 —— 溢出可能来自根元素自身或滚动条宽度
+        …另有 39 张同类
+  
+    未适用说明（不是通过，是本次这一项无处可判）：
+      ~ A4 固定/粘性元素互不遮挡：15 张 —— position:fixed|sticky 可见元素只有 0 个，凑不出「两两」
+  
+  visual: 45 张 / 7 项断言 / 45 失败
+  耗时 31.7s
+  
+  ✗ home__desktop.png                      6 通过 / 1 失败 / 0 未适用
+        ✗ A1 无横向溢出 —— scrollWidth 3000 - clientWidth 1440 = 1560px
+  ✗ home__tablet.png                       6 通过 / 1 失败 / 0 未适用
+        ✗ A1 无横向溢出 —— scrollWidth 3000 - clientWidth 1024 = 1976px
+  ✗ home__mobile.png                       5 通过 / 1 失败 / 1 未适用
+        ✗ A1 无横向溢出 —— scrollWidth 3000 - clientWidth 390 = 2610px
+  ✗ arch__desktop.png                      6 通过 / 1 失败 / 0 未适用
+        ✗ A1 无横向溢出 —— scrollWidth 3000 - clientWidth 1440 = 1560px
+  ✗ arch__tablet.png                       6 通过 / 1 失败 / 0 未适用
+        ✗ A1 无横向溢出 —— scrollWidth 3000 - clientWidth 1024 = 1976px
+  实测耗时 32.5s（完整输出：.verify/tmp/visual-assert.log）
+
+【2】逐项断言（每项一条：45 张里任一红即本项红）
+  ✓ assert.mjs 输出了 7 项汇总行（期望 7 项）
+  ✗ A1 无横向溢出（45 张矩阵）：通过 0 / 失败 45
+      失败 45 张
+      home__desktop.png —— scrollWidth 3000 - clientWidth 1440 = 1560px
+      · 没有未被裁剪的越界元素 —— 溢出可能来自根元素自身或滚动条宽度
+      home__tablet.png —— scrollWidth 3000 - clientWidth 1024 = 1976px
+      · 没有未被裁剪的越界元素 —— 溢出可能来自根元素自身或滚动条宽度
+      home__mobile.png —— scrollWidth 3000 - clientWidth 390 = 2610px
+      · 没有未被裁剪的越界元素 —— 溢出可能来自根元素自身或滚动条宽度
+  ✓ A2 main 一级子元素不越界（45 张矩阵）：通过 45 / 失败 0
+  ✓ A3 图片全部加载成功（45 张矩阵）：通过 45 / 失败 0
+  ✓ A4 固定/粘性元素互不遮挡（45 张矩阵）：通过 30 / 失败 0
+  ✓ A5 正文对比度达标（45 张矩阵）：通过 45 / 失败 0
+  ✓ A6 <h1> 唯一（45 张矩阵）：通过 45 / 失败 0
+  ✓ A7 页面底部无假高度（45 张矩阵）：通过 45 / 失败 0
+
+【3】矩阵：断言测的张数与截图台记的张数
+  ✓ 矩阵张数与截图台一致（断言 45 张 / 截图台 45 张）
+
+【4】findings.md 的素材核对（条目数与引用的 PNG 真实存在）
+  ── findings.md 素材核对 ─────────────────────────────
+    条目数 18 ✓（≥ 15）
+    引用 PNG 19 个，命中 19 个，缺失 0 个
+    → findings 素材核对通过
+  findings: 条目 18 / 引用 PNG 19 / 全部存在
+  ✓ findings.md：条目 18 条 / 引用 PNG 19 个 / 全部存在
+
+────────────────────────────────────────────────────────
+
+────────────────────────────────────────────────────────
+实测 11 项 / 跳过 0 项 / 失败 1 项  （45 张截图 × 7 项断言）
+ARSENAL-LAYER-STATUS {"layer":"visual","name":"视觉断言","pass":11,"fail":1,"skip":0,"measured":12,"total":12,"declared":12,"declaredMismatch":null,"countSource":"measured","knowinglySkipped":0,"knowinglyNames":[],"exitCode":1,"skipped":[]}

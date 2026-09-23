@@ -20,7 +20,11 @@ const config: Config = {
         treeLine: '#3C4D45',
         fg: '#E8F0EC',
         fgMuted: '#93A39C',
-        fgFaint: '#5E6E67',
+        /** 最淡一档的正文/说明文字。2026-09-23 由 #5E6E67 提亮：
+         *  原值在 surface 上 3.31:1、surfaceHi 上 3.02:1，低于 WCAG AA 正文 4.5:1；
+         *  现值 4.90~5.65:1（三个背景全过），仍比 fgMuted 的 6.15:1 淡一档。
+         *  判据与实测见 arsenal-web/visual/assert.mjs 的 A5 断言。 */
+        fgFaint: '#80918A',
         brass: '#D9A441',
         brassDim: '#8A6A2A',
         olive: '#7FA650',

@@ -32,7 +32,7 @@ export default function Shell({ children }: { children: React.ReactNode }) {
     <div className="mx-auto flex min-h-screen w-full max-w-[1500px] flex-col md:flex-row">
       {/* ── 侧边栏 ───────────────────────────────────────── */}
       <aside className="shrink-0 border-line md:w-[212px] md:border-r">
-        <div className="flex items-center justify-between px-5 py-4 md:sticky md:top-0 md:block md:py-6">
+        <div className="flex flex-wrap items-center justify-between gap-y-2 px-5 py-4 md:sticky md:top-0 md:block md:py-6">
           <Link href="/" className="group flex items-center gap-3">
             <span
               className="flex h-9 w-9 items-center justify-center rounded border text-base"
@@ -54,7 +54,9 @@ export default function Shell({ children }: { children: React.ReactNode }) {
             </span>
           </Link>
 
-          <nav className="flex items-center gap-1 md:hidden">
+          {/* 移动端导航。加 flex-wrap + min-w-0：10 个标签在 390px 下会折行，
+              而不是把最后一个标签推出视口（V2-01：整站 mobile 溢出 53px）。 */}
+          <nav className="flex min-w-0 flex-wrap items-center gap-1 md:hidden">
             {NAV.map((n) => (
               <Link
                 key={n.href}

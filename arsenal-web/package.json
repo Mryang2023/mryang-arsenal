@@ -23,6 +23,7 @@
     "verify:parity": "tsx .verify/parity-check.ts",
     "verify:archify": "tsx .verify/archify-check.ts",
     "verify:scan": "tsx .verify/scan-check.ts",
+    "verify:visual": "tsx .verify/visual-check.ts",
     "verify:meta": "tsx .verify/meta-check.ts",
     "verify": "node scripts/verify-all.mjs",
     "lint": "next lint",

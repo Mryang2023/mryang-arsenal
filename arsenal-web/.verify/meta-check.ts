@@ -1,5 +1,5 @@
 /**
- * 元核对层（链尾闸门）—— **让「八层各自实际跑了多少项」由机器守门，而不是靠人手写同步。**
+ * 元核对层（链尾闸门）—— **让「九层各自实际跑了多少项」由机器守门，而不是靠人手写同步。**
  *
  * ─────────────────────────────────────────────────────────────
  * 为什么需要它（它修的是「手写数字」这种说谎方式）：
@@ -16,7 +16,7 @@
  * `verify:project` 跑在其它层**中间**，它执行时 `engine / parity / archify / scan`
  * 还没开始跑，`layer-<key>.json` 根本不存在 —— 放在那里读兄弟层的结果，
  * 只能读到半份，或者读到上一轮的陈旧文件，然后变成一条永远绿的假断言。
- * 所以这一层单列，挂在八层**全部跑完之后**。
+ * 所以这一层单列，挂在九层**全部跑完之后**。
  *
  * ─────────────────────────────────────────────────────────────
  * 比什么（每一项都能红）：
@@ -29,7 +29,8 @@
  *                       不等就红，并把两个数字都打出来：「声明 34 / 实测 35」
  *   ③ 层自报 vs 档案    状态文件里的 `declared` 与元核对**自己读到的**档案值必须一致
  *                       （层读错了档案 / 有人用 `ARSENAL_LAYER_DECLARED` 临时覆盖过）
- *   ④ README 两处       「共 **662 项**」总数句、以及分项表里每一层的项数
+ *   ④ README 两处       总数句「共 **N 项**」、以及分项表里每一层的项数
+ *                       （N 由档案 verifyChain 之和决定，本文件里不写死）
  *
  * ⚠️ **不把「整层跳过」当核对通过**：`skipLayer()` 记的那个「N 项未执行」
  * 里的 N 取自档案声明值（本层一行都没跑，无从测量），拿它去比声明值就是
@@ -58,7 +59,17 @@ const tmpDir = path.join(webRoot, '.verify', 'tmp');
  * 比对顺序 = `arsenal-profiles/arsenal.json` 里 `verifyChain` 的顺序
  * （顺序只影响打印，不影响结论；写死是为了让人读日志时行行对得上）。
  */
-const CHAIN_ORDER = ['arch', 'graph', 'project', 'cases', 'engine', 'parity', 'archify', 'scan'];
+const CHAIN_ORDER = [
+  'arch',
+  'graph',
+  'project',
+  'cases',
+  'engine',
+  'parity',
+  'archify',
+  'scan',
+  'visual',
+];
 
 /** 汇总产物的文件名。`.verify/tmp/layer-counts.json` —— A-4 要求的那一份。 */
 const AGGREGATE_FILE = 'layer-counts.json';
@@ -154,7 +165,7 @@ check(
 );
 
 // ═══════════════════════════════════════════════════════════════
-// ③ 八层逐层比对（本层的核心）
+// ③ 九层逐层比对（本层的核心）
 // ═══════════════════════════════════════════════════════════════
 console.log('\n【3】逐层：层写出的实测项数 vs 档案声明值');
 const layers: Record<string, LayerRow> = {};
@@ -273,7 +284,7 @@ for (const key of CHAIN_ORDER) {
 console.log('\n【4】比对范围本身也要对得上');
 const missingKeys = CHAIN_ORDER.filter((k) => !declaredByName.has(LAYER_NAMES[k] ?? k));
 check(
-  '比对范围：八个层 key 都能在档案 verifyChain 里找到同名条目',
+  '比对范围：九个层 key 都能在档案 verifyChain 里找到同名条目',
   missingKeys.length === 0,
   `档案里找不到这些层：${missingKeys.join(', ')}`
 );
@@ -376,8 +387,8 @@ for (const key of CHAIN_ORDER) {
   );
 }
 console.log('─'.repeat(78));
-console.log(`${pad('八层合计', 18)}${pad(sumDeclared, 8)}${pad(sumMeasured + sumFail + sumSkipped, 8)}${pad(sumSkipped, 8)}${pad(sumFail, 8)}`);
-console.log('（「实测」列 = 通过 + 失败 + 未执行，与「声明」同量纲；元核对自身不计入八层项数）');
+console.log(`${pad('九层合计', 18)}${pad(sumDeclared, 8)}${pad(sumMeasured + sumFail + sumSkipped, 8)}${pad(sumSkipped, 8)}${pad(sumFail, 8)}`);
+console.log('（「实测」列 = 通过 + 失败 + 未执行，与「声明」同量纲；元核对自身不计入九层项数）');
 
 // 「刻意未跑」与「跳过」是两件事：前者不跑是决定，后者是环境。列出来，但不参与比对。
 if (sumKnowingly > 0) {

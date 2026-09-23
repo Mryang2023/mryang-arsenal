@@ -38,7 +38,7 @@
 
 | # | 截图文件名 | 区域 | 现象 | 类别 | 严重度 | 处置建议 |
 |---|---|---|---|---|---|---|
-| V2-01 | `home__mobile.png` | 上，页头右侧导航条 | 移动端导航 10 项被压成**单字竖排**（每项实测宽 28px），末两项「校验台」「导出中心」**完全越出 390px 视口、看不见也点不到**。根因元素 `nav.flex.items-center.gap-1.md:hidden`：实测宽 316px、`right=443` → `documentElement.scrollWidth 443 vs clientWidth 390`，**15 个页面 × 移动视口全部 +53px**；全站移动端都有横向滚动条 | ② 溢出截断 | **P0** | 页头导航加 `flex-wrap` 或改横向滚动 / 抽屉；`nav` 补 `min-width:0`。改完跑 `node visual/shoot.mjs`，确认 15 张移动视口图的 `horizontalOverflowPx` 归零 |
+| V2-01 | `home__mobile.png` | 上，页头右侧导航条 | 移动端导航 10 项被压成**单字竖排**（每项实测宽 28px），末两项「校验台」「导出中心」**完全越出 390px 视口、看不见也点不到**。根因元素 `nav.flex.items-center.gap-1.md:hidden`：实测宽 316px、`right=443` → `documentElement.scrollWidth 443 vs clientWidth 390`，**15 个页面 × 移动视口全部 +53px**；全站移动端都有横向滚动条 | ② 溢出截断 | **P0** | 页头导航加 `flex-wrap` 或改横向滚动 / 抽屉；`nav` 补 `min-width:0`。改完跑 `node visual/shoot.mjs`，确认 15 张移动视口图的 `horizontalOverflowPx` 归零。**2026-09-23 已修复**：见文末「本轮修复台账」F-1 |
 | V2-02 | `rules__mobile.png` | 上，搜索框 / 中，规则卡右上分类标签 | **同一根因在输入控件上的具体表现**：`rules__mobile.png` 搜索框 placeholder 被视口右缘切掉（「…例如「@Valid」「线程」缺右引号）；`check__mobile.png` 文件路径框被切成 `src/main/java/com/smarthub/controller/UserC`（看不到文件名）；`icons__mobile.png` 搜索框被切成「例如 缓存、nacc」（`nacos` 少了 `os`）；`stack__mobile.png` 接入层第 3 张形态卡被推出视口，文案「多副本无状态」不可读 | ② 溢出截断 | P1 | 与 V2-01 同根因，**先修导航**；若仍有溢出，这三个输入框需 `min-width:0` + `text-overflow` 处理，第 3 张形态卡改 `grid-cols-1` |
 | V2-03 | `archify__desktop.png` | 中右，「后端连不上」卡片 | 静态导出站（`output:'export'`）**挂载即请求硬编码后端** `http://localhost:3011/api/archify`，后端未起就进入红色错误态：卡片顶部一个红点 + URL，正文若干行说明。`manifest.json` 实测**三个视口都产生 requestfailed + console.error**。根因 `src/lib/arsenal-api.ts:16 DEFAULT_BASE = 'http://localhost:3011'` | ⑤ 空态难看 | P1 | 静态站不该在首屏把「连不上」当默认态：① BASE 改可配置（`NEXT_PUBLIC_*`）；② 离线时展示中性的「离线模式 · 可从左栏复制 IR 走 CLI」而不是红色告警 |
 | V2-04 | `export__tablet.png` | 下，PREVIEW 面板正文 | 面板名为 **PREVIEW**，但输出的是**原始 Markdown**：`# 代码规范约束`、`## 一、强制项（MUST）`、`以下约束**优先级高于你的默认编码风格**。`（`**` 原样出现）；并且 `<sub>SKEL-CONF-001</sub>` 这类标签**以纯文本泄漏**（根因 `src/lib/exporters.ts:179` 写入的就是未渲染的 `<sub>` 标签） | ⑦ 图形失效 | P1 | 二选一：面板改名 `SOURCE · 源文件` 并保留原文，或者真的渲染 Markdown；`<sub>` 换成纯文本（如 `（SKEL-CONF-001）`）或渲染器支持的语法 |
@@ -57,7 +57,11 @@
 | V2-17 | `cases__mobile.png` | 中，统计块 | 5 个统计项塞进 2 列网格 → 最后一行只剩「39 / 规则 · 条被引用规则」一项，**右侧留一个空单元格**（同页桌面视口是 5 列一排，没有这个问题） | ⑤ 空态难看 | P2 | 移动端改 1 列，或让最后一项 `col-span-2` |
 | V2-18 | `F-22-injected-tilt__home__desktop.png` | 全域，主内容区 | **反向验证探针**（非真实缺陷）：注入 `main{transform:rotate(-1.2deg)}` 后主内容区整体逆时针倾斜 1.2°，标题 / 统计 / 卡片基线全部倾斜、与左侧栏不再平行，右侧内容被推出视口。几何同步变化：`shotsWithHorizontalOverflow` **15→45**、`stack__desktop.ovf` **0→85** | ⑥ 错位未对齐 | 探针 | 无需处置。用来证明这套走查抓得到；四段原文见 `visual/reverse-validation.md`，还原后复绿 |
 
-**合计 18 条** · **P0 1 条、P1 5 条、P2 11 条、反向验证探针 1 条**。
+| V3-01 | 全站 45 张（`assert.mjs` A5 断言，非看图发现） | 全域，正文与说明文字 | **正文对比度不达 WCAG AA（4.5:1）**：最淡一档字色 `fgFaint = #5E6E67` 在 `surface #131917` 上 **3.31:1**、在 `surfaceHi #1A2220` 上 **3.02:1**；代码块注释色 `#5A6A63` 在代码底上 **3.28:1**。A5 首次实跑：**判定 21 张 / 失败 21 张**（另 24 张因背景是渐变或半透明而「不猜」，如实跳过） | ③ 对比度不足 | **P1** | **2026-09-23 已修复**，见文末台账 F-3 |
+| V3-02 | 全站 45 张（`assert.mjs` A6 断言，非看图发现） | 全域，页面标题 | **9 张页面（3 个路由 × 3 视口）的 `<h1>` 数量为 0**：`/arch/`、`/archify/`、`/stack/` 三个页面把视觉上的页标题写成了 `<h2>`，另外 36 张各 1 个。这与此前 A-1 的 grep 观察一致，但 A-1 只查了「有没有 `<h1>`」，没量化到「矩阵里 9 张为 0」。对读屏用户等于**整页没有一级标题** | ⑥ 错位未对齐 | **P1** | **2026-09-23 已修复**，见文末台账 F-4 |
+
+**合计 20 条** · **P0 1 条、P1 7 条、P2 11 条、反向验证探针 1 条**（其中 V3-01 / V3-02 由 `assert.mjs` 断言发现，
+不是看图判读发现 —— 判据分工见 `assert.mjs` 文件头：**断言管几何与数值，看图管语义**）。
 
 ## 附 · 非视觉类观察（**不计入 findings 表**，把图上看到的疑点拿去复核后确认的事实）
 
@@ -142,4 +146,39 @@ CODEBUDDY_SAFE_DELETE_ENABLED=0 npm run verify   # → 退出码 2，parity 11.8
    建议（未做）`parity-check.ts` 把 `fs.rmSync` 换成「先 rename 成 `.trash-<ts>`，由 shell/python 清理」，
    或在层里 `try/catch` 后如实写 `fail` 而不是让进程崩。
 3. 本棒**没有**去修它：文件所有权只给了 `arsenal-web/visual/**`，`.verify/**` 明令不许碰。
+
+---
+
+## 本轮修复台账（2026-09-23 · V-3 挂链那一棒）
+
+V-3（`visual/assert.mjs` + 挂进 `npm run verify`）落地时顺手清掉了下面这些。
+每一行都带**实测的前后数字** —— 「看着好了」不算修好。
+
+| # | 对应 finding | 改了什么 | 实测（前 → 后） |
+|---|---|---|---|
+| **F-1** | **V2-01**（P0）+ **V2-02**（同根因） | ① `src/components/Shell.tsx`：移动导航 `nav` 加 `flex-wrap` + `min-w-0`，页头那层加 `flex-wrap gap-y-2`；② `src/app/rules/RulesBrowser.tsx`：卡片网格**显式**写 `grid-cols-1`（只写 `lg:grid-cols-2` 时移动端走**隐式列** `auto`，列宽被卡片 `min-content` 撑到 399px）；③ `src/app/rules/[id]/page.tsx`：`constraint` 行加 `flex-wrap` | **A1 无横向溢出：通过 30 / 失败 15（+53px）→ 通过 41 / 失败 4（+29px→+3px）→ 通过 45 / 失败 0**。V2-02 那几处输入框被切、第 3 张形态卡被推出视口，随同根因一并消除（全站 45 张已无任何横向溢出） |
+| **F-2** | V2-11（P2，「先量出实际值再改」） | 先量后改：`tailwind.config.ts` 的 `fgFaint` `#5E6E67` → `#80918A`；`src/lib/highlight.ts` 的代码注释色 `#5A6A63` → `#80918A`。**没有凭感觉调** —— 候选值先用脚本算三档背景上的比值再定 | 实际比值：`surface` **3.31 → 5.37**、`surfaceHi` **3.02 → 4.90**、代码块底 **3.28 → 5.65**（三档全部过 AA 4.5:1，仍比 `fgMuted` 的 6.15:1 淡一档）。**A5 正文对比度：通过 21 / 失败 21 → 通过 45 / 失败 0** |
+| **F-3** | **V3-01**（本轮新发现，P1） | 同 F-2（`fgFaint` 与注释色就是全站对比度不足的两个源头） | 见 F-2 的比值行；A5 从「一半页面不达标」到 45/45 全过 |
+| **F-4** | **V3-02**（本轮新发现，P1）+ A-1 | `src/app/archify/ArchifyLab.tsx` 与 `src/app/arch/ArchGallery.tsx` 的页头标题 `<h2>` → `<h1>`；`src/app/stack/StackComposer.tsx` 补 `<h1 className="sr-only">架构装配台</h1>`（画布式界面，**视觉零变化**，只为读屏与断言） | **A6 `<h1>` 唯一：通过 36 / 失败 9 → 通过 45 / 失败 0** |
+| **F-5** | （断言自身的缺陷，不是页面缺陷） | `visual/assert.mjs` 的 A4 判据由 `position: fixed` 扩到 `fixed \|\| sticky` —— 本站页头与侧栏都是 `md:sticky`，只判 `fixed` 时这条断言**一张都判不了** | 45 张全 `未适用` → **通过 30 / 未适用 15**（移动端确实没有 sticky 元素，如实计未适用而不是算通过） |
+| **F-6** | V-3 挂链（plans-4/-5 的欠账） | 新增 `.verify/visual-check.ts`（12 项）+ 四处登记：`package.json` 的 `verify:visual`、`scripts/verify-all.mjs` 的 `LAYERS`、`.verify/lib/report.ts` 的 `LAYER_NAMES`、`.verify/meta-check.ts` 的 `CHAIN_ORDER`；档案 `verifyChain` 与 README 的总数句 + 分项表同步 | **verify 总数 662 → 674（九层）**；视觉层单跑 `实测 12 项 / 跳过 0 项 / 失败 0 项`，退出码 0 |
+
+### 反向验证：七项断言逐条真红（原文见 `visual/reverse-validation.md`）
+
+按仓库判据「**一条从没红过的断言和摆设没有区别**」，A1–A7 逐条注入坏样式跑真红：
+
+| 注入 | 结果 |
+|---|---|
+| `body::after{width:3000px}` | A1 **红 45/45**（`scrollWidth 3000 - clientWidth 1440/1024/390 = 1560/1976/2610px`），A2 保持绿 |
+| `main{overflow-x:hidden}` + `main > *:first-child{width:3000px}` | A2 **红 45/45**，A1 保持绿 —— 两条断言**互不顶罪**（双向隔离） |
+| 六项合并注入 | A2/A3/A4/A5/A6/A7 **全红且各带实际值**（如 A5 `1.29:1 < 4.5:1`、A7 `1351px 空白 > 上限 360px`） |
+
+新加的四处守门也逐条验红（R1–R5）：页面坏了 → 本层红（退出码 1，明细带 45 张的实际溢出量）；
+档案声明值改坏 → **层内自判负 + 元核对双红**；README 总数句改坏 → 元核对红（`README 673 / 档案 674`）；
+把视觉层从 `CHAIN_ORDER` 摘掉 → 元核对点名「新加了一层却没登记」；`out/` 移走 → **整层跳过（退出码 2、
+`countSource: declared`、pass 必须为 0）**。R5 还抓出并修掉了本层自己的一个记账 bug
+（前置 `check` 放在守卫之前 → 跳过那轮打出「实测 1 项 / 跳过 12 项」= 13 ≠ 声明 12）。
+
+**本台账没碰的**：V2-03（archify 硬编码 3011）、V2-04（PREVIEW 面板输出原始 Markdown）、
+V2-05（89/81 矛盾）、V2-06（两张能力卡正文重复）、V2-07…V2-17 —— 除 V2-01/V2-02 外的 P1/P2 仍然开着。
 

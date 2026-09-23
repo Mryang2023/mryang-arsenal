@@ -108,7 +108,9 @@ export default function RuleDetailPage({ params }: { params: { id: string } }) {
             className="rounded-lg border p-4"
             style={{ borderColor: 'rgba(217,164,65,0.28)', background: 'rgba(217,164,65,0.055)' }}
           >
-            <div className="flex items-center justify-between gap-3">
+            {/* flex-wrap：390px 下「constraint · 给 AI 的原子约束」这一行加上两个按钮是 393px，
+                不换行就多出 3px 横向滚动条（实测）。 */}
+            <div className="flex flex-wrap items-center justify-between gap-3">
               <span className="mono text-2xs uppercase tracking-[0.18em]" style={{ color: '#D9A441' }}>
                 constraint · 给 AI 的原子约束
               </span>

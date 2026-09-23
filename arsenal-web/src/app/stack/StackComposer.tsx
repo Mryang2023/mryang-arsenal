@@ -247,6 +247,9 @@ export default function StackComposer() {
 
   return (
     <div className="space-y-4">
+      {/* 页面级主标题：装配台是画布式界面，视觉上没有传统页头，
+          所以用 sr-only 给屏幕阅读器与文档大纲留一个唯一的 h1（视觉零变化）。 */}
+      <h1 className="sr-only">架构装配台</h1>
       {/* ── 顶部：这套组合能不能跑 ─────────────────────────── */}
       <div
         className="panel flex flex-wrap items-center gap-x-5 gap-y-3 px-4 py-3.5"

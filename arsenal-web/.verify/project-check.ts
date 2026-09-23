@@ -508,7 +508,7 @@ console.log('\n【9】六大架构视图数据层');
   //
   // 现在那个手写数字**删掉了**，改由链尾的 `verify:meta`（`.verify/meta-check.ts`）
   // 读各层自己写出的 `layer-<key>.json`，逐层比「声明 X / 实测 Y」，不一致就红。
-  // 为什么守门必须放链尾：本层跑在八层的**中间**，执行时 engine/parity/archify/scan
+  // 为什么守门必须放链尾：本层跑在九层的**中间**，执行时 engine/parity/archify/scan
   // 还没开始，`layer-<key>.json` 根本不存在 —— 放这里只能读到半份或上一轮的陈旧文件。
   check(
     '项目视图：验证链分项之和 = 总数（恒等式，形状检查；实测项数归 verify:meta）',

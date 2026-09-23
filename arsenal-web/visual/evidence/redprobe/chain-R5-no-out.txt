@@ -1,0 +1,16 @@
+
+> arsenal-web@0.1.0 verify:visual
+> tsx .verify/visual-check.ts
+
+
+【0】前置：视觉断言脚本 + 构建产物
+  ⚠ out/ 不存在 —— 本层整体跳过（不是通过）
+    先跑：node scripts/next-run.mjs build
+  ! 本层整体跳过：out/ 未构建：断言必须测真实页面，测不了就明说，不拿旧报告冒充
+    本层声明 12 项 —— 全部记为「未执行」，既不计通过也不计失败。
+    注意：这个数字取自档案的声明值（本层没跑，无从测量）—— 它不算证据。
+
+────────────────────────────────────────────────────────
+实测 0 项 / 跳过 12 项 / 失败 0 项
+  ~ 未执行：【整层】视觉断言（12 项未执行）
+ARSENAL-LAYER-STATUS {"layer":"visual","name":"视觉断言","pass":0,"fail":0,"skip":12,"measured":0,"total":12,"declared":12,"declaredMismatch":null,"countSource":"declared","knowinglySkipped":0,"knowinglyNames":[],"exitCode":2,"skipped":["【整层】视觉断言（12 项未执行）"]}

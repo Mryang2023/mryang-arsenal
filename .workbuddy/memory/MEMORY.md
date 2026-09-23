@@ -23,13 +23,14 @@
 6. **页面契约是两处**：页签 id（`TabId`）↔ 渲染分支（`tab==='x'`）；导航项 ↔ 路由；`savePicksSnapshot` ↔ `loadPicksSnapshot`。只有把**源码当数据断言**才抓得住（`project-check.ts`【13】，解析前先 `stripComments()`）。
 7. 加一类文件型事实源要同时改四处：`sync-content.mjs`（形状闸门）+ 前端 resolver + `project-check.ts`（契约）+ README 目录树。
 8. **同一文件多处改动必须串行**（并行 Edit 必丢、不报错、`tsc` 也 0 错）。给老文件加 prop/state 前先 grep 同名声明；「状态文案」类局部变量统一叫 `statusMeta`，**不叫 `meta`**。
+9. **加/改一层 `verify` 要同时改五处**：`package.json`（script）+ `scripts/verify-all.mjs`（`LAYERS`）+ `.verify/lib/report.ts`（`LAYER_NAMES`，层 key → 档案里的中文名）+ `.verify/meta-check.ts`（`CHAIN_ORDER`）+ 档案 `verifyChain`；另加 README **两处**（总数句 + 分项表）。漏掉 `meta-check` 会被「档案里没有元核对不认识的层」当场点名；漏掉 README 会被「总数句 = 各层声明之和」点名。**忘改档案声明值 → 该层自己 `finish()` 就判负**（打印「声明 X / 实测 Y」）。
 
 ## 校验与运行
 
-- `npm run verify` 八层 = 35 架构 + 59 图与交互 + 406 结构与导出 + 33 场景案例 + 17 引擎样本 + 12 前后端一致性 + 31 Archify + 69 代码扫描 = **662**（以 `src/generated/profiles.json` 的 `verifyChain` 为准；改口径要同步 `arsenal-profiles/arsenal.json` **并重跑 `sync-content.mjs`**）。
-  - ⚠️ `VERIFY_CHAIN.reduce() === VERIFY_TOTAL` 是**半恒真**，手写总数无守门（引擎 14→17 靠人发现）。待改成各层报实测值互比。
+- `npm run verify` **九层** = 35 架构 + 59 图与交互 + 406 结构与导出 + 33 场景案例 + 17 引擎样本 + 12 前后端一致性 + 31 Archify + 69 代码扫描 + **12 视觉断言** = **674**（以 `src/generated/profiles.json` 的 `verifyChain` 为准；改口径要同步 `arsenal-profiles/arsenal.json` **并重跑 `sync-content.mjs`**）。实测基线（**起后端**）：`643 实测 / 31 跳过 / 0 失败 / 退出码 2`、元核对 `52 / 1 / 0`；后端没起时 `640 / 34 / 0`（parity 的活服务 3 项转为跳过）。**数字由机器守门**：各层收尾写 `layer-<key>.json`，链尾 `verify:meta` 逐层比「声明 / 实测」+ 核 README 总数句与分项表 —— 手抄件（含 README）改坏就红，`project-check.ts` 里那个手写总数已删。
+- **视觉断言层**（`arsenal-web/.verify/visual-check.ts`，2026-09-23 挂链，此前**全仓零断言覆盖页面**）：真判据在 `arsenal-web/visual/assert.mjs` —— A1 无横向溢出 / A2 `main` 一级子元素不越界 / A3 图片加载 / A4 `fixed`·`sticky` 互不遮挡 / A5 WCAG 正文对比度 / A6 `<h1>` 唯一 / A7 底部假高度，**45 张矩阵（15 路由 × 3 视口）几何现测**，不读旧截图报告。**项数按断言算（7 + 3 前置 + 矩阵 + findings = 12），不按张数膨胀**。`out/` 没构建 → 整层跳过（退出码 2），不静默算绿。
 - ⚠️ **`.verify/**` 不在 tsconfig 里**：`next build` / `tsc` 都不看它，坏 import 只在**运行时**炸。改完必须**实跑那一层**。
-- ⚠️ **safe-delete 守卫按「一次工具调用」累计** ≥50 就抛 → `npm run verify` 八层别挤在一个 turn；子进程清理照 `next-run.mjs`，**只给该子进程** `CODEBUDDY_SAFE_DELETE_ENABLED=0`。
+- ⚠️ **safe-delete 守卫按「一次工具调用」累计** ≥50 就抛 → `npm run verify` 九层别挤在一个 turn；子进程清理照 `next-run.mjs`，**只给该子进程** `CODEBUDDY_SAFE_DELETE_ENABLED=0`。`verify` 整链 7 分钟起（`代码扫描` 单层 72~321s，看负载）。
 - ⚠️ **多会话并发**：同仓库可能有夜跑链在写。动它文件前取两次 md5；它的绿不归你背书。
 - ⚠️ **同名函数跨模块 = 静默选错**（`buildTechArchFromFacts` 曾有两份、返回形状不同）→ 加模块前先 grep 同名导出。
 - `CASES_MODULES` 只许有一份（在 `tools/build-content.py`）；`tools/content/cases/__init__.py` 那份是死的，改它等于新场景「写了但不生成」且不报错。
@@ -48,6 +49,8 @@
 
 ## 待推进
 
-见 `docs/开发计划-2026-09-22/00-index.md`（**五份**按功能切分、文件所有权互斥的计划；**该文件同时是夜跑编排书** —— §一 工作量裁定、§二 棒次表、§三 按棒钉死的备选池、§五 统一台账 A/B/C/D/V 共 40 条、§九 定时任务登记表）。夜跑规程是 `docs/开发计划-2026-09-22/NIGHT-RUN.md`（一棒三段/接力/收尾七步/`0N-done.json` schema），排期走技能 `night-run`（章程公式：单棒预算 =(窗口−终检40−交接3×棒数−缓冲)/棒数，**准入体量 ≤(预算−20)/1.5**；本仓库 8 小时窗口 ≈ 4 工作棒 + 终检、单棒 118 分钟 → 只装得下 ~7 条任务）。`war-board.html` 是同目录的排期视图。计划 5 是**多模态专用**的视觉走查（45 张截图矩阵 + 逐张判读 + `visual/assert.mjs`），纯文本模型做不了。
+见 `docs/开发计划-2026-09-22/00-index.md`（**五份**按功能切分、文件所有权互斥的计划；**该文件同时是夜跑编排书** —— §一 工作量裁定、§二 棒次表、§三 按棒钉死的备选池、§五 统一台账 A/B/C/D/V 共 40 条、§九 定时任务登记表）。夜跑规程是 `docs/开发计划-2026-09-22/NIGHT-RUN.md`（一棒三段/接力/收尾七步/`0N-done.json` schema），排期走技能 `night-run`（章程公式：单棒预算 =(窗口−终检40−交接3×棒数−缓冲)/棒数，**准入体量 ≤(预算−20)/1.5**；本仓库 8 小时窗口 ≈ 4 工作棒 + 终检、单棒 118 分钟 → 只装得下 ~7 条任务）。`war-board.html` 是同目录的排期视图。
+- **计划 5（多模态视觉走查）已交付**：`arsenal-web/visual/` 有 `shoot.mjs`（45 张截图矩阵）+ `assert.mjs`（A1–A7 七项断言）+ `findings.md`（20 条）+ `reverse-validation.md`（七项断言逐条真红的原文）+ `evidence/`（10 张判读位图 + `redprobe/` 的 11 份原始输出）。**已挂进 `npm run verify` 成为第 9 层**，不再是「跑得完但没人跑」的孤岛。
+- **`findings.md` 里 15 条还开着**：P1 三条 —— `/archify/` 硬编码 `localhost:3011`（静态站首屏即红色错误态）、`/export/` 的 PREVIEW 面板输出原始 Markdown 且 `<sub>` 标签泄漏、`/icons/`「89 个图标」与「登记 81」自相矛盾；其余 P2（重复能力卡文案、`break-all` 断路径、空态、`↑` 孤字形、编号从 ② 起等）。以及 **45 张里 13 张未逐张判读**（已点名）。
 - **待人工决策（不是代码问题）**：69 条规则逐条过目（同意/改/删，「没过目就不算军火库」）；5 条无检查器的 AST 规则（`COL-CODE-002`/`CONC-THRD-002`/`REL-LOG-003`/`SEC-LOG-001`/`SKEL-STRC-002`，是**刻意边界**不是 bug）补/降级/留 skipped；`SVC-LAYR-003` 待拍板；「性能与 JVM」「日志监控」两类未覆盖。
 - 63/81 位图图标缺失（矢量 81/81 已全量，不阻塞任何功能，需生图额度）。

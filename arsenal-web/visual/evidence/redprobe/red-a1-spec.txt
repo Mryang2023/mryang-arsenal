@@ -1,0 +1,295 @@
+· 已起静态站 http://127.0.0.1:3021（root=D:\mryang\workspace\2026\arsenal\arsenal-web\out）
+
+── 视觉断言：15 URL × 3 视口 = 45 张 ──────────
+✓ home__desktop.png                      7 通过 / 0 失败 / 0 未适用
+✓ home__tablet.png                       7 通过 / 0 失败 / 0 未适用
+✗ home__mobile.png                       4 通过 / 2 失败 / 1 未适用
+      ✗ A1 无横向溢出 —— scrollWidth 3000 - clientWidth 390 = 2610px
+          · main.min-w-0.flex-1「◈personal code arsenal」 0..3000（宽 3000，越界 2610px，static，depth 3）
+          · div.px-5.py-6「◈personal code arsenal」 0..3000（宽 3000，越界 2610px，static，depth 4）
+          · footer.border-t.border-line「数据源 arsenal-rules/**/*」 0..3000（宽 3000，越界 2610px，static，depth 4）
+          · div.animate-fade-up.space-y-9「◈personal code arsenal」 20..2980（宽 2960，越界 2590px，static，depth 5）
+          · （线索·被 section.grid-bg.relative/hidden 裁剪）div.pointer-events-none.absolute right=2979 越界 2589px
+          · （线索·被 section.grid-bg.relative/hidden 裁剪）div.relative.px-6「◈personal code arsenal」 right=2979 越界 2589px
+          · （线索·被 div.panel.overflow-hidden/hidden 裁剪）table.w-full.text-left「来源类型引用阿里巴巴Java开发手册行业规范」 right=2979 越界 2589px
+      ✗ A2 main 一级子元素不越界 —— main 一级可见子元素 2 个，越界 2 个（clientWidth 390）
+          · div.px-5.py-6 right=3000 越界 2610px
+          · footer.border-t.border-line right=3000 越界 2610px
+✓ arch__desktop.png                      7 通过 / 0 失败 / 0 未适用
+✓ arch__tablet.png                       7 通过 / 0 失败 / 0 未适用
+✗ arch__mobile.png                       4 通过 / 2 失败 / 1 未适用
+      ✗ A1 无横向溢出 —— scrollWidth 3000 - clientWidth 390 = 2610px
+          · main.min-w-0.flex-1「项目档案▣杨先生的军火库+ 导入别的项目换项」 0..3000（宽 3000，越界 2610px，static，depth 3）
+          · div.px-5.py-6「项目档案▣杨先生的军火库+ 导入别的项目换项」 0..3000（宽 3000，越界 2610px，static，depth 4）
+          · footer.border-t.border-line「数据源 arsenal-rules/**/*」 0..3000（宽 3000，越界 2610px，static，depth 4）
+          · div.space-y-4「项目档案▣杨先生的军火库+ 导入别的项目换项」 20..2980（宽 2960，越界 2590px，static，depth 5）
+          · （线索·被 div.panel.overflow-hidden/hidden 裁剪）div.relative.flex「业务架构Business杨先生的军火库定义军」 right=2979 越界 2589px
+          · （线索·被 div.panel.overflow-hidden/hidden 裁剪）div.grid.gap-0「核心关注·规范字典·能力域·三种出口·单人 」 right=2979 越界 2589px
+          · （线索·被 div.panel.overflow-hidden/hidden 裁剪）div.ui-rise.border-line「核心关注·规范字典·能力域·三种出口·单人 」 right=2979 越界 2589px
+      ✗ A2 main 一级子元素不越界 —— main 一级可见子元素 2 个，越界 2 个（clientWidth 390）
+          · div.px-5.py-6 right=3000 越界 2610px
+          · footer.border-t.border-line right=3000 越界 2610px
+✓ archify__desktop.png                   7 通过 / 0 失败 / 0 未适用
+✓ archify__tablet.png                    7 通过 / 0 失败 / 0 未适用
+✗ archify__mobile.png                    4 通过 / 2 失败 / 1 未适用
+      ✗ A1 无横向溢出 —— scrollWidth 3000 - clientWidth 390 = 2610px
+          · main.min-w-0.flex-1「Archify 出图台ir in · htm」 0..3000（宽 3000，越界 2610px，static，depth 3）
+          · div.px-5.py-6「Archify 出图台ir in · htm」 0..3000（宽 3000，越界 2610px，static，depth 4）
+          · footer.border-t.border-line「数据源 arsenal-rules/**/*」 0..3000（宽 3000，越界 2610px，static，depth 4）
+          · div.space-y-4「Archify 出图台ir in · htm」 20..2980（宽 2960，越界 2590px，static，depth 5）
+      ✗ A2 main 一级子元素不越界 —— main 一级可见子元素 2 个，越界 2 个（clientWidth 390）
+          · div.px-5.py-6 right=3000 越界 2610px
+          · footer.border-t.border-line right=3000 越界 2610px
+✓ blueprints__desktop.png                7 通过 / 0 失败 / 0 未适用
+✓ blueprints__tablet.png                 7 通过 / 0 失败 / 0 未适用
+✗ blueprints__mobile.png                 4 通过 / 2 失败 / 1 未适用
+      ✗ A1 无横向溢出 —— scrollWidth 3000 - clientWidth 390 = 2610px
+          · main.min-w-0.flex-1「▤best practices/v0.2.0」 0..3000（宽 3000，越界 2610px，static，depth 3）
+          · div.px-5.py-6「▤best practices/v0.2.0」 0..3000（宽 3000，越界 2610px，static，depth 4）
+          · footer.border-t.border-line「数据源 arsenal-rules/**/*」 0..3000（宽 3000，越界 2610px，static，depth 4）
+          · div.animate-fade-up.space-y-8「▤best practices/v0.2.0」 20..2980（宽 2960，越界 2590px，static，depth 5）
+          · （线索·被 header.grid-bg.relative/hidden 裁剪）div.pointer-events-none.absolute right=2979 越界 2589px
+          · （线索·被 header.grid-bg.relative/hidden 裁剪）div.relative.px-6「▤best practices/v0.2.0」 right=2979 越界 2589px
+          · （线索·被 a.panel.panel-hover/hidden 裁剪）div.flex.flex-col「▤标准 CRUD 垂直切片核心crud-ba」 right=2979 越界 2589px
+      ✗ A2 main 一级子元素不越界 —— main 一级可见子元素 2 个，越界 2 个（clientWidth 390）
+          · div.px-5.py-6 right=3000 越界 2610px
+          · footer.border-t.border-line right=3000 越界 2610px
+✓ cases__desktop.png                     7 通过 / 0 失败 / 0 未适用
+✓ cases__tablet.png                      7 通过 / 0 失败 / 0 未适用
+✗ cases__mobile.png                      4 通过 / 2 失败 / 1 未适用
+      ✗ A1 无横向溢出 —— scrollWidth 3000 - clientWidth 390 = 2610px
+          · main.min-w-0.flex-1「◫scenario lab/v0.1.0/2」 0..3000（宽 3000，越界 2610px，static，depth 3）
+          · div.px-5.py-6「◫scenario lab/v0.1.0/2」 0..3000（宽 3000，越界 2610px，static，depth 4）
+          · footer.border-t.border-line「数据源 arsenal-rules/**/*」 0..3000（宽 3000，越界 2610px，static，depth 4）
+          · div.animate-fade-up.space-y-6「◫scenario lab/v0.1.0/2」 20..2980（宽 2960，越界 2590px，static，depth 5）
+          · （线索·被 header.grid-bg.relative/hidden 裁剪）div.pointer-events-none.absolute right=2979 越界 2589px
+          · （线索·被 header.grid-bg.relative/hidden 裁剪）div.relative.px-6「◫scenario lab/v0.1.0/2」 right=2979 越界 2589px
+          · （线索·被 div.mt-2.flex/hidden 裁剪）button.mono.flex-1「100 万」 right=2966 越界 2576px
+      ✗ A2 main 一级子元素不越界 —— main 一级可见子元素 2 个，越界 2 个（clientWidth 390）
+          · div.px-5.py-6 right=3000 越界 2610px
+          · footer.border-t.border-line right=3000 越界 2610px
+✓ check__desktop.png                     7 通过 / 0 失败 / 0 未适用
+✓ check__tablet.png                      7 通过 / 0 失败 / 0 未适用
+✗ check__mobile.png                      4 通过 / 2 失败 / 1 未适用
+      ✗ A1 无横向溢出 —— scrollWidth 3000 - clientWidth 390 = 2610px
+          · main.min-w-0.flex-1「linter校验台粘贴代码，按 69 条规则」 0..3000（宽 3000，越界 2610px，static，depth 3）
+          · div.px-5.py-6「linter校验台粘贴代码，按 69 条规则」 0..3000（宽 3000，越界 2610px，static，depth 4）
+          · footer.border-t.border-line「数据源 arsenal-rules/**/*」 0..3000（宽 3000，越界 2610px，static，depth 4）
+          · div.animate-fade-up.space-y-5「linter校验台粘贴代码，按 69 条规则」 20..2980（宽 2960，越界 2590px，static，depth 5）
+          · （线索·被 div.panel.overflow-hidden/hidden 裁剪）div.flex.items-center「UserController.java」 right=2979 越界 2589px
+          · （线索·被 div.panel.overflow-hidden/hidden 裁剪）div.border-b.border-line right=2979 越界 2589px
+          · （线索·被 div.panel.overflow-hidden/hidden 裁剪）textarea.mono.block「package com.smarthub.C」 right=2979 越界 2589px
+      ✗ A2 main 一级子元素不越界 —— main 一级可见子元素 2 个，越界 2 个（clientWidth 390）
+          · div.px-5.py-6 right=3000 越界 2610px
+          · footer.border-t.border-line right=3000 越界 2610px
+✓ export__desktop.png                    7 通过 / 0 失败 / 0 未适用
+✓ export__tablet.png                     7 通过 / 0 失败 / 0 未适用
+✗ export__mobile.png                     4 通过 / 2 失败 / 1 未适用
+      ✗ A1 无横向溢出 —— scrollWidth 3000 - clientWidth 390 = 2610px
+          · main.min-w-0.flex-1「dispatch导出中心同一份规则数据，编译」 0..3000（宽 3000，越界 2610px，static，depth 3）
+          · div.px-5.py-6「dispatch导出中心同一份规则数据，编译」 0..3000（宽 3000，越界 2610px，static，depth 4）
+          · footer.border-t.border-line「数据源 arsenal-rules/**/*」 0..3000（宽 3000，越界 2610px，static，depth 4）
+          · div.animate-fade-up.space-y-5「dispatch导出中心同一份规则数据，编译」 20..2980（宽 2960，越界 2590px，static，depth 5）
+          · （线索·被 div.panel.overflow-hidden/hidden 裁剪）div.flex.items-center「previewarsenal-system-」 right=2979 越界 2589px
+          · （线索·被 div.panel.overflow-hidden/hidden 裁剪）pre.mono.max-h-[560px]「# 代码规范约束 以下约束**优先级高于你的」 right=2979 越界 2589px
+          · （线索·被 div.panel.overflow-hidden/hidden 裁剪）span.mono.ml-auto「arsenal-system-prompt.」 right=2963 越界 2573px
+      ✗ A2 main 一级子元素不越界 —— main 一级可见子元素 2 个，越界 2 个（clientWidth 390）
+          · div.px-5.py-6 right=3000 越界 2610px
+          · footer.border-t.border-line right=3000 越界 2610px
+✓ icons__desktop.png                     7 通过 / 0 失败 / 0 未适用
+✓ icons__tablet.png                      7 通过 / 0 失败 / 0 未适用
+✗ icons__mobile.png                      4 通过 / 2 失败 / 1 未适用
+      ✗ A1 无横向溢出 —— scrollWidth 3000 - clientWidth 390 = 2610px
+          · main.min-w-0.flex-1「❖icon library/v0.1.0/9」 0..3000（宽 3000，越界 2610px，static，depth 3）
+          · div.px-5.py-6「❖icon library/v0.1.0/9」 0..3000（宽 3000，越界 2610px，static，depth 4）
+          · footer.border-t.border-line「数据源 arsenal-rules/**/*」 0..3000（宽 3000，越界 2610px，static，depth 4）
+          · div.animate-fade-up.space-y-8「❖icon library/v0.1.0/9」 20..2980（宽 2960，越界 2590px，static，depth 5）
+          · （线索·被 header.grid-bg.relative/hidden 裁剪）div.pointer-events-none.absolute right=2979 越界 2589px
+          · （线索·被 header.grid-bg.relative/hidden 裁剪）div.relative.px-6「❖icon library/v0.1.0/9」 right=2979 越界 2589px
+          · （线索·被 header.grid-bg.relative/hidden 裁剪）div.mono.mb-3「❖icon library/v0.1.0/9」 right=2955 越界 2565px
+      ✗ A2 main 一级子元素不越界 —— main 一级可见子元素 2 个，越界 2 个（clientWidth 390）
+          · div.px-5.py-6 right=3000 越界 2610px
+          · footer.border-t.border-line right=3000 越界 2610px
+✓ rules__desktop.png                     7 通过 / 0 失败 / 0 未适用
+✓ rules__tablet.png                      7 通过 / 0 失败 / 0 未适用
+✗ rules__mobile.png                      4 通过 / 2 失败 / 1 未适用
+      ✗ A1 无横向溢出 —— scrollWidth 3000 - clientWidth 390 = 2610px
+          · main.min-w-0.flex-1「registry规则库69 条规范，全部可溯」 0..3000（宽 3000，越界 2610px，static，depth 3）
+          · div.px-5.py-6「registry规则库69 条规范，全部可溯」 0..3000（宽 3000，越界 2610px，static，depth 4）
+          · footer.border-t.border-line「数据源 arsenal-rules/**/*」 0..3000（宽 3000，越界 2610px，static，depth 4）
+          · div.space-y-5「registry规则库69 条规范，全部可溯」 20..2980（宽 2960，越界 2590px，static，depth 5）
+          · （线索·被 div.flex.overflow-hidden/hidden 裁剪）button.px-2.5.py-1「列表」 right=2962 越界 2572px
+          · （线索·被 div.flex.overflow-hidden/hidden 裁剪）button.px-2.5.py-1「卡片」 right=2920 越界 2530px
+          · （线索·被 div.flex.overflow-hidden/hidden 裁剪）button.px-2.5.py-1「按 ID」 right=2864 越界 2474px
+      ✗ A2 main 一级子元素不越界 —— main 一级可见子元素 2 个，越界 2 个（clientWidth 390）
+          · div.px-5.py-6 right=3000 越界 2610px
+          · footer.border-t.border-line right=3000 越界 2610px
+✓ stack__desktop.png                     7 通过 / 0 失败 / 0 未适用
+✓ stack__tablet.png                      7 通过 / 0 失败 / 0 未适用
+✗ stack__mobile.png                      4 通过 / 2 失败 / 1 未适用
+      ✗ A1 无横向溢出 —— scrollWidth 3000 - clientWidth 390 = 2610px
+          · main.min-w-0.flex-1「架构装配台✓可以跑起来必选模块齐全，能力闭环」 0..3000（宽 3000，越界 2610px，static，depth 3）
+          · div.px-5.py-6「架构装配台✓可以跑起来必选模块齐全，能力闭环」 0..3000（宽 3000，越界 2610px，static，depth 4）
+          · footer.border-t.border-line「数据源 arsenal-rules/**/*」 0..3000（宽 3000，越界 2610px，static，depth 4）
+          · div.space-y-4「架构装配台✓可以跑起来必选模块齐全，能力闭环」 20..2980（宽 2960，越界 2590px，static，depth 5）
+          · （线索·被 section.panel.overflow-hidden/hidden 裁剪）header.flex.flex-wrap「⇥接入层3/3请求从这里进场。决定线程模型与」 right=2979 越界 2589px
+          · （线索·被 section.panel.overflow-hidden/hidden 裁剪）div.flex.flex-wrap「⇥HTTP 入口必选Spring MVC +」 right=2979 越界 2589px
+          · （线索·被 section.panel.overflow-hidden/hidden 裁剪）header.flex.flex-wrap「▣应用能力4/4挂在入口上的横切能力：谁能进」 right=2979 越界 2589px
+      ✗ A2 main 一级子元素不越界 —— main 一级可见子元素 2 个，越界 2 个（clientWidth 390）
+          · div.px-5.py-6 right=3000 越界 2610px
+          · footer.border-t.border-line right=3000 越界 2610px
+✓ rules-COL-CODE-001__desktop.png        7 通过 / 0 失败 / 0 未适用
+✓ rules-COL-CODE-001__tablet.png         7 通过 / 0 失败 / 0 未适用
+✗ rules-COL-CODE-001__mobile.png         4 通过 / 2 失败 / 1 未适用
+      ✗ A1 无横向溢出 —— scrollWidth 3000 - clientWidth 390 = 2610px
+          · main.min-w-0.flex-1「规则库/协作/COL-CODE-001建议S」 0..3000（宽 3000，越界 2610px，static，depth 3）
+          · div.px-5.py-6「规则库/协作/COL-CODE-001建议S」 0..3000（宽 3000，越界 2610px，static，depth 4）
+          · footer.border-t.border-line「数据源 arsenal-rules/**/*」 0..3000（宽 3000，越界 2610px，static，depth 4）
+          · div.animate-fade-up「规则库/协作/COL-CODE-001建议S」 20..2980（宽 2960，越界 2590px，static，depth 5）
+          · （线索·被 div.overflow-hidden.rounded-md/hidden 裁剪）div.flex.items-center「✕反例 · 不要这样写java⎘复制」 right=2979 越界 2589px
+          · （线索·被 div.overflow-hidden.rounded-md/hidden 裁剪）pre.mono.overflow-x-auto「/** * 获取用户 * @param id」 right=2979 越界 2589px
+          · （线索·被 div.overflow-hidden.rounded-md/hidden 裁剪）div.flex.items-center「✓正例 · 应该这样写java⎘复制」 right=2979 越界 2589px
+      ✗ A2 main 一级子元素不越界 —— main 一级可见子元素 2 个，越界 2 个（clientWidth 390）
+          · div.px-5.py-6 right=3000 越界 2610px
+          · footer.border-t.border-line right=3000 越界 2610px
+✓ rules-REL-LOG-002__desktop.png         7 通过 / 0 失败 / 0 未适用
+✓ rules-REL-LOG-002__tablet.png          7 通过 / 0 失败 / 0 未适用
+✗ rules-REL-LOG-002__mobile.png          4 通过 / 2 失败 / 1 未适用
+      ✗ A1 无横向溢出 —— scrollWidth 3000 - clientWidth 390 = 2610px
+          · main.min-w-0.flex-1「规则库/可靠性/REL-LOG-002强制M」 0..3000（宽 3000，越界 2610px，static，depth 3）
+          · div.px-5.py-6「规则库/可靠性/REL-LOG-002强制M」 0..3000（宽 3000，越界 2610px，static，depth 4）
+          · footer.border-t.border-line「数据源 arsenal-rules/**/*」 0..3000（宽 3000，越界 2610px，static，depth 4）
+          · div.animate-fade-up「规则库/可靠性/REL-LOG-002强制M」 20..2980（宽 2960，越界 2590px，static，depth 5）
+          · （线索·被 div.overflow-hidden.rounded-md/hidden 裁剪）div.flex.items-center「✕反例 · 不要这样写java⎘复制」 right=2979 越界 2589px
+          · （线索·被 div.overflow-hidden.rounded-md/hidden 裁剪）pre.mono.overflow-x-auto「log.info("查询用户: " + us」 right=2979 越界 2589px
+          · （线索·被 div.overflow-hidden.rounded-md/hidden 裁剪）div.flex.items-center「✓正例 · 应该这样写java⎘复制」 right=2979 越界 2589px
+      ✗ A2 main 一级子元素不越界 —— main 一级可见子元素 2 个，越界 2 个（clientWidth 390）
+          · div.px-5.py-6 right=3000 越界 2610px
+          · footer.border-t.border-line right=3000 越界 2610px
+✓ rules-WEB-DTO-001__desktop.png         7 通过 / 0 失败 / 0 未适用
+✓ rules-WEB-DTO-001__tablet.png          7 通过 / 0 失败 / 0 未适用
+✗ rules-WEB-DTO-001__mobile.png          4 通过 / 2 失败 / 1 未适用
+      ✗ A1 无横向溢出 —— scrollWidth 3000 - clientWidth 390 = 2610px
+          · main.min-w-0.flex-1「规则库/Web 层/WEB-DTO-001强」 0..3000（宽 3000，越界 2610px，static，depth 3）
+          · div.px-5.py-6「规则库/Web 层/WEB-DTO-001强」 0..3000（宽 3000，越界 2610px，static，depth 4）
+          · footer.border-t.border-line「数据源 arsenal-rules/**/*」 0..3000（宽 3000，越界 2610px，static，depth 4）
+          · div.animate-fade-up「规则库/Web 层/WEB-DTO-001强」 20..2980（宽 2960，越界 2590px，static，depth 5）
+          · （线索·被 div.overflow-hidden.rounded-md/hidden 裁剪）div.flex.items-center「✕反例 · 不要这样写java⎘复制」 right=2979 越界 2589px
+          · （线索·被 div.overflow-hidden.rounded-md/hidden 裁剪）pre.mono.overflow-x-auto「public Map<String,Obje」 right=2979 越界 2589px
+          · （线索·被 div.overflow-hidden.rounded-md/hidden 裁剪）div.flex.items-center「✓正例 · 应该这样写java⎘复制」 right=2979 越界 2589px
+      ✗ A2 main 一级子元素不越界 —— main 一级可见子元素 2 个，越界 2 个（clientWidth 390）
+          · div.px-5.py-6 right=3000 越界 2610px
+          · footer.border-t.border-line right=3000 越界 2610px
+✓ blueprints-async-transaction__desktop.png 7 通过 / 0 失败 / 0 未适用
+✓ blueprints-async-transaction__tablet.png 7 通过 / 0 失败 / 0 未适用
+✗ blueprints-async-transaction__mobile.png 4 通过 / 2 失败 / 1 未适用
+      ✗ A1 无横向溢出 —— scrollWidth 3000 - clientWidth 390 = 2610px
+          · main.min-w-0.flex-1「最佳实践案例库/async-transact」 0..3000（宽 3000，越界 2610px，static，depth 3）
+          · div.px-5.py-6「最佳实践案例库/async-transact」 0..3000（宽 3000，越界 2610px，static，depth 4）
+          · footer.border-t.border-line「数据源 arsenal-rules/**/*」 0..3000（宽 3000，越界 2610px，static，depth 4）
+          · div.animate-fade-up.space-y-7「最佳实践案例库/async-transact」 20..2980（宽 2960，越界 2590px，static，depth 5）
+          · （线索·被 header.grid-bg.relative/hidden 裁剪）div.pointer-events-none.absolute right=2979 越界 2589px
+          · （线索·被 header.grid-bg.relative/hidden 裁剪）div.relative.px-6「⇉异步任务 · 事务 · 重试退避进阶10 」 right=2979 越界 2589px
+          · （线索·被 div.min-w-0.overflow-hidden/hidden 裁剪）div.flex.items-center「⇄接口层src/main/java/com/」 right=2979 越界 2589px
+      ✗ A2 main 一级子元素不越界 —— main 一级可见子元素 2 个，越界 2 个（clientWidth 390）
+          · div.px-5.py-6 right=3000 越界 2610px
+          · footer.border-t.border-line right=3000 越界 2610px
+✓ blueprints-skeleton-config__desktop.png 7 通过 / 0 失败 / 0 未适用
+✓ blueprints-skeleton-config__tablet.png 7 通过 / 0 失败 / 0 未适用
+✗ blueprints-skeleton-config__mobile.png 4 通过 / 2 失败 / 1 未适用
+      ✗ A1 无横向溢出 —— scrollWidth 3000 - clientWidth 390 = 2610px
+          · main.min-w-0.flex-1「最佳实践案例库/skeleton-confi」 0..3000（宽 3000，越界 2610px，static，depth 3）
+          · div.px-5.py-6「最佳实践案例库/skeleton-confi」 0..3000（宽 3000，越界 2610px，static，depth 4）
+          · footer.border-t.border-line「数据源 arsenal-rules/**/*」 0..3000（宽 3000，越界 2610px，static，depth 4）
+          · div.animate-fade-up.space-y-7「最佳实践案例库/skeleton-confi」 20..2980（宽 2960，越界 2590px，static，depth 5）
+          · （线索·被 header.grid-bg.relative/hidden 裁剪）div.pointer-events-none.absolute right=2979 越界 2589px
+          · （线索·被 header.grid-bg.relative/hidden 裁剪）div.relative.px-6「▥项目骨架与配置全集必备从启动类到 pom、」 right=2979 越界 2589px
+          · （线索·被 div.min-w-0.overflow-hidden/hidden 裁剪）div.flex.items-center「⚒配置src/main/java/com/e」 right=2979 越界 2589px
+      ✗ A2 main 一级子元素不越界 —— main 一级可见子元素 2 个，越界 2 个（clientWidth 390）
+          · div.px-5.py-6 right=3000 越界 2610px
+          · footer.border-t.border-line right=3000 越界 2610px
+
+── 逐项汇总 ──────────────────────────────────────
+   （通过 + 失败 + 未适用 + 无从判定 = 总张数；后两项都不是通过）
+  ✗ A1 无横向溢出                 通过  30 / 失败  15 / 未适用   0 / 无从判定   0
+  ✗ A2 main 一级子元素不越界         通过  30 / 失败  15 / 未适用   0 / 无从判定   0
+  ✓ A3 图片全部加载成功              通过  45 / 失败   0 / 未适用   0 / 无从判定   0
+  ✓ A4 固定/粘性元素互不遮挡           通过  30 / 失败   0 / 未适用  15 / 无从判定   0
+  ✓ A5 正文对比度达标               通过  45 / 失败   0 / 未适用   0 / 无从判定   0
+  ✓ A6 <h1> 唯一               通过  45 / 失败   0 / 未适用   0 / 无从判定   0
+  ✓ A7 页面底部无假高度              通过  45 / 失败   0 / 未适用   0 / 无从判定   0
+
+  失败明细（每项断言各列最先命中的 6 张）：
+    A1 无横向溢出：15 张
+      home__mobile.png —— scrollWidth 3000 - clientWidth 390 = 2610px
+          · main.min-w-0.flex-1「◈personal code arsenal」 0..3000（宽 3000，越界 2610px，static，depth 3）
+          · div.px-5.py-6「◈personal code arsenal」 0..3000（宽 3000，越界 2610px，static，depth 4）
+          · footer.border-t.border-line「数据源 arsenal-rules/**/*」 0..3000（宽 3000，越界 2610px，static，depth 4）
+          · div.animate-fade-up.space-y-9「◈personal code arsenal」 20..2980（宽 2960，越界 2590px，static，depth 5）
+          · （线索·被 section.grid-bg.relative/hidden 裁剪）div.pointer-events-none.absolute right=2979 越界 2589px
+          · （线索·被 section.grid-bg.relative/hidden 裁剪）div.relative.px-6「◈personal code arsenal」 right=2979 越界 2589px
+          · （线索·被 div.panel.overflow-hidden/hidden 裁剪）table.w-full.text-left「来源类型引用阿里巴巴Java开发手册行业规范」 right=2979 越界 2589px
+      arch__mobile.png —— scrollWidth 3000 - clientWidth 390 = 2610px
+          · main.min-w-0.flex-1「项目档案▣杨先生的军火库+ 导入别的项目换项」 0..3000（宽 3000，越界 2610px，static，depth 3）
+          · div.px-5.py-6「项目档案▣杨先生的军火库+ 导入别的项目换项」 0..3000（宽 3000，越界 2610px，static，depth 4）
+          · footer.border-t.border-line「数据源 arsenal-rules/**/*」 0..3000（宽 3000，越界 2610px，static，depth 4）
+          · div.space-y-4「项目档案▣杨先生的军火库+ 导入别的项目换项」 20..2980（宽 2960，越界 2590px，static，depth 5）
+          · （线索·被 div.panel.overflow-hidden/hidden 裁剪）div.relative.flex「业务架构Business杨先生的军火库定义军」 right=2979 越界 2589px
+          · （线索·被 div.panel.overflow-hidden/hidden 裁剪）div.grid.gap-0「核心关注·规范字典·能力域·三种出口·单人 」 right=2979 越界 2589px
+          · （线索·被 div.panel.overflow-hidden/hidden 裁剪）div.ui-rise.border-line「核心关注·规范字典·能力域·三种出口·单人 」 right=2979 越界 2589px
+      archify__mobile.png —— scrollWidth 3000 - clientWidth 390 = 2610px
+          · main.min-w-0.flex-1「Archify 出图台ir in · htm」 0..3000（宽 3000，越界 2610px，static，depth 3）
+          · div.px-5.py-6「Archify 出图台ir in · htm」 0..3000（宽 3000，越界 2610px，static，depth 4）
+          · footer.border-t.border-line「数据源 arsenal-rules/**/*」 0..3000（宽 3000，越界 2610px，static，depth 4）
+          · div.space-y-4「Archify 出图台ir in · htm」 20..2980（宽 2960，越界 2590px，static，depth 5）
+      blueprints__mobile.png —— scrollWidth 3000 - clientWidth 390 = 2610px
+          · main.min-w-0.flex-1「▤best practices/v0.2.0」 0..3000（宽 3000，越界 2610px，static，depth 3）
+          · div.px-5.py-6「▤best practices/v0.2.0」 0..3000（宽 3000，越界 2610px，static，depth 4）
+          · footer.border-t.border-line「数据源 arsenal-rules/**/*」 0..3000（宽 3000，越界 2610px，static，depth 4）
+          · div.animate-fade-up.space-y-8「▤best practices/v0.2.0」 20..2980（宽 2960，越界 2590px，static，depth 5）
+          · （线索·被 header.grid-bg.relative/hidden 裁剪）div.pointer-events-none.absolute right=2979 越界 2589px
+          · （线索·被 header.grid-bg.relative/hidden 裁剪）div.relative.px-6「▤best practices/v0.2.0」 right=2979 越界 2589px
+          · （线索·被 a.panel.panel-hover/hidden 裁剪）div.flex.flex-col「▤标准 CRUD 垂直切片核心crud-ba」 right=2979 越界 2589px
+      cases__mobile.png —— scrollWidth 3000 - clientWidth 390 = 2610px
+          · main.min-w-0.flex-1「◫scenario lab/v0.1.0/2」 0..3000（宽 3000，越界 2610px，static，depth 3）
+          · div.px-5.py-6「◫scenario lab/v0.1.0/2」 0..3000（宽 3000，越界 2610px，static，depth 4）
+          · footer.border-t.border-line「数据源 arsenal-rules/**/*」 0..3000（宽 3000，越界 2610px，static，depth 4）
+          · div.animate-fade-up.space-y-6「◫scenario lab/v0.1.0/2」 20..2980（宽 2960，越界 2590px，static，depth 5）
+          · （线索·被 header.grid-bg.relative/hidden 裁剪）div.pointer-events-none.absolute right=2979 越界 2589px
+          · （线索·被 header.grid-bg.relative/hidden 裁剪）div.relative.px-6「◫scenario lab/v0.1.0/2」 right=2979 越界 2589px
+          · （线索·被 div.mt-2.flex/hidden 裁剪）button.mono.flex-1「100 万」 right=2966 越界 2576px
+      check__mobile.png —— scrollWidth 3000 - clientWidth 390 = 2610px
+          · main.min-w-0.flex-1「linter校验台粘贴代码，按 69 条规则」 0..3000（宽 3000，越界 2610px，static，depth 3）
+          · div.px-5.py-6「linter校验台粘贴代码，按 69 条规则」 0..3000（宽 3000，越界 2610px，static，depth 4）
+          · footer.border-t.border-line「数据源 arsenal-rules/**/*」 0..3000（宽 3000，越界 2610px，static，depth 4）
+          · div.animate-fade-up.space-y-5「linter校验台粘贴代码，按 69 条规则」 20..2980（宽 2960，越界 2590px，static，depth 5）
+          · （线索·被 div.panel.overflow-hidden/hidden 裁剪）div.flex.items-center「UserController.java」 right=2979 越界 2589px
+          · （线索·被 div.panel.overflow-hidden/hidden 裁剪）div.border-b.border-line right=2979 越界 2589px
+          · （线索·被 div.panel.overflow-hidden/hidden 裁剪）textarea.mono.block「package com.smarthub.C」 right=2979 越界 2589px
+      …另有 9 张同类
+    A2 main 一级子元素不越界：15 张
+      home__mobile.png —— main 一级可见子元素 2 个，越界 2 个（clientWidth 390）
+          · div.px-5.py-6 right=3000 越界 2610px
+          · footer.border-t.border-line right=3000 越界 2610px
+      arch__mobile.png —— main 一级可见子元素 2 个，越界 2 个（clientWidth 390）
+          · div.px-5.py-6 right=3000 越界 2610px
+          · footer.border-t.border-line right=3000 越界 2610px
+      archify__mobile.png —— main 一级可见子元素 2 个，越界 2 个（clientWidth 390）
+          · div.px-5.py-6 right=3000 越界 2610px
+          · footer.border-t.border-line right=3000 越界 2610px
+      blueprints__mobile.png —— main 一级可见子元素 2 个，越界 2 个（clientWidth 390）
+          · div.px-5.py-6 right=3000 越界 2610px
+          · footer.border-t.border-line right=3000 越界 2610px
+      cases__mobile.png —— main 一级可见子元素 2 个，越界 2 个（clientWidth 390）
+          · div.px-5.py-6 right=3000 越界 2610px
+          · footer.border-t.border-line right=3000 越界 2610px
+      check__mobile.png —— main 一级可见子元素 2 个，越界 2 个（clientWidth 390）
+          · div.px-5.py-6 right=3000 越界 2610px
+          · footer.border-t.border-line right=3000 越界 2610px
+      …另有 9 张同类
+
+  未适用说明（不是通过，是本次这一项无处可判）：
+    ~ A4 固定/粘性元素互不遮挡：15 张 —— position:fixed|sticky 可见元素只有 0 个，凑不出「两两」
+
+visual: 45 张 / 7 项断言 / 30 失败
+耗时 40.7s
