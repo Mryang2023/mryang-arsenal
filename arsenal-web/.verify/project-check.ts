@@ -1123,6 +1123,44 @@ console.log('\n【13】导航与页签契约');
     `实际出现 ${(picksStore.match(/['"]arsenal-stack-picks-v1['"]/g) ?? []).length} 处 —— 两处各自为政时读写会静默对不上`
   );
 
+  // 下面五条守的是同一个盲区：**「有读取点」不等于「该读的人读了」**。
+  //
+  // 修之前的样子：`loadPicksSnapshot` 的调用者只有 /archify，而装配台 ——
+  // 选型的属主 —— 自己不读。于是刷新即回到 standard 预设，而且首帧的写入
+  // effect 还会拿 standard 把 localStorage 里 /arch 正要读的那份一起抹掉。
+  // 实测（2026-09-23）：塞 `{database:'postgres'}` 进快照，打开 /stack 再刷新，读到的是 mysql。
+  // 旧断言只问「有没有人读」，所以它一直是绿的。
+  const stackComposer = code('app/stack/StackComposer.tsx');
+  check(
+    '装配台自己读快照（属主必须恢复自己的数据）',
+    stackComposer.includes('loadSnapshot('),
+    '装配台不读快照 → 刷新即回 standard 预设，并覆盖掉 /arch 要读的那一份'
+  );
+  check(
+    '装配台自己恢复基底',
+    stackComposer.includes('loadBaseSnapshot('),
+    'loadBaseSnapshot 曾经全仓零调用 —— 基底选择永远回到默认值'
+  );
+  check(
+    '装配台自己恢复形态与参数',
+    stackComposer.includes('setMeta(snap.meta)'),
+    '只恢复选型不恢复形态 → 数据库切了分库分表，图上还是单实例，两边都不报错'
+  );
+
+  // 选型出处（provenance）这条通道必须两端都在。只写不读的键仓库里已经有一个
+  // （`arsenal-stack-detail-v1`，注释里承诺的「导出 / 粘贴选型」至今没有 UI），
+  // 别再攒第二个。
+  check(
+    '选型出处：有写入路径（扫描入口调 adoptPicks）',
+    callers('adoptPicks').length > 0,
+    '没人写 → 装配台永远显示不出「这批格子是扫描读出来的」'
+  );
+  check(
+    '选型出处：装配台读它',
+    stackComposer.includes('loadProvenance('),
+    '写了没人显示 → 用户分不清哪几格是扫描读的、哪几格是自己点的'
+  );
+
   // ⑤ 六大架构页签同样守一遍（同一类错在 /arch 也犯得起）
   const gallery = code('app/arch/ArchGallery.tsx');
   const viewIds = [...gallery.matchAll(/\{tab === '([a-z]+)' &&/g)].map((m) => m[1]);

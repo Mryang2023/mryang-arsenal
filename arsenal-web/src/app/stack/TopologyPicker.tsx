@@ -50,19 +50,20 @@ export default function TopologyPicker({
             type="button"
             onClick={() => onPick(dimId, mode.id)}
             title={mode.note ?? mode.label}
-            className="w-[96px] rounded-md border px-1.5 pb-1.5 pt-1 text-left transition-colors"
+            className="w-[120px] rounded-md border px-1.5 pb-1.5 pt-1 text-left transition-colors"
             style={{
               borderColor: active ? 'rgba(217,164,65,0.65)' : '#243029',
               background: active ? 'rgba(217,164,65,0.09)' : 'transparent',
             }}
           >
             <svg
-              viewBox="0 0 84 46"
-              width={84}
-              height={46}
+              viewBox="0 0 304 94"
+              width="100%"
+              height={34}
+              preserveAspectRatio="xMidYMid meet"
               aria-label={mode.label}
               dangerouslySetInnerHTML={{
-                __html: topologyModeSvg(mode.id, mode.replicas, 0, 0, 84, 46, p, shardHint),
+                __html: topologyModeSvg(mode.id, mode.replicas, 0, 0, 304, 94, p, shardHint),
               }}
             />
             <span

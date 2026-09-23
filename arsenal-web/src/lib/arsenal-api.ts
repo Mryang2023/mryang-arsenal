@@ -57,6 +57,15 @@ export interface ArchifyDiagnostic {
   code: string;
   severity: string;
   message: string;
+  /**
+   * 对方给的「这件事怎么改」—— 一组**能直接照做**的短句。
+   *
+   * 上游不本地化诊断正文，所以这几句是英文（`meta.locale` 只管它的 Viewer UI）。
+   *
+   * 可选：老版本后端不返回这个字段时按「没有建议」处理，别让类型撒谎。
+   * 空数组同样是常态 —— 不是每个构图问题它都知道怎么修。
+   */
+  supportedFixes?: string[];
 }
 
 /** 后端可用性。四种状态对应页面上四种不同的显示，别合并。 */

@@ -10,7 +10,10 @@ import {
   type ArchifyIr,
 } from '@/lib/archify-ir';
 import { buildTechArch } from '@/lib/arch-canvas';
-import { loadPicksSnapshot } from '@/lib/picks-store';
+import { buildSelfArchIr, SELF_ARCH_LABEL } from '@/lib/self-arch';
+import { adoptPicks, loadPicksSnapshot, type PicksProvenance } from '@/lib/picks-store';
+import type { StackPicks } from '@/lib/content-types';
+import { useRouter } from 'next/navigation';
 import {
   arsenalApiBase,
   deliverArchify,
@@ -50,15 +53,30 @@ type Artifact =
   | { kind: 'rejected'; error: string; diagnostics: ArchifyDiagnostic[] }
   | { kind: 'error'; code: string; message: string };
 
+/** 输入框里现在装的是哪来的东西。只驱动按钮高亮，不参与出图 */
+type Origin = 'self' | 'picks' | 'scan' | 'manual';
+
 export default function ArchifyLab() {
-  const [text, setText] = useState('');
+  /**
+   * 首屏直接装「军火库平台自身」那份内置模型 —— 打开就有一张能出图的图，
+   * 而不是一个空输入框加一句「请粘贴 IR」。
+   *
+   * 用惰性初始化而不是挂载后再填：静态导出时这一步在构建期就跑了，
+   * 首屏 HTML 里已经带着这份 JSON，不会出现「先空白再跳出内容」的跳动。
+   * `buildSelfArchIr()` 是纯函数，服务端与客户端算出来的逐字节相同，
+   * 也就不会踩 hydration 不匹配。
+   */
+  const [text, setText] = useState(() => JSON.stringify(buildSelfArchIr(), null, 2));
   const [status, setStatus] = useState<ArchifyStatus>({ kind: 'checking' });
   const [busy, setBusy] = useState(false);
   const [artifact, setArtifact] = useState<Artifact | null>(null);
   const [copiedBytes, setCopiedBytes] = useState<number | null>(null);
   /** 这份 IR 是从哪来的（手粘 / 选型 / 代码扫描）。出图后要能说清它的出处 */
-  const [sourceLabel, setSourceLabel] = useState<string | null>(null);
+  const [sourceLabel, setSourceLabel] = useState<string | null>(SELF_ARCH_LABEL);
+  /** 当前展示的是哪个内置来源 —— 手粘或上传之后回到 manual */
+  const [origin, setOrigin] = useState<Origin>('self');
   const fileRef = useRef<HTMLInputElement>(null);
+  const router = useRouter();
 
   useEffect(() => {
     let alive = true;
@@ -99,24 +117,64 @@ export default function ArchifyLab() {
     setText(body);
     setArtifact(null);
     setCopiedBytes(null);
+    // 上传的文件不属于任何一份内置模型 —— 把按钮高亮收掉，别让页签骗人
+    setSourceLabel(`上传的文件：${file.name}`);
+    setOrigin('manual');
   }, []);
 
   /** 从别处拿来的 IR（选型快照 / 代码扫描）：填进输入框，并记住它的出处 */
-  const adoptIr = useCallback((ir: unknown, label: string) => {
+  const adoptIr = useCallback((ir: unknown, label: string, from: Origin = 'manual') => {
     setText(JSON.stringify(ir, null, 2));
     setArtifact(null);
     setCopiedBytes(null);
     setSourceLabel(label);
+    setOrigin(from);
   }, []);
 
-  /** 用装配台当前的选型现场生成一份 IR —— 让本页开箱就有东西可出图。 */
-  const loadSample = useCallback(() => {
+  /** 内置模型①：军火库平台自身。手写拓扑，不经过选型 */
+  const loadSelf = useCallback(() => {
+    adoptIr(buildSelfArchIr(), SELF_ARCH_LABEL, 'self');
+  }, [adoptIr]);
+
+  /** 内置模型②：装配台当前的选型现场 */
+  const loadPicks = useCallback(() => {
     const picks = loadPicksSnapshot();
     adoptIr(
       buildArchifyIr(buildTechArch(picks), { title: '军火库当前选型' }),
-      '装配台当前选型快照'
+      '装配台当前选型快照',
+      'picks'
     );
   }, [adoptIr]);
+
+  /** 两个内置模型 —— 按钮渲染与「当前哪个」高亮共用这一份声明，不会各写一份而漂移 */
+  const sources = [
+    {
+      id: 'self' as const,
+      label: '军火库平台自身',
+      title: '手写在 self-arch.ts 的拓扑，与装配台选型无关',
+      load: loadSelf,
+    },
+    {
+      id: 'picks' as const,
+      label: '装配台当前选型',
+      title: '读浏览器里最近一次装配台快照',
+      load: loadPicks,
+    },
+  ];
+
+  /**
+   * 把扫描出来的选型交给装配台。
+   *
+   * **先写盘、再跳页**，顺序不能反：装配台挂载时读的就是这份快照，
+   * 反了就会载入上一套选型，而且两边都不报错。
+   */
+  const adoptToStack = useCallback(
+    (picks: StackPicks, provenance: PicksProvenance) => {
+      adoptPicks(picks, provenance);
+      router.push('/stack');
+    },
+    [router]
+  );
 
   const deliver = useCallback(async () => {
     if (precheck.kind !== 'ok') return;
@@ -147,9 +205,12 @@ export default function ArchifyLab() {
           </span>
         </h1>
         <p className="mt-1 max-w-[860px] text-[11px] leading-[18px] text-fgMuted">
-          粘贴或上传<strong className="font-semibold text-fg">任意项目</strong>的架构 IR，或直接从<strong className="font-semibold text-fg">代码仓库</strong>扫一份事实出来（本地目录 / https git / zip），
-          本页先做本地预检，再交给后端渲染成一张通过九项构图检查的 HTML 交付图。
-          输入不限于军火库自己的选型 —— 契约只有一条：给一份 IR，还一张图。
+          默认展示的是<strong className="font-semibold text-fg">军火库平台自身</strong>的架构 ——
+          一份手写的内置拓扑，与装配台选型无关。切到另一个页签可以看<strong className="font-semibold text-fg">装配台当前的选型</strong>；
+          也可以粘贴 / 上传<strong className="font-semibold text-fg">任意项目</strong>的架构 IR，
+          或直接从<strong className="font-semibold text-fg">代码仓库</strong>扫一份事实出来（本地目录 / https git / zip）。
+          本页先做本地预检，再交给后端渲染成一张通过九项构图检查的 HTML 交付图 ——
+          契约只有一条：给一份 IR，还一张图。
         </p>
       </div>
 
@@ -159,6 +220,23 @@ export default function ArchifyLab() {
           <div className="panel">
             <div className="flex flex-wrap items-center gap-2 border-b border-line px-3 py-2.5">
               <span className="mono text-[10px] uppercase tracking-wider text-fgFaint">① IR 输入</span>
+              {/* 数据源：两个内置模型并排，当前那个高亮。切换只把内容换掉 */}
+              <div className="flex items-center gap-1 rounded border border-line p-0.5">
+                {sources.map((s) => (
+                  <button
+                    key={s.id}
+                    type="button"
+                    title={s.title}
+                    onClick={s.load}
+                    className={
+                      'rounded px-2.5 py-1 text-[11px] transition-colors ' +
+                      (origin === s.id ? 'bg-surfaceHi text-brass' : 'text-fgMuted hover:text-fg')
+                    }
+                  >
+                    {s.label}
+                  </button>
+                ))}
+              </div>
               <div className="ml-auto flex flex-wrap items-center gap-2">
                 <button
                   type="button"
@@ -179,18 +257,12 @@ export default function ArchifyLab() {
                 />
                 <button
                   type="button"
-                  onClick={loadSample}
-                  className="rounded border px-2.5 py-1 text-xs transition-colors hover:bg-surfaceHi"
-                  style={{ borderColor: 'rgba(217,164,65,0.45)', color: '#D9A441' }}
-                >
-                  用当前选型生成一份
-                </button>
-                <button
-                  type="button"
                   onClick={() => {
                     setText('');
                     setArtifact(null);
                     setCopiedBytes(null);
+                    setSourceLabel(null);
+                    setOrigin('manual');
                   }}
                   disabled={!text}
                   className="rounded border border-line px-2.5 py-1 text-xs text-fgMuted transition-colors hover:border-lineHi hover:text-fg disabled:opacity-40"
@@ -204,6 +276,7 @@ export default function ArchifyLab() {
               onChange={(e) => {
                 setText(e.target.value);
                 setArtifact(null);
+                setOrigin('manual');
               }}
               spellCheck={false}
               placeholder='在这里粘贴一份 IR JSON，例如 {"meta":{"title":"…","locale":"zh-CN","views":[…]},"components":[…]}'
@@ -217,7 +290,7 @@ export default function ArchifyLab() {
             )}
           </div>
 
-          <CodeIntake onIr={adoptIr} />
+          <CodeIntake onIr={(ir, label) => adoptIr(ir, label, 'scan')} onPicks={adoptToStack} />
 
           {sourceLabel && (
             <p className="text-[10.5px] text-fgFaint">
@@ -344,7 +417,8 @@ function PrecheckCard({ state }: { state: Precheck }) {
       <div className={shell}>
         <p className="mono text-[10px] uppercase tracking-wider text-fgFaint">② 本地预检</p>
         <p className="mt-1.5 text-[11px] leading-[17px] text-fgMuted">
-          还没有输入。粘贴 IR、上传文件，或点「用当前选型生成一份」看看合格输入长什么样。
+          还没有输入。点上面的「军火库平台自身」或「装配台当前选型」各拿一份内置模型，
+          也可以粘贴 IR、上传 .json，或从代码仓库扫一份出来。
         </p>
       </div>
     );
@@ -426,19 +500,34 @@ function ArtifactCard({
         </p>
         <p className="mt-1 text-[11px] leading-[17px] text-fgMuted">{artifact.error}</p>
         {artifact.diagnostics.length > 0 && (
-          <ul className="mt-2 space-y-1">
+          <ul className="mt-2 space-y-2">
             {artifact.diagnostics.map((d, i) => (
-              <li key={`${i}-${d.code}`} className="flex gap-2 text-[11px] leading-[17px] text-fgMuted">
-                <span className="mono shrink-0 text-[10px]" style={{ color: '#E5A33D' }}>
-                  {d.code}
-                </span>
-                <span>{d.message}</span>
+              <li key={`${i}-${d.code}`} className="text-[11px] leading-[17px] text-fgMuted">
+                <div className="flex gap-2">
+                  <span className="mono shrink-0 text-[10px]" style={{ color: '#E5A33D' }}>
+                    {d.code}
+                  </span>
+                  <span>{d.message}</span>
+                </div>
+                {(d.supportedFixes ?? []).length > 0 && (
+                  <ul
+                    className="mt-1 space-y-0.5 border-l pl-2.5"
+                    style={{ borderColor: 'rgba(229,163,61,0.35)' }}
+                  >
+                    {(d.supportedFixes ?? []).map((f) => (
+                      <li key={f} className="text-[10.5px] leading-[16px] text-fgMuted">
+                        → {f}
+                      </li>
+                    ))}
+                  </ul>
+                )}
               </li>
             ))}
           </ul>
         )}
         <p className="mt-2 border-t border-line pt-2 text-[10px] leading-[15px] text-fgFaint">
-          诊断是这次调用最有价值的东西 —— 它说的就是「这张图哪里构不成一张图」，改 IR 再来。
+          诊断是这次调用最有价值的东西 —— 它说的就是「这张图哪里构不成一张图」；
+          带箭头的那几行是对方给的改法（英文原文，它不本地化诊断正文），照做再试。
         </p>
       </div>
     );

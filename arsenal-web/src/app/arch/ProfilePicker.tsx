@@ -2,6 +2,9 @@
 
 import { useCallback, useRef, useState } from 'react';
 import type { ArchProfile, ProfileSummary } from '@/lib/arch-profile';
+import { adoptPicks, type PicksProvenance } from '@/lib/picks-store';
+import type { StackPicks } from '@/lib/content-types';
+import { useRouter } from 'next/navigation';
 import { loadCustomProfiles, saveCustomProfiles, validateImport } from './profile-store';
 import CodeIntake from '@/components/CodeIntake';
 
@@ -32,6 +35,22 @@ export default function ProfilePicker({
   const [issues, setIssues] = useState<string[]>([]);
   const [notice, setNotice] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
+  const router = useRouter();
+
+  /**
+   * 把扫描出来的选型交给装配台。
+   *
+   * 本页的主线是「换一个项目档案」，但扫描顺带算出来的 picks 也该有个去处 ——
+   * 以前它只在这块面板里显示一遍就散了。**先写盘再跳页**：
+   * 装配台挂载时读的就是这份快照，顺序反了会载入上一套选型且不报错。
+   */
+  const adoptToStack = useCallback(
+    (picks: StackPicks, provenance: PicksProvenance) => {
+      adoptPicks(picks, provenance);
+      router.push('/stack');
+    },
+    [router]
+  );
 
   const customSummaries: ProfileSummary[] = Object.values(custom).map((p) => ({
     id: p.id,
@@ -230,6 +249,7 @@ export default function ProfilePicker({
             <CodeIntake
               variant="profile"
               onProfile={(profile) => doImport(JSON.stringify(profile))}
+              onPicks={adoptToStack}
             />
           </div>
         </div>

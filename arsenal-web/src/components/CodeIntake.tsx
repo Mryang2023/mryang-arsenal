@@ -20,6 +20,8 @@ import {
 import { archifyIrIssues, archifyIrShapeIssues } from '@/lib/archify-ir';
 import { buildProfileDraftFromFacts, type ProfileDraft } from '@/lib/profile-draft';
 import type { ArchProfile } from '@/lib/arch-profile';
+import type { StackPicks } from '@/lib/content-types';
+import type { PicksProvenance } from '@/lib/picks-store';
 import { scanTechName } from '@/lib/scan-rules';
 import { scanFacts, scanUpload } from '@/lib/arsenal-api';
 import { downloadText } from '@/lib/zip';
@@ -42,17 +44,27 @@ type Stage =
   | { kind: 'done'; facts: ProjectFacts; offline: boolean }
   | { kind: 'failed'; code: string; message: string; offline: boolean };
 
-type Mode = 'path' | 'zip' | 'paste';
+type Mode = 'path' | 'git' | 'zip' | 'paste';
 
 export default function CodeIntake({
   variant = 'archify',
   onIr,
   onProfile,
+  onPicks,
 }: {
   /** archify：出三张图并把 IR 填进出图台；profile：生成六视图档案草稿并导入 */
   variant?: 'archify' | 'profile';
   onIr?: (ir: unknown, label: string) => void;
   onProfile?: (profile: ArchProfile) => void;
+  /**
+   * 「把这套选型交给装配台」。不传就不出现那颗按钮。
+   *
+   * 组件只负责把 picks 与出处**交出去**，跳不跳页、跳哪里由调用方决定 ——
+   * 两个调用方（/arch 的档案导入、/archify 的出图台）各自的下一步不一样，
+   * 组件不该替它们选路由。出处一起交出去是刻意的：光有 picks 的话，
+   * 装配台上那 33 格和手点出来的长得一模一样，用户看不出哪些是扫描读的。
+   */
+  onPicks?: (picks: StackPicks, provenance: PicksProvenance) => void;
 }) {
   const [open, setOpen] = useState(false);
   const [mode, setMode] = useState<Mode>('path');
@@ -87,7 +99,10 @@ export default function CodeIntake({
       return;
     }
     if (!value) return;
-    void run(`扫描 ${value}`, () => scanFacts({ kind: 'path', value }));
+    // 后端 `/api/scan/facts` 一直支持 `kind: "git"`（走 SourceResolver.fromGit），
+    // 只是前端从来没发过 —— 于是「导入别人的项目」最顺手的那个入口一直是缺的。
+    const kind = mode === 'git' ? 'git' : 'path';
+    void run(`扫描 ${value}`, () => scanFacts({ kind, value }));
   }, [mode, run, source]);
 
   const onPaste = useCallback(() => {
@@ -133,6 +148,37 @@ export default function CodeIntake({
     const shape = archifyIrShapeIssues(ir);
     const issues = shape.length ? [] : archifyIrIssues(ir);
     const draft = buildProfileDraftFromFacts(facts);
+    /**
+     * 选型出处：装配台靠它区分「扫描读出来的格子」与「人点出来的格子」。
+     *
+     * `atScan` 存的是**此刻这一份** picks —— 装配台拿它跟用户后来的改动比对，
+     * 于是「哪几格是我自己改的」是当场算出来的，不靠谁记性好。
+     */
+    const provenance: PicksProvenance = {
+      kind: 'scan',
+      root: facts.root,
+      scannedAt: facts.scannedAt ?? '',
+      fromDeps: built.detail.fromDeps.map((d) => ({
+        dim: d.dim,
+        opt: d.opt,
+        tech: d.tech,
+        path: d.evidence.path,
+        line: d.evidence.line,
+      })),
+      fromDeploy: built.detail.fromDeploy.map((d) => ({
+        dim: d.dim,
+        opt: d.opt,
+        because: d.because,
+      })),
+      conflicts: built.detail.conflicts.map((c) => ({
+        dim: c.dim,
+        kept: c.kept,
+        dropped: c.dropped,
+      })),
+      // 后端没认出来的依赖坐标条数 —— 明细留在本页，装配台只报个数
+      unmatchedCount: (facts.techStack?.unmatched ?? []).length,
+      atScan: { ...picksRes.picks },
+    };
     return {
       facts,
       picksRes,
@@ -146,6 +192,7 @@ export default function CodeIntake({
       issues,
       title,
       draft,
+      provenance,
     };
   }, [stage, theme]);
 
@@ -173,6 +220,7 @@ export default function CodeIntake({
               {(
                 [
                   ['path', '本地目录'],
+                  ['git', 'https git'],
                   ['zip', '上传 zip'],
                   ['paste', '粘贴 facts JSON'],
                 ] as [Mode, string][]
@@ -211,7 +259,11 @@ export default function CodeIntake({
                 value={source}
                 onChange={(e) => setSource(e.target.value)}
                 spellCheck={false}
-                placeholder="D:/workspace/2026/mryang-arsenal/arsenal-server"
+                placeholder={
+                  mode === 'git'
+                    ? 'https://github.com/owner/repo.git'
+                    : 'D:/mryang/workspace/2026/arsenal/arsenal-server'
+                }
                 className="mono min-w-[280px] flex-1 rounded border border-line bg-transparent px-2 py-1 text-[11px] text-fg outline-none placeholder:text-fgFaint focus:border-lineHi"
               />
             )}
@@ -321,6 +373,31 @@ export default function CodeIntake({
                   ))}
                 </ul>
               </div>
+
+              {/* ── 选型的出口：交给装配台 ──
+                  扫描出来的 picks 以前只在本页显示，没有任何去处 ——
+                  用户想「按现状继续加件」只能对着屏幕手工重挑 33 格。 */}
+              {onPicks && (
+                <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1.5 rounded border border-line px-2.5 py-2">
+                  <button
+                    type="button"
+                    onClick={() => onPicks(artifacts.picksRes.picks, artifacts.provenance)}
+                    className="rounded-md border px-2.5 py-1 text-[11px] font-medium transition-colors"
+                    style={{
+                      borderColor: 'rgba(217,164,65,0.6)',
+                      background: 'rgba(217,164,65,0.12)',
+                      color: '#D9A441',
+                    }}
+                    title="把这次识别出的槽位载入装配台继续装配，每一格都会标出它的出处"
+                  >
+                    用这套选型打开装配台
+                  </button>
+                  <span className="min-w-0 flex-1 text-[10px] leading-[15px] text-fgMuted">
+                    载入 {Object.keys(artifacts.picksRes.picks).length} 个槽位，逐格标明出处；
+                    未识别的 {artifacts.picksRes.unmatched.length} 项留空，不猜。
+                  </span>
+                </div>
+              )}
 
               {variant === 'archify' ? (
                 <>

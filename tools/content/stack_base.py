@@ -192,3 +192,105 @@ DIMENSIONS = [
         ],
     },
 ]
+
+
+# ─────────────────────────────────────────────────────────────
+# 技术栈基底（全局声明，**不是**选型维度）
+# ─────────────────────────────────────────────────────────────
+# 为什么不做成 dimension：
+#   架构图把「每个维度 = 图上一个槽位」当硬约束 —— build-content.py 的
+#   build_architecture 要求每个维度都配齐 NODE_ARCH / OPTION_ARCH /
+#   CANVAS_DIMS / CANVAS_OPTIONS，缺一即构建失败。而「技术栈基底」是全局属性、
+#   不是系统里的某个组件，硬塞成维度只会得到一张又怪又假的图。
+#   所以它是 stack.json 的顶层字段 `bases`，由装配台顶部单独渲染与选择。
+#
+# covered 的语义必须诚实：False = 本平台尚无该基底的骨架 / 规则 / 部署指引，
+#   前端只能显式提示「未覆盖」，绝不伪造产物。
+# 版本号与支持窗口取自公开发布记录（2026-09-23 核对），不是估的：
+#   4.1.1 / 4.0.8 为当前 OSS 支持线；3.5 / 3.2 线已 EOL。
+BASES = [
+    {
+        "id": "boot41",
+        "name": "Spring Boot 4.1",
+        "vendor": "Spring",
+        "version": "4.1.1",
+        "line": "4.1",
+        "java": "17+",
+        "status": "supported",
+        "supportedUntil": "2027-06-30",
+        "covered": True,
+        "recommended": True,
+        "summary": "当前 OSS 支持线。要长期维护的新项目应从这一线起步。",
+        "note": "骨架模板按 3.x 编写；4.x 是大版本跃迁（Spring Framework 7），"
+                "依赖坐标与配置项需按官方迁移指引复核后再用。",
+    },
+    {
+        "id": "boot40",
+        "name": "Spring Boot 4.0",
+        "vendor": "Spring",
+        "version": "4.0.8",
+        "line": "4.0",
+        "java": "17+",
+        "status": "supported",
+        "supportedUntil": "2026-12-31",
+        "covered": True,
+        "summary": "仍在 OSS 支持窗口内，但支持期只剩数月；新项目建议直接上 4.1。",
+        "note": "同 4.1，属大版本跃迁；骨架需按官方迁移指引复核。",
+    },
+    {
+        "id": "boot35",
+        "name": "Spring Boot 3.5",
+        "vendor": "Spring",
+        "version": "3.5.16",
+        "line": "3.5",
+        "java": "17+",
+        "status": "eol",
+        "supportedUntil": "2026-06-30",
+        "covered": True,
+        "summary": "3.x 的最后一个功能线，OSS 支持已于 2026-06-30 结束。",
+        "note": "骨架与其基本对齐（3.x 语义），是 3.x 中风险最低的落点；"
+                "但 EOL 后不再有 OSS 安全补丁。",
+    },
+    {
+        "id": "boot32",
+        "name": "Spring Boot 3.2",
+        "vendor": "Spring",
+        "version": "3.2.12",
+        "line": "3.2",
+        "java": "17+",
+        "status": "eol",
+        "supportedUntil": "2024-12-31",
+        "covered": True,
+        "summary": "本平台骨架模板的原始基线，OSS 支持早在 2024-12-31 结束。",
+        "note": "默认值沿用它只为「与现有骨架逐字节一致」；它已 EOL 一年多，"
+                "仅作了同线 patch（3.2.5 → 3.2.12）。新项目不应以此起步。",
+    },
+    {
+        "id": "quarkus",
+        "name": "Quarkus",
+        "vendor": "Red Hat",
+        "version": "3.x",
+        "line": "3",
+        "java": "17+",
+        "status": "uncovered",
+        "covered": False,
+        "summary": "本平台尚未覆盖的非 Spring 技术栈。",
+        "note": "规则库、骨架库、部署指引全部按 Spring Boot 编写；"
+                "选中它不会生成任何 Quarkus 产物，仅作为声明。",
+    },
+    {
+        "id": "micronaut",
+        "name": "Micronaut",
+        "vendor": "Object Computing",
+        "version": "4.x",
+        "line": "4",
+        "java": "17+",
+        "status": "uncovered",
+        "covered": False,
+        "summary": "本平台尚未覆盖的非 Spring 技术栈。",
+        "note": "同上：只是声明，不产出 Micronaut 产物。",
+    },
+]
+
+# 默认基底：保持与现有骨架一致（3.2 线最终 patch），不擅自把默认值抬到未验证的 4.x
+DEFAULT_BASE = 'boot32'

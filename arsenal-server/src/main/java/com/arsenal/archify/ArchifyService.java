@@ -341,6 +341,14 @@ public class ArchifyService {
         // 就会把我们上面那条拒收对象的规矩从另一侧绕过去。
         pb.environment().remove("WRENCH_AI_BRAND_ALLOW_PRIVATE");
 
+        // 关掉它的版本更新检查。上游默认约每 72 小时联网核对一次是否有新版本
+        // （只发 HTTP 元数据，不下载、不安装）—— 那是它在交互式桌面上的合理行为，
+        // 但这里是**服务器替一次请求出图**：不该因为出图就带出一个计划外的外连。
+        // 显式写死而不指望当前发行版已经禁掉它：本机这份 wrench-ai 1.0.0 确实把
+        // 检查指向了保留域名 wrench-ai.invalid（永不解析），但那是别人的默认值，
+        // 换个版本就变 —— 这条防线不能建立在别人的默认值上。
+        pb.environment().put("ARCHIFY_UPDATE_CHECK_DISABLED", "1");
+
         Process p = pb.start();
         boolean finished;
         try {
@@ -410,7 +418,34 @@ public class ArchifyService {
             out.add(new Diagnostic(
                     d.path("code").asText(""),
                     d.path("severity").asText(""),
-                    d.path("message").asText("")));
+                    d.path("message").asText(""),
+                    supportedFixesOf(d)));
+        }
+        return out;
+    }
+
+    /**
+     * 取一条诊断里的「这件事怎么改」。
+     *
+     * <p>以前这里只搬了 code / severity / message —— 等于拿了病历只看症状不看医嘱，
+     * 而对方从 v2.13 起每条诊断都带 {@code supportedFixes}：一组**能直接照做**的
+     * 短句（实测是字符串数组，例如 "repair the JSON syntax and run validation again"）。
+     * 那是十几条诊断里最有行动价值的部分，丢掉它等于逼用户自己反推。
+     *
+     * <p>逐条容忍形状不对，而不是整块信任：它改字段名时我们要退化成「这条没有建议」，
+     * 而不是让整个响应 500 —— code 与 message 才是指路的那两条，它们必须活着回去。
+     */
+    private List<String> supportedFixesOf(JsonNode diagnostic) {
+        JsonNode fixes = diagnostic.path("supportedFixes");
+        if (!fixes.isArray()) {
+            return List.of();
+        }
+        List<String> out = new ArrayList<>();
+        for (JsonNode fix : fixes) {
+            String text = fix.isTextual() ? fix.asText() : "";
+            if (!text.isBlank()) {
+                out.add(text.strip());
+            }
         }
         return out;
     }
@@ -524,7 +559,11 @@ public class ArchifyService {
     ) {
     }
 
-    public record Diagnostic(String code, String severity, String message) {
+    /**
+     * 一条诊断。{@code supportedFixes} 是对方给的「这件事怎么改」，可能为空 ——
+     * 空数组是常态（不是每个问题它都知道怎么修），不代表解析失败。
+     */
+    public record Diagnostic(String code, String severity, String message, List<String> supportedFixes) {
     }
 
     private record NodeResolution(String binary, String version) {

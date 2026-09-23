@@ -200,6 +200,30 @@ export interface Preset {
   picks: Record<string, string>;
 }
 
+/**
+ * 技术栈基底（全局声明，**不是**选型维度）。
+ *
+ * 为什么不做成维度：架构图把「每个维度 = 图上一个槽位」当硬约束，
+ * 而基底是全局属性、不对应任何组件。定义源见 tools/content/stack_base.py 的 BASES。
+ */
+export interface StackBase {
+  id: string;
+  name: string;
+  vendor: string;
+  /** 该基底的版本号；非 Spring 基底可能只是一条线（如 "3.x"） */
+  version: string;
+  line: string;
+  java: string;
+  /** supported = 仍在 OSS 支持窗口；eol = 已停止；uncovered = 本平台未覆盖 */
+  status: 'supported' | 'eol' | 'uncovered';
+  supportedUntil?: string;
+  /** 本平台是否已有该基底的骨架 / 规则 / 部署内容（False 时前端只能提示「未覆盖」） */
+  covered: boolean;
+  recommended?: boolean;
+  summary: string;
+  note?: string;
+}
+
 export interface Stack {
   collection: string;
   name: string;
@@ -208,6 +232,8 @@ export interface Stack {
   description: string;
   groups: StackGroup[];
   dimensions: StackDimension[];
+  bases: StackBase[];
+  defaultBase: string;
   presets: Preset[];
 }
 

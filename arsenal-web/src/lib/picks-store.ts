@@ -1,5 +1,5 @@
 import type { StackPicks } from '@/lib/content-types';
-import { defaultPicks, presetPicks } from '@/lib/stack';
+import { defaultBase, defaultPicks, presetPicks } from '@/lib/stack';
 import { emptyMeta, normalizePicks, toPickDetails, type StackPicksMeta } from '@/lib/topology';
 /**
  * 装配台选型的跨页共享。
@@ -27,6 +27,12 @@ import { emptyMeta, normalizePicks, toPickDetails, type StackPicksMeta } from '@
 const PICKS_KEY = 'arsenal-stack-picks-v1';
 const META_KEY = 'arsenal-stack-meta-v1';
 const DETAIL_KEY = 'arsenal-stack-detail-v1';
+// 技术栈基底是**全局声明**，与选型/形态平行 —— 单独一个键，
+// 不去动 picks 的形状（同 META_KEY 的理由：旧读取点拿它当纯字符串）。
+const BASE_KEY = 'arsenal-stack-base-v1';
+// 选型出处：这套选型是从哪来的（目前只有「代码扫描」一种需要落盘）。
+// 同样单开一个键 —— 它是**关于选型的元信息**，不是选型本身。
+const PROVENANCE_KEY = 'arsenal-stack-provenance-v1';
 
 function canStore(): boolean {
   return typeof window !== 'undefined';
@@ -132,5 +138,126 @@ export function clearMetaSnapshot(): void {
     window.localStorage.removeItem(META_KEY);
   } catch {
     // 同 savePicksSnapshot：失败不阻塞主流程
+  }
+}
+
+// ─────────────────────────────────────────────────────────────
+// 选型出处（provenance）
+//
+// 为什么值得单开一条通道：装配台上一个槽位填着 redis，用户必须能问出
+// 「这是谁填的、凭什么」。扫描填的（有一行 pom.xml:47 做证据）和人手点的，
+// 可信度不是一回事 —— 分不清这两者，档案就会把推断当成事实。
+//
+// 形状与 `facts-arch.ts` 的 `FactsDetail` 结构等价，但**刻意不复用那个类型**：
+// facts-arch 牵连 arch-canvas / archify-ir 整个出图链，让一个只碰 localStorage
+// 的模块去 import 它，所有读 picks-store 的地方都会被拖着编译一遍出图全家桶。
+// 这里只留落盘真正需要的字段，转换由调用方（CodeIntake）做一次。
+// ─────────────────────────────────────────────────────────────
+
+export interface PicksProvenance {
+  kind: 'scan';
+  /** 扫描的仓库根路径 */
+  root: string;
+  /** 扫描时间（后端给的 ISO 串，原样存，不自己造时间） */
+  scannedAt: string;
+  /** 依赖坐标命中的槽位，每条带出处文件与行号 */
+  fromDeps: { dim: string; opt: string; tech: string; path: string; line: number }[];
+  /** 部署清单推出来的槽位，`because` 是仓库里真实存在的那个文件 */
+  fromDeploy: { dim: string; opt: string; because: string }[];
+  /** 同维度命中多条时的裁决结果 */
+  conflicts: { dim: string; kept: string; dropped: string[] }[];
+  /** 未识别的依赖条数（明细留在 /check 页，这里只记个数） */
+  unmatchedCount: number;
+  /**
+   * 落盘那一刻的选型快照。
+   *
+   * 存它是为了在装配台上做**实时 diff**：用户后来手动改过哪几格，
+   * 一比对就知道（`atScan[dim] !== picks[dim]`）。
+   * 不存的话只剩「这套选型来自扫描」这一句笼统的话，
+   * 而用户真正要分辨的是「哪几格是我自己改的」。
+   */
+  atScan: Record<string, string>;
+}
+
+/** 写选型出处。传 null 等于清除（用户清空重搭时用）。 */
+export function saveProvenance(p: PicksProvenance | null): void {
+  if (!canStore()) return;
+  try {
+    if (p === null) window.localStorage.removeItem(PROVENANCE_KEY);
+    else window.localStorage.setItem(PROVENANCE_KEY, JSON.stringify(p));
+  } catch {
+    // 同 savePicksSnapshot：存不下就静默降级，出处丢了不影响选型本身
+  }
+}
+
+/**
+ * 读选型出处。读不到 / 形状不对 → null，绝不返回半截对象 ——
+ * 半截的出处会让界面写出「来自扫描 · 出处 undefined」这种更像谣言的东西。
+ */
+export function loadProvenance(): PicksProvenance | null {
+  if (!canStore()) return null;
+  try {
+    const raw = window.localStorage.getItem(PROVENANCE_KEY);
+    if (!raw) return null;
+    const p = JSON.parse(raw) as Partial<PicksProvenance>;
+    if (p?.kind !== 'scan') return null;
+    if (typeof p.root !== 'string' || typeof p.atScan !== 'object' || p.atScan === null) {
+      return null;
+    }
+    return {
+      kind: 'scan',
+      root: p.root,
+      scannedAt: typeof p.scannedAt === 'string' ? p.scannedAt : '',
+      fromDeps: Array.isArray(p.fromDeps) ? p.fromDeps : [],
+      fromDeploy: Array.isArray(p.fromDeploy) ? p.fromDeploy : [],
+      conflicts: Array.isArray(p.conflicts) ? p.conflicts : [],
+      unmatchedCount: typeof p.unmatchedCount === 'number' ? p.unmatchedCount : 0,
+      atScan: p.atScan as Record<string, string>,
+    };
+  } catch {
+    return null;
+  }
+}
+
+/** 清掉选型出处（用户在装配台里手动改过之后，出处不再代表这套选型） */
+export function clearProvenance(): void {
+  saveProvenance(null);
+}
+
+/**
+ * 「把这套选型装进装配台」—— 只写盘，不跳页。
+ *
+ * 跳转由调用方做：`CodeIntake` 被 /arch 与 /archify 两处复用，
+ * 路由决策不该埋在组件里，也不该埋在这里。
+ *
+ * **形态一律留空**，这是刻意的：扫描读得到的是「应用副本数」
+ * （K8s `replicas` / Helm `replicaCount`），而形态问的是
+ * 「数据库是单实例还是主从」这类问题 —— 扫描答不上来。
+ * 拿应用副本数去推形态、或干脆给个默认值，都会让装配台的形态图
+ * 画出没有依据的框数（正是 topology.ts 顶部第 ③ 条要防的事）。
+ * 读不到就留空，由用户自己表态。
+ */
+export function adoptPicks(picks: StackPicks, provenance?: PicksProvenance | null): void {
+  savePicksSnapshot(picks, emptyMeta());
+  saveProvenance(provenance ?? null);
+}
+
+/** 读技术栈基底：读不到（首次 / 手动清过）→ 回落默认基底，永不返回空 */
+export function loadBaseSnapshot(): string {
+  if (!canStore()) return defaultBase;
+  try {
+    return window.localStorage.getItem(BASE_KEY) || defaultBase;
+  } catch {
+    return defaultBase;
+  }
+}
+
+/** 写技术栈基底。失败静默降级（隐私模式），不阻塞主流程。 */
+export function saveBaseSnapshot(baseId: string): void {
+  if (!canStore()) return;
+  try {
+    window.localStorage.setItem(BASE_KEY, baseId);
+  } catch {
+    // 同 savePicksSnapshot
   }
 }

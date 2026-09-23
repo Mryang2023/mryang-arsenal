@@ -26,6 +26,27 @@ export const presets = stack.presets;
 
 export const dimensionById = new Map(dimensions.map((d) => [d.id, d]));
 
+// ── 技术栈基底（全局声明，不进 dimensions） ──
+// 装配台顶部单独选择；它只驱动「与基底绑定」的产物（pom parent / gradle 插件版本）。
+export const bases = stack.bases;
+export const defaultBase = stack.defaultBase;
+export const baseById = new Map(bases.map((b) => [b.id, b]));
+
+/**
+ * 取某个基底的「Spring Boot 版本号」。
+ *
+ * 只有 covered 的 Boot 基底才带真实可用的版本号；未覆盖的基底（Quarkus 等）
+ * 或未知 id 一律回落到默认基底的版本 —— 绝不拿一个假的版本号去拼产物。
+ */
+export function bootVersionOf(baseId: string | undefined): string {
+  const b = baseId ? baseById.get(baseId) : undefined;
+  if (b && b.covered && /^\d/.test(b.version)) return b.version;
+  const d = baseById.get(defaultBase);
+  return d && /^\d/.test(d.version) ? d.version : '3.2.12';
+}
+
+const DEFAULT_BOOT_VERSION = bootVersionOf(defaultBase);
+
 /** 全空画布：所有槽位都未选。这是「从零开始搭架构」的起点。 */
 export function emptyPicks(): StackPicks {
   return Object.fromEntries(dimensions.map((d) => [d.id, '']));
@@ -214,7 +235,11 @@ function groupDeps(composed: ComposedStack) {
 }
 
 /** 生成完整可用的 pom.xml */
-export function renderPom(composed: ComposedStack, artifactId = 'arsenal-demo'): string {
+export function renderPom(
+  composed: ComposedStack,
+  artifactId = 'arsenal-demo',
+  bootVersion = DEFAULT_BOOT_VERSION
+): string {
   const groupsOfDeps = groupDeps(composed);
   const props = Object.entries(composed.properties);
 
@@ -258,7 +283,7 @@ export function renderPom(composed: ComposedStack, artifactId = 'arsenal-demo'):
     <parent>
         <groupId>org.springframework.boot</groupId>
         <artifactId>spring-boot-starter-parent</artifactId>
-        <version>3.2.5</version>
+        <version>${bootVersion}</version>
         <relativePath/>
     </parent>
 

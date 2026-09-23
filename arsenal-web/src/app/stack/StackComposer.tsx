@@ -15,7 +15,10 @@ import {
 } from '@/lib/arch';
 import type { ArchGap } from '@/lib/arch';
 import {
+  baseById,
+  bases,
   composeStack,
+  defaultBase,
   dimensionById,
   dimensions,
   emptyPicks,
@@ -45,7 +48,15 @@ import ArchDiagram from './ArchDiagram';
 import TechArch from './TechArch';
 import DeployGuides from './DeployGuides';
 import DeliveryDeck from './DeliveryDeck';
-import { savePicksSnapshot } from '@/lib/picks-store';
+import {
+  clearProvenance,
+  loadBaseSnapshot,
+  loadProvenance,
+  loadSnapshot,
+  saveBaseSnapshot,
+  savePicksSnapshot,
+  type PicksProvenance,
+} from '@/lib/picks-store';
 import { emptyMeta, withParam, withTopology, type StackPicksMeta } from '@/lib/topology';
 import { TONE } from './palette';
 
@@ -81,8 +92,42 @@ interface TabSpec {
   count?: number;
 }
 
+/** 技术栈基底的支持状态徽标（三档：支持中 / 已 EOL / 本平台未覆盖） */
+const BASE_STATUS: Record<string, { label: string; color: string; bg: string; border: string }> = {
+  supported: { label: '支持中', color: '#3FB950', bg: 'rgba(63,185,80,0.12)', border: 'rgba(63,185,80,0.40)' },
+  eol: { label: '已 EOL', color: '#D9A441', bg: 'rgba(217,164,65,0.12)', border: 'rgba(217,164,65,0.45)' },
+  uncovered: { label: '未覆盖', color: '#93A39C', bg: 'transparent', border: '#243029' },
+};
+
 export default function StackComposer() {
   const [picks, setPicks] = useState<StackPicks>(() => presetPicks('standard'));
+  /**
+   * 技术栈基底（全局声明，**不是**选型维度）。
+   *
+   * 它只驱动「与基底绑定」的产物 —— pom 的 parent 版本、gradle 插件的
+   * Spring Boot 版本。它不参与能力校验、不上架构图：基底是整个工程的前提，
+   * 不是系统里的某个可勾选组件（做成维度会与「每维必有槽位」的图模型打架）。
+   *
+   * 初值与 picks 一样不读 localStorage（避免 SSR 首帧与客户端不一致），
+   * 挂载后由 effect 写回。
+   */
+  const [baseId, setBaseId] = useState<string>(defaultBase);
+  /**
+   * 挂载标志 —— 存在的唯一理由是**首帧不能写盘**。
+   *
+   * `picks` 的初值是 standard 预设（刻意不读 localStorage，避免 SSR 首帧与
+   * 客户端不一致），而写快照的 effect 在挂载后会立刻跑一次。没有这道闸门，
+   * 打开页面的瞬间就会拿 standard 覆盖掉用户上次的选型，而且不报任何错。
+   * 实测（2026-09-23）：塞 `{database:'postgres'}` 进 localStorage，打开 /stack
+   * 再刷新，读到的是 `mysql` —— 刷新即丢失，且顺手把 /arch 正要读的快照也改了。
+   */
+  const [hydrated, setHydrated] = useState(false);
+  /**
+   * 选型出处：这套选型是从哪来的。只有「代码扫描」一种来源需要落盘，
+   * 手工拼装没有出处可言。装配台是**唯一**消费它的地方 ——
+   * 只写不读的键（例如 `arsenal-stack-detail-v1`）等于白写，别再加一个。
+   */
+  const [provenance, setProvenance] = useState<PicksProvenance | null>(null);
   /**
    * 集群形态与参数。与 `picks` **平行**的一条通道 ——
    * 选型回答「装哪块零件」，形态回答「装几个、怎么摆」。
@@ -101,20 +146,52 @@ export default function StackComposer() {
   );
 
   /**
+   * 挂载时恢复上次的选型 / 形态 / 基底 / 出处。
+   *
+   * **声明顺序是这个 effect 的全部要害**：它必须排在下面两个写入 effect 之前。
+   * 挂载时 effect 按声明顺序执行，那一刻 `hydrated` 还是 false，写入 effect 直接
+   * 返回；等这次 setState 引发重渲染、`hydrated` 翻成 true，写入 effect 才带着
+   * 恢复出来的值跑一遍。顺序摆反（写入在前），恢复出来的值会被首帧的 standard
+   * 盖掉 —— 现象与「压根没做恢复」一模一样，而那正是修之前的样子。
+   *
+   * 恢复出来若正好等于某个预设，就把该预设按钮点亮；是自定义组合则不高亮任何预设。
+   */
+  useEffect(() => {
+    const snap = loadSnapshot();
+    setPicks(snap.picks);
+    setMeta(snap.meta);
+    setBaseId(loadBaseSnapshot());
+    setProvenance(loadProvenance());
+    const matched = presets.find((p) =>
+      dimensions.every((d) => (snap.picks[d.id] ?? '') === (p.picks[d.id] ?? ''))
+    );
+    setPresetId(matched ? matched.id : null);
+    setHydrated(true);
+  }, []);
+
+  /**
    * 选型快照写回 localStorage —— 「架构图谱」页的技术架构视图从这里取数。
    *
    * 少了这一句，那边 loadPicksSnapshot() 永远读不到东西、静默回落到 standard
    * 预设：装配台换一套选型，架构图谱那张图纹丝不动，而且两边都不报错。
-   * 这是一条跨页契约，只有这一处写、只有 TechArch 一处读。
+   * 这是一条跨页契约：装配台写，TechArch 与 ArchifyLab 读。
    */
   useEffect(() => {
+    if (!hydrated) return;
     savePicksSnapshot(picks, meta);
-  }, [picks, meta]);
+  }, [picks, meta, hydrated]);
 
+  // 基底单独持久化（与选型/形态分键，理由同 picks-store 顶部的说明）
+  useEffect(() => {
+    if (!hydrated) return;
+    saveBaseSnapshot(baseId);
+  }, [baseId, hydrated]);
+
+  const currentBase = baseById.get(baseId);
   const audit = useMemo(() => auditArchitecture(picks), [picks]);
   const composed = useMemo(() => composeStack(picks), [picks]);
   const scale = useMemo(() => stackScale(composed), [composed]);
-  const plan = useMemo(() => buildExportPlan(picks, audit), [picks, audit]);
+  const plan = useMemo(() => buildExportPlan(picks, audit, baseId), [picks, audit, baseId]);
 
   const yamlText = useMemo(() => renderYaml(composed), [composed]);
   const promptText = useMemo(() => renderPrompt(composed), [composed]);
@@ -192,6 +269,10 @@ export default function StackComposer() {
     setMeta(emptyMeta());
     setPresetId(preset);
     setExported(null);
+    // 出处同理：换了一整套选型，上一套的出处就不代表现在这套了。
+    // 留着它会在界面上写出「来自代码扫描」而实际选型已经全换的错话。
+    clearProvenance();
+    setProvenance(null);
   }
 
   function pick(dimId: string, optId: string) {
@@ -308,6 +389,48 @@ export default function StackComposer() {
         </div>
 
         <div className="ml-auto flex flex-wrap items-center gap-1.5">
+          {/* 技术栈基底：全局声明，不进选型维度。它决定导出骨架里的 Spring Boot 版本 */}
+          <span className="mono mr-0.5 text-[10px] uppercase tracking-wider text-fgFaint">基底</span>
+          <select
+            value={baseId}
+            onChange={(e) => setBaseId(e.target.value)}
+            className="rounded-md border px-2 py-1 text-[11px] outline-none"
+            style={{ borderColor: '#243029', background: 'transparent', color: '#CFDCD6' }}
+            title={
+              currentBase
+                ? `${currentBase.summary}${currentBase.note ? '\n\n' + currentBase.note : ''}`
+                : '技术栈基底'
+            }
+          >
+            {bases.map((b) => (
+              <option key={b.id} value={b.id} style={{ background: '#16211F', color: '#CFDCD6' }}>
+                {b.name}
+                {b.covered ? ` ${b.version}` : '（未覆盖）'}
+              </option>
+            ))}
+          </select>
+          {currentBase && (
+            <span
+              className="rounded px-1.5 py-0.5 text-[10px] leading-[14px]"
+              style={{
+                color: (BASE_STATUS[currentBase.status] ?? BASE_STATUS.uncovered).color,
+                background: (BASE_STATUS[currentBase.status] ?? BASE_STATUS.uncovered).bg,
+                border: `1px solid ${(BASE_STATUS[currentBase.status] ?? BASE_STATUS.uncovered).border}`,
+              }}
+              title={currentBase.summary}
+            >
+              {(BASE_STATUS[currentBase.status] ?? BASE_STATUS.uncovered).label}
+            </span>
+          )}
+          {currentBase && currentBase.status === 'eol' && currentBase.supportedUntil && (
+            <span className="text-[10px] text-fgFaint">支持止于 {currentBase.supportedUntil}</span>
+          )}
+          {currentBase && !currentBase.covered && (
+            <span className="text-[10px] text-fgFaint" title={currentBase.note}>
+              产物仍按 Spring Boot 骨架导出
+            </span>
+          )}
+          <span className="mx-1 h-[16px] w-px bg-line" />
           <span className="mono mr-0.5 text-[10px] uppercase tracking-wider text-fgFaint">预设</span>
           {presets.map((p) => {
             const on = presetId === p.id;
@@ -370,6 +493,20 @@ export default function StackComposer() {
           </Link>
         </div>
       </div>
+
+      {/* ── 选型出处：这套选型是扫描读出来的，还是人点出来的 ───────
+          一个槽位填着 redis，用户必须能问出「这是谁填的、凭什么」。
+          扫描填的（有一行 pom.xml:47 做证据）和人手点的，可信度不是一回事。 */}
+      {provenance && (
+        <ProvenanceBanner
+          provenance={provenance}
+          picks={picks}
+          onDismiss={() => {
+            clearProvenance();
+            setProvenance(null);
+          }}
+        />
+      )}
 
       {/* ── 左：装配 ───────────── 右：交付预览（常驻，实时） ───── */}
       <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(0,1.05fr)]">
@@ -475,6 +612,7 @@ export default function StackComposer() {
             meta={meta}
             audit={audit}
             composed={composed}
+            baseId={baseId}
             onParam={setParam}
           />
         </div>
@@ -975,5 +1113,119 @@ function Empty({ text }: { text: string }) {
     <div className="panel px-5 py-8 text-center">
       <p className="text-2xs text-fgFaint">{text}</p>
     </div>
+  );
+}
+
+/**
+ * 选型出处横幅。
+ *
+ * 三件事必须同时说清，缺一件这条横幅就退化成一块装饰：
+ *   ① **从哪来** —— 仓库根路径与扫描时间；
+ *   ② **凭什么** —— 每个槽位的出处（依赖坐标的文件:行号 / 部署清单文件名）；
+ *   ③ **哪些不是它填的** —— 扫描之后被人改过的格子单独数出来。
+ *
+ * 少了 ③，用户会以为整张画布 33 格都是扫描读出来的；
+ * 少了 ①②，就只剩一句「来自代码扫描」的空话。
+ * 这三条的写法与「隐患必须带 trigger/symptoms/impact」是同一条规矩：
+ * 给结论就得给出能核对它的东西。
+ */
+function ProvenanceBanner({
+  provenance,
+  picks,
+  onDismiss,
+}: {
+  provenance: PicksProvenance;
+  picks: StackPicks;
+  onDismiss: () => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const edited = dimensions.filter(
+    (d) => (provenance.atScan[d.id] ?? '') !== (picks[d.id] ?? '')
+  );
+  const editedDims = new Set(edited.map((d) => d.id));
+
+  return (
+    <section
+      className="panel overflow-hidden"
+      style={{ borderColor: 'rgba(217,164,65,0.35)', background: 'rgba(217,164,65,0.05)' }}
+    >
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 px-4 py-2.5">
+        <span className="mono text-[12px] leading-none" style={{ color: '#D9A441' }}>
+          ⌕
+        </span>
+        <p className="text-2xs text-fg">
+          本次选型来自<span className="text-brass">代码扫描</span>
+          <span className="mono ml-1.5 text-[10px] text-fgMuted">{provenance.root}</span>
+        </p>
+        <span className="mono text-[10px] text-fgFaint">
+          {provenance.fromDeps.length} 格来自依赖声明
+          {provenance.fromDeploy.length > 0 && ` · ${provenance.fromDeploy.length} 格来自部署清单`}
+          {provenance.conflicts.length > 0 && ` · ${provenance.conflicts.length} 处同维冲突`}
+          {provenance.unmatchedCount > 0 && ` · ${provenance.unmatchedCount} 项未识别`}
+        </span>
+        {edited.length > 0 && (
+          <span className="mono text-[10px]" style={{ color: '#D9A441' }}>
+            其中 {edited.length} 格已被你改过
+          </span>
+        )}
+        <div className="ml-auto flex items-center gap-2.5">
+          <button
+            type="button"
+            onClick={() => setOpen((v) => !v)}
+            className="mono text-[10px] text-fgFaint transition-colors hover:text-fg"
+          >
+            {open ? '收起出处' : '看出处'}
+          </button>
+          <button
+            type="button"
+            onClick={onDismiss}
+            className="mono text-[10px] text-fgFaint transition-colors hover:text-fg"
+            title="清掉这条出处 —— 之后这套选型按手工拼装看待"
+          >
+            知道了
+          </button>
+        </div>
+      </div>
+
+      {open && (
+        <div className="border-t border-line px-4 py-2.5">
+          <ul className="space-y-1 text-[10px] leading-[15px] text-fgMuted">
+            {provenance.fromDeps.map((d) => (
+              <li key={`pv-dep-${d.dim}`} className="mono">
+                <span className="text-fg">
+                  {d.dim}={d.opt}
+                </span>
+                <span className="text-fgFaint">
+                  {' '}
+                  ← {d.tech} · {d.path}:{d.line}
+                </span>
+                {editedDims.has(d.dim) && <span style={{ color: '#D9A441' }}> · 已改动</span>}
+              </li>
+            ))}
+            {provenance.fromDeploy.map((d) => (
+              <li key={`pv-dp-${d.dim}`} className="mono">
+                <span className="text-fg">
+                  {d.dim}={d.opt}
+                </span>
+                <span className="text-fgFaint"> ← 部署清单 {d.because}</span>
+              </li>
+            ))}
+            {provenance.conflicts.map((c) => (
+              <li key={`pv-cf-${c.dim}`} className="mono" style={{ color: '#E5A33D' }}>
+                · {c.dim} 命中多个候选，取了 {c.kept}；另有 {c.dropped.join('、')} 未采用
+              </li>
+            ))}
+          </ul>
+          <p className="mt-2 text-[10px] text-fgFaint">
+            未识别的依赖不会静默丢弃 —— 明细在
+            <Link href="/arch" className="text-fgMuted underline underline-offset-2">
+              「六大架构」页的代码扫描入口
+            </Link>
+            里逐条列出。
+            {provenance.scannedAt && <>　扫描时间 {provenance.scannedAt}</>}
+          </p>
+        </div>
+      )}
+    </section>
   );
 }

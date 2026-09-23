@@ -1,7 +1,7 @@
 import projRaw from '@/generated/project.json';
 import { capLabel, STATUS_META, type ArchAudit, type ArchGap } from './arch';
 import type { ComposedStack, StackPicks } from './content-types';
-import { composeStack, dimensionById, dimensions, renderPom, renderYaml } from './stack';
+import { bootVersionOf, composeStack, dimensionById, dimensions, renderPom, renderYaml } from './stack';
 import { buildArchDiagram, archDiagramD2, archDiagramMermaid } from './arch-diagram';
 import { buildDeployPlan } from './deploy';
 
@@ -79,7 +79,8 @@ export interface ProjectDoc {
 
 export const projectDoc = projRaw as unknown as ProjectDoc;
 
-const SPRING_BOOT_VERSION = '3.2.5';
+// Spring Boot 版本不再写死：由「技术栈基底」决定（见 buildExportPlan 的 baseId）
+// 早先这里是 const SPRING_BOOT_VERSION = '3.2.5' —— 那是硬编码，改基底改不动它。
 const JAVA_PACKAGE_DIR = projectDoc.basePackage.replace(/\./g, '/');
 const JAVA_MAIN = `src/main/java/${JAVA_PACKAGE_DIR}`;
 const JAVA_TEST = `src/test/java/${JAVA_PACKAGE_DIR}`;
@@ -291,7 +292,11 @@ export function renderAppClass(picks: StackPicks): string {
  * 在 Gradle 里必须同时进 compileOnly 与 annotationProcessor ——
  * 少写后者时的表现是「编译过了，但 Lombok 生成的 getter 全是红」，极难自己反应过来。
  */
-export function renderGradle(composed: ComposedStack, javaVersion: string): string {
+export function renderGradle(
+  composed: ComposedStack,
+  javaVersion: string,
+  bootVersion = '3.2.12'
+): string {
   const lines: string[] = [];
   const seen = new Set<string>();
   const blocks: string[] = [];
@@ -320,7 +325,7 @@ export function renderGradle(composed: ComposedStack, javaVersion: string): stri
 
   lines.push('plugins {');
   lines.push("    id 'java'");
-  lines.push(`    id 'org.springframework.boot' version '${SPRING_BOOT_VERSION}'`);
+  lines.push(`    id 'org.springframework.boot' version '${bootVersion}'`);
   lines.push("    id 'io.spring.dependency-management' version '1.1.4'");
   lines.push('}');
   lines.push('');
@@ -658,20 +663,26 @@ function archSummaryMarkdown(audit: ArchAudit): string {
 }
 
 /** 导出文件汇总。等价于「这套选型的产物」在磁盘上的完整落位。 */
-export function buildExportPlan(picks: StackPicks, audit: ArchAudit): ExportPlan {
+export function buildExportPlan(
+  picks: StackPicks,
+  audit: ArchAudit,
+  baseId?: string
+): ExportPlan {
   const composed = composeStack(picks);
   const files: ExportFile[] = [];
   const isGradle = picks.build === 'gradle';
   const javaVersion = composed.properties['java.version'] ?? '17';
+  // 基底决定 pom parent / gradle 插件里写的 Spring Boot 版本
+  const bootVersion = bootVersionOf(baseId);
 
   // ── 构建文件 ──
   if (isGradle) {
-    files.push({ path: 'build.gradle', content: renderGradle(composed, javaVersion), group: '构建' });
+    files.push({ path: 'build.gradle', content: renderGradle(composed, javaVersion, bootVersion), group: '构建' });
     files.push({ path: 'settings.gradle', content: projectDoc.files.gradleSettings, group: '构建' });
   } else {
     files.push({
       path: 'pom.xml',
-      content: renderPom(composed, projectDoc.artifactId),
+      content: renderPom(composed, projectDoc.artifactId, bootVersion),
       group: '构建',
     });
   }

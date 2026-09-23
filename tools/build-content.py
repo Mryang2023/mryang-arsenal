@@ -167,6 +167,25 @@ def build_stacks():
             problems.append('维度 %s 缺少 defaultOption' % dim['id'])
         elif dim['defaultOption'] not in opt_ids[dim['id']]:
             problems.append('维度 %s 的 defaultOption 不存在' % dim['id'])
+
+    # 技术栈基底是**顶层全局声明**（不进 dimensions，故不走上面那套
+    # NODE_ARCH / CANVAS 校验）。这里只守它自身的完整性：
+    # 字段齐全、id 不重复、defaultBase 指向真实存在的基底。
+    bases = getattr(base, 'BASES', [])
+    if not bases:
+        problems.append('技术栈基底 BASES 为空 —— 装配台将无基底可选')
+    seen_bases = set()
+    for b in bases:
+        for k in ('id', 'name', 'vendor', 'version', 'status', 'covered'):
+            if k not in b:
+                problems.append('基底 %s 缺少字段 %s' % (b.get('id'), k))
+        if b.get('id') in seen_bases:
+            problems.append('基底 id 重复：%s' % b.get('id'))
+        seen_bases.add(b.get('id'))
+    default_base = getattr(base, 'DEFAULT_BASE', None)
+    if default_base not in seen_bases:
+        problems.append('DEFAULT_BASE %r 不在 BASES 里' % default_base)
+
     if problems:
         print('\n[arsenal] 选型数据校验失败：')
         for p in problems:
@@ -228,6 +247,8 @@ def build_stacks():
         ),
         'groups': groups,
         'dimensions': dimensions,
+        'bases': bases,
+        'defaultBase': default_base,
         'presets': presets,
     }
     write_json('arsenal-stacks/stack.json', stack)

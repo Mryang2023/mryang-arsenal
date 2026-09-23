@@ -1,6 +1,7 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import {
   buildTechArch,
   buildTechArchSvg,
@@ -72,12 +73,15 @@ export default function DeliveryDeck({
   meta,
   audit,
   composed,
+  baseId,
   onParam,
 }: {
   picks: StackPicks;
   meta: StackPicksMeta;
   audit: ArchAudit;
   composed: ComposedStack;
+  /** 技术栈基底 id —— 决定这里导出的 pom parent / gradle 插件版本 */
+  baseId: string;
   onParam: (key: string, value: number) => void;
 }) {
   const [tab, setTab] = useState<DeckTab>('overview');
@@ -92,7 +96,7 @@ export default function DeliveryDeck({
     () => buildTechArch(picks, emptyEdits(), { controlPlane, topology: topo }),
     [picks, controlPlane, topo]
   );
-  const exportPlan = useMemo(() => buildExportPlan(picks, audit), [picks, audit]);
+  const exportPlan = useMemo(() => buildExportPlan(picks, audit, baseId), [picks, audit, baseId]);
   const deployFiles = useMemo(
     () => buildDeployPlan(picks, composed, { appName: projectDoc.artifactId, meta }),
     [picks, composed, meta]
@@ -254,6 +258,7 @@ export default function DeliveryDeck({
             svg={depsBuilt.svg}
             mermaid={archDiagramMermaid(depsBuilt.model)}
             filename="deps"
+            title="依赖关系图"
             ir={() => irFor(`${projectDoc.artifactId} · 依赖关系`)}
             onNote={setNote}
           />
@@ -264,6 +269,7 @@ export default function DeliveryDeck({
             svg={archSvg}
             mermaid={techArchMermaid(techArch)}
             filename="tech-arch"
+            title="技术架构图"
             ir={() => irFor(`${projectDoc.artifactId} · 技术架构`)}
             onNote={setNote}
             caption="① 应用实例看应用卡右上角的 ×N　② 请求从最左侧客户端进　③ 数据落在最右侧数据分区　④ 虚线是异步链路　⑤ 带 ×N 的都是多副本"
@@ -275,6 +281,7 @@ export default function DeliveryDeck({
             svg={topoBuilt.svg}
             mermaid={topologyMermaid(picks, meta)}
             filename="topology"
+            title="集群形态图"
             ir={() => irFor(`${projectDoc.artifactId} · 集群形态`)}
             onNote={setNote}
           />
@@ -336,6 +343,7 @@ function Diagram({
   svg,
   mermaid,
   filename,
+  title,
   ir,
   onNote,
   caption,
@@ -343,14 +351,18 @@ function Diagram({
   svg: string;
   mermaid: string;
   filename: string;
+  /** 放大查看里显示的中文图名 */
+  title: string;
   ir: () => unknown;
   onNote: (s: string | null) => void;
   caption?: string;
 }) {
   const [busy, setBusy] = useState(false);
+  const [zoomOpen, setZoomOpen] = useState(false);
   return (
     <div>
       <div className="mb-2 flex flex-wrap items-center gap-1.5">
+        <Action label="放大查看" onClick={() => setZoomOpen(true)} />
         <Action label="复制 SVG" onClick={() => copy(svg, onNote, 'SVG 已复制')} />
         <Action label="下载 PNG" onClick={() => downPng(svg, filename, onNote)} />
         <Action label="复制 Mermaid" onClick={() => copy(mermaid, onNote, 'Mermaid 已复制')} />
@@ -387,11 +399,136 @@ function Diagram({
         />
       </div>
       <div
-        className="overflow-hidden rounded-md border border-line bg-canvas [&>svg]:block [&>svg]:h-auto [&>svg]:w-full"
+        role="button"
+        tabIndex={0}
+        title="点击放大查看"
+        onClick={() => setZoomOpen(true)}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            setZoomOpen(true);
+          }
+        }}
+        className="cursor-zoom-in overflow-hidden rounded-md border border-line bg-canvas [&>svg]:block [&>svg]:h-auto [&>svg]:w-full"
         dangerouslySetInnerHTML={{ __html: toResponsiveSvg(svg) }}
       />
       {caption && <p className="mt-2 text-[10px] leading-[15px] text-fgFaint">{caption}</p>}
+      {zoomOpen && <Lightbox svg={svg} title={title} onClose={() => setZoomOpen(false)} />}
     </div>
+  );
+}
+
+/** 倍率的硬边界：小于 25% 看不见字，大于 600% 除了像素没有多出信息 */
+function clampZoom(z: number): number {
+  return Math.min(6, Math.max(0.25, z));
+}
+
+/**
+ * 放大查看 —— 全屏滚动区 + 倍率控制。
+ *
+ * 图是矢量，所以「放大」只是改外层容器的宽度：文字与线条随 viewBox 等比铺开，
+ * 不会像位图那样糊，也不会有「按了放大还是那么小」的假放大。
+ * 挂到 document.body 上用 portal：免得被外层面板的 overflow / 层叠上下文裁掉。
+ *
+ * 滚轮只有按住 Ctrl/⌘ 才缩放 —— 否则它老老实实滚页面，不抢用户的手感。
+ */
+function Lightbox({ svg, title, onClose }: { svg: string; title: string; onClose: () => void }) {
+  const size = useMemo(() => readSvgSize(svg), [svg]);
+  const [zoom, setZoom] = useState(1);
+  const boxRef = useRef<HTMLDivElement>(null);
+
+  /** 适应窗口：一上来就把整张图塞进可视宽度，长图不必先横向拖 */
+  const fit = useCallback(() => {
+    if (!size) return;
+    const w = boxRef.current?.clientWidth ?? 0;
+    if (w > 0) setZoom(clampZoom((w - 32) / size.w));
+  }, [size]);
+
+  useEffect(() => {
+    fit();
+  }, [fit]);
+
+  // 打开时接管页面滚动：背景不该跟着滚
+  useEffect(() => {
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.body.style.overflow = prev;
+    };
+  }, []);
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        e.stopPropagation();
+        onClose();
+      } else if (e.key === '+' || e.key === '=') {
+        setZoom((z) => clampZoom(z + 0.25));
+      } else if (e.key === '-' || e.key === '_') {
+        setZoom((z) => clampZoom(z - 0.25));
+      } else if (e.key === '0') {
+        setZoom(1);
+      }
+    };
+    // 捕获阶段：页面别处挂了一堆单键快捷键，Esc 不能被它们先抢走
+    window.addEventListener('keydown', onKey, true);
+    return () => window.removeEventListener('keydown', onKey, true);
+  }, [onClose]);
+
+  useEffect(() => {
+    const el = boxRef.current;
+    if (!el) return;
+    const onWheel = (e: WheelEvent) => {
+      if (!e.ctrlKey && !e.metaKey) return;
+      e.preventDefault();
+      setZoom((z) => clampZoom(z - e.deltaY * 0.0015));
+    };
+    el.addEventListener('wheel', onWheel, { passive: false });
+    return () => el.removeEventListener('wheel', onWheel);
+  }, []);
+
+  return createPortal(
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-label={`${title} · 放大查看`}
+      className="fixed inset-0 z-[60] flex flex-col bg-black/85 backdrop-blur-sm"
+    >
+      <div className="flex flex-wrap items-center gap-2 border-b border-line bg-surface px-3 py-2">
+        <span className="mono text-[10px] uppercase tracking-wider text-fgFaint">放大查看</span>
+        <span className="text-[11px] text-fg">{title}</span>
+        {size && (
+          <span className="mono text-[10px] text-fgFaint">
+            {size.w}×{size.h}px
+          </span>
+        )}
+        <div className="ml-auto flex items-center gap-1.5">
+          <Action label="−" onClick={() => setZoom((z) => clampZoom(z - 0.25))} />
+          <span className="mono w-[52px] text-center text-[11px] text-fgMuted">
+            {Math.round(zoom * 100)}%
+          </span>
+          <Action label="+" onClick={() => setZoom((z) => clampZoom(z + 0.25))} />
+          <Action label="适应窗口" onClick={fit} />
+          <Action label="1:1" onClick={() => setZoom(1)} />
+          <Action label="关闭 Esc" onClick={onClose} />
+        </div>
+      </div>
+      <div ref={boxRef} className="flex-1 overflow-auto p-4">
+        {/* 容器宽 = 原始宽 × 倍率；svg 内部的 max-width:100% 正好落在它上面 */}
+        <div style={{ width: size ? size.w * zoom : '100%', margin: '0 auto' }}>
+          <div
+            className="[&>svg]:block [&>svg]:h-auto [&>svg]:w-full"
+            dangerouslySetInnerHTML={{ __html: svg }}
+          />
+        </div>
+      </div>
+      <p className="border-t border-line bg-surface px-3 py-1.5 text-[10px] text-fgFaint">
+        Ctrl/⌘ + 滚轮缩放 · <span className="mono">+</span> / <span className="mono">−</span> 调倍率 ·{' '}
+        <span className="mono">0</span> 回到 1:1 · <span className="mono">Esc</span> 关闭 ——
+        图是矢量的，放到 600% 文字与线条依然清晰；想截图存档可以先用工具条切到「文档浅色」主题。
+      </p>
+    </div>,
+    document.body
   );
 }
 

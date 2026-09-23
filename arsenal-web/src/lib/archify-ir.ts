@@ -141,6 +141,21 @@ export interface ArchifyIrOptions {
   visualPreset?: 'classic' | 'signal-flow' | 'blueprint' | 'editorial';
   qualityProfile?: 'standard' | 'showcase';
   animation?: 'trace' | 'none';
+  /**
+   * 阅读路径覆盖。给了就用它，不再从 `CANVAS_VIEWS` 派生。
+   *
+   * 为什么要开这个口子：`CANVAS_VIEWS` 是按**分区**圈人的
+   * （`v_async` 只圈 app 与两个 dim 节点，`v_delivery` 只圈 app 与 deploy）。
+   * 一份**不是选型产物**的模型（比如军火库平台自身）在这些分区里节点很少，
+   * 两条路径过滤完会落到同一组焦点上 —— 而 `archifyIrIssues()` 里
+   * 「两条阅读路径焦点完全相同」是硬错，它挡的是「导览点了哪条图都一样」。
+   * 那条自检不该放宽（它是有价值的），所以改从这里注入口子。
+   *
+   * 省略时行为逐字节不变。
+   */
+  views?: ArchifyView[];
+  /** 卡片覆盖。同上的理由：`buildCards()` 只认选型模型的形状（集群形态、未引入中间件…） */
+  cards?: ArchifyCard[];
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -407,8 +422,12 @@ export function buildArchifyIr(model: TechArch, opts: ArchifyIrOptions = {}): Ar
   });
 
   // ── 阅读路径 / 卡片 ──
-  const views = buildViews(nodes, byId);
-  const cards = buildCards(model, byId);
+  //
+  // 默认从 `CANVAS_VIEWS` 派生 —— 那是选型那条产线的声明。
+  // 允许外部注入见 `ArchifyIrOptions.views`：不是选型产物的模型
+  // （军火库平台自身）按分区过滤后会撞上「焦点完全相同」那条自检。
+  const views = opts.views ?? buildViews(nodes, byId);
+  const cards = opts.cards ?? buildCards(model, byId);
 
   const ir: ArchifyIr = {
     schema_version: 1,
