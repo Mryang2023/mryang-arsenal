@@ -1,0 +1,54 @@
+{
+  "棒次": 2,
+  "任务": "装配台升级（plan-3）",
+  "状态": "部分完成",
+  "开工": "2026-09-22T01:15:30+08:00",
+  "收工": "2026-09-22T03:08:00+08:00",
+  "verify": {
+    "总数": 554,
+    "分项": { "arch": 35, "graph": 59, "project": 400, "engine": 17, "parity": 12, "archify": 31 },
+    "跳过": [],
+    "实测命令": "cd arsenal-web && npm run verify（全六层跑完，未跳过任何一层）"
+  },
+  "做完的": [
+    "阶段 A 维度扩展：新建 tools/content/{stack_runtime,stack_datax,stack_quality,stack_ops,stack_topology}.py 五个事实源模块，全部加进 tools/build-content.py 的 STACK_MODULES（漏了等于没写）",
+    "维度 18 → 33（新增 15 个：os ingress gateway orchestration imageregistry search analytics objectstore testing qualitygate cicd monitoring secret logging clustertopology），组 5 → 9（runtime / datax / quality / ops / topology）",
+    "选项 46 → 127，能力 31 → 100（capNames），每个新能力都有选项能提供（build-content.py 的供需闭合校验拦过一轮并已修）",
+    "画图元信息拆出 tools/content/stack_canvas_extra.py（CANVAS_DIMS_EXTRA / CANVAS_OPTIONS_EXTRA，33 个维度全部登记、icon 全部命中 tech-icons.ts 的 166 个 key），由 build-content.py 合并，未改 stack_arch.py",
+    "预设 4 → 6：新增 ha（高可用集群）/ data-intensive（数据密集），并把 15 个新维度补进原有 4 套预设",
+    "阶段 B 集群形态模型：stack_topology.py 的 TOPOLOGY 表覆盖 database(5) / cache(4) / search(3) / mq(3) / web(3) 五个维度，生成器把它挂到 dimension.topology",
+    "新建 arsenal-web/src/lib/topology.ts：normalizePicks()（纯字符串旧快照原样放行 / {option,topology,params} 新格式折叠 / 脏数据逐字段丢弃不清空）、picksToPlain()、topologySpecOf()、resolveTopology()、topologyChoices()、appReplicas()、componentReplicas()、estimateCapacity()",
+    "阶段 B 产物落地：src/lib/deploy.ts 的 K8s replicas 由写死的 2 改为 appReplicas(picks, meta)；PDB minAvailable / HPA min-max 本就基于 ctx.replicas；Helm values.yaml 与 values-prod.yaml 的 replicaCount 改为 max(2, 形态副本数)，values-dev.yaml 注明形态副本数；DeployOpts 新增 meta 通道",
+    "content-types.ts 给 StackOption / StackDimension 补 topology / topologyDefault 字段；npx tsc --noEmit 零错误",
+    "四处同步 verify 数字：arsenal-profiles/arsenal.json verifyChain（project 334→400、archify 29→31）、.verify/project-check.ts 手写总数 486→554、README 总数 486→554、README 分项表两处",
+    "README 进度表装配台一行重写（33 维度 / 127 选项 / 100 能力 / 6 预设 / 集群形态影响产物）",
+    "memory 日志追加 .workbuddy/memory/2026-09-22.md（含四条踩坑与未完成清单）",
+    "零外部依赖：package.json 未动；npm run build 通过（静态页全部生成，退出码 0）"
+  ],
+  "未做完的": [
+    "阶段 C 动态交付台**完全未做**：StackComposer.tsx 一行未改。缺 ①左右分栏（左装配 / 右常驻实时预览）②九块预览（总览 / 依赖图 / 架构图 / 形态图 / 链路 / 目录树 / 清单 / 隐患 / 容量）③图形化形态选择器（现在只有数据层的 topologyChoices()，没有 UI）④五条滑杆（应用副本数 / 连接池 / JVM 堆 / 限流阈值 / 分片数）⑤每图四动作（复制 SVG / 下载 PNG / 复制 Mermaid / 送 Archify）",
+    "阶段 D 交付级架构图**完全未做**：src/lib/arch-canvas.ts 未加 theme: doc / slide / blueprint 三态；集群叠层版式、分区色带、控制面分离开关、三态各导一张与「只看图答五个问题」验收 全部未做",
+    "src/lib/topology.ts 的 buildTopologySvg()（形态图渲染器）未写 —— 目前只有模型与容量估算，没有一个页面消费它",
+    "estimateCapacity() 已实现但没有 UI；容量摘要与「ops 页签顶部容量概览」未接",
+    "方案 §3.3 的高阶选项只在**新维度**里补齐（APISIX / Solr / Doris / StarRocks / Ceph / JMeter / Pact / PITest / ArgoCD / Vault / Loki …）。**已有维度**的高阶档（persistence 的 ShardingSphere、database 的 TiDB / OceanBase、cache 的 Redis Cluster、mq 的 Pulsar、Seata、Istio）未加",
+    "方案 §3.2 的新策略未加：主从无 DB 层 LB / 分片无分片键 / Cluster 缓存直连单节点 / 多副本无 PDB 四条，POLICIES 仍是 21 条（POLICY_DETAIL 同步未动）",
+    "方案 §3.6 的 verify 扩展（audit-check 扩到 ~60、graph-check 扩到 ~75）未做 —— 现有项数是数据变多后自然涨上去的（project 321→400），不是我新写的断言",
+    "后端 exporter（arsenal-server）未同步；verify:parity 12 项仍绿，说明前后端产物未受影响，但后端并未感知新增维度",
+    "Picks 主类型仍是 Record<string,string>：形态走平行的 StackPicksMeta 通道，normalizePicks() 在边界把 {option,topology,params} 折叠进来。这不是方案原文写的「值本身变成对象」，是为了不破坏全站 15 处按字符串读取 picks 的调用点所做的取舍 —— 功能等价，类型形态不同，需要第 5 棒或后续裁决是否要改成联合类型"
+  ],
+  "踩的坑": [
+    "新维度加进预设之前，verify:arch 同时红 3 条（「判定为可以跑起来」「风险项不拉低结论」「所有槽位 filled/conflict」）—— 新槽位状态是 empty / missing-recommended，会把「生产标配」从可运行拉成 incomplete。加维度必须同时补全部预设",
+    "新选项 requires 了 cap.rt.container，而 cloud 预设的 os=k8s 当时不提供它 → 6 套预设全部报「缺零件」。修法：os 各档都 provides cap.rt.process（容器里跑的也是进程），k8s 额外 provides cap.rt.container；跨组 requires 一律放宽到最基础那一档",
+    "新增 ha 预设的 picks 与 cloud 逐项相同 → verify:graph「任意两章 focus 不完全相同」红（导览章节按「当前选择 vs 预设」的差集生成，差集为空就撞车）。把 ha 的 jdk 改 17、deploy 改 helm 才分开",
+    "改完 project-check.ts 的手写总数后 verify 反而红一条：VERIFY_TOTAL 来自 src/generated/profiles.json，改完 arsenal.json 必须重跑 sync-content.mjs 才生效",
+    "build-content.py 是硬闸门：新维度必须同时进 STACK_MODULES、NODE_ARCH、OPTION_ARCH、CANVAS_DIMS、CANVAS_OPTIONS，漏任何一个都当场炸（这次 CANVAS 两项一开始没写，靠它拦下来的）",
+    "派了两个子 agent 并行写五个数据模块，用「各模块导出 *_EXTRA 由生成器合并」的方式避免多份 Edit 撞同一文件 —— 全程零编辑丢失，这套「叠加层 + 合并」的写法值得沿用"
+  ],
+  "给下一棒的话": [
+    "现在是 554 项不是 486：arsenal.json verifyChain / project-check.ts 手写 554 / README 两处都已同步。改任何一层记得四处一起改，且改完 arsenal.json 要重跑 sync-content.mjs",
+    "33 个维度 / 127 选项 / 100 能力 / 6 套预设。装配台页面上现在**还看不到形态**——topology.ts 的引擎是好的（appReplicas 已经真的在算 K8s 副本数），但 UI 一个都没接，谁接谁功劳",
+    "接形态 UI 的正确位置：SlotBlock.tsx 里维度卡下方渲染 topologyChoices(dim.id, option, meta)，点选写进 meta.topology[dimId]（meta 需要提到 StackComposer 的 state 里）。滑杆写 meta.params[dimId][key]，topology.ts 已经认识 heapMb / poolSize",
+    "npm run build 这次没撞 safe-delete，正常跑完了",
+    "第 1 棒的 170 个矢量图标可以直接用：CANVAS_OPTIONS_EXTRA 里 15 个新维度 60+ 个选项的 icon 全部取自它，写错会被 verify【11】拦"
+  ]
+}

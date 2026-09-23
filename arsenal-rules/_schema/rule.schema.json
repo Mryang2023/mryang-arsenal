@@ -4,62 +4,191 @@
   "title": "Arsenal Rule",
   "description": "军火库规则对象。一条规范 = 一个 Rule。是「人查 / 给 AI 用 / 拿代码验」三种出口的唯一数据源。",
   "type": "object",
-  "required": ["id", "category", "title", "severity", "sources", "rationale", "bad", "good", "check", "promptFragment", "status", "version"],
+  "required": [
+    "id",
+    "category",
+    "title",
+    "severity",
+    "sources",
+    "rationale",
+    "bad",
+    "good",
+    "check",
+    "promptFragment",
+    "status",
+    "version"
+  ],
   "additionalProperties": false,
-
-  "definitions": {
+  "properties": {
+    "id": {
+      "type": "string",
+      "pattern": "^[A-Z][A-Z0-9]{2,7}-[A-Z0-9]{2,8}-[0-9]{3}$",
+      "description": "稳定 ID，格式 <DOMAIN>-<SUBJECT>-<NNN>，如 WEB-CTRL-002 / CONC-POOL-001。永不复用，规则废弃后 ID 作废不回收。"
+    },
+    "category": {
+      "type": "string",
+      "enum": [
+        "skeleton",
+        "web",
+        "service",
+        "data",
+        "concurrency",
+        "reliability",
+        "security",
+        "test",
+        "collab"
+      ],
+      "description": "九大分类之一"
+    },
+    "subcategory": {
+      "type": "string",
+      "description": "二级分类，如 controller / exception / logging / thread-pool"
+    },
+    "title": {
+      "type": "string",
+      "maxLength": 80,
+      "description": "一句话规则陈述，必须包含「必须/禁止/应当」，不得是名词短语"
+    },
     "severity": {
       "type": "string",
-      "enum": ["MUST", "SHOULD", "MAY", "NEVER"],
+      "enum": [
+        "MUST",
+        "SHOULD",
+        "MAY",
+        "NEVER"
+      ],
       "description": "MUST=硬约束，违反必修，计入合规分；SHOULD=强烈建议；MAY=可选风格，不参与校验；NEVER=明令禁止，与 MUST 同级阻断"
     },
-
-    "source": {
+    "sources": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "ref"
+        ],
+        "properties": {
+          "ref": {
+            "type": "string",
+            "description": "来源标识，含章节号，例如「阿里巴巴Java开发手册(嵩山版) 编程规约·并发处理 §6.4」"
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "industry-standard",
+              "framework-doc",
+              "spec",
+              "book",
+              "security-baseline",
+              "project-decision"
+            ],
+            "description": "industry-standard=行业规范手册；framework-doc=框架官方文档；spec=语言/标准规范；book=经典著作；security-baseline=安全基线；project-decision=本项目自主决策"
+          },
+          "quote": {
+            "type": "string",
+            "description": "来源原文关键句（用于溯源核对，可省略）"
+          }
+        }
+      },
+      "minItems": 1,
+      "description": "至少一个出处。无出处的规则不予收录。"
+    },
+    "rationale": {
+      "type": "string",
+      "minLength": 20,
+      "description": "为什么要有这条规则。写给 AI 看（有理由的约束遵守率更高），也写给未来的自己看。禁止写「为了代码质量」这类空话。"
+    },
+    "appliesTo": {
       "type": "object",
-      "description": "规则的行业出处。禁止收录无出处的规则——出处即权威背书。",
-      "required": ["ref"],
       "additionalProperties": false,
       "properties": {
-        "ref": {
-          "type": "string",
-          "description": "来源标识，含章节号，例如「阿里巴巴Java开发手册(嵩山版) 编程规约·并发处理 §6.4」"
+        "stack": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "适用技术栈，如 spring-boot-3 / java-17 / mysql"
         },
-        "type": {
+        "scope": {
           "type": "string",
-          "enum": ["industry-standard", "framework-doc", "spec", "book", "security-baseline", "project-decision"],
-          "description": "industry-standard=行业规范手册；framework-doc=框架官方文档；spec=语言/标准规范；book=经典著作；security-baseline=安全基线；project-decision=本项目自主决策"
+          "enum": [
+            "server",
+            "client",
+            "both",
+            "any"
+          ],
+          "default": "server",
+          "description": "作用域"
         },
-        "quote": {
+        "pathGlob": {
           "type": "string",
-          "description": "来源原文关键句（用于溯源核对，可省略）"
+          "description": "适用路径，如 src/main/java/<任意目录>/controller/<任意文件>"
         }
       }
     },
-
+    "bad": {
+      "type": "string",
+      "description": "反例代码或反模式描述。必填 —— 写不出反例的规则说明你还没想清楚。"
+    },
+    "good": {
+      "type": "string",
+      "description": "正例代码。必填。"
+    },
     "check": {
       "type": "object",
-      "description": "可执行的检测方式。四层引擎按 static → ast → llm → manual 顺序降级。",
-      "minProperties": 1,
+      "description": "可执行的检测方式。四层引擎按 regex → ast → llm → manual 顺序降级。**至少要有一层**，全空的话这条规则无法被任何方式验证，等于没写。",
       "additionalProperties": false,
       "properties": {
         "regex": {
           "type": "object",
-          "required": ["pattern"],
           "additionalProperties": false,
+          "required": [
+            "pattern"
+          ],
           "properties": {
-            "pattern": { "type": "string", "description": "正则表达式" },
-            "flags": { "type": "string", "description": "gimsuy 子集" },
-            "targetGlob": { "type": "string", "description": "文件筛选，如 **/*.java" },
-            "expect": { "type": "string", "enum": ["absent", "present"], "description": "absent=命中即违规（默认）；present=必须命中" }
+            "pattern": {
+              "type": "string",
+              "description": "正则表达式"
+            },
+            "flags": {
+              "type": "string",
+              "description": "gimsuy 子集"
+            },
+            "targetGlob": {
+              "type": "string",
+              "description": "文件筛选，如 **/*.java"
+            },
+            "expect": {
+              "type": "string",
+              "enum": [
+                "absent",
+                "present"
+              ],
+              "description": "absent=命中即违规（默认）；present=必须命中"
+            }
           }
         },
         "ast": {
           "type": "object",
-          "required": ["query"],
           "additionalProperties": false,
+          "required": [
+            "query"
+          ],
           "properties": {
-            "engine": { "type": "string", "enum": ["javaparser", "pmd", "custom"], "default": "javaparser" },
-            "query": { "type": "string", "description": "结构化查询描述，如 methodParam has @RequestBody && !has @Valid" }
+            "engine": {
+              "type": "string",
+              "enum": [
+                "javaparser",
+                "pmd",
+                "custom"
+              ],
+              "default": "javaparser",
+              "description": "AST 查询引擎"
+            },
+            "query": {
+              "type": "string",
+              "description": "结构化查询描述，如 methodParam has @RequestBody && !has @Valid"
+            }
           }
         },
         "llm": {
@@ -70,104 +199,65 @@
           "type": "string",
           "description": "无法自动判定时的人工检查清单"
         }
-      }
-    }
-  },
-
-  "properties": {
-    "id": {
-      "type": "string",
-      "pattern": "^[A-Z][A-Z0-9]{2,7}-[A-Z0-9]{2,8}-[0-9]{3}$",
-      "description": "稳定 ID，格式 <DOMAIN>-<SUBJECT>-<NNN>，如 WEB-CTRL-002 / CONC-POOL-001。永不复用，规则废弃后 ID 作废不回收。"
-    },
-
-    "category": {
-      "type": "string",
-      "enum": ["skeleton", "web", "service", "data", "concurrency", "reliability", "security", "test", "collab"],
-      "description": "九大分类之一"
-    },
-
-    "subcategory": {
-      "type": "string",
-      "description": "二级分类，如 controller / exception / logging / thread-pool"
-    },
-
-    "title": {
-      "type": "string",
-      "maxLength": 80,
-      "description": "一句话规则陈述，必须包含「必须/禁止/应当」，不得是名词短语"
-    },
-
-    "severity": { "$ref": "#/definitions/severity" },
-
-    "sources": {
-      "type": "array",
-      "minItems": 1,
-      "items": { "$ref": "#/definitions/source" },
-      "description": "至少一个出处。无出处的规则不予收录。"
-    },
-
-    "rationale": {
-      "type": "string",
-      "minLength": 20,
-      "description": "为什么要有这条规则。写给 AI 看（有理由的约束遵守率更高），也写给未来的自己看。禁止写「为了代码质量」这类空话。"
-    },
-
-    "appliesTo": {
-      "type": "object",
-      "additionalProperties": false,
-      "properties": {
-        "stack": {
-          "type": "array",
-          "items": { "type": "string" },
-          "description": "适用技术栈，如 spring-boot-3 / java-17 / mysql"
+      },
+      "anyOf": [
+        {
+          "required": [
+            "regex"
+          ]
         },
-        "scope": { "type": "string", "enum": ["server", "client", "both", "any"], "default": "server" },
-        "pathGlob": { "type": "string", "description": "适用路径，如 src/main/java/**/controller/**" }
-      }
+        {
+          "required": [
+            "ast"
+          ]
+        },
+        {
+          "required": [
+            "llm"
+          ]
+        },
+        {
+          "required": [
+            "manual"
+          ]
+        }
+      ]
     },
-
-    "bad": {
-      "type": "string",
-      "description": "反例代码或反模式描述。必填——写不出反例的规则说明你还没想清楚。"
-    },
-
-    "good": {
-      "type": "string",
-      "description": "正例代码。必填。"
-    },
-
-    "check": { "$ref": "#/definitions/check" },
-
     "promptFragment": {
       "type": "string",
       "maxLength": 300,
       "description": "可直接注入 AI 的原子约束句子。要求：祈使句、无歧义、不依赖上下文。导出提示词时逐条拼接。"
     },
-
     "tags": {
       "type": "array",
-      "items": { "type": "string" },
+      "items": {
+        "type": "string"
+      },
       "description": "检索标签，如 api / p0 / 高频踩坑"
     },
-
     "status": {
       "type": "string",
-      "enum": ["active", "draft", "deprecated"],
+      "enum": [
+        "active",
+        "draft",
+        "deprecated"
+      ],
       "description": "active=参与校验与导出；draft=仅浏览不校验；deprecated=保留供追溯，不再生效"
     },
-
     "version": {
       "type": "integer",
       "minimum": 1,
       "description": "规则自身版本号，内容变更时 +1"
     },
-
     "supersedes": {
       "type": "string",
+      "pattern": "^[A-Z][A-Z0-9]{2,7}-[A-Z0-9]{2,8}-[0-9]{3}$",
       "description": "被本条替代的旧规则 ID"
     },
-
-    "updatedAt": { "type": "string", "format": "date" }
+    "updatedAt": {
+      "type": "string",
+      "format": "date",
+      "description": "最后修改日期（YYYY-MM-DD）"
+    }
   }
 }

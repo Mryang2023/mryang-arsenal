@@ -218,15 +218,24 @@ const metaMs = Date.now() - metaStartedAt;
 const metaSt = readLayerStatus('meta');
 
 // ── 汇总 ───────────────────────────────────────────────────────
+//
+// 列名口径（2026-09-23 改，只改名不改算法）：本表的「通过 / 跳过 / 失败」是**互斥三态**，
+// 三者之和才是「实测项数」。这一列先前印的是 `pass` 却叫「实测」，与链尾元核对那张表里的
+// 「实测」（= 通过 + 失败 + 未执行，用来比档案声明值）**同名不同义**。
+// 零失败时两个义项恰好同值，看不出问题；一旦有失败（实测：视觉层 10 项红），同一份日志里
+// 就出现「元核对 九层合计 688」与「本表 合计 678」两个数打架 —— 读日志的人无从判断哪个才是
+// 项数。改名的成本是零（数字一个不动），收益是这两个数以后不会再有歧义。
 console.log(`\n${'═'.repeat(64)}`);
 console.log('汇总（数字全部来自各层写出的 layer-<key>.json，没有一个是手写的）');
 console.log('═'.repeat(64));
-console.log(`${pad('层', 18)}${pad('实测', 8)}${pad('跳过', 8)}${pad('失败', 8)}${pad('退出码', 8)}${pad('耗时', 10)}声明`);
+console.log(`${pad('层', 18)}${pad('通过', 8)}${pad('跳过', 8)}${pad('失败', 8)}${pad('退出码', 8)}${pad('耗时', 10)}声明`);
 console.log('─'.repeat(74));
 
 let totalPass = 0;
 let totalSkip = 0;
 let totalFail = 0;
+/** 实测 = 通过 + 跳过 + 失败（与链尾元核对同义；见上面「列名口径」） */
+let totalMeasured = 0;
 /** 「刻意未跑」的项数 —— **不进上面的合计**，单列一行（见 A-9）。 */
 let totalKnowingly = 0;
 const knowinglyNames = [];
@@ -252,6 +261,7 @@ for (const r of rows) {
     totalPass += s.pass;
     totalSkip += s.skip;
     totalFail += s.fail;
+    totalMeasured += s.pass + s.skip + s.fail;
   }
   // 「刻意未跑」单独累加：不并进合计，但必须在总账里看得见
   if (s && typeof s.knowinglySkipped === 'number' && s.knowinglySkipped > 0) {
@@ -277,13 +287,14 @@ for (const r of rows) {
   if (s && s.fail > 0) problems.push(`[失败] ${r.name}：${s.fail} 项失败`);
   if (s && s.pass + s.fail + s.skip === 0 && r.code === 0) {
     // 「0 项却报通过」是最隐蔽的一种假绿：检查器空了，但没人知道
-    problems.push(`[失败] ${r.name}：空跑 —— 0 项实测 / 0 项失败 / 0 项跳过，却退出 0`);
+    problems.push(`[失败] ${r.name}：空跑 —— 通过 0 / 跳过 0 / 失败 0，却退出 0`);
   }
   if (s && s.skip > 0) skippedLayers.push(`${r.name}（${s.skip} 项未执行）`);
 }
 
 console.log('─'.repeat(64));
 console.log(`${pad('合计', 18)}${pad(totalPass, 8)}${pad(totalSkip, 8)}${pad(totalFail, 8)}`);
+console.log(`（实测合计 = 通过 + 跳过 + 失败 = ${totalMeasured} 项 —— 与链尾元核对表里的「实测」同义，可与档案声明值直接比）`);
 
 // 刻意未跑：**不并进合计**（项数不变），但永远单列一行 —— 不打印才是问题
 if (totalKnowingly > 0) {
@@ -334,7 +345,7 @@ const reason = code === 0
   : code === 2 ? '绿但存在跳过' : '有失败';
 console.log('');
 console.log(
-  `verify: ${totalPass} 项实测 / ${totalSkip} 项跳过 / ${totalFail} 项失败  → 退出码 ${code}（${reason}）`
+  `verify: 实测 ${totalMeasured} 项（通过 ${totalPass} / 跳过 ${totalSkip} / 失败 ${totalFail}）  → 退出码 ${code}（${reason}）`
 );
 if (totalSkip > 0 && allowSkip && !hasFailure) {
   console.log('  ! 退出码被 --allow-skip 放行成 0，但上面点名的跳过项**依然没有被验证**。');

@@ -15,6 +15,9 @@ import fs from 'node:fs';
 import path from 'node:path';
 import url from 'node:url';
 
+import { detectSchemaDrift } from './lib/rule-schema.mjs';
+import { formatDiagnostics, validateRuleSet } from './lib/validate-rules.mjs';
+
 const here = path.dirname(url.fileURLToPath(import.meta.url));
 const webRoot = path.resolve(here, '..');
 const rulesRoot = path.resolve(webRoot, '..', 'arsenal-rules');
@@ -38,6 +41,7 @@ const meta = JSON.parse(fs.readFileSync(metaPath, 'utf8'));
 
 // ---- 遍历九大分类目录，聚合规则 ----
 const rules = [];
+const ruleDocs = []; // 交给契约校验器：{ relPath, doc }（relPath 相对仓库根，进诊断路径）
 const categoryFiles = new Map(); // category -> [文件名]
 
 for (const cat of meta.categories ?? []) {
@@ -52,34 +56,57 @@ for (const cat of meta.categories ?? []) {
 
   for (const f of files) {
     const full = path.join(dir, f);
+    const relPath = `arsenal-rules/${cat.dir}/${f}`;
     const doc = JSON.parse(fs.readFileSync(full, 'utf8'));
+    ruleDocs.push({ relPath, doc });
     for (const rule of doc.rules ?? []) {
       rules.push({ ...rule, _sourceFile: `${cat.dir}/${f}` });
     }
   }
 }
 
-// ---- 完整性校验：宁可构建失败，也不要静默少几条规则 ----
-const ids = new Set();
-const required = [
-  'id', 'category', 'title', 'severity', 'sources', 'rationale',
-  'bad', 'good', 'check', 'promptFragment', 'status', 'version',
-];
-const problems = [];
+// ---- 契约校验：判定方式全部来自 arsenal-rules/_schema/rule-contract.mjs 这一份唯一来源 ----
+//
+// 改这一棒之前这里只做了一件事：数「必填字段在不在」。不看值、不报路径，
+// 于是 severity 拼错、id 形态坏掉、check 四层全空、正则编不过 —— 全部静默通过。
+// 现在吃对象、报精确字段路径（`arsenal-rules/web/controller.json#rules[3].severity`），
+// 并且与生成的 rule.schema.json 读的是同一张字段规格表。
+{
+  const { errors, warnings, stats } = validateRuleSet({ files: ruleDocs, meta });
 
-for (const r of rules) {
-  if (ids.has(r.id)) problems.push(`ID 重复：${r.id}`);
-  ids.add(r.id);
-  for (const k of required) {
-    if (r[k] === undefined || r[k] === null || r[k] === '') {
-      problems.push(`${r.id} 缺少字段 ${k}`);
-    }
+  if (warnings.length > 0) {
+    // 警告不拦构建，但**必须打印** —— 不打出来的警告等于没有
+    console.warn(`\n[arsenal] 规则契约警告 ${warnings.length} 条：\n  - ${formatDiagnostics(warnings)}\n`);
   }
-  if (!Array.isArray(r.sources) || r.sources.length === 0) {
-    problems.push(`${r.id} 无来源出处（军火库原则：无出处不收录）`);
+  if (errors.length > 0) {
+    fail(
+      `规则契约校验未通过，共 ${errors.length} 个问题（路径精确到字段）：\n  - ` +
+      formatDiagnostics(errors) +
+      `\n\n  契约的唯一来源是 arsenal-rules/_schema/rule-contract.mjs —— 改契约改那里，不要改生成的 rule.schema.json。`
+    );
+  }
+  console.log(
+    `[arsenal] 契约校验通过：${stats.total} 条规则 · ` +
+    `检测层 regex ${stats.checkLayerCount.regex} / ast ${stats.checkLayerCount.ast} / ` +
+    `llm ${stats.checkLayerCount.llm} / manual ${stats.checkLayerCount.manual}`
+  );
+}
+
+// ---- 生成物防漂移：rule.schema.json 必须与唯一来源现算的结果逐字节相同 ----
+//
+// 这是**闸门**而不是警告：Schema 是「字段定义的唯一真相」这句话的载体，
+// 手改它就会让它与校验器说的是两件事 —— 而两者不一致时没有任何东西会报错
+// （这正是改这一棒要修的病）。所以让它当场构建失败。
+{
+  const drift = detectSchemaDrift();
+  if (drift !== null) {
+    fail(
+      `生成的 Schema 已漂移：${drift}\n` +
+      `  rule.schema.json 由 arsenal-rules/_schema/rule-contract.mjs 生成，**不要手改**。\n` +
+      `  改了契约 → 跑 \`npm run gen:rule-schema\` 重新生成后一起提交。`
+    );
   }
 }
-if (problems.length) fail(problems.join('\n  - '));
 
 // ---- 统计 ----
 const bySeverity = {};

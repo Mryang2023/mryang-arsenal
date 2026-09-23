@@ -7,6 +7,7 @@ import { cookbookStats } from '@/lib/cookbook';
 import { casesStats } from '@/lib/case-cases';
 import { dimensions } from '@/lib/stack';
 import { iconStats } from '@/lib/icon-assets';
+import { isNavActive } from '@/lib/nav-active';
 
 const NAV = [
   { href: '/', label: '概览', glyph: '◈', count: 0 },
@@ -23,8 +24,9 @@ const NAV = [
 
 export default function Shell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname() || '/';
-  const isActive = (href: string) =>
-    href === '/' ? pathname === '/' : pathname.startsWith(href);
+  // 判定按路径边界，不是裸前缀 —— 判据本体在 lib/nav-active.ts，
+  // 那里也被校验层当数据跑（`/archify` 曾经把 `/arch` 一起点亮）。
+  const isActive = (href: string) => isNavActive(pathname, href);
 
   const used = Math.min(100, liveStats.budgetUsedPct);
 

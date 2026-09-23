@@ -15,13 +15,15 @@ arsenal-rules/
 ├── README.md                      本文件
 ├── meta.json                      规则集元信息、来源登记、严重度策略、变更日志
 ├── _schema/
-│   └── rule.schema.json           Rule 对象的 JSON Schema（字段定义的唯一真相）
+│   ├── rule-contract.mjs          ★ 字段契约的**唯一来源**（枚举 / 必填 / 类型 / 正则 / 说明）
+│   └── rule.schema.json           Rule 对象的 JSON Schema —— **由上面那个文件生成，勿手改**
 ├── skeleton/project-structure.json   工程骨架：包结构、依赖、配置
 ├── web/controller.json               Web 层：Controller、DTO 契约、校验、异常出口
 ├── service/layering.json             业务层：DI、事务、异常设计、分层
 ├── data/sql.json                     数据层：SQL 安全、表结构、并发更新
 ├── concurrency/thread-pool.json      并发：线程池、线程安全对象、锁
 ├── reliability/exception-logging.json 可靠性：异常处理、日志、超时、重试
+├── reliability/container-runtime.json 可靠性：优雅停机、健康探针、无状态、配置外置
 ├── security/baseline.json            安全：越权、脱敏、注入、反序列化、XSS
 ├── test/unit.json                    测试：AIR 原则、断言、隔离
 └── collab/git-commit.json            协作：提交规范、Javadoc、常量命名
@@ -55,7 +57,13 @@ arsenal-rules/
 }
 ```
 
-字段的完整定义与校验规则见 `_schema/rule.schema.json`。
+字段的完整定义与校验规则的**唯一来源**是 `_schema/rule-contract.mjs`。`_schema/rule.schema.json`
+是它生成的产物，上面挂着防漂移闸门 —— **手改会让 `npm run sync` 当场失败**。
+改了契约就跑 `npm run gen:rule-schema` 重新生成，两个文件一起提交。
+
+校验发生在 `npm run sync`（`arsenal-web/scripts/sync-rules.mjs`）：报错精确到字段路径，
+形如 `arsenal-rules/web/controller.json#rules[3].sources[1].ref`。只数「字段在不在」的那种粗校验
+已经换掉了 —— 它放过了 severity 拼错、id 形态坏掉、check 四层全空、正则编不过这些情况。
 
 ## 怎么加一条规则
 

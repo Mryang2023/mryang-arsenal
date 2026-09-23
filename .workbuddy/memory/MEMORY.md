@@ -1,56 +1,62 @@
 # 军火库（arsenal）· 长期约定
 
-个人代码规范字典 + AI 合规校验平台。三原则：①一份数据三种出口（人查/给 AI 用/拿代码验）②Rule as Data ③写不出 bad/good 示例的不收录。不做：auto-fix、绑某家 AI、规则市场/多租户。上限单人 + 小团队（≤10）。
-> 本文件只留**还在生效的约定**；过程与踩坑见 `.workbuddy/memory/YYYY-MM-DD.md`；现状体检见 `docs/现状体检与开发计划-2026-09-22.md` 与 `docs/功能缺口清单-2026-09-22.md`。
+个人代码规范字典 + AI 合规校验平台。三原则：①一份数据三种出口 ②Rule as Data ③写不出 bad/good 示例的不收录。不做：auto-fix、绑某家 AI、规则市场/多租户。上限单人 + 小团队（≤10）。
+> 只留**仍在生效**的约定；过程见 `.workbuddy/memory/YYYY-MM-DD.md`；体检见 `docs/现状体检与开发计划-2026-09-22.md`、`docs/功能缺口清单-2026-09-22.md`。
 
 ## 口径
 
 - 后端 `arsenal-server` Spring Boot 3.2.5 + Java 17 : **3011**；前端 `arsenal-web` Next.js 14 + TS + Tailwind : **3010**（`output:'export'` 纯静态）。
-- 事实源全 Git 化：`arsenal-rules/**/*.json`（69 条 / 10 个规则文件）、`arsenal-cookbook/*.json`、`arsenal-stacks/{stack,architecture,project}.json`、`arsenal-profiles/<id>.json`、`arsenal-icons/icons.json`。
-- 严重度 MUST/NEVER/SHOULD/MAY（37/13/18/1），**MUST+NEVER 硬上限 50** 已满。九大类：skeleton web service data concurrency reliability security test collab。
-- **规则字段名（勿臆造）**：`title` / `rationale`（**没有 `description`**）、`bad` / `good`（**不是 badExample/goodExample**）、`check.{regex,ast,llm,manual}`；`check.llm` 是**字符串**，`check.ast` 是 `{engine,query}`。
-- 选型台 **33 维 / 127 选项 / 6 预设 / 100 能力 / 21 策略 / 7 泳道**；`deploy` = jar·docker·k8s·helm（`src/lib/deploy.ts`）。
-- 引擎真实覆盖：**前端 35/69**（纯正则）、**后端 42/69**（35 正则 + **7** AST，用 JDK 自带 `jdk.compiler`，**不是 JavaParser**）、**LLM 0/43**。非正则层一律 skipped，绝不伪造判定。
-  - ⚠️ 2026-09-23 终检棒实测纠正：此处原写「35 正则 + 15 AST = 50/69」是**错的**。15 是 `AstEngine.register()` 的检查器数，其中 **8 条因 `LintEngine` 的 `if (hasRegex) … else if (hasAst)` 在 API 路径上永不执行**。完整分解：20 条声明 ast = 8（同时声明正则，被「正则优先」抢走）+ 12（无正则），12 里 5 条无检查器（即上面那 5 条刻意边界）→ **真跑 7 条**（好文件 `executableRules=42`、坏文件 35、`AstLayer.declaredRules=7`）。**09-23 白天已把两处过期口径改对**：`arsenal.json` 的 L2 AST `status:done` + roadmap 那条换成「AST 路由与 glob 收口」，README「当前进度」新增「校验引擎覆盖」行、「未完成」表 AST 行改写。
+- 事实源全 Git 化：`arsenal-rules/**`（69 条）、`arsenal-cookbook/`、`arsenal-stacks/*.json`、`arsenal-profiles/`、`arsenal-icons/icons.json`。
+- 严重度 MUST/NEVER/SHOULD/MAY（37/13/18/1），MUST+NEVER 硬上限 50 已满。
+- **规则字段名（勿臆造）**：`title` / `rationale`（无 `description`）、`bad` / `good`、`check.{regex,ast,llm,manual}`；`check.llm` 是字符串，`check.ast` 是 `{engine,query}`。
+- 选型台 **33 维 / 127 选项 / 6 预设 / 100 能力 / 21 策略 / 7 泳道**；`pipelines` 目前只有 `data` 一条 3 环。
+- 引擎真实覆盖：**前端 35/69**（纯正则）、**后端 42/69**（35 正则 + 7 AST，JDK 自带 `jdk.compiler`）、**LLM 0/43**。非正则层一律 skipped，绝不伪造判定。
+- 设计 token（tailwind.config.ts）：canvas #0B0F0E / surface #131917 / surfaceHi #1A2220 / surfaceMax #212B28 / line #243029 / lineHi #33413A / treeLine #3C4D45；fg #E8F0EC / fgMuted #93A39C / fgFaint #80918A / brass #D9A441 / olive #7FA650。组件类 `.panel` `.mono` `.grid-bg`(34px) `.stack-bench` `.stat-num`；阴影 `panel`/`lift`；动画 `fade-up`。装配台语义色只许 `src/app/stack/palette.ts` 的 TONE 五色；装配台专属四变量在 globals.css `:root`（`--stack-bench/-grid/part/part-hi`）。
 
 ## 硬约定（违反即出事故）
 
-1. 改内容改 `tools/content/*.py`，**不改 JSON**：`python tools/build-content.py` → `arsenal-{cookbook,stacks}/*.json`；写 JSON 必须 `newline='\n'`。加维度同时进 `STACK_MODULES`，改完跑 `node scripts/sync-content.mjs`（锚点/交叉校验失败即中断）。规则 `arsenal-rules/**` **不进该管道**，是手写源。
-2. `composeStack(picks)` 是纯函数；空槽位跳过、不回退默认；未声明维度留空。可运行性由数据决定（`provides`/`requires`）；向自己索要是构建期硬错。
-3. 隐患必须可核对：`trigger`/`symptoms`(≥2)/`impact`，与 `POLICY_DETAIL` 一一对应。**架构结论分三档不合并**：跑不起来 / 能跑但零件不全 / 可以跑起来。
-4. **交付产物必须「能跑」不只是「看着对」**：不许引用导出包里没有的文件；照模板写、别做字符串替换；健康端点/JDBC/停机时长/端口一律算不写死；compose `depends_on` 标方向；k8s 用 `apply -k`。导出 zip 用 `zipfile.testzip()` 验。
-5. **断言写完反着验一次**（把真相改坏必须变红）；报错必须带实际值。
-6. **页面契约是两处**：页签 id（`TabId`）↔ 渲染分支（`tab==='x'`）；导航项 ↔ 路由；`savePicksSnapshot` ↔ `loadPicksSnapshot`。只有把**源码当数据断言**才抓得住（`project-check.ts`【13】，解析前先 `stripComments()`）。
-7. 加一类文件型事实源要同时改四处：`sync-content.mjs`（形状闸门）+ 前端 resolver + `project-check.ts`（契约）+ README 目录树。
-8. **同一文件多处改动必须串行**（并行 Edit 必丢、不报错、`tsc` 也 0 错）。给老文件加 prop/state 前先 grep 同名声明；「状态文案」类局部变量统一叫 `statusMeta`，**不叫 `meta`**。
-9. **加/改一层 `verify` 要同时改五处**：`package.json`（script）+ `scripts/verify-all.mjs`（`LAYERS`）+ `.verify/lib/report.ts`（`LAYER_NAMES`，层 key → 档案里的中文名）+ `.verify/meta-check.ts`（`CHAIN_ORDER`）+ 档案 `verifyChain`；另加 README **两处**（总数句 + 分项表）。漏掉 `meta-check` 会被「档案里没有元核对不认识的层」当场点名；漏掉 README 会被「总数句 = 各层声明之和」点名。**忘改档案声明值 → 该层自己 `finish()` 就判负**（打印「声明 X / 实测 Y」）。
+1. 改内容改 `tools/content/*.py`，**不改 JSON**：`python tools/build-content.py` → 产物 JSON；写 JSON 必须 `newline='\n'`。改完跑 `node scripts/sync-content.mjs`。规则 `arsenal-rules/**` 是手写源，不进管道。
+2. `composeStack(picks)` 是纯函数；空槽位跳过、不回退默认。可运行性由 `provides`/`requires` 决定。
+3. 隐患必须可核对：`trigger`/`symptoms`(≥2)/`impact`。架构结论三档不合并：跑不起来 / 能跑但零件不全 / 可以跑。
+4. 产物必须「能跑」：不引用导出包没有的文件；端口/健康端点算出来不写死；zip 用 `testzip()` 验。
+5. **断言写完反着验一次**；注入后先确认注入真打中了；还原用 `git checkout --` 或 `newline=''`（python 文本模式会翻 CRLF）。报错必须带实际值。
+6. 页面契约两处：页签 id ↔ 渲染分支；导航项 ↔ 路由；`savePicksSnapshot` ↔ `loadPicksSnapshot`。源码当数据断言（`project-check.ts`，解析前先 `stripComments()`）。
+7. 加一类文件型事实源要同时改四处：`sync-content.mjs` + 前端 resolver + `project-check.ts` + README 目录树。
+8. **同一文件多处改动必须串行**（并行 Edit 静默丢改、tsc 仍 0 错）。加 prop/state 前 grep 同名声明；状态文案局部变量叫 `statusMeta`。
+9. **加/改一层 verify 改五处**：`package.json` + `verify-all.mjs`(LAYERS) + `report.ts`(LAYER_NAMES) + `meta-check.ts`(CHAIN_ORDER) + 档案 `verifyChain`；另加 README 两处。
+10. **加/删断言同步四处数字**：`arsenal-profiles/arsenal.json` 的 `verifyChain[*].count`、README 总数句、README 分项表，改完**必跑 sync-content.mjs**（`VERIFY_CHAIN` 读 `generated/profiles.json`）。漏了不静默：`finish()` 打「声明 X / 实测 Y」退出 1，`verify:meta` 也会红。
 
 ## 校验与运行
 
-- `npm run verify` **九层** = 35 架构 + 59 图与交互 + 406 结构与导出 + 33 场景案例 + 17 引擎样本 + 12 前后端一致性 + 31 Archify + 69 代码扫描 + **12 视觉断言** = **674**（以 `src/generated/profiles.json` 的 `verifyChain` 为准；改口径要同步 `arsenal-profiles/arsenal.json` **并重跑 `sync-content.mjs`**）。实测基线（**起后端**）：`643 实测 / 31 跳过 / 0 失败 / 退出码 2`、元核对 `52 / 1 / 0`；后端没起时 `640 / 34 / 0`（parity 的活服务 3 项转为跳过）。**数字由机器守门**：各层收尾写 `layer-<key>.json`，链尾 `verify:meta` 逐层比「声明 / 实测」+ 核 README 总数句与分项表 —— 手抄件（含 README）改坏就红，`project-check.ts` 里那个手写总数已删。
-- **视觉断言层**（`arsenal-web/.verify/visual-check.ts`，2026-09-23 挂链，此前**全仓零断言覆盖页面**）：真判据在 `arsenal-web/visual/assert.mjs` —— A1 无横向溢出 / A2 `main` 一级子元素不越界 / A3 图片加载 / A4 `fixed`·`sticky` 互不遮挡 / A5 WCAG 正文对比度 / A6 `<h1>` 唯一 / A7 底部假高度，**45 张矩阵（15 路由 × 3 视口）几何现测**，不读旧截图报告。**项数按断言算（7 + 3 前置 + 矩阵 + findings = 12），不按张数膨胀**。`out/` 没构建 → 整层跳过（退出码 2），不静默算绿。
-- ⚠️ **`.verify/**` 不在 tsconfig 里**：`next build` / `tsc` 都不看它，坏 import 只在**运行时**炸。改完必须**实跑那一层**。
-- ⚠️ **safe-delete 守卫按「一次工具调用」累计** ≥50 就抛 → `npm run verify` 九层别挤在一个 turn；子进程清理照 `next-run.mjs`，**只给该子进程** `CODEBUDDY_SAFE_DELETE_ENABLED=0`。`verify` 整链 7 分钟起（`代码扫描` 单层 72~321s，看负载）。
-- ⚠️ **多会话并发**：同仓库可能有夜跑链在写。动它文件前取两次 md5；它的绿不归你背书。
-- ⚠️ **同名函数跨模块 = 静默选错**（`buildTechArchFromFacts` 曾有两份、返回形状不同）→ 加模块前先 grep 同名导出。
-- `CASES_MODULES` 只许有一份（在 `tools/build-content.py`）；`tools/content/cases/__init__.py` 那份是死的，改它等于新场景「写了但不生成」且不报错。
-- 后端：`bash arsenal-server/scripts/run.sh`（JDK 17 在 `C:/Users/Administrator/.jdks/corretto-17.0.12`，PATH 上是 21；`ARSENAL_PORT` 换端口）。托管环境注入 `SERVER__PORT=3743` 优先级高于 yml，run.sh 已用 `--server.port` 钉住。**改规则必重启后端**（RuleLoader 启动时一次性载入）。
-- ⚠️ 改后端先想「异常落到哪个 handler」：`GlobalExceptionHandler` 的 `@ExceptionHandler(Exception.class)` 把 Spring 自身的 404/405/415 吃成 500（已错 5 种）。
-- 接口：`/api/health`、`/api/stats`、`/api/rules`(`/grouped` `/sources` `/{id}`)、`/api/export/*`、`/api/lint`、`/api/archify`、`/api/scan/*`。
+- `npm run verify` 九层（2026-09-24 凌晨第 2 棒后）= 35 架构 + 68 图交互 + **661** 结构导出（含【16】字段契约 224、【17】装配台视觉契约 24）+ 33 场景 + 17 引擎样本 + 12 前后端一致 + 31 Archify + 69 代码扫描 + 12 视觉 = **938**。
+- 【16】= 类型 ↔ 事实源**双向**比（必选字段逐记录核 / 异构字段必须可选 —— `/cases` 白屏事故的根因断言）；cookbook 的 fileCount 等 4 个 sync 注入字段改对 `src/generated/*.json` 核。
+- 【17】= 装配台 P1 呈现规则（三档宽度 208/172/148、分布 3/1/29 与 pipelines 互证、brass ring 选中态、常驻移除按钮、字号四档 10/11/12/14、空态引导）。**分布数字是钉死的**，pipelines 数据变了要同步改。
+- **视觉层**判据 A1–A7 在 `visual/assert.mjs`（45 张 = 15 路由 × 3 视口）。⚠️ 断言的是 `out/` 不是源码 → 先 `node scripts/next-run.mjs build`，否则整层跳过（新鲜度守卫）。⚠️ A5 **不猜**半透明/渐变背景、跳过 <12px 文字 —— 半透明底上的文字对比度它测不到，别拿 A5 绿当全绿。⚠️ `shoot.mjs` 不自起静态站，3021 要先有服务；console 采集有竞态，report.md 条数逐轮不同。
+- 汇总表「通过/跳过/失败」是互斥三态，三者之和 = 实测。
+- ⚠️ `.verify/**` 不在根 tsconfig → 改完必须实跑（另有 `.verify/tsconfig.json`，`npm run typecheck:verify`）。
+- ⚠️ safe-delete 守卫按工具调用累计 ≥50 抛 → 九层别挤一个 turn；子进程给 `CODEBUDDY_SAFE_DELETE_ENABLED=0`。整链 7 分钟起（代码扫描 72~321s）。
+- 后端：`SKIP_COMPILE=1 bash arsenal-server/scripts/run.sh`（JDK17 在 `C:/Users/Administrator/.jdks/corretto-17.0.12`）。**改规则必重启后端**。探活用 node fetch，别用 curl（走代理）。
+- 接口：`/api/health` `/api/stats` `/api/rules`(`/grouped` `/sources` `/{id}`) `/api/export/*` `/api/lint` `/api/archify` `/api/scan/*`。
+- ⚠️ 改后端先想「异常落到哪个 handler」：`GlobalExceptionHandler` 把 404/405/415 吃成 500。
 
 ## 环境铁律
 
-- **bash 的 PATH 是坏的**：每条命令前 `export PATH="/usr/bin:/bin:/c/Windows/System32:/c/Windows:$PATH"`；node 用 managed `…/node/versions/22.22.2-3`。**PowerShell 工具捕获不到 stdout** → 排查走 bash。
-- **`next dev` / `next build` 必须走 `node scripts/next-run.mjs <cmd>`**，不许直接 `npx next`（Next 启动即 `recursiveDelete(distDir)` 逐个 unlink，撞守卫就抛错穿透、dev server 当场死）。
-- **`curl` 是 Windows 程序**，读写不了 `/tmp`、`/d/...` → 输入用 `cygpath -m`、输出 shell 重定向；给 node 的路径必须 Windows 形式。**heredoc 里别写 `${x.toFixed(2)}`**（被 shell 抢展开）→ 用 Write 落文件。
-- 无头浏览器：`playwright-core` 在 `arsenal-web/node_modules`，**本机没有 Chrome**（`C:/Program Files/Google/Chrome/...` 不存在），只有 `C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe` → 一律 `chromium.launch({channel:'msedge'})`；`getByRole`/`text-is` 在本站歧义（页签按钮内嵌 glyph span）→ 用 `page.evaluate` 按 textContent 找并 click。截图/静态站用 **3021** 端口（3000–3029 实测空闲，但 3010/3011 被其他项目占用过）。旧文档 `docs/hy4-night-plans/**` 的工作目录 `D:\workspace\2026\mryang-arsenal` **不存在**，别照抄。
-- `/rules/<不存在的 id>/` 在 dev 下是 500 白屏不是 404（`output:'export'` 时 `generateStaticParams()` 先抛）。调试产物写 `.workbuddy/_*`，用完即删。
-- 本机 `registry.npmjs.org` 通、`github.com` 的 git 协议不通 → 装技能走推荐市场。
+- bash 的 PATH 是坏的：每条命令前 `export PATH="/usr/bin:/bin:/c/Windows/System32:/c/Windows:$PATH"`；node 用 managed `…/node/versions/22.22.2-3`。
+- **`next dev`/`build` 只许 `node scripts/next-run.mjs <cmd>`**；⚠️ 它**不跑 sync**（prebuild 只有走 npm 才触发）→ 改了事实源必须显式 sync 再 build，否则 `out/` 是假的。
+- **Git Bash 下 `npm run` 会 exit 1**（npm 包装坏了）：用 `node "<node目录>/node_modules/npm/bin/npm-cli.js" run <script>`（注意 npm-cli 在 node 安装目录，不在项目 node_modules），或直接跑脚本本体。
+- 后台进程用 `run_in_background=true`，别用 `(cmd &)`。
+- 无头浏览器：一律 `visual/browser.mjs` 的 `launchBrowser()`，别写 `channel:'msedge'`（Edge 在版本子目录）。给浏览器用的静态站要在脚本里用 node `createServer` 自己起（外部 python 站 msedge 连不上）。别用 `getByRole`/`text-is`（本站歧义），用 `page.evaluate` 按 textContent 找。
+- curl 是 Windows 程序：读写不了 `/tmp`、`/d/...`；给 node/python 的路径用 Windows 形式。
+- `/rules/<不存在的 id>/` 在 dev 下 500 白屏不是 404。调试产物写 `arsenal-web/.workbuddy/_*`，用完即删。
+- ⚠️ 多会话并发：可能有夜跑链在写。动文件前取两次 md5；它的绿不归你背书。
 
 ## 待推进
 
-见 `docs/开发计划-2026-09-22/00-index.md`（**五份**按功能切分、文件所有权互斥的计划；**该文件同时是夜跑编排书** —— §一 工作量裁定、§二 棒次表、§三 按棒钉死的备选池、§五 统一台账 A/B/C/D/V 共 40 条、§九 定时任务登记表）。夜跑规程是 `docs/开发计划-2026-09-22/NIGHT-RUN.md`（一棒三段/接力/收尾七步/`0N-done.json` schema），排期走技能 `night-run`（章程公式：单棒预算 =(窗口−终检40−交接3×棒数−缓冲)/棒数，**准入体量 ≤(预算−20)/1.5**；本仓库 8 小时窗口 ≈ 4 工作棒 + 终检、单棒 118 分钟 → 只装得下 ~7 条任务）。`war-board.html` 是同目录的排期视图。
-- **计划 5（多模态视觉走查）已交付**：`arsenal-web/visual/` 有 `shoot.mjs`（45 张截图矩阵）+ `assert.mjs`（A1–A7 七项断言）+ `findings.md`（20 条）+ `reverse-validation.md`（七项断言逐条真红的原文）+ `evidence/`（10 张判读位图 + `redprobe/` 的 11 份原始输出）。**已挂进 `npm run verify` 成为第 9 层**，不再是「跑得完但没人跑」的孤岛。
-- **`findings.md` 里 15 条还开着**：P1 三条 —— `/archify/` 硬编码 `localhost:3011`（静态站首屏即红色错误态）、`/export/` 的 PREVIEW 面板输出原始 Markdown 且 `<sub>` 标签泄漏、`/icons/`「89 个图标」与「登记 81」自相矛盾；其余 P2（重复能力卡文案、`break-all` 断路径、空态、`↑` 孤字形、编号从 ② 起等）。以及 **45 张里 13 张未逐张判读**（已点名）。
-- **待人工决策（不是代码问题）**：69 条规则逐条过目（同意/改/删，「没过目就不算军火库」）；5 条无检查器的 AST 规则（`COL-CODE-002`/`CONC-THRD-002`/`REL-LOG-003`/`SEC-LOG-001`/`SKEL-STRC-002`，是**刻意边界**不是 bug）补/降级/留 skipped；`SVC-LAYR-003` 待拍板；「性能与 JVM」「日志监控」两类未覆盖。
-- 63/81 位图图标缺失（矢量 81/81 已全量，不阻塞任何功能，需生图额度）。
+- **夜跑链 2026-09-23→24**：第 1 棒案例库 B0 ✅（benchmark 改可选 + 【16】224 条）；第 2 棒装配台 P1 第一组 ✅（S1-1/2/3/6/7 + 【17】24 条）。状态与交账见 `.workbuddy/night-chain/0N-done.json`。
+- **装配台 UI 升级计划** `docs/开发计划-2026-09-23/装配台UI升级计划-2026-09-23.md`：剩 S1-4（WireLayer 连线 + amFlow 开关）、S1-5（结论条闭环仪表 + 33 格点阵）及 P2 七条 / P3 四条。热点文件所有权：StackComposer / DeliveryDeck 一棒一文件。
+- **/arch P0**（参数化 5 张写死坐标的图）建议独占一晚；Q3 待拍板（复用 `buildLayeredSvg` 与否）。
+- **B0-3 未做**：4 个场景仍无 `benchmark`（等 Q1 拍板；补须改 `tools/content/cases/*.py`）。
+- `/cases` 默认参数 0 切片命中（产品决策，未动）。
+- findings.md 还剩 ~14 条：P1 三条（archify 硬编码 localhost:3011、export PREVIEW 原始 Markdown + `<sub>` 泄漏、icons 89 vs 81）；V2-13（网关路由空态）已被 S1-7 覆盖、待终检确认关闭。
+- 63/81 位图图标缺失（需生图额度）。
+- 待人工决策：69 条规则逐条过目；5 条无检查器 AST 规则补/降级；`SVC-LAYR-003`；「性能与 JVM」「日志监控」两类未覆盖。

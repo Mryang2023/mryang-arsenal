@@ -6,7 +6,8 @@
  * 刻意不用 tsx / 不引入任何新依赖：仓库铁律是运行时零外部依赖，
  * 且 `.verify/**` 不在 tsconfig 里，坏 import 只在运行时炸 —— 不给自己埋这个坑。
  * 唯一的依赖 `playwright-core` 已在 arsenal-web/node_modules（不下载 Chromium，
- * 本机没有 Chrome，用 `channel: 'msedge'` 驱动已安装的 Edge）。
+ * 本机没有 Chrome，靠已安装的 Edge：**路径解析在 `visual/browser.mjs`**，
+ * 因为 `channel: 'msedge'` 在这台机器上找不到它 —— Edge 装在版本子目录里）。
  *
  * 用法：
  *   node visual/shoot.mjs              # 跑全部 15 URL × 3 视口 = 45 张
@@ -23,6 +24,7 @@
  */
 
 import { chromium } from 'playwright-core';
+import { launchBrowser, describeBrowserSource } from './browser.mjs';
 import { readdirSync, mkdirSync, writeFileSync } from 'node:fs';
 import { join, dirname, relative, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -540,9 +542,9 @@ async function main() {
   const fatal = [];
 
   try {
-    browser = await chromium.launch({ channel: 'msedge', headless: true, args: ['--disable-gpu'] });
+    browser = await launchBrowser(chromium);
   } catch (err) {
-    fatal.push(`浏览器启动失败（chromium.launch channel=msedge）：${err.message}`);
+    fatal.push(`浏览器启动失败（${describeBrowserSource()}）：${err.message}`);
   }
 
   if (browser) {

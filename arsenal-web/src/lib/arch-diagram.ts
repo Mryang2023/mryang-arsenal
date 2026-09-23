@@ -42,6 +42,29 @@ const LANE_H = LANE_PAD_Y * 2 + CARD_H;
 const HEADER_H = 84;
 const LEGEND_H = 52;
 
+/**
+ * 版式常量的**对出口**：几何校验（`arch-geometry.ts`）算方块框时必须用同一批数字。
+ *
+ * 为什么导出成一个对象而不是让校验器自己再抄一遍：
+ * 抄一遍就是**第二套版式**。「卡片宽从 168 改成 176」之后，校验器还按 168 算，
+ * 它会继续宣布「无重叠」—— 而图已经重叠了。这类「两份几何」的漂移不会报错，
+ * 只会让断言变成安慰剂。所以常量只声明一次，两边都从这里读。
+ */
+export const DIAGRAM_LAYOUT = {
+  PAD,
+  SPINE_X,
+  LABEL_X,
+  CARDS_X,
+  CARD_W,
+  CARD_H,
+  CARD_GAP,
+  LANE_PAD_Y,
+  LANE_GAP,
+  LANE_H,
+  HEADER_H,
+  LEGEND_H,
+} as const;
+
 const CARD_PAD = 11;
 const TITLE_FS = 13;
 const ROLE_FS = 10.5;

@@ -6,7 +6,9 @@
  * 「这个图标认不认得出来」「这句结论说不说得通」不写成断言 —— 那是给自己造一个必然误报的检查。
  *
  * 纯 .mjs，零新增依赖：唯一的 `playwright-core` 已在 arsenal-web/node_modules，
- * 本机没有 Chrome，用 `channel: 'msedge'` 驱动已安装的 Edge。
+ * 本机没有 Chrome，靠已安装的 Edge：**路径解析在 `visual/browser.mjs`** ——
+ * `channel: 'msedge'` 在这台机器上找不到它（Edge 装在版本子目录里，
+ * 2026-09-23 就因此让本层 12 项红了 10 项）。
  * 静态站由本脚本自己起（node 内置 http），跑完关掉 —— 不要求外面先开好 3021。
  *
  * 用法：
@@ -28,6 +30,7 @@
  */
 
 import { chromium } from 'playwright-core';
+import { launchBrowser, describeBrowserSource } from './browser.mjs';
 import { createServer } from 'node:http';
 import { readFileSync, existsSync, statSync } from 'node:fs';
 import { join, extname, dirname, resolve } from 'node:path';
@@ -531,9 +534,9 @@ async function main() {
   let browser = null;
   const results = [];
   try {
-    browser = await chromium.launch({ channel: 'msedge', headless: true, args: ['--disable-gpu'] });
+    browser = await launchBrowser(chromium);
   } catch (err) {
-    say(`✗ 浏览器启动失败（chromium.launch channel=msedge）：${err.message}`);
+    say(`✗ 浏览器启动失败（${describeBrowserSource()}）：${err.message}`);
     if (server) await new Promise((r) => server.close(r));
     process.exitCode = 1;
     return;

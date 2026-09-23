@@ -24,6 +24,12 @@ import {
   routesBetween,
   type ArchGraph,
 } from '@/lib/arch-graph';
+import {
+  checkDiagramGeometry,
+  layoutDiagramGeometry,
+  parseRenderedCards,
+  sameBoxSet,
+} from '@/lib/arch-geometry';
 import { dimensions, emptyPicks, presetPicks, presets } from '@/lib/stack';
 // 统一记账：pass / fail / **skip（独立状态，绝不计入 pass）**，退出码 0 / 2 / 1。
 import { check, finish } from './lib/report';
@@ -377,5 +383,128 @@ check(
   '默认选择下导览第一章就是当前命中的预设',
   stories[0]?.source === 'preset'
 );
+
+// ═══════════════════════════════════════════════════════════════
+// 【10】几何不变量：把版式算成数据，再对数据判「压住没有 / 掉出去了没有」。
+//
+// 为什么这一节必须存在：这张图此前只有语义检查（上面九节）和浏览器里的 DOM 检查
+// （visual-check 的 A1/A2）。**方块互相压住、方块掉出泳道**这两件事，两边都看不见 ——
+// 语义里没有坐标，DOM 里没有方块。而 arch-diagram.ts 那 700 行拼字符串的渲染代码
+// 在这之前一行断言都没有。
+//
+// 每个用例都跑八条不变量，再拿渲染出来的 SVG **反过来核**一遍模型：
+// 公式对齐不算证据，得拿真产物比 —— 改了渲染没改几何模型，第 1 条就会红。
+console.log('\n【10】几何不变量（版式模型 × 八条判据 × SVG 实画反核）');
+{
+  const cases = [
+    { name: '空选型', picks: emptyPicks() },
+    ...presets.map((p: { id: string; name: string }) => ({ name: `预设 ${p.name}`, picks: presetPicks(p.id) })),
+  ];
+
+  const geos = cases.map((c) => {
+    const m = buildArchDiagramModel({
+      picks: c.picks,
+      audit: auditArchitecture(c.picks),
+      title: c.name,
+    });
+    return {
+      name: c.name,
+      model: m,
+      geo: layoutDiagramGeometry(m),
+      rendered: parseRenderedCards(buildArchDiagramSvg(m, 'light')),
+    };
+  });
+
+  const totalCards = geos.reduce((n, x) => n + x.geo.cards.length, 0);
+  const allCards = geos.flatMap((x) => x.geo.cards);
+  const label = `${cases.length} 个用例 / ${totalCards} 个方块`;
+
+  /** 收集某个码的诊断，按「用例 → 诊断」拼成可读 detail。 */
+  const withCode = (code: string) =>
+    geos.flatMap((x) =>
+      checkDiagramGeometry(x.geo)
+        .filter((d) => d.code === code)
+        .map((d) => `${x.name} ${d.path}：${d.message}`)
+    );
+
+  // ① 模型 vs 实画：数量与坐标都必须逐一对应
+  {
+    const mismatch = geos.filter(
+      (x) => x.rendered.length !== x.geo.cards.length || !sameBoxSet(x.geo.cards, x.rendered)
+    );
+    check(
+      `${label}：模型方块与 SVG 实画逐一对应（数量 + 坐标）`,
+      mismatch.length === 0,
+      mismatch
+        .map(
+          (x) =>
+            `${x.name}：模型 ${x.geo.cards.length} 个 / 实画 ${x.rendered.length} 个` +
+            (x.rendered.length === x.geo.cards.length ? '（坐标不一致）' : '')
+        )
+        .join('\n')
+    );
+  }
+
+  // ② 无重叠（含边界接触，取严）
+  {
+    const d = withCode('GEO_CARD_OVERLAP');
+    check(`${label}：任意两个方块都不重叠（边界接触也算违规）`, d.length === 0, d.join('\n'));
+  }
+
+  // ③ 不越出画布
+  {
+    const d = withCode('GEO_CARD_OUT_OF_CANVAS');
+    check(`${label}：每个方块都在画布内`, d.length === 0, d.join('\n'));
+  }
+
+  // ④ 不越出所属泳道
+  {
+    const d = withCode('GEO_CARD_OUT_OF_LANE');
+    check(`${label}：每个方块都落在自己那条泳道里（上下左右都不出带）`, d.length === 0, d.join('\n'));
+  }
+
+  // ⑤ 不侵入左栏（脊柱 + 泳道名）
+  {
+    const d = withCode('GEO_CARD_IN_LEFT_COLUMN');
+    check(`${label}：方块不侵入左栏（泳道名与「请求向下穿过」不被压住）`, d.length === 0, d.join('\n'));
+  }
+
+  // ⑥ 泳道带：在画布内 + 两两不重叠 + 纵向严格递增
+  {
+    const d = [
+      ...withCode('GEO_LANE_OUT_OF_CANVAS'),
+      ...withCode('GEO_LANE_OVERLAP'),
+      ...withCode('GEO_LANE_OUT_OF_ORDER'),
+    ];
+    check(`${label}：泳道带在画布内、互不重叠、纵向顺序与模型一致`, d.length === 0, d.join('\n'));
+  }
+
+  // ⑦ 图例不越出画布
+  {
+    const d = withCode('GEO_LEGEND_OUT_OF_CANVAS');
+    check(`${label}：图例条不越出画布`, d.length === 0, d.join('\n'));
+  }
+
+  // ⑧ 断言真的在判：把第 1 个案例的一张方块挪到它邻居头上，必须报出重叠。
+  //    （反着验 —— 一条从没红过的断言等于摆设。这里就地造一个假几何来验。）
+  {
+    const probe = geos[1];
+    const shifted = {
+      ...probe.geo,
+      cards: probe.geo.cards.map((c, i) =>
+        i === 1 ? { ...c, x: probe.geo.cards[0].x } : c
+      ),
+    };
+    const hit = checkDiagramGeometry(shifted).filter((d) => d.code === 'GEO_CARD_OVERLAP');
+    check('把一张方块挪到邻居头上 → 重叠判据当场报出（判据确实在判）', hit.length > 0,
+      hit.length > 0 ? undefined : '挪了一格却没报重叠 —— 这条判据是摆设');
+
+    // 计数：反核一共覆盖了多少个方块坐标，打印出来免得「跑了个空循环」也算绿
+    check(
+      `几何反核的覆盖面非零（${totalCards} 个方块的坐标逐个比过）`,
+      totalCards > 0 && allCards.every((c) => Number.isFinite(c.x) && Number.isFinite(c.y))
+    );
+  }
+}
 
 finish('graph');

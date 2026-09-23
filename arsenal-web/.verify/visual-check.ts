@@ -75,6 +75,79 @@ if (!fs.existsSync(outDir)) {
   process.exit(finish('visual'));
 }
 
+// ── 产物新鲜度：out/ 必须晚于最后一次源码改动 ──────────────────────
+//
+// 为什么这不是多此一举（2026-09-23 实测）：本层测的是 `out/`，而 `out/` **没有任何人负责
+// 保鲜**。那天本机 `out/` 停在 09-22 07:16，`src/components/Shell.tsx` 却已在 09-23 21:54
+// 修好了移动端溢出 —— 于是 7 条断言对着**一天前的页面**判了 A1/A5/A6 三项红
+// （+53px 溢出 / 3.31:1 对比度 / `<h1>` 缺失），每一项都跟 `visual/findings.md` 里写着的
+// 「已修复」正好对上，看上去像三条真回归。重建之后同一批断言 45/45 全绿。
+// 同一个机制也会**反向**骗人：旧产物碰巧达标时，本层会给一个自信的绿。
+// 所以「产物过期」与「产物不存在」是同一种病 —— 拿旧世界冒充真实页面 —— 一律整层跳过：
+// **不判负，也绝不算绿**，并把两个时间戳一起打印，让根因出现在第一屏而不是让下游断言背锅。
+//
+// 扫描范围刻意**排除 `src/generated/`**：那份目录由 `scripts/sync-content.mjs` **无条件重写**
+// （每次 verify 都盖一遍 mtime，内容没变也盖），拿它当「源码改动」会让本层每轮都要求重建。
+const repoRoot = path.resolve(webRoot, '..');
+const FRESHNESS_ROOTS = [
+  path.join(webRoot, 'src'), // 页面与组件源码（下一行排除 generated）
+  path.join(webRoot, 'public'), // 静态资源
+  // 以下都是「改了就一定会改变导出页面」的事实源。改了它们必须重建 out/：
+  // 这是本守卫唯一需要人守的地方（tools/content/*.py 改了但没重跑 build-content.py 时，
+  // 页面其实不变，所以那份不列进来）。
+  path.join(repoRoot, 'arsenal-rules'),
+  path.join(repoRoot, 'arsenal-cookbook'),
+  path.join(repoRoot, 'arsenal-stacks'),
+  path.join(repoRoot, 'arsenal-profiles'),
+  path.join(repoRoot, 'arsenal-icons'),
+  path.join(repoRoot, 'arsenal-cases'),
+  path.join(repoRoot, 'arsenal-scan'),
+];
+const FRESHNESS_EXCLUDE_DIRS = [path.join(webRoot, 'src', 'generated')];
+
+function newestSourceMtime(): { ms: number; file: string } {
+  let newest = { ms: 0, file: '' };
+  const walk = (dir: string): void => {
+    if (FRESHNESS_EXCLUDE_DIRS.includes(dir)) return;
+    let entries: fs.Dirent[];
+    try {
+      entries = fs.readdirSync(dir, { withFileTypes: true });
+    } catch {
+      return; // 目录不存在（比如没装某个事实源）不是本层的错
+    }
+    for (const e of entries) {
+      const p = path.join(dir, e.name);
+      if (e.isDirectory()) {
+        walk(p);
+        continue;
+      }
+      const ms = fs.statSync(p).mtimeMs;
+      if (ms > newest.ms) newest = { ms, file: p };
+    }
+  };
+  for (const r of FRESHNESS_ROOTS) walk(r);
+  return newest;
+}
+
+const fmtTime = (ms: number) => new Date(ms).toLocaleString('zh-CN', { hour12: false });
+const buildStamp = path.join(outDir, 'index.html');
+const stampMs = fs.existsSync(buildStamp) ? fs.statSync(buildStamp).mtimeMs : fs.statSync(outDir).mtimeMs;
+const newestSrc = newestSourceMtime();
+
+if (newestSrc.ms > stampMs) {
+  const rel = path.relative(webRoot, newestSrc.file);
+  note(`  \u26a0 out/ 是旧产物 —— 本层整体跳过（不是通过，也不是失败）`);
+  note(`    out/index.html 构建于 ${fmtTime(stampMs)}`);
+  note(`    但 ${rel} 改于 ${fmtTime(newestSrc.ms)}（更晚）`);
+  note('    先重建：node scripts/next-run.mjs build');
+  skipLayer(
+    'visual',
+    `out/ 比源码旧（产物 ${fmtTime(stampMs)} < 源码 ${fmtTime(newestSrc.ms)} @ ${rel}）：`
+      + '拿旧世界判页面既有假红也有假绿，测不了就明说',
+  );
+  process.exit(finish('visual'));
+}
+
 // ⚠️ 这两条 `check` **必须放在两个守卫之后**。
 // 放在前面的话，out/ 缺失时它们会先记下 pass —— 于是整层跳过的那一轮会打出
 // 「实测 1 项 / 跳过 12 项」（合计 13，与声明值 12 不符）。本层反向验证时实测到了这个数：

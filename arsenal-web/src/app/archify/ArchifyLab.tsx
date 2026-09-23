@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import {
   ARCHIFY_SHAPE_FIELDS,
   archifyIrFilename,
@@ -481,6 +482,20 @@ function PrecheckCard({ state }: { state: Precheck }) {
 
 // ── 产物卡 ────────────────────────────────────────────────
 
+/**
+ * 出图结果怎么「看清楚」，这件事有三种成本不同的办法，页面上都给出来：
+ *
+ *   ① 页内放大预览 —— 覆盖层铺满视口。图是按容器宽度等比缩放的（`svg{width:100%}`），
+ *      所以「看得清」等于「容器够宽」：左栏只有 ~800px，图被压到设计尺寸的 78%；
+ *      覆盖层能拿到整个视口宽度，`.container` 直接顶到它自己的 1440px 上限。
+ *   ② 新标签页打开 —— blob URL 起一个**不带沙箱**的窗口，是这一页能做的最彻底的一招：
+ *      图里自带的右上角工具栏（缩放 + / - / 0、「演示」铺满整屏、主题、风格、导出 SVG/PNG）
+ *      在那边的浏览器原生环境里全部可用，预览沙箱里则只能用到一部分。
+ *   ③ 下载 HTML —— 存成文件，双击就是同一张图。
+ *
+ * 之所以不能直接把预览 iframe 换成「演示模式」链接（图里认 `?present=1`）：
+ * iframe 用的是 `srcDoc`，文档没有 URL，给不了查询串。
+ */
 function ArtifactCard({
   artifact,
   filename,
@@ -492,6 +507,51 @@ function ArtifactCard({
   onDownload: () => void;
   downloadedBytes: number | null;
 }) {
+  const [expanded, setExpanded] = useState(false);
+  /** 浏览器拦下了 window.open —— 如实说出来，别让按钮点了没动静 */
+  const [tabBlocked, setTabBlocked] = useState(false);
+  const htmlName = filename.replace(/\.json$/, '.html');
+
+  /**
+   * 用 blob URL 开一个新标签页。
+   *
+   * 不用 `window.open(url,'_blank','noopener')`：带 `noopener` 时 Chrome 一律返回 null，
+   * 就分辨不出「开成功了」和「被弹窗拦截了」。改为开完把 `opener` 摘掉，效果一样。
+   */
+  const openTab = useCallback((html: string) => {
+    const url = URL.createObjectURL(new Blob([html], { type: 'text/html;charset=utf-8' }));
+    const win = window.open(url, '_blank');
+    if (!win) {
+      URL.revokeObjectURL(url);
+      setTabBlocked(true);
+      return;
+    }
+    try {
+      win.opener = null;
+    } catch {
+      /* 跨源时设置不了，不影响打开 */
+    }
+    setTabBlocked(false);
+    // 5 分钟后回收。产物是自包含的单文件（字体/样式全内联），标签页不再回取这个 URL；
+    // 留长一点只为容忍用户手动刷新。
+    window.setTimeout(() => URL.revokeObjectURL(url), 300_000);
+  }, []);
+
+  // 覆盖层开着时才挂 Esc 与滚动锁，不是常驻监听
+  useEffect(() => {
+    if (!expanded) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setExpanded(false);
+    };
+    window.addEventListener('keydown', onKey);
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      window.removeEventListener('keydown', onKey);
+      document.body.style.overflow = prevOverflow;
+    };
+  }, [expanded]);
+
   if (artifact.kind === 'rejected') {
     return (
       <div className="panel px-3 py-2.5" style={{ borderColor: 'rgba(229,163,61,0.42)' }}>
@@ -548,42 +608,141 @@ function ArtifactCard({
 
   const r = artifact.receipt;
   return (
-    <div className="panel overflow-hidden" style={{ borderColor: 'rgba(86,197,150,0.42)' }}>
-      <div className="flex flex-wrap items-center gap-2 border-b border-line px-3 py-2.5">
-        <p className="mono text-[10px] uppercase tracking-wider" style={{ color: '#56C596' }}>
-          ③ 出图结果 · 已交付
-        </p>
-        <span className="mono text-[10px] text-fgFaint">
-          {r.checksPassed}/{r.checkCount} 项检查 · {artifact.elapsedMs} ms ·{' '}
-          {(r.artifactBytes / 1024).toFixed(1)} KB
-        </span>
-        <div className="ml-auto flex items-center gap-2">
-          <button
-            type="button"
-            onClick={onDownload}
-            className="rounded border px-2.5 py-1 text-xs transition-colors hover:bg-surfaceHi"
-            style={{ borderColor: 'rgba(86,197,150,0.5)', color: '#56C596' }}
-          >
-            下载 HTML
-          </button>
+    <>
+      <div className="panel overflow-hidden" style={{ borderColor: 'rgba(86,197,150,0.42)' }}>
+        <div className="flex flex-wrap items-center gap-2 border-b border-line px-3 py-2.5">
+          <p className="mono text-[10px] uppercase tracking-wider" style={{ color: '#56C596' }}>
+            ③ 出图结果 · 已交付
+          </p>
+          <span className="mono text-[10px] text-fgFaint">
+            {r.checksPassed}/{r.checkCount} 项检查 · {artifact.elapsedMs} ms ·{' '}
+            {(r.artifactBytes / 1024).toFixed(1)} KB
+          </span>
+          <div className="ml-auto flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setExpanded(true)}
+              className="rounded border px-2.5 py-1 text-xs transition-colors hover:bg-surfaceHi"
+              style={{ borderColor: 'rgba(217,164,65,0.55)', color: '#D9A441' }}
+            >
+              放大预览
+            </button>
+            <button
+              type="button"
+              onClick={() => openTab(artifact.html)}
+              className="rounded border px-2.5 py-1 text-xs text-fgMuted transition-colors hover:border-lineHi hover:text-fg"
+              style={{ borderColor: 'rgba(86,197,150,0.5)' }}
+            >
+              新标签页打开
+            </button>
+            <button
+              type="button"
+              onClick={onDownload}
+              className="rounded border px-2.5 py-1 text-xs transition-colors hover:bg-surfaceHi"
+              style={{ borderColor: 'rgba(86,197,150,0.5)', color: '#56C596' }}
+            >
+              下载 HTML
+            </button>
+          </div>
         </div>
-      </div>
-      {downloadedBytes !== null && (
-        <p className="mono border-b border-line px-3 py-1.5 text-[10px] text-fgFaint">
-          已写出 {filename.replace(/\.json$/, '.html')}（{downloadedBytes} 字节）
+        {tabBlocked && (
+          <p
+            className="mono border-b border-line px-3 py-1.5 text-[10px] leading-[16px]"
+            style={{ color: '#E5A33D' }}
+          >
+            浏览器拦下了新标签页 —— 允许本站弹窗后重试，或先「下载 HTML」再打开本地文件。
+          </p>
+        )}
+        {downloadedBytes !== null && (
+          <p className="mono border-b border-line px-3 py-1.5 text-[10px] text-fgFaint">
+            已写出 {htmlName}（{downloadedBytes} 字节）
+          </p>
+        )}
+        <iframe
+          title="Archify 产物预览"
+          srcDoc={artifact.html}
+          sandbox="allow-scripts allow-downloads"
+          allow="clipboard-write"
+          className="h-[70vh] max-h-[680px] w-full bg-white"
+        />
+        <p className="mono border-t border-line px-3 py-1.5 text-[10px] leading-[16px] text-fgFaint">
+          图偏小就点上面的<strong className="font-semibold text-fgMuted">放大预览</strong>（页内铺满，
+          Esc 关闭）或<strong className="font-semibold text-fgMuted">新标签页打开</strong>。
+          图是按容器宽度等比缩放的，所以「放大」= 给它更多宽度；新标签页不受预览沙箱限制，
+          图里右上角工具栏的缩放{' '}
+          <code className="mono">{'+ / - / 0'}</code>、铺满整屏的「演示」、导出 SVG/PNG
+          都在那边才完整可用。
         </p>
-      )}
-      <iframe
-        title="Archify 产物预览"
-        srcDoc={artifact.html}
-        sandbox="allow-scripts"
-        className="h-[520px] w-full bg-white"
-      />
-      <p className="mono border-t border-line px-3 py-1.5 text-[10px] leading-[15px] text-fgFaint">
-        spec {r.specSha256.slice(0, 12)} · artifact {r.artifactSha256.slice(0, 12)} · 画像{' '}
-        {r.profile} · 状态 {r.status}
-        {r.warnings > 0 ? ` · ${r.warnings} 条警告` : ''}
-      </p>
-    </div>
+        <p className="mono border-t border-line px-3 py-1.5 text-[10px] leading-[15px] text-fgFaint">
+          spec {r.specSha256.slice(0, 12)} · artifact {r.artifactSha256.slice(0, 12)} · 画像{' '}
+          {r.profile} · 状态 {r.status}
+          {r.warnings > 0 ? ` · ${r.warnings} 条警告` : ''}
+        </p>
+      </div>
+
+      {/* 放大预览：portal 到 body，免得被面板的 overflow-hidden / 外边距掺进来 */}
+      {expanded &&
+        createPortal(
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-label="Archify 产物放大预览"
+            onClick={(e) => {
+              if (e.target === e.currentTarget) setExpanded(false);
+            }}
+            className="fixed inset-0 z-[90] flex flex-col gap-2 p-3"
+            style={{ background: 'rgba(6,10,14,0.86)' }}
+          >
+            <div className="panel flex flex-wrap items-center gap-2 px-3 py-2">
+              <p className="mono text-[10px] uppercase tracking-wider" style={{ color: '#56C596' }}>
+                ③ 出图结果 · 放大预览
+              </p>
+              <span className="mono text-[10px] text-fgFaint">
+                {htmlName} · {r.checksPassed}/{r.checkCount} 项检查 ·{' '}
+                {(r.artifactBytes / 1024).toFixed(1)} KB
+              </span>
+              <div className="ml-auto flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => openTab(artifact.html)}
+                  className="rounded border px-2.5 py-1 text-xs text-fgMuted transition-colors hover:border-lineHi hover:text-fg"
+                  style={{ borderColor: 'rgba(86,197,150,0.5)' }}
+                >
+                  新标签页打开
+                </button>
+                <button
+                  type="button"
+                  onClick={onDownload}
+                  className="rounded border px-2.5 py-1 text-xs transition-colors hover:bg-surfaceHi"
+                  style={{ borderColor: 'rgba(86,197,150,0.5)', color: '#56C596' }}
+                >
+                  下载 HTML
+                </button>
+                <button
+                  type="button"
+                  autoFocus
+                  onClick={() => setExpanded(false)}
+                  className="rounded border border-line px-2.5 py-1 text-xs text-fg transition-colors hover:border-lineHi hover:bg-surfaceHi"
+                >
+                  关闭（Esc）
+                </button>
+              </div>
+            </div>
+            <div className="panel min-h-0 flex-1 overflow-hidden">
+              <iframe
+                title="Archify 产物放大预览"
+                srcDoc={artifact.html}
+                sandbox="allow-scripts allow-downloads"
+                allow="clipboard-write"
+                className="h-full w-full bg-white"
+              />
+            </div>
+            <p className="mono shrink-0 px-1 text-[10px] leading-[15px] text-fgFaint">
+              点空白处或按 Esc 关闭。要铺满整屏的「演示」模式与导出，请用「新标签页打开」。
+            </p>
+          </div>,
+          document.body
+        )}
+    </>
   );
 }
