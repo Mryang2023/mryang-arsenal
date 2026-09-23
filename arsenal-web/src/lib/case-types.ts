@@ -107,7 +107,17 @@ export interface CaseDef {
   /** 使「全激活」不可能成立的互斥 driver。空/缺省表示本场景可以全激活 */
   exclusiveGroups?: ExclusiveGroup[];
   notSuitableFor: { when: Record<string, string[]>; reason: string }[];
-  benchmark: {
+  /**
+   * 性能 / 量级对照。**可选** —— 只有给出了可核口径的场景才写。
+   *
+   * 为什么必须是可选：6 个场景里只有 2 个有实测口径（huge-rowcount-rdb / genomic-sequence-store）。
+   * 当初这里写成必填，类型就对数据撒了谎，`CaseLab` 于是无守卫直读 `benchmark.title` ——
+   * 默认场景恰好有数据，静态预渲染与 45 张视觉断言全绿，用户点到第 3 个场景才白屏。
+   * 「类型许诺了数据没有的东西」比「少一个字段」危险得多，因为它让 tsc 闭上嘴。
+   *
+   * 消费侧一律用 `kase.benchmark ? … : 空态`，不许 `!` 断言、不许编数字。
+   */
+  benchmark?: {
     title: string;
     columns: string[];
     rows: string[][];

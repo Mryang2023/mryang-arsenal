@@ -622,39 +622,48 @@ export default function CaseLab() {
             )}
           </div>
 
-          {/* 性能参照 */}
-          <details className="rounded-lg border border-line bg-surface p-4">
-            <summary className="cursor-pointer text-2xs uppercase tracking-[0.14em] text-fgFaint">
-              {kase.benchmark.title}
-            </summary>
-            <div className="mt-3 overflow-x-auto">
-              <table className="w-full border-collapse text-[12px]">
-                <thead>
-                  <tr>
-                    {kase.benchmark.columns.map((c, i) => (
-                      <th key={i} className="border-b border-line px-2 py-1.5 text-left font-medium text-fgMuted">
-                        {c}
-                      </th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {kase.benchmark.rows.map((r, i) => (
-                    <tr key={i}>
-                      {r.map((cell, j) => (
-                        <td key={j} className="border-b border-line/50 px-2 py-1.5 text-fgMuted">
-                          {cell}
-                        </td>
+          {/* 性能参照。
+              `benchmark` 是**可选**字段：6 个场景里只有 2 个提供了可核的性能对照。
+              没有时不许编一个，也不许把整块藏掉 —— 让人知道「这一项本场景没有」，
+              与「有但你不小心折叠了」必须是两种看得出来不同的状态。 */}
+          {kase.benchmark ? (
+            <details className="rounded-lg border border-line bg-surface p-4">
+              <summary className="cursor-pointer text-2xs uppercase tracking-[0.14em] text-fgFaint">
+                {kase.benchmark.title}
+              </summary>
+              <div className="mt-3 overflow-x-auto">
+                <table className="w-full border-collapse text-[12px]">
+                  <thead>
+                    <tr>
+                      {kase.benchmark.columns.map((c, i) => (
+                        <th key={i} className="border-b border-line px-2 py-1.5 text-left font-medium text-fgMuted">
+                          {c}
+                        </th>
                       ))}
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody>
+                    {kase.benchmark.rows.map((r, i) => (
+                      <tr key={i}>
+                        {r.map((cell, j) => (
+                          <td key={j} className="border-b border-line/50 px-2 py-1.5 text-fgMuted">
+                            {cell}
+                          </td>
+                        ))}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              <p className="mt-2 text-[12px] leading-relaxed text-fgFaint">
+                {kase.benchmark.conclusion}
+              </p>
+            </details>
+          ) : (
+            <div className="rounded-lg border border-dashed border-line bg-surface px-4 py-3 text-[12px] text-fgMuted">
+              本场景未提供性能参照 —— 没有实测口径的数字不写，避免把量级结论当成通用结论照抄。
             </div>
-            <p className="mt-2 text-[12px] leading-relaxed text-fgFaint">
-              {kase.benchmark.conclusion}
-            </p>
-          </details>
+          )}
         </section>
       </div>
     </div>

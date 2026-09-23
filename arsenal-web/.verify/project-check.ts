@@ -47,6 +47,7 @@ import { ARCH_GLYPHS } from '@/lib/arch-glyphs';
 import { svgMotionStyle } from '@/lib/arch-motion';
 import { TECH_ICONS } from '@/lib/tech-icons';
 import { ICON_CATEGORIES, iconAssets } from '@/lib/icon-assets';
+import { isNavActive } from '@/lib/nav-active';
 // 统一记账：pass / fail / **skip（独立状态，绝不计入 pass）**，退出码 0 / 2 / 1。
 import { check, finish } from './lib/report';
 
@@ -1066,7 +1067,32 @@ console.log('\n【13】导航与页签契约');
     .filter((h) => !navHrefs.includes(h) && !ORPHAN_OK.has(h));
   check('导航：没有孤儿页面（页面存在但导航里没有入口）', orphans.length === 0, `孤儿: ${orphans.join('、')}`);
 
-  // ③ 装配台页签三处必须同时成立：TabId 类型、页签条数组、渲染分支
+  // ③ 导航高亮：判定必须按**路径边界**，而且判据只有一份
+  //
+  // 修之前的样子是 `pathname.startsWith(href)` —— 裸前缀。`/archify`（出图服务）与
+  // `/arch`（架构图谱）只差一串后缀，于是点「出图服务」时「架构图谱」跟着一起高亮。
+  // 语法完全正确、控制台一个错都不报，只有把判定函数**当数据跑一遍**才抓得住。
+  //
+  // 两条缺一不可：表驱动测的是「判据的行为」，但要是有人把判据抄一份回 Shell.tsx 自己用，
+  // 表驱动照样全绿、页面已经错了 —— 所以要再钉一条「页面用的是这一份」。
+  check(
+    '导航高亮：判据只有一份（Shell 调 isNavActive，不自己写）',
+    shell.includes('isNavActive('),
+    'Shell 自己写了一份判定 → 下面那条表驱动测的就不是页面真正用的那个函数了'
+  );
+  const navRoutes = [...navHrefs, '/rules/WEB-DTO-001', '/cases/any-page', '/arch/any-view'];
+  const highlight = navRoutes.map((r) => ({
+    route: r,
+    hits: navHrefs.filter((h) => isNavActive(r, h)),
+  }));
+  const wrongHit = highlight.filter((h) => h.hits.length !== 1);
+  check(
+    `导航高亮：${navRoutes.length} 个路由各恰好点亮 1 项`,
+    wrongHit.length === 0,
+    wrongHit.map((w) => `${w.route} → ${w.hits.length} 项（${w.hits.join('、') || '无'}）`).join('；')
+  );
+
+  // ④ 装配台页签三处必须同时成立：TabId 类型、页签条数组、渲染分支
   const composer = code('app/stack/StackComposer.tsx');
   const idUnion = [
     ...(
@@ -1092,7 +1118,7 @@ console.log('\n【13】导航与页签契约');
   const noType = branches.filter((b) => !idUnion.includes(b));
   check('装配台：渲染分支都在 TabId 里', noType.length === 0, `分支无法被点亮: ${noType.join('、')}`);
 
-  // ④ 跨页选型契约：写入点与读取点必须成对存在（写过没人读 = 白写；读没人写 = 永远回落到默认）
+  // ⑤ 跨页选型契约：写入点与读取点必须成对存在（写过没人读 = 白写；读没人写 = 永远回落到默认）
   const picksStore = src('lib/picks-store.ts');
   const callers = (fn: string) =>
     ['lib', 'app', 'components']
@@ -1324,6 +1350,218 @@ console.log('\n【15】代码扫描映射表契约');
 }
 
 } // profileChecks
+
+// ═══════════════════════════════════════════════════════════════
+// 【16】字段契约一致性 —— 「类型不许对数据撒谎」
+//
+// 起因（一个活到 690 条断言之外的线上 Bug）：
+//   `CaseDef.benchmark` 被声明成**必选**，而 6 个场景里只有 2 个真有这个字段
+//   （huge-rowcount-rdb / genomic-sequence-store）。类型一撒谎，tsc 就闭上嘴，
+//   `CaseLab` 于是无守卫直读 `kase.benchmark.title`。默认场景恰好有数据，
+//   静态预渲染不崩、45 张视觉断言全绿 —— **用户点到第 3 个场景才白屏**。
+//
+// 690 条断言没抓住它，是因为**没有一条在比「类型声明」与「数据实际」这两方**。
+// 本组补的正是这一条，而且**双向**比：
+//   · A 方向（类型 → 数据）：声明为必选 ⇒ 每条记录都必须真的有
+//   · B 方向（数据 → 类型）：有的记录有、有的没有 ⇒ 类型必须声明为可选
+//
+// 一个刻意的设计：cookbook 的 `fileCount / highlightCount / ruleCount / lines`
+// 在事实源里**一条都没有**（它们由 `sync-content.mjs` 算出后注入同步产物）。
+// 这里不假装事实源有它们，而是把它们自动归到「注入字段」，改去对着
+// `src/generated/*.json` 断言 —— 「事实源没写」与「注入失败」是两件事，不能混。
+// ═══════════════════════════════════════════════════════════════
+console.log('\n【16】字段契约一致性（类型 ↔ 事实源）');
+{
+  const repoRoot = path.resolve(here, '..', '..');
+  const srcRoot = path.resolve(here, '..', 'src');
+  const readJson = (p: string): any => JSON.parse(fs.readFileSync(p, 'utf8'));
+
+  /**
+   * 读 TS 接口的**顶层**字段与可选性。
+   *
+   * 解析前先剥注释：注释里写的 `kase.benchmark.title` 之类，不剥就会被当成字段声明。
+   * 只取深度 0 的 `名字: 类型;` —— 嵌套对象的内部字段由 `NESTED` 那组单独核。
+   */
+  const ifaceFields = (rel: string, name: string): { field: string; optional: boolean }[] => {
+    const src = fs.readFileSync(path.join(srcRoot, rel), 'utf8');
+    const m = new RegExp(`export interface ${name}\\s*\\{`).exec(src);
+    if (!m) throw new Error(`【16】找不到 interface ${name}（${rel}）—— 接口改名了要同步改这里`);
+    let i = m.index + m[0].length;
+    let depth = 1;
+    const start = i;
+    while (depth > 0 && i < src.length) {
+      if (src[i] === '{') depth += 1;
+      else if (src[i] === '}') {
+        depth -= 1;
+        if (depth === 0) break;
+      }
+      i += 1;
+    }
+    // 行尾注释也要剥：只剥行首的话，`id: string; // 主键` 后面的 `// 主键`
+    // 会被并进下一条声明的文本里，让 `order` 这个字段**从字段表里消失** ——
+    // 那样它既不会被断言、也不会报错，只是悄悄少了一组断言（项数对不上才会暴露）
+    const body = src
+      .slice(start, i)
+      .replace(/\/\*[\s\S]*?\*\//g, '')
+      .replace(/\/\/[^\n]*/g, '');
+    const out: { field: string; optional: boolean }[] = [];
+    let d = 0;
+    let buf = '';
+    for (const ch of body) {
+      if (ch === '{' || ch === '[' || ch === '(') d += 1;
+      else if (ch === '}' || ch === ']' || ch === ')') d -= 1;
+      if (ch === ';' && d === 0) {
+        const mm = /^([A-Za-z_$][\w$]*)(\??)\s*:/.exec((buf + ch).trim());
+        if (mm) out.push({ field: mm[1], optional: mm[2] === '?' });
+        buf = '';
+        continue;
+      }
+      buf += ch;
+    }
+    return out;
+  };
+
+  const loadLib = (dir: string, key: string) =>
+    fs
+      .readdirSync(path.join(repoRoot, dir))
+      .filter((f) => f.endsWith('.json') && f !== 'meta.json')
+      .sort()
+      .map((f) => {
+        const j = readJson(path.join(repoRoot, dir, f));
+        return { id: f.replace(/\.json$/, ''), rec: (j[key] ?? j) as Record<string, unknown> };
+      });
+
+  const libs = [
+    {
+      label: '场景案例库',
+      typeFile: 'lib/case-types.ts',
+      iface: 'CaseDef',
+      src: loadLib('arsenal-cases', 'case'),
+      genFile: 'cases.json',
+      genKey: 'cases',
+    },
+    {
+      label: '最佳实践库',
+      typeFile: 'lib/content-types.ts',
+      iface: 'Feature',
+      src: loadLib('arsenal-cookbook', 'feature'),
+      genFile: 'cookbook.json',
+      genKey: 'features',
+    },
+  ];
+
+  for (const lib of libs) {
+    const fields = ifaceFields(lib.typeFile, lib.iface);
+    const declared = new Set(fields.map((f) => f.field));
+    const optional = new Set(fields.filter((f) => f.optional).map((f) => f.field));
+    const required = fields.filter((f) => !f.optional).map((f) => f.field);
+    const gen = (readJson(path.join(srcRoot, 'generated', lib.genFile))[lib.genKey] ?? []) as Record<
+      string,
+      unknown
+    >[];
+
+    // 样本量为 0 时，后面所有断言都是空跑 —— 先把它自己变成一条断言
+    check(
+      `${lib.label}：样本量 > 0（事实源 ${lib.src.length} 条 / 同步产物 ${gen.length} 条）`,
+      lib.src.length > 0 && gen.length > 0,
+      '样本为 0 时下面的断言一条都不会真跑，绿得毫无意义'
+    );
+
+    // ── A 方向：类型说必选 ⇒ 数据必须有 ──────────────────────────
+    const authored = required.filter((f) => lib.src.some((r) => f in r.rec));
+    const injected = required.filter((f) => lib.src.every((r) => !(f in r.rec)));
+
+    for (const f of authored) {
+      const miss = lib.src.filter((r) => !(f in r.rec)).map((r) => r.id);
+      for (const r of lib.src) {
+        check(
+          `${lib.label}：${r.id} 有必选字段 ${f}`,
+          f in r.rec,
+          miss.length ? `同库缺该字段的：${miss.join('、')}` : undefined
+        );
+      }
+    }
+
+    // 事实源里一条都没有、却又被声明成必选的，只可能是「同步脚本注入」——
+    // 那就去同步产物里验它真的注入了，而不是对事实源假装它有
+    for (const f of injected) {
+      for (let i = 0; i < gen.length; i += 1) {
+        check(
+          `${lib.label}：同步产物第 ${i + 1} 条注入了 ${f}`,
+          f in (gen[i] ?? {}),
+          `${f} 在事实源里 0/${lib.src.length} 条都没有 —— 它由 sync-content.mjs 注入，注入失败 UI 就会读到 undefined`
+        );
+      }
+    }
+
+    // ── B 方向：数据里「有的有、有的没有」⇒ 类型必须说可选 ──────────
+    const hetero = [...declared].filter((f) => {
+      const n = lib.src.filter((r) => f in r.rec).length;
+      return n > 0 && n < lib.src.length;
+    });
+    const liar = hetero.filter((f) => !optional.has(f));
+    check(
+      `${lib.label}：异构字段一律声明为可选`,
+      liar.length === 0,
+      `类型说必选、数据却只有部分记录有（无守卫读它必崩）：${liar.join('、') || '无'}` +
+        `；本库异构字段：${hetero.map((f) => `${f} ${lib.src.filter((r) => f in r.rec).length}/${lib.src.length}`).join('、') || '无'}`
+    );
+  }
+
+  // ── A5：嵌套类型的必选字段（按「库 × 嵌套类型 × 记录」聚合）─────────
+  // 一个 slice 缺 `sql` 与一个 case 缺 `benchmark` 是同一类事故，只是藏得更深
+  const NESTED: { lib: string; iface: string; pick: (r: any) => any[] }[] = [
+    { lib: '场景案例库', iface: 'CaseSlice', pick: (r) => r.slices ?? [] },
+    { lib: '场景案例库', iface: 'SliceDecision', pick: (r) => (r.slices ?? []).map((s: any) => s.decision) },
+    {
+      lib: '场景案例库',
+      iface: 'SliceHighlight',
+      pick: (r) => (r.slices ?? []).flatMap((s: any) => s.highlights ?? []),
+    },
+    { lib: '场景案例库', iface: 'Driver', pick: (r) => r.drivers ?? [] },
+    {
+      lib: '场景案例库',
+      iface: 'DriverLevel',
+      pick: (r) => (r.drivers ?? []).flatMap((d: any) => d.levels ?? []),
+    },
+    { lib: '场景案例库', iface: 'ArchNode', pick: (r) => r.architecture?.nodes ?? [] },
+    { lib: '场景案例库', iface: 'ArchLink', pick: (r) => r.architecture?.links ?? [] },
+    { lib: '最佳实践库', iface: 'FlowStep', pick: (r) => r.flow ?? [] },
+    { lib: '最佳实践库', iface: 'FeatureFile', pick: (r) => r.files ?? [] },
+    {
+      lib: '最佳实践库',
+      iface: 'Highlight',
+      pick: (r) => (r.files ?? []).flatMap((f: any) => f.highlights ?? []),
+    },
+    { lib: '最佳实践库', iface: 'FeatureReference', pick: (r) => r.references ?? [] },
+  ];
+
+  for (const spec of NESTED) {
+    const lib = libs.find((l) => l.label === spec.lib)!;
+    const req = ifaceFields(lib.typeFile, spec.iface)
+      .filter((f) => !f.optional)
+      .map((f) => f.field);
+    for (const r of lib.src) {
+      const raw: any[] = spec.pick(r.rec) ?? [];
+      const items = raw.filter(Boolean);
+      const bad: string[] = [];
+      // 先报「取出来就是空的」：`SliceDecision` 这类是从父对象里 map 出来的，
+      // 少了它父对象仍在，光数 items 会静默少一个 —— 只有全没了才会被 `items.length > 0` 抓到
+      if (raw.length !== items.length) bad.push(`${raw.length - items.length} 个实例本身为 null/undefined`);
+      items.forEach((it: any, i: number) => {
+        const miss = req.filter((f) => !(f in it));
+        if (miss.length) bad.push(`#${i} 缺 ${miss.join('/')}`);
+      });
+      check(
+        `${spec.lib}：${r.id} 的 ${items.length} 个 ${spec.iface} 必选字段齐全`,
+        items.length > 0 && bad.length === 0,
+        bad.length
+          ? bad.slice(0, 3).join('；')
+          : '样本为 0 —— 这条断言空跑了，等于没有断言'
+      );
+    }
+  }
+}
 
 zipChecks().then(() => {
   profileChecks();

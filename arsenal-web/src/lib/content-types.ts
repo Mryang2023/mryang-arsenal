@@ -103,7 +103,14 @@ export interface Feature {
   performance?: FeaturePerformance;
   /** 权威出处，至少两条 */
   references: FeatureReference[];
-  /** 由同步脚本注入 */
+  /**
+   * 以下四项**不是**手写内容，由 `scripts/sync-content.mjs` 从 `files[]` 算出后注入 ——
+   * 所以 `arsenal-cookbook/*.json`（事实源）里**没有**这四个键，`src/generated/cookbook.json` 里才有。
+   *
+   * 这里声明成必选，是因为本类型描述的是**同步后的**记录；
+   * 「事实源缺字段」与「注入失败」是两件事，后者由 `.verify/project-check.ts`【16】组
+   * 对着 generated 快照单独断言（不对事实源假装它有）。
+   */
   fileCount: number;
   highlightCount: number;
   ruleCount: number;
