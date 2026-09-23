@@ -44,6 +44,7 @@ import GapCard from './GapCard';
 import Inspector from './Inspector';
 import ProjectTree from './ProjectTree';
 import SlotBlock from './SlotBlock';
+import type { SlotWeight } from './SlotBlock';
 import ArchDiagram from './ArchDiagram';
 import TechArch from './TechArch';
 import DeployGuides from './DeployGuides';
@@ -516,6 +517,10 @@ export default function StackComposer() {
             组复制 / 分片 / 云原生，图形化切换）；右侧的交付预览会立刻跟着变。
             下方五根滑杆直接写进 yaml 与交付清单。
           </p>
+          {/* 台面（L0）：34px 网格底 + 比 surface 暗一档的底色。
+              泳道面板（L1）浮在台面上、零件卡（L2）浮在面板上 ——
+              三层深度全部靠底色差与边框表达，不引进第二种配色。 */}
+          <div className="stack-bench space-y-1.5 rounded-lg border border-line p-1.5 sm:p-2">
           {lanes.map((lane, laneIdx) => {
             const slotIds = slotsOfLane(lane.id);
             /** 参与请求链路的槽位顺序；其余槽位是旁路件（如迁移工具） */
@@ -524,69 +529,93 @@ export default function StackComposer() {
             return (
               <Fragment key={lane.id}>
                 {laneIdx > 0 && (
-                  <div className="flex items-center gap-2 py-0.5 pl-[26px]">
-                    <span className="mono text-[11px] leading-none text-fgFaint">↓</span>
-                    <span className="text-[9px] uppercase tracking-wider text-fgFaint">
+                  <div className="flex items-center gap-2 py-0.5 pl-[15px] sm:pl-[17px]">
+                    <LaneWire />
+                    <span className="mono text-[10px] uppercase leading-[15px] tracking-wider text-fgFaint">
                       请求向下穿过
                     </span>
                   </div>
                 )}
-                <section className="panel overflow-hidden">
-                  <header className="flex flex-wrap items-center gap-x-3 gap-y-1 border-b border-line px-4 py-2.5">
+                <section className="panel flex overflow-hidden">
+                  {/* 泳道标签列（竖轴）：固定 30/34px，不随卡片换行移动。
+                      原来表头横排在顶部，七根泳道看不出「上下穿过」的先后。 */}
+                  <div className="flex w-[30px] shrink-0 flex-col items-center gap-2 border-r border-line bg-[rgba(255,255,255,0.015)] py-2.5 sm:w-[34px]">
                     <span className="mono text-[13px] leading-none text-brass">{lane.glyph}</span>
-                    <h3 className="text-2xs font-semibold tracking-wide text-fg">{lane.name}</h3>
-                    <span className="mono text-[10px] text-fgFaint">
+                    <span
+                      className="text-[11px] font-semibold leading-[16px] tracking-[0.18em] text-fgMuted"
+                      style={{ writingMode: 'vertical-rl' }}
+                    >
+                      {lane.name}
+                    </span>
+                    <span className="mono mt-auto text-[10px] leading-[15px] text-fgFaint">
                       {filledCount}/{slotIds.length}
                     </span>
-                    {pipelineOrder.length > 0 && (
-                      <span className="mono rounded-sm border border-line px-1 text-[9px] leading-[14px] text-fgFaint">
-                        请求链路 {pipelineOrder.length} 环
-                      </span>
-                    )}
-                    <p className="ml-auto hidden max-w-[52%] text-right text-[10px] leading-[15px] text-fgFaint lg:block">
-                      {lane.desc}
-                    </p>
-                  </header>
-                  <div className="flex flex-wrap items-stretch gap-x-1.5 gap-y-2 px-4 py-3.5">
-                    {slotIds.map((dimId) => {
-                      const pipedIdx = pipelineOrder.indexOf(dimId);
-                      const inPipeline = pipedIdx >= 0;
-                      return (
-                        <span key={dimId} className="flex shrink-0 items-stretch">
-                          {/* 箭头与方块绑在同一个 flex item 里 —— 否则窄屏换行时
-                              箭头会被留在上一行末尾，指向一个不存在的东西 */}
-                          {inPipeline && pipedIdx > 0 && (
-                            <span className="mono flex items-center pr-1.5 text-[13px] leading-none text-fgFaint">
-                              →
-                            </span>
-                          )}
-                          {/* 旁路件：不在请求链路上，用一条竖线隔开 */}
-                          {!inPipeline && pipelineOrder.length > 0 && (
-                            <span
-                              className="mx-1.5 w-px self-stretch bg-lineHi"
-                              title="旁路件：不参与请求处理，在发布/构建期起作用"
-                            />
-                          )}
-                          <SlotBlock
-                            dimId={dimId}
-                            state={audit.slotStates[dimId] ?? 'empty'}
-                            option={picks[dimId] ? findOption(dimId, picks[dimId]) : undefined}
-                            hazards={hazardsByDim[dimId]}
-                            active={activeDim === dimId}
-                            onClick={() => setActiveDim(dimId)}
-                            onClear={() => clear(dimId)}
-                            picks={picks}
-                            meta={meta}
-                            onTopology={pickTopology}
-                          />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <header className="flex flex-wrap items-center gap-x-3 gap-y-1 border-b border-line px-3 py-2">
+                      {/* 泳道名已经画在左侧竖轴上了，这里只留语义化的标题（sr-only），
+                          免得同一行出现两遍「接入层」—— 视觉读一遍、竖轴读一遍。 */}
+                      <h3 className="sr-only">{lane.name}</h3>
+                      {pipelineOrder.length > 0 && (
+                        <span className="mono rounded-sm border border-line px-1 text-[10px] leading-[15px] text-fgFaint">
+                          请求链路 {pipelineOrder.length} 环
                         </span>
-                      );
-                    })}
+                      )}
+                      <p className="ml-auto hidden max-w-[62%] text-right text-[10px] leading-[15px] text-fgFaint lg:block">
+                        {lane.desc}
+                      </p>
+                    </header>
+                    <div className="flex min-w-0 flex-wrap items-stretch gap-x-1.5 gap-y-2 px-3 py-3">
+                      {slotIds.map((dimId) => {
+                        const pipedIdx = pipelineOrder.indexOf(dimId);
+                        const inPipeline = pipedIdx >= 0;
+                        /** 权重三档（方案 §2.4）：链路上的核心件最宽，
+                            同泳道有链路却不在链路上的是旁路件，最窄。 */
+                        const weight: SlotWeight =
+                          inPipeline ? 'core'
+                            : pipelineOrder.length > 0 ? 'bypass'
+                              : 'regular';
+                        return (
+                          <span key={dimId} className="flex shrink-0 items-stretch">
+                            {/* 箭头与方块绑在同一个 flex item 里 —— 否则窄屏换行时
+                                箭头会被留在上一行末尾，指向一个不存在的东西 */}
+                            {inPipeline && pipedIdx > 0 && (
+                              <span className="mono flex items-center pr-1.5 text-[13px] leading-none text-fgFaint">
+                                →
+                              </span>
+                            )}
+                            {/* 旁路件：不在请求链路上，用一条竖线隔开 */}
+                            {!inPipeline && pipelineOrder.length > 0 && (
+                              <span
+                                className="mx-1.5 w-px self-stretch bg-lineHi"
+                                title="旁路件：不参与请求处理，在发布/构建期起作用"
+                              />
+                            )}
+                            <SlotBlock
+                              dimId={dimId}
+                              state={audit.slotStates[dimId] ?? 'empty'}
+                              option={picks[dimId] ? findOption(dimId, picks[dimId]) : undefined}
+                              hazards={hazardsByDim[dimId]}
+                              active={activeDim === dimId}
+                              weight={weight}
+                              dimmed={activeDim !== null && activeDim !== dimId}
+                              hint={slotHint(dimId, picks[dimId])}
+                              onClick={() => setActiveDim(dimId)}
+                              onClear={() => clear(dimId)}
+                              picks={picks}
+                              meta={meta}
+                              onTopology={pickTopology}
+                            />
+                          </span>
+                        );
+                      })}
+                    </div>
                   </div>
                 </section>
               </Fragment>
             );
           })}
+          </div>
         </div>
 
         <div ref={deckRef} className="scroll-mt-4 space-y-4 xl:sticky xl:top-4 xl:self-start">
@@ -1098,6 +1127,60 @@ function RiskSection({
 
 function findOption(dimId: string, optId: string) {
   return dimensionById.get(dimId)?.options.find((o) => o.id === optId);
+}
+
+/**
+ * 泳道之间的竖连线（S1-1）。
+ *
+ * 原来这里是一个下箭头字符 —— 字号随浏览器变、基线对不齐、换字体就错位，
+ * 而且它表达的是「一条链路穿过」而不是「一个字符」。换成 SVG 后线宽、
+ * 箭尖、与上方标签列的对齐全部是算出来的，不依赖字体。
+ * 线色用 treeLine（已有 token，结构线专用），不是语义色。
+ */
+function LaneWire() {
+  return (
+    <svg
+      width="10"
+      height="24"
+      viewBox="0 0 10 24"
+      aria-hidden="true"
+      className="shrink-0 overflow-visible"
+    >
+      <line x1="5" y1="0" x2="5" y2="17" stroke="#3C4D45" strokeWidth="1" />
+      <path
+        d="M2 14 L5 18 L8 14"
+        fill="none"
+        stroke="#3C4D45"
+        strokeWidth="1"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
+/**
+ * 空态引导（S1-7，顺带治 V2-13「网关路由卡只有放大一个『无』」）。
+ *
+ * 「未使用」有两种形态，都得给引导：没选（`picks[dimId]` 为空），以及选了事实源里的
+ * `none` 那一档（「不用消息队列」「无」）。只处理前一种的话，默认态 33 格全是
+ * `filled`，引导一行都不会出现。
+ *
+ * 给的两行：
+ *   ① 装什么 —— 维度 `defaultOption`；它若本身就是「不用」，取第一个真正的零件；
+ *   ② 装了有什么用 —— 该选项的 summary，没有就退回维度 why。
+ * 两者都来自事实源，不在这里编文案。
+ */
+function slotHint(dimId: string, picked: string | undefined) {
+  const dim = dimensionById.get(dimId);
+  if (!dim) return undefined;
+  const unused = !picked || picked === 'none';
+  if (!unused) return undefined;
+  const opt =
+    (dim.defaultOption !== 'none' && dim.options.find((o) => o.id === dim.defaultOption)) ||
+    dim.options.find((o) => o.id !== 'none');
+  if (!opt) return undefined;
+  return { name: opt.name, use: opt.summary || dim.why };
 }
 
 function Hint({ text }: { text: string }) {

@@ -4,6 +4,15 @@
 
 :root {
   color-scheme: dark;
+
+  /* ── 装配台（/stack）专属的四档底 ─────────────────────────
+     只加「底与层次」，不加第二种配色：语义色仍然只有
+     src/app/stack/palette.ts 的 TONE 五色（bad/warn/ok/idle/info）。
+     台面比 surface 更暗一档，零件卡才浮得起来。                    */
+  --stack-bench: #101614;
+  --stack-bench-grid: rgba(36, 48, 41, 0.55);
+  --stack-part: #1a2220;
+  --stack-part-hi: #212b28;
 }
 
 html,
@@ -58,6 +67,16 @@ body {
   }
   .stat-num {
     @apply mono tabular-nums tracking-tight;
+  }
+  /* 装配台台面（L0）：34px 网格底纹，规格与 .grid-bg 完全一致，
+     只是把线色与底色换成装配台的四个变量 —— 台面比零件卡更暗一档，
+     卡片才有「摆在台面上」而不是「贴在背景上」的层次。 */
+  .stack-bench {
+    background-color: var(--stack-bench);
+    background-image: linear-gradient(var(--stack-bench-grid) 1px, transparent 1px),
+      linear-gradient(90deg, var(--stack-bench-grid) 1px, transparent 1px);
+    background-size: 34px 34px;
+    background-position: -1px -1px;
   }
 }
 

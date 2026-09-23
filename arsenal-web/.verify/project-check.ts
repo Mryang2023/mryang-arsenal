@@ -1563,6 +1563,191 @@ console.log('\n【16】字段契约一致性（类型 ↔ 事实源）');
   }
 }
 
+// 【17】装配台视觉契约 —— P1 第一组（S1-1 / S1-2 / S1-3 / S1-6 / S1-7）
+//
+// 为什么放在「结构与导出」层而不是视觉层：这五条改的是**呈现的规则**
+// （三档宽度、选中态、常驻移除、字号四档、空态引导），视觉层测的是
+// 渲染出来的几何（溢出 / 对比度 / 越界），两边互补 —— 但「规则」本身
+// 只能对着源码断言，渲染出来的截图说不清「宽度为什么是 208」。
+// 全部是「源码即数据」：解析前不剥注释的教训见【16】（这里直接用字符串包含，
+// 不做结构化解析，误伤面更小；代价是改写法时要同步改这里）。
+// ═══════════════════════════════════════════════════════════════
+console.log('\n【17】装配台视觉契约（/stack P1 第一组）');
+{
+  const webRoot = path.resolve(here, '..');
+  const readRel = (rel: string) => fs.readFileSync(path.join(webRoot, rel), 'utf8');
+  const stackCss = readRel('src/app/globals.css');
+  const slotSrc = readRel('src/app/stack/SlotBlock.tsx');
+  const composerSrc = readRel('src/app/stack/StackComposer.tsx');
+
+  // ── S1-1 台面化 ──────────────────────────────────────────────
+  const STACK_VARS = ['--stack-bench', '--stack-bench-grid', '--stack-part', '--stack-part-hi'];
+  const rootBlock = /:root\s*\{[^}]*\}/.exec(stackCss)?.[0] ?? '';
+  const missingVars = STACK_VARS.filter((v) => !rootBlock.includes(v));
+  check(
+    'S1-1 globals.css :root 声明装配台四个变量',
+    missingVars.length === 0,
+    `缺失：${missingVars.join(' ')}（:root 块 ${rootBlock ? '已读到' : '没读到'}）`
+  );
+
+  const benchRule = /\.stack-bench\s*\{[^}]*\}/.exec(stackCss)?.[0] ?? '';
+  check(
+    'S1-1 .stack-bench 是 34px 网格且真的在读变量（变量不许无读取方）',
+    benchRule.includes('34px 34px') &&
+      benchRule.includes('var(--stack-bench)') &&
+      benchRule.includes('var(--stack-bench-grid)'),
+    `规则体：${benchRule.slice(0, 90)}`
+  );
+  check('S1-1 装配区容器套上台面（className 带 stack-bench）', composerSrc.includes('stack-bench'));
+  check(
+    'S1-1 泳道表头是左侧固定标签列（writing-mode vertical-rl）',
+    /writingMode:\s*'vertical-rl'/.test(composerSrc)
+  );
+  check(
+    'S1-1 泳道之间的连线是 SVG（LaneWire），不再用 ↓ 字符',
+    /function LaneWire\(/.test(composerSrc) && !composerSrc.includes('↓'),
+    composerSrc.includes('↓') ? 'StackComposer 源码里还有 ↓ 字符' : ''
+  );
+
+  // ── S1-2 权重分级 ────────────────────────────────────────────
+  const widthOf = (k: string) => new RegExp(`\\b${k}:\\s*(\\d+)`).exec(slotSrc)?.[1];
+  check(
+    'S1-2 SLOT_WIDTH 三档 = 核心 208 / 常规 172 / 旁路 148',
+    widthOf('core') === '208' && widthOf('regular') === '172' && widthOf('bypass') === '148',
+    `core=${widthOf('core')} regular=${widthOf('regular')} bypass=${widthOf('bypass')}`
+  );
+  check(
+    'S1-2 卡片宽度来自 weight 档位，不再写死 w-[172px]',
+    /width:\s*SLOT_WIDTH\[weight\]/.test(slotSrc) && !slotSrc.includes('w-[172px]')
+  );
+
+  // 三档分布从**数据**推出来，跟源码里的判定互为印证：
+  // 若 pipelines 出现了不存在的泳道键，三档会静默塌成一档 regular。
+  const laneSlots: Record<string, string[]> = {};
+  for (const [id, node] of Object.entries<any>(arch.nodes)) {
+    (laneSlots[node.lane] ??= []).push(id);
+  }
+  const orphanPipelines = Object.keys(arch.pipelines).filter((k) => !(k in laneSlots));
+  check(
+    'S1-2 pipelines 的键都是真实泳道（否则三档分布静默塌成 regular）',
+    orphanPipelines.length === 0,
+    `幽灵泳道：${orphanPipelines.join(' ')}`
+  );
+  const dist = { core: 0, bypass: 0, regular: 0 };
+  for (const [laneId, ids] of Object.entries(laneSlots)) {
+    const order: string[] = arch.pipelines[laneId] ?? [];
+    for (const id of ids) {
+      if (order.includes(id)) dist.core += 1;
+      else if (order.length > 0) dist.bypass += 1;
+      else dist.regular += 1;
+    }
+  }
+  check(
+    'S1-2 三档分布与数据一致（核心 3 / 旁路 1 / 常规 29 —— pipelines 数据变了要同步改这里）',
+    dist.core === 3 && dist.bypass === 1 && dist.regular === 29,
+    `实测 ${JSON.stringify(dist)}，维度数 ${dimensions.length}`
+  );
+  const weightTernary = /const weight: SlotWeight =([\s\S]*?);/.exec(composerSrc)?.[1] ?? '';
+  check(
+    'S1-2 权重判定按方案 §2.4（在链路 → core / 有链路不在链路 → bypass / 其余 regular）',
+    /inPipeline\s*\?\s*'core'/.test(weightTernary) &&
+      /pipelineOrder\.length > 0\s*\?\s*'bypass'/.test(weightTernary) &&
+      /'regular'/.test(weightTernary),
+    `判定体没匹配上：${weightTernary.replace(/\s+/g, ' ').slice(0, 90)}`
+  );
+  const danglingPipeline = Object.entries(arch.pipelines).flatMap(([k, v]) =>
+    (v as string[]).filter((id) => !(laneSlots[k] ?? []).includes(id))
+  );
+  check(
+    'S1-2 链路引用的槽位都属于该泳道（引用错位会被当成旁路件）',
+    danglingPipeline.length === 0,
+    `越界引用：${danglingPipeline.join(' ')}`
+  );
+
+  // ── S1-3 焦点与深度 ──────────────────────────────────────────
+  check(
+    'S1-3 移除按钮不再依赖 hover（触屏没有 hover，藏起来等于删不掉）',
+    !slotSrc.includes('group-hover:flex')
+  );
+  check(
+    'S1-3 移除按钮触摸点击区 32×32（h-8 w-8），视觉本体 20×20（h-5 w-5）',
+    /\bh-8 w-8\b/.test(slotSrc) && /\bh-5 w-5\b/.test(slotSrc)
+  );
+  check(
+    'S1-3 移除按钮键盘可达（tabIndex 0 + Enter/Space）',
+    /role="button"\s*\n\s*tabIndex=\{0\}/.test(slotSrc) &&
+      /e\.key === 'Enter' \|\| e\.key === ' '/.test(slotSrc)
+  );
+  check(
+    'S1-3 选中态 = 黄铜 ring + shadow-lift + --stack-part-hi（L4）',
+    slotSrc.includes('0 0 0 1px #D9A441') &&
+      slotSrc.includes('0 12px 32px -16px rgba(0,0,0,0.9)') &&
+      slotSrc.includes('var(--stack-part-hi)')
+  );
+  check(
+    'S1-3 同层降噪 0.96（dimmed）与未用件 0.72 并存且互斥',
+    /unused \? 0\.72 : dimmed \? 0\.96 : 1/.test(slotSrc)
+  );
+
+  // ── S1-6 字号与密度 ──────────────────────────────────────────
+  const fontPx = [...slotSrc.matchAll(/text-\[(\d+)px\]/g)].map((m) => m[1]);
+  const fontSet = [...new Set(fontPx)].sort((a, b) => Number(a) - Number(b));
+  check(
+    'S1-6 卡内不再出现 9px 字号（消灭 9px 连排）',
+    !fontSet.includes('9'),
+    `出现过的字号档：${fontSet.join('/')}`
+  );
+  check(
+    'S1-6 卡内字号收成 4 档（meta 10 / body 11 / strong 12 / title 14）',
+    fontSet.join('/') === '10/11/12/14',
+    `实际：${fontSet.join('/')}`
+  );
+  const missingLeading = ['leading-[15px]', 'leading-[16px]', 'leading-[18px]'].filter(
+    (l) => !slotSrc.includes(l)
+  );
+  check(
+    'S1-6 三档行高（15 / 16 / 18）都在卡内出现',
+    missingLeading.length === 0,
+    `缺失：${missingLeading.join(' ')}`
+  );
+
+  // ── S1-7 空态与引导 ──────────────────────────────────────────
+  check(
+    'S1-7 空态引导两行（「装 X →」+「装了有什么用」，后者用 line-clamp-2 收口）',
+    slotSrc.includes('装 ') && slotSrc.includes('line-clamp-2')
+  );
+  check(
+    'S1-7 引导覆盖「选了 none 那一档」（isNone 也算未使用，否则默认态 33 格全是 filled、引导一行都不出）',
+    /isNone \|\| \(!picked && !node\.required\)/.test(slotSrc)
+  );
+  check(
+    'S1-7 引导文案来自事实源（defaultOption / options），不许在组件里编文案',
+    /dim\.defaultOption/.test(composerSrc) && /dim\.options\.find/.test(composerSrc)
+  );
+
+  // ── 配色守卫：语义色仍然只有 TONE 五色 + 既有文本 token ──────
+  // 只扫本棒新写/重写的两处：SlotBlock 全文件 + StackComposer 里新增的 LaneWire。
+  // 不扫整个 StackComposer（54KB，历史色值不归本棒管，扫了只会报一堆无法归因的红）。
+  const laneWireSrc = /\/\*\*\s*\n \* 泳道之间的竖连线[\s\S]*?\n\}/.exec(composerSrc)?.[0] ?? '';
+  check(
+    '配色守卫：LaneWire 函数体已从源码定位到（定位不到的话上面的色值扫描就是空跑）',
+    laneWireSrc.includes('#3C4D45') && laneWireSrc.length > 200
+  );
+  const ALLOWED_HEX = new Set([
+    '#E5484D', '#D9A441', '#7FA650', '#5E6E67', '#6E8FA8',
+    '#E8F0EC', '#80918A', '#93A39C', '#3C4D45',
+  ]);
+  const hexScan = `${slotSrc}\n${laneWireSrc}`;
+  const strayHex = [
+    ...new Set([...hexScan.matchAll(/#[0-9A-Fa-f]{6}\b/g)].map((m) => m[0].toUpperCase())),
+  ].filter((h) => !ALLOWED_HEX.has(h));
+  check(
+    '配色守卫：装配台两个文件没有新增第二配色谱系',
+    strayHex.length === 0,
+    `不在允许清单里的色值：${strayHex.join(' ')}`
+  );
+}
+
 zipChecks().then(() => {
   profileChecks();
   process.exit(finish('project'));
