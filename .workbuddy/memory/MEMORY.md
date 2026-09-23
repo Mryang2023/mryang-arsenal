@@ -11,7 +11,7 @@
 - **规则字段名（勿臆造）**：`title` / `rationale`（**没有 `description`**）、`bad` / `good`（**不是 badExample/goodExample**）、`check.{regex,ast,llm,manual}`；`check.llm` 是**字符串**，`check.ast` 是 `{engine,query}`。
 - 选型台 **33 维 / 127 选项 / 6 预设 / 100 能力 / 21 策略 / 7 泳道**；`deploy` = jar·docker·k8s·helm（`src/lib/deploy.ts`）。
 - 引擎真实覆盖：**前端 35/69**（纯正则）、**后端 42/69**（35 正则 + **7** AST，用 JDK 自带 `jdk.compiler`，**不是 JavaParser**）、**LLM 0/43**。非正则层一律 skipped，绝不伪造判定。
-  - ⚠️ 2026-09-23 终检棒实测纠正：此处原写「35 正则 + 15 AST = 50/69」是**错的**。15 是 `AstEngine.register()` 的检查器数，其中 **8 条因 `LintEngine` 的 `if (hasRegex) … else if (hasAst)` 在 API 路径上永不执行**。好文件 `executableRules=42`、坏文件 35，`AstLayer.declaredRules=7`。`arsenal-profiles/arsenal.json:377-379` 仍写 `status:todo`、第 490 行仍写 `JavaParser`，**都是过期结论**（归 plan-4 的 D-1/D-2）。
+  - ⚠️ 2026-09-23 终检棒实测纠正：此处原写「35 正则 + 15 AST = 50/69」是**错的**。15 是 `AstEngine.register()` 的检查器数，其中 **8 条因 `LintEngine` 的 `if (hasRegex) … else if (hasAst)` 在 API 路径上永不执行**。完整分解：20 条声明 ast = 8（同时声明正则，被「正则优先」抢走）+ 12（无正则），12 里 5 条无检查器（即上面那 5 条刻意边界）→ **真跑 7 条**（好文件 `executableRules=42`、坏文件 35、`AstLayer.declaredRules=7`）。**09-23 白天已把两处过期口径改对**：`arsenal.json` 的 L2 AST `status:done` + roadmap 那条换成「AST 路由与 glob 收口」，README「当前进度」新增「校验引擎覆盖」行、「未完成」表 AST 行改写。
 
 ## 硬约定（违反即出事故）
 

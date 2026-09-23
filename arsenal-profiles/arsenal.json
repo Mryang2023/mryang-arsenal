@@ -375,9 +375,9 @@
       },
       {
         "name": "L2 AST",
-        "status": "todo",
-        "metric": "{{rules.astCapable}} 条待接入",
-        "desc": "JavaParser 查询已写进规则数据，引擎未做 —— 全部如实 skipped"
+        "status": "done",
+        "metric": "{{rules.astCapable}} 条已声明语法树查询",
+        "desc": "用 JDK 自带编译器解析，零新增依赖；同时声明了正则的规则按「正则优先」路由，由 L1 出结论"
       },
       {
         "name": "L3 LLM 语义",
@@ -487,8 +487,8 @@
         "tone": "next"
       },
       {
-        "name": "AST 引擎层",
-        "desc": "JavaParser，{{rules.astCapable}} 条 ast 规则已备好数据",
+        "name": "AST 路由与 glob 收口",
+        "desc": "语法树层尚未遵守 appliesTo.pathGlob；部分已注册的检查器被「正则优先」路由挡下",
         "tone": "next"
       },
       {
