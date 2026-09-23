@@ -42,6 +42,8 @@ import Inspector from './Inspector';
 import ProjectTree from './ProjectTree';
 import SlotBlock from './SlotBlock';
 import ArchDiagram from './ArchDiagram';
+import TechArch from './TechArch';
+import DeployGuides from './DeployGuides';
 import DeliveryDeck from './DeliveryDeck';
 import { savePicksSnapshot } from '@/lib/picks-store';
 import { emptyMeta, withParam, withTopology, type StackPicksMeta } from '@/lib/topology';
@@ -69,7 +71,7 @@ type TabId =
   | 'build' | 'yaml' | 'env'
   | 'app' | 'config' | 'code'
   | 'tree' | 'arch'
-  | 'risk' | 'ops' | 'prompt';
+  | 'risk' | 'ops' | 'prompt' | 'deploy';
 
 interface TabSpec {
   id: TabId;
@@ -91,6 +93,8 @@ export default function StackComposer() {
   const [presetId, setPresetId] = useState<string | null>('standard');
   const [activeDim, setActiveDim] = useState<string | null>(null);
   const [tab, setTab] = useState<TabId>('build');
+  /** 架构图页签内的子视图：版式图（事实泳道）/ 画布（可拖拽 + Archify 出图） */
+  const [archView, setArchView] = useState<'layout' | 'canvas'>('layout');
   const [showArtifacts, setShowArtifacts] = useState(true);
   const [exported, setExported] = useState<{ name: string; bytes: number; files: number } | null>(
     null
@@ -175,6 +179,10 @@ export default function StackComposer() {
         { id: 'prompt', glyph: '⎘', label: '给 AI 的约束' },
       ],
     },
+    {
+      group: '部署',
+      tabs: [{ id: 'deploy', glyph: '⚙', label: '部署指引' }],
+    },
   ];
 
   function applyPicks(next: StackPicks, preset: string | null) {
@@ -216,21 +224,24 @@ export default function StackComposer() {
   /**
    * 跳到架构图。
    *
-   * 产物区在页面下方，页签条要滚过整块画布才看得到 —— 只把页签做出来是不够的，
-   * 得有一个首屏就能看见的入口，否则功能等于不存在。
+   * 架构图藏在产物区的「架构图」页签里（首屏看不到）。只把页签做出来不够 ——
+   * 得让「看架构图」按钮真的把图亮出来，否则它和死按钮没两样，用户会说
+   * 「装配台没有展示出软件架构图」。所以这里直接切到该页签（默认显示版式图），
+   * 再滚到那一屏。
    */
   const productsRef = useRef<HTMLElement | null>(null);
   const deckRef = useRef<HTMLDivElement | null>(null);
 
   /**
-   * 跳到交付预览。
+   * 「看架构图」：切到产物区的架构图页签 + 滚到那一屏。
    *
-   * 预览常驻在右栏（宽屏）／装配区下方（窄屏）。窄屏上它离首屏很远，
-   * 所以这颗按钮必须能把人送过去 —— 否则「看架构图」等于不存在。
+   * 之前只 `scrollIntoView` 到交付预览（DeliveryDeck），而它的默认页签是
+   * 「总览」不是图 —— 点了之后屏幕上没有任何架构图，正是这次要修的 bug。
    */
   function focusArch() {
+    setTab('arch');
     requestAnimationFrame(() => {
-      deckRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      productsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     });
   }
 
@@ -714,7 +725,42 @@ export default function StackComposer() {
                 </div>
               )}
 
-              {tab === 'arch' && <ArchDiagram picks={picks} audit={audit} />}
+              {tab === 'arch' && (
+                <div className="space-y-3">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <div className="flex items-center gap-1 rounded border border-line p-0.5">
+                      {(
+                        [
+                          ['layout', '版式图', '事实泳道：谁依赖谁'],
+                          ['canvas', '画布', '可拖拽 · 可交 Archify 出图'],
+                        ] as ['layout' | 'canvas', string, string][]
+                      ).map(([id, label, hint]) => (
+                        <button
+                          key={id}
+                          type="button"
+                          title={hint}
+                          onClick={() => setArchView(id)}
+                          className={
+                            'rounded px-2.5 py-1 text-2xs transition-colors ' +
+                            (archView === id ? 'bg-surfaceHi text-brass' : 'text-fgMuted hover:text-fg')
+                          }
+                        >
+                          {label}
+                        </button>
+                      ))}
+                    </div>
+                    <span className="text-2xs text-fgFaint">
+                      两张都是军火库按当前选型现画的；画布那张还能拖、能隐藏节点、能一键交 Archify 出交互图
+                    </span>
+                  </div>
+
+                  {archView === 'layout' ? (
+                    <ArchDiagram picks={picks} audit={audit} />
+                  ) : (
+                    <TechArch picks={picks} meta={meta} />
+                  )}
+                </div>
+              )}
 
               {tab === 'risk' && (
                 <div className="space-y-4">
@@ -820,6 +866,8 @@ export default function StackComposer() {
                   )}
                 </div>
               )}
+
+              {tab === 'deploy' && <DeployGuides picks={picks} meta={meta} />}
 
               {tab === 'prompt' && (
                 <div className="space-y-3">

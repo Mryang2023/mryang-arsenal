@@ -106,7 +106,14 @@ function channelLine(status: ArchifyStatus): { text: string; tone: string } {
   }
 }
 
-export default function TechArch({ picks: picksProp }: { picks?: StackPicks }) {
+export default function TechArch({
+  picks: picksProp,
+  meta: metaProp,
+}: {
+  picks?: StackPicks;
+  /** 装配台把集群形态一起传进来，画布才画得出分片 / 多副本；不传就读快照 */
+  meta?: StackPicksMeta;
+}) {
   // 装配台传选型进来；架构图谱页不传 —— 读 localStorage 里的最新快照，
   // 在装配台改选型，这里挂载时自动跟上。没有快照（首次访问）回落 standard 预设。
   const [storedPicks, setStoredPicks] = useState<StackPicks | null>(null);
@@ -122,6 +129,7 @@ export default function TechArch({ picks: picksProp }: { picks?: StackPicks }) {
     setStoredMeta(snap.meta);
   }, [picksProp]);
   const picks = picksProp ?? storedPicks ?? presetPicks('standard');
+  const meta = metaProp ?? storedMeta;
   const followsAssembly = !picksProp;
 
   const [edits, setEdits] = useState<CanvasEdits>(() => loadEdits());
@@ -156,8 +164,8 @@ export default function TechArch({ picks: picksProp }: { picks?: StackPicks }) {
   }, [edits]);
 
   const arch = useMemo(
-    () => buildTechArch(picks, edits, { topology: nodeTopologyMap(picks, storedMeta) }),
-    [picks, edits, storedMeta]
+    () => buildTechArch(picks, edits, { topology: nodeTopologyMap(picks, meta) }),
+    [picks, edits, meta]
   );
 
   const svg = useMemo(
