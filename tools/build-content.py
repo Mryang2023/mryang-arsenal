@@ -43,6 +43,8 @@ CASES_MODULES = (
     'cases/hotspot_cache',
     'cases/async_pipeline',
     'cases/wide_table_search',
+    'cases/multi_source_ingestion',
+    'cases/virtual_thread',
 )
 
 # Archify（通用绘图器）的组件类型枚举。写在这里是因为它是**对方**的词汇表：
@@ -81,7 +83,7 @@ def build_cookbook():
     print('[1/4] arsenal-cookbook —— 最佳实践案例库')
     features = []
     problems = []
-    for name in ('crud', 'http', 'async_tx', 'skeleton'):
+    for name in ('crud', 'http', 'async_tx', 'skeleton', 'virtual_thread'):
         feat = load_module(name).FEATURE
         fid = feat.get('id', name)
 

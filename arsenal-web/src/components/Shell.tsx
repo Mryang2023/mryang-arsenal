@@ -20,6 +20,7 @@ const NAV = [
   { href: '/archify', label: '出图服务', glyph: '⚒', count: 0 },
   { href: '/check', label: '校验台', glyph: '⛨', count: 0 },
   { href: '/export', label: '导出中心', glyph: '⎘', count: 0 },
+  { href: '/playground', label: '案例实验室', glyph: '⚗', count: 0 },
 ];
 
 export default function Shell({ children }: { children: React.ReactNode }) {

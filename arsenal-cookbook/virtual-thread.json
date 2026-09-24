@@ -1,0 +1,291 @@
+{
+  "feature": {
+    "id": "virtual-thread",
+    "order": 5,
+    "name": "虚拟线程 · 高并发 IO 任务",
+    "subtitle": "JDK 21+：用百万级虚拟线程把 IO 等待变成并发，而不是在线程池里排队",
+    "glyph": "∿",
+    "level": "进阶",
+    "scenario": "凡是一次请求要并发访问多个外部依赖、或同时处理大量互相独立的 IO 任务（批量查外部 API、并行抓取、并发调用下游），且任务数远大于 CPU 核数时，就用虚拟线程取代平台线程池——让 JVM 去调度百万级轻量线程，而不是在固定池里排队。",
+    "intent": "演示 JDK 21 虚拟线程如何替代传统线程池处理海量 IO 并发，以及 pinning / ThreadLocal 放大 / 背压三大坑。",
+    "tags": [
+      "虚拟线程",
+      "并发",
+      "IO",
+      "背压",
+      "Project Loom"
+    ],
+    "relatedRules": [
+      "CONC-POOL-001",
+      "CONC-POOL-002",
+      "CONC-POOL-004",
+      "CONC-POOL-005",
+      "CONC-LOCK-001",
+      "CONC-LOCK-002",
+      "CONC-THRD-001",
+      "CONC-THRD-002"
+    ],
+    "flow": [
+      {
+        "layer": "client",
+        "step": "POST /batch-fetch",
+        "detail": "提交一批要并发抓取的 URL / 下游地址，立即拿回聚合结果。"
+      },
+      {
+        "layer": "config",
+        "step": "虚拟线程执行器就绪",
+        "detail": "@Bean 暴露名为 virtualThreadExecutor 的每任务虚拟线程执行器。"
+      },
+      {
+        "layer": "concurrency",
+        "step": "每任务一个虚拟线程",
+        "detail": "try-with-resources 创建执行器，Semaphore 限制并发上限，防止下游被打爆。"
+      },
+      {
+        "layer": "service",
+        "step": "并发拉取下游",
+        "detail": "每个任务独立超时，慢点不影响其他任务，超时任务单独标记失败。"
+      },
+      {
+        "layer": "service",
+        "step": "聚合结果",
+        "detail": "成功与失败分别收集后返回，前端展示成功数与失败明细。"
+      },
+      {
+        "layer": "client",
+        "step": "拿到聚合结果",
+        "detail": "展示成功数、失败数与各任务状态。"
+      }
+    ],
+    "packages": [
+      "com.example.vt.config     虚拟线程执行器配置（@Bean 暴露）",
+      "com.example.vt.service    并发抓取与结果聚合",
+      "com.example.vt.concurrent 锁安全与上下文传递封装（防 pinning / ThreadLocal 放大）"
+    ],
+    "files": [
+      {
+        "id": "config",
+        "path": "src/main/java/com/example/vt/config/VirtualThreadConfig.java",
+        "layer": "config",
+        "lang": "java",
+        "role": "虚拟线程执行器配置。显式命名，供 @Async 绑定。",
+        "code": "package com.example.vt.config;\n\nimport java.util.concurrent.Executor;\nimport java.util.concurrent.Executors;\nimport org.springframework.context.annotation.Bean;\nimport org.springframework.context.annotation.Configuration;\nimport org.springframework.scheduling.annotation.EnableAsync;\n\n/**\n * 虚拟线程执行器配置。\n *\n * 核心认知：虚拟线程由 JVM 调度，不需要像平台线程那样「先建一个固定大小的池再去复用」。\n * 每个任务直接由一个虚拟线程承载，用完即弃，调度成本极低。\n *\n * 用法：在异步方法上写 @Async(\"virtualThreadExecutor\") 即可让它在虚拟线程上运行，\n * 而不是默认的平台线程池。显式命名能避免误伤其它本就想用平台线程池的 @Async 任务。\n */\n@EnableAsync\n@Configuration\npublic class VirtualThreadConfig {\n\n    /**\n     * 返回每任务虚拟线程执行器。\n     *\n     * Executors.newVirtualThreadPerTaskExecutor() 不持有线程池，每次 submit 新建一个\n     * 虚拟线程。这正是虚拟线程的正确用法——不要把它再包进 newFixedThreadPool 去「复用」，\n     * 那会把轻量调度重新变成重量级排队。\n     */\n    @Bean(\"virtualThreadExecutor\")\n    public Executor virtualThreadExecutor() {\n        return Executors.newVirtualThreadPerTaskExecutor();\n    }\n}\n",
+        "highlights": [
+          {
+            "mark": "return Executors.newVirtualThreadPerTaskExecutor();",
+            "title": "每任务执行器，不要池化",
+            "text": "虚拟线程由 JVM 调度，无需固定大小的线程池去「复用」。再套一层 newFixedThreadPool 会把轻量调度重新变成重量级排队，是负优化。",
+            "rule": "CONC-POOL-002"
+          },
+          {
+            "mark": "@Bean(\"virtualThreadExecutor\")",
+            "title": "显式命名，避免全局副作用",
+            "text": "不命名会改写所有 @Async 的默认执行器；显式命名只让指定任务上虚拟线程，其它本就用平台线程池的 @Async 不受影响。",
+            "rule": "CONC-POOL-005"
+          },
+          {
+            "mark": "@Async(\"virtualThreadExecutor\")",
+            "title": "显式绑定，别静默改写",
+            "text": "在异步方法上点名使用虚拟线程执行器，既清晰又可审计，避免「改一处配置全项目 @Async 行为都变」的隐性风险。",
+            "rule": "CONC-POOL-005"
+          }
+        ]
+      },
+      {
+        "id": "service",
+        "path": "src/main/java/com/example/vt/service/ConcurrentFetcher.java",
+        "layer": "service",
+        "lang": "java",
+        "role": "并发抓取：每任务虚拟线程 + Semaphore 闸门 + 每任务超时。",
+        "code": "package com.example.vt.service;\n\nimport com.example.vt.model.FetchResult;\nimport java.util.ArrayList;\nimport java.util.List;\nimport java.util.concurrent.Executor;\nimport java.util.concurrent.Executors;\nimport java.util.concurrent.Future;\nimport java.util.concurrent.Semaphore;\nimport java.util.concurrent.TimeUnit;\nimport java.util.concurrent.TimeoutException;\nimport org.springframework.beans.factory.annotation.Qualifier;\nimport org.springframework.scheduling.annotation.Async;\nimport org.springframework.stereotype.Service;\n\n/**\n * 并发抓取服务：一次请求要并发调用 N 个独立下游（批量查外部 API、并行抓取等）。\n *\n * 用虚拟线程取代线程池：N 个任务就起 N 个虚拟线程，JVM 把它们复用到少量 carrier 线程上，\n * 谁在等 IO 谁就挂起，不占 carrier。代码可以用最朴素的「提交 -> get 结果」阻塞写法，\n * 不必为并发去写回调或响应式地狱。\n *\n * 但虚拟线程便宜 ≠ 下游扛得住：所以仍然保留 Semaphore 闸门和每任务超时两道背压。\n */\n@Service\npublic class ConcurrentFetcher {\n\n    private final Executor vtExecutor;\n    /** 下游并发上限：即使虚拟线程免费，也别把依赖打爆。 */\n    private final Semaphore downstreamGate = new Semaphore(200);\n    private final long callTimeoutMs = 3_000;\n\n    public ConcurrentFetcher(@Qualifier(\"virtualThreadExecutor\") Executor vtExecutor) {\n        this.vtExecutor = vtExecutor;\n    }\n\n    /**\n     * 并发拉取一批地址。虚拟线程执行器随用随建，用 try-with-resources 关闭。\n     * 关闭执行器会让所有已提交任务正常结束，这是虚拟线程推荐的生命周期写法。\n     */\n    @Async(\"virtualThreadExecutor\")\n    public List<FetchResult> fetchAll(List<String> urls) throws InterruptedException {\n        var executor = Executors.newVirtualThreadPerTaskExecutor();\n        List<Future<FetchResult>> futures = new ArrayList<>();\n        List<FetchResult> results = new ArrayList<>();\n\n        try (executor) {\n            for (String url : urls) {\n                // 背压闸门：拿不到许可说明下游已饱和，快速失败而不是无限堆积。\n                if (!downstreamGate.tryAcquire(callTimeoutMs, TimeUnit.MILLISECONDS)) {\n                    throw new BackpressureException(\"下游饱和，并发超过 \" + downstreamGate.availablePermits());\n                }\n                Future<FetchResult> f = executor.submit(() -> callDownstream(url));\n                futures.add(f);\n            }\n\n            for (Future<FetchResult> f : futures) {\n                try {\n                    // 每个任务单独超时：一个慢下游只拖垮自己，不影响整批。\n                    results.add(f.get(callTimeoutMs, TimeUnit.MILLISECONDS));\n                } catch (TimeoutException e) {\n                    f.cancel(true);\n                    results.add(FetchResult.timeout());\n                } finally {\n                    downstreamGate.release();\n                }\n            }\n        }\n        return results;\n    }\n\n    private FetchResult callDownstream(String url) {\n        // 真实实现里这里是带连接/读超时的 HTTP 客户端调用。\n        return FetchResult.ok(url);\n    }\n\n    public static class BackpressureException extends RuntimeException {\n        public BackpressureException(String msg) {\n            super(msg);\n        }\n    }\n}\n",
+        "highlights": [
+          {
+            "mark": "var executor = Executors.newVirtualThreadPerTaskExecutor();",
+            "title": "随用随建，用完即弃",
+            "text": "虚拟线程执行器无需复用，在方法内用 try-with-resources 创建并关闭，关闭时所有已提交任务正常结束。不要把它包进全局池。",
+            "rule": "CONC-POOL-002"
+          },
+          {
+            "mark": "if (!downstreamGate.tryAcquire(callTimeoutMs, TimeUnit.MILLISECONDS))",
+            "title": "Semaphore 做背压闸门",
+            "text": "虚拟线程再便宜，下游承载能力也有限。拿不到许可说明下游已饱和，快速失败而不是无限堆积——背压必须保留。",
+            "rule": "CONC-POOL-004"
+          },
+          {
+            "mark": "results.add(f.get(callTimeoutMs, TimeUnit.MILLISECONDS));",
+            "title": "每个任务单独超时",
+            "text": "虚拟线程上阻塞很廉价，但仍要给下游设超时：一个慢点只拖垮自己，整批不被单个请求卡死；超时任务 cancel 并标记失败。",
+            "rule": "CONC-THRD-002"
+          }
+        ]
+      },
+      {
+        "id": "lock",
+        "path": "src/main/java/com/example/vt/concurrent/PinningSafe.java",
+        "layer": "concurrency",
+        "lang": "java",
+        "role": "防 pinning：用 ReentrantLock 替 synchronized。",
+        "code": "package com.example.vt.concurrent;\n\nimport java.util.concurrent.locks.ReentrantLock;\n\n/**\n * 防 pinning：虚拟线程遇到 synchronized 临界区时无法「卸载」到 carrier 线程，\n * 于是 carrier 被这个虚拟线程长期占住——相当于把百万级并发退化回平台线程池。\n *\n * 对比两种写法：synchronized 会 pinning，ReentrantLock 不会。\n */\npublic class PinningSafe {\n\n    // ❌ 反例：synchronized 在虚拟线程热路径上会造成 pinning，抵消虚拟线程收益。\n    private final Object badLock = new Object();\n\n    public void bad(String key) {\n        synchronized (badLock) {\n            doWork(key);\n        }\n    }\n\n    // ✅ 正例：用 ReentrantLock 替 synchronized，虚拟线程可正常卸载。\n    private final ReentrantLock lock = new ReentrantLock();\n\n    public void good(String key) {\n        lock.lock();\n        try {\n            doWork(key);\n        } finally {\n            lock.unlock();\n        }\n    }\n\n    // ✅ 进阶：用可中断锁。虚拟线程支持中断，lockInterruptibly 让取消信号\n    // 能及时打断正在等待锁的虚拟线程，避免任务无法停止。\n    public void cancellable(String key) throws InterruptedException {\n        lock.lockInterruptibly();\n        try {\n            doWork(key);\n        } finally {\n            lock.unlock();\n        }\n    }\n\n    private void doWork(String key) {\n        // 业务逻辑\n    }\n}\n",
+        "highlights": [
+          {
+            "mark": "synchronized (badLock) {",
+            "title": "synchronized 会 pinning",
+            "text": "虚拟线程执行 synchronized 块时无法卸载到 carrier 线程，carrier 被长期占住，并发度退化回平台线程池水平——这是虚拟线程最大的性能陷阱。",
+            "rule": "CONC-LOCK-001"
+          },
+          {
+            "mark": "private final ReentrantLock lock = new ReentrantLock();",
+            "title": "用 ReentrantLock 替 synchronized",
+            "text": "ReentrantLock 不触发 pinning，虚拟线程可正常卸载。注意必须用 try/finally 释放，否则会死锁。",
+            "rule": "CONC-LOCK-002"
+          },
+          {
+            "mark": "lock.lockInterruptibly();",
+            "title": "可中断锁配合虚拟线程取消",
+            "text": "虚拟线程支持中断，lockInterruptibly 让取消信号能及时打断正在等锁的虚拟线程，避免任务无法停止。",
+            "rule": "CONC-THRD-001"
+          }
+        ]
+      },
+      {
+        "id": "context",
+        "path": "src/main/java/com/example/vt/concurrent/ContextHolder.java",
+        "layer": "concurrency",
+        "lang": "java",
+        "role": "上下文传递：规避 ThreadLocal 在海量虚拟线程下的放大与泄漏。",
+        "code": "package com.example.vt.concurrent;\n\nimport java.lang.ThreadLocal;\n\n/**\n * 上下文传递：ThreadLocal 是 per-thread 存储。在平台线程时代靠「线程复用」摊薄成本，\n * 但虚拟线程是短命的、可能百万级并存——每个虚拟线程各持一份 ThreadLocal 会被放大成\n * 百万份，且线程不复用让「set 一次用全程」的假设失效，极易串号或泄漏。\n *\n * 结论：虚拟线程场景下迁移到 ScopedValue（JDK 21 preview / JDK 22+ 转正），\n * 它随调用栈绑定、作用域结束即回收，没有 per-thread 存储。\n */\npublic class ContextHolder {\n\n    // ❌ 海量虚拟线程下会内存放大，且必须记得 remove。\n    private static final ThreadLocal<RequestContext> CTX = new ThreadLocal<>();\n\n    public void handleOld(RequestContext ctx) {\n        CTX.set(ctx);\n        try {\n            business();\n        } finally {\n            CTX.remove(); // 不 remove 就会泄漏 / 串号\n        }\n    }\n\n    // ✅ 升级方案：ScopedValue 随 run 的作用域绑定，自动回收，无 per-thread 存储。\n    // private static final ScopedValue<RequestContext> CTX = ScopedValue.newInstance();\n    // public void handleNew(RequestContext ctx) {\n    //     ScopedValue.where(CTX, ctx).run(this::business);\n    // }\n\n    private void business() {\n        // 业务逻辑\n    }\n\n    public static class RequestContext {\n    }\n}\n",
+        "highlights": [
+          {
+            "mark": "private static final ThreadLocal<RequestContext> CTX = new ThreadLocal<>();",
+            "title": "per-thread 存储在百万虚拟线程下放大",
+            "text": "ThreadLocal 是每线程一份存储，百万虚拟线程并存即百万份；短命线程还让「set 一次用全程」的复用假设失效，极易串号。",
+            "rule": "CONC-THRD-002"
+          },
+          {
+            "mark": "CTX.remove(); // 不 remove 就会泄漏 / 串号",
+            "title": "必须显式 remove",
+            "text": "若无法升级到 ScopedValue，至少保证 finally 里 remove，否则虚拟线程虽短命但高频创建会让泄漏快速累积。",
+            "rule": "CONC-THRD-002"
+          },
+          {
+            "mark": "private static final ScopedValue<RequestContext> CTX = ScopedValue.newInstance();",
+            "title": "迁移到 ScopedValue",
+            "text": "ScopedValue 随调用栈绑定、作用域结束即回收，没有 per-thread 存储，天然适配海量虚拟线程（JDK 21 preview / JDK 22+ 转正）。",
+            "rule": "CONC-THRD-002"
+          }
+        ]
+      }
+    ],
+    "checklist": [
+      "确认运行环境 JDK 21+，且依赖库无长时间 synchronized 临界区（否则 pinning）。",
+      "确认虚拟线程执行器是 per-task（随用随建），没有再包一层固定线程池去「复用」。",
+      "确认对下游仍有 Semaphore / 超时等背压，虚拟线程便宜 ≠ 下游扛得住。",
+      "确认 @Async 显式绑定虚拟线程执行器名称，没有静默改写所有 @Async。",
+      "确认 ThreadLocal 已迁移到 ScopedValue，或在虚拟线程短生命周期下显式 remove。",
+      "确认监控能看到虚拟线程指标（carrier 线程池、挂载 / 卸载次数），pinning 可观测。"
+    ],
+    "pitfalls": [
+      "把虚拟线程执行器再套一层 newFixedThreadPool：虚拟线程由 JVM 调度，池化是负优化且隐藏调度。",
+      "在虚拟线程热路径用 synchronized：carrier 线程被 pin，并发度退化，这是最大陷阱。",
+      "放任 ThreadLocal 隐式传参：百万虚拟线程各持一份，内存放大 + 短命线程让「复用」假设失效。",
+      "以为虚拟线程免背压：下游承载能力有限，必须仍有限流与超时，否则打爆依赖。",
+      "忘记虚拟线程可被中断：取消信号靠中断传播，锁要用 lockInterruptibly 才能及时停。"
+    ],
+    "notSuitable": [
+      "CPU 密集型任务（单任务跑满核）：虚拟线程不增加算力，调度开销反而更慢，老老实实用固定线程池。",
+      "JDK < 21 的运行环境：虚拟线程不存在，无法使用，需先升级。",
+      "重度依赖 synchronized 且无法改造的遗留依赖：pinning 会让并发度退化到平台线程池水平，收益归零。",
+      "并发量本就很小（个位数）的服务：虚拟线程带来的可观测性与心智变化不划算，普通线程池足够。"
+    ],
+    "performance": {
+      "title": "虚拟线程 vs 平台线程池",
+      "columns": [
+        "维度",
+        "线程池方案",
+        "虚拟线程方案"
+      ],
+      "rows": [
+        [
+          "并发上限",
+          "受线程数 / 队列容量限制，通常数百~数千",
+          "可达百万级，由 JVM 调度挂载到少量 carrier"
+        ],
+        [
+          "阻塞代价",
+          "阻塞占住平台线程，需大池或队列缓冲",
+          "阻塞只挂起虚拟线程，carrier 线程继续跑其他任务"
+        ],
+        [
+          "适用负载",
+          "CPU 密集或中等并发 IO",
+          "海量独立 IO 等待任务（等网络 / 等锁 / 等 DB）"
+        ],
+        [
+          "主要陷阱",
+          "池配置不当导致 OOM / 雪崩",
+          "synchronized pinning、ThreadLocal 放大、误以为免背压"
+        ]
+      ],
+      "conclusion": "虚拟线程不是让单个任务更快，而是让「大量在等 IO 的任务」几乎免费地并发。前提是任务确实 IO-bound，且代码避开 pinning 与 ThreadLocal 放大。两者都满足时，它比调线程池参数省心得多。"
+    },
+    "playground": [
+      {
+        "id": "vt-io",
+        "label": "高并发 IO：虚拟线程 vs 线程池",
+        "mainClass": "Main",
+        "note": "1000 个并发 IO 任务，对比虚拟线程与固定线程池(200)的总耗时。",
+        "files": [
+          {
+            "path": "Main.java",
+            "code": "import java.util.concurrent.*;\nimport java.time.*;\n\npublic class Main {\n    public static void main(String[] args) throws Exception {\n        int n = 1000, ioMs = 100;            // 1000 个并发 IO，每个阻塞 100ms\n        long t0 = System.nanoTime();\n        try (var ex = Executors.newVirtualThreadPerTaskExecutor()) {\n            for (int i = 0; i < n; i++) {\n                int id = i;\n                ex.submit(() -> { Thread.sleep(ioMs); return id; });\n            }\n        }\n        long vt = (System.nanoTime() - t0) / 1_000_000;\n        System.out.println(\"虚拟线程 \" + n + \" 并发IO -> \" + vt + \"ms\");\n\n        t0 = System.nanoTime();\n        try (var ex = Executors.newFixedThreadPool(200)) {\n            for (int i = 0; i < n; i++) ex.submit(() -> { Thread.sleep(ioMs); return 0; });\n        }\n        long pt = (System.nanoTime() - t0) / 1_000_000;\n        System.out.println(\"平台线程池(200) -> \" + pt + \"ms\");\n        System.out.println(\"java.version=\" + System.getProperty(\"java.version\"));\n    }\n}\n"
+          }
+        ]
+      },
+      {
+        "id": "vt-pinning",
+        "label": "防 pinning：ReentrantLock 替 synchronized",
+        "mainClass": "Main",
+        "note": "用 ReentrantLock 替代 synchronized，避免虚拟线程被钉在载体线程上。",
+        "files": [
+          {
+            "path": "Main.java",
+            "code": "import java.util.concurrent.locks.ReentrantLock;\n\npublic class Main {\n    // 虚拟线程里用 synchronized 会把任务「钉」在载体线程上（pinning），吞吐上不去。\n    // 改用 ReentrantLock，临界区不再 pin，虚拟线程才能线性提升并发。\n    private static final ReentrantLock lock = new ReentrantLock();\n    private static int counter = 0;\n\n    public static void main(String[] args) throws Exception {\n        int n = 1000;\n        try (var ex = java.util.concurrent.Executors.newVirtualThreadPerTaskExecutor()) {\n            for (int i = 0; i < n; i++) {\n                ex.submit(() -> {\n                    lock.lock();\n                    try { counter++; } finally { lock.unlock(); }\n                    return null;\n                });\n            }\n        }\n        System.out.println(\"counter=\" + counter);\n        System.out.println(\"java.version=\" + System.getProperty(\"java.version\"));\n    }\n}\n"
+          }
+        ]
+      },
+      {
+        "id": "vt-backpressure",
+        "label": "背压闸门：Semaphore 限并发",
+        "mainClass": "Main",
+        "note": "虚拟线程便宜 ≠ 下游扛得住，用 Semaphore 给下游加上限流。",
+        "files": [
+          {
+            "path": "Main.java",
+            "code": "import java.util.concurrent.*;\n\npublic class Main {\n    public static void main(String[] args) throws Exception {\n        int n = 1000;\n        Semaphore gate = new Semaphore(100);   // 背压：同时最多 100 个 IO 在飞\n        long t0 = System.nanoTime();\n        try (var ex = Executors.newVirtualThreadPerTaskExecutor()) {\n            for (int i = 0; i < n; i++) {\n                int id = i;\n                ex.submit(() -> {\n                    gate.acquire();\n                    try { Thread.sleep(100); return id; }\n                    finally { gate.release(); }\n                });\n            }\n        }\n        long ms = (System.nanoTime() - t0) / 1_000_000;\n        System.out.println(n + \" 个并发IO, 背压闸门=100 -> \" + ms + \"ms\");\n        System.out.println(\"java.version=\" + System.getProperty(\"java.version\"));\n    }\n}\n"
+          }
+        ]
+      }
+    ],
+    "references": [
+      {
+        "title": "JEP 444 · Virtual Threads",
+        "url": "https://openjdk.org/jeps/444",
+        "note": "虚拟线程正式规范，含 pinning 与 synchronized 的说明"
+      },
+      {
+        "title": "JEP 480 · Structured Concurrency (Third Preview)",
+        "url": "https://openjdk.org/jeps/480",
+        "note": "结构化并发与 ScopedValue，替代 ThreadLocal 的官方方案"
+      },
+      {
+        "title": "Spring Boot 3.2 Release Notes · Virtual Threads",
+        "url": "https://spring.io/blog/2023/11/23/spring-boot-3-2-0-available",
+        "note": "spring.threads.virtual.enabled 与 @Async 的集成方式"
+      },
+      {
+        "title": "军火库规则集 · CONCURRENCY 类",
+        "note": "线程池、锁、线程管理的强制级条目出处"
+      }
+    ]
+  }
+}

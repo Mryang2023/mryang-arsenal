@@ -8,7 +8,8 @@
     "crud-basic",
     "http-semantics",
     "async-transaction",
-    "skeleton-config"
+    "skeleton-config",
+    "virtual-thread"
   ],
-  "count": 4
+  "count": 5
 }

@@ -46,6 +46,26 @@ arsenal:
   scan:
     rules-file: ${ARSENAL_SCAN_RULES:../arsenal-scan/scan_rules.json}
 
+  # 案例执行服务：把提交的案例代码用独立 JDK 21 子进程编译运行（虚拟线程等需要 21+）。
+  # 主服务仍跑 JDK 17，不改；这里只解析一个 JDK 21+ 给案例用。
+  cases:
+    # 留空 = 自动扫描 ~/.jdks 与常见安装目录里的 JDK 21+；也可显式指到 JDK 21+ 安装目录
+    jdk-home: ${ARSENAL_CASE_JDK:}
+    # 案例运行的工作根目录；留空 = 系统临时目录
+    work-dir: ${ARSENAL_CASE_WORK:}
+    # 单次运行超时（毫秒）
+    run-timeout-ms: 30000
+    # 单次编译超时（毫秒）
+    compile-timeout-ms: 30000
+    # 单请求捕获的 stdout/stderr 上限（字节，超出截断）
+    max-output-bytes: 524288
+    # 单次提交最多源文件数
+    max-files: 50
+    # 单次提交源码总字节上限
+    max-source-bytes: 200000
+    # 子进程堆上限
+    max-heap: 256m
+
   cors:
     allowed-origins: http://localhost:3010,http://127.0.0.1:3010
 

@@ -1,6 +1,7 @@
 package com.arsenal.web;
 
 import com.arsenal.archify.ArchifyUnavailableException;
+import com.arsenal.cases.CaseException;
 import com.arsenal.scan.ScanException;
 import org.slf4j.Logger;
 import org.springframework.web.multipart.MaxUploadSizeExceededException;
@@ -97,6 +98,18 @@ public class GlobalExceptionHandler {
         };
         log.info("扫描失败（{} → {}）：{}", e.code(), status.value(), e.getMessage());
         return ResponseEntity.status(status).body(ApiResponse.fail(e.code(), e.getMessage()));
+    }
+
+    /**
+     * 案例执行服务不可用或入参非法（环境缺 JDK 21=503，其它按各自声明的状态码）。
+     *
+     * <p>不接住会落到最下面的兜底变成 500 —— 但「没找到 JDK 21」明明是环境配置问题（503），
+     * 落 500 会让看日志的人去查根本不存在的服务端 bug。
+     */
+    @ExceptionHandler(CaseException.class)
+    public ResponseEntity<ApiResponse<Void>> handleCase(CaseException e) {
+        log.warn("案例执行异常（{} → {}）：{}", e.code(), e.status(), e.getMessage());
+        return ResponseEntity.status(e.status()).body(ApiResponse.fail(e.code(), e.getMessage()));
     }
 
     /** 上传体积超过限制。413 与 400 的处置动作不同：前者要分片，后者要改请求 */

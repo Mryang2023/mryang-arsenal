@@ -10,7 +10,9 @@
     "high-throughput-io",
     "hotspot-cache",
     "async-pipeline",
-    "wide-table-search"
+    "wide-table-search",
+    "multi-source-ingestion",
+    "virtual-thread"
   ],
-  "count": 6
+  "count": 8
 }

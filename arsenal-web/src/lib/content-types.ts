@@ -80,6 +80,28 @@ export interface FeatureReference {
   note?: string;
 }
 
+/**
+ * 案例实验室（/playground）可直接运行的示例。
+ *
+ * 这是「最佳实践案例库」的第三种出口：人查 / 给 AI 用 / 拿代码验之外，再加「能直接跑」。
+ * 每条都是自包含、可在 JDK 21 子进程里独立编译运行的 main 类。
+ * files 为数组，单文件 Demo 也走它，以便将来支持多文件示例而无需改数据结构。
+ */
+export interface PlaygroundFile {
+  path: string;
+  code: string;
+}
+
+export interface PlaygroundDemo {
+  id: string;
+  label: string;
+  mainClass: string;
+  /** 自包含的可运行文件清单，随示例一起提交给后端案例执行服务 */
+  files: PlaygroundFile[];
+  /** 这个示例在演示什么，展示在示例下拉项副标题 */
+  note?: string;
+}
+
 export interface Feature {
   id: string;
   order: number;
@@ -103,6 +125,12 @@ export interface Feature {
   performance?: FeaturePerformance;
   /** 权威出处，至少两条 */
   references: FeatureReference[];
+  /**
+   * 案例实验室（/playground）可运行示例，由 tools/content/*.py 的 PLAYGROUND 注入。
+   * 事实源（arsenal-cookbook/*.json）里没有这个键，只有同步后的 src/generated/cookbook.json 才有 ——
+   * 与 fileCount/highlightCount 等同理，属于「注入字段」。
+   */
+  playground?: PlaygroundDemo[];
   /**
    * 以下四项**不是**手写内容，由 `scripts/sync-content.mjs` 从 `files[]` 算出后注入 ——
    * 所以 `arsenal-cookbook/*.json`（事实源）里**没有**这四个键，`src/generated/cookbook.json` 里才有。

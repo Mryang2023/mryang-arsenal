@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from 'react';
 import Link from 'next/link';
-import type { ArchLink, ArchNode, CasePlan, CaseSlice } from '@/lib/case-types';
+import type { ArchLink, ArchNode, CaseDef, CaseParams, CasePlan, CaseSlice, Driver } from '@/lib/case-types';
 import { cases, casesMeta, casesStats, defaultParams } from '@/lib/case-cases';
 import { planToPrompt, sliceFileName, synthCase } from '@/lib/case-synth';
 import { DIAGRAM_PALETTE, textWidth } from '@/lib/arch-diagram';
@@ -30,6 +30,95 @@ const P = DIAGRAM_PALETTE.dark;
  */
 function nodeWidth(label: string): number {
   return Math.max(88, Math.round(textWidth(label, 11.5)) + 28);
+}
+
+/**
+ * 参数指纹：场景卡里的一小行点阵 —— 每组点对应一个驱动参数，
+ * 点数 = 档位数，亮点 = 当前选中的档。
+ *
+ * 为什么用图：200px 边栏里「6 参数」三个字读不出参数空间的形状；
+ * 点阵让「这个场景参数空间多密、你选到哪了」变成一眼可扫的图形，
+ * 还能跨场景对比（hotspot-cache 的六组点明显比别的场景密）。
+ */
+function ParamFingerprint({ kase, params }: { kase: CaseDef; params: CaseParams }) {
+  const DOT = 3;
+  const GAP = 2.5;
+  const SEP = 5;
+  const H = 8;
+  const widths = kase.drivers.map((d) => d.levels.length * (DOT + GAP) - GAP);
+  const w = widths.reduce((a, b) => a + b, 0) + SEP * Math.max(0, kase.drivers.length - 1);
+  let x = 0;
+  return (
+    <svg viewBox={`0 0 ${w} ${H}`} width={w} height={H} className="mt-1.5" role="img"
+      aria-label="参数指纹：每组点是一个驱动参数的档位，亮点是当前选中档">
+      {kase.drivers.map((d, i) => {
+        const sel = d.levels.findIndex((l) => l.id === params[d.id]);
+        const dots = d.levels.map((lv, j) => (
+          <circle key={lv.id} cx={x + j * (DOT + GAP) + DOT / 2} cy={H / 2}
+            r={j === sel ? 2.7 : 1.6}
+            fill={j === sel ? '#D9A441' : 'rgba(232,240,236,0.22)'} />
+        ));
+        x += widths[i] + SEP;
+        return <g key={d.id}>{dots}</g>;
+      })}
+    </svg>
+  );
+}
+
+/**
+ * 档位轴：把文字段选按钮升级成一条真正的轴 ——
+ * 点在轨道上的**位置**就是档位的序（小 → 大），填充段表示当前选到了多大规模。
+ *
+ * 互斥路线（如 JDK 17 vs 21）不画填充段：它们没有「大小」语义，
+ * 填充会暗示「选 21 比 17 更进一步」—— 图形不能替数据撒谎。
+ */
+function LevelAxis({ driver, value, exclusive, onChange }: {
+  driver: Driver;
+  value: string;
+  exclusive: boolean;
+  onChange: (id: string) => void;
+}) {
+  const n = driver.levels.length;
+  const idx = Math.max(0, driver.levels.findIndex((l) => l.id === value));
+  const cap = `${100 / (2 * n)}%`;
+  return (
+    <div className="mt-2">
+      <div className="relative">
+        {/* 轨道：从第一档中心画到最后一档中心 */}
+        <div className="absolute top-[6px] h-px" style={{ left: cap, right: cap, background: '#33413A' }} />
+        {!exclusive && n > 1 && (
+          <div className="absolute top-[5.5px] h-[2px] rounded-full"
+            style={{
+              left: cap,
+              width: `calc((100% - ${100 / n}%) * ${n > 1 ? idx / (n - 1) : 0})`,
+              background: 'rgba(217,164,65,0.8)',
+            }} />
+        )}
+        <div className="relative grid" style={{ gridTemplateColumns: `repeat(${n},minmax(0,1fr))` }}>
+          {driver.levels.map((lv, j) => {
+            const on = j === idx;
+            return (
+              <button key={lv.id} onClick={() => onChange(lv.id)} title={lv.note ?? lv.label}
+                aria-pressed={on}
+                className="group flex flex-col items-center focus:outline-none">
+                <span className="flex h-[13px] items-center">
+                  <span className="block rounded-full transition-all"
+                    style={on
+                      ? { width: 9, height: 9, background: '#D9A441', boxShadow: '0 0 0 3px rgba(217,164,65,0.16)' }
+                      : { width: 7, height: 7, background: '#0B0F0E', border: '1.5px solid #4A5A52' }} />
+                </span>
+                <span className={`mt-0.5 px-0.5 text-center text-[10px] leading-tight transition-colors ${on
+                  ? 'font-medium text-fg'
+                  : 'text-fgMuted group-hover:text-fg'}`}>
+                  {lv.label}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+    </div>
+  );
 }
 
 /**
@@ -406,11 +495,15 @@ export default function CaseLab() {
 
       {/* ── 三栏 ─────────────────────────────────────── */}
       <div className="grid gap-4 lg:grid-cols-[200px_260px_minmax(0,1fr)]">
-        {/* 场景列表 */}
-        <aside className="space-y-2">
+        {/* 场景列表：命中条 + 参数指纹是图不是字 —— 跨场景扫一眼就能比。
+            sticky + 内部滚动：主区再长，切场景的入口永远在原地。 */}
+        <aside className="scroll-thin space-y-2 lg:sticky lg:top-4 lg:max-h-[calc(100vh-2rem)] lg:self-start lg:overflow-y-auto lg:pr-1.5">
           <div className="text-2xs uppercase tracking-[0.14em] text-fgFaint">场景</div>
           {cases.map((c) => {
             const on = c.id === kase.id;
+            const cParams = paramsMap[c.id] ?? defaultParams(c);
+            const cPlan = on ? plan : synthCase(c, cParams);
+            const hit = cPlan.activeSlices.length;
             return (
               <button key={c.id} onClick={() => setCaseId(c.id)}
                 className={`w-full rounded-lg border px-3 py-2.5 text-left transition-colors ${on
@@ -419,20 +512,34 @@ export default function CaseLab() {
                 <div className="flex items-center gap-2">
                   <span className="mono text-[13px]" style={{ color: '#D9A441' }}>{c.glyph}</span>
                   <span className="text-[13px] font-medium text-fg">{c.name}</span>
+                  <span className="mono ml-auto text-[10px]" title={`当前参数命中 ${hit} / ${c.slices.length} 个切片`}
+                    style={{ color: on ? '#D9A441' : undefined }}>
+                    <span style={{ color: on ? '#D9A441' : '#93A39C' }}>{hit}</span>
+                    <span className="text-fgFaint">/{c.slices.length}</span>
+                  </span>
                 </div>
                 <div className="mt-1 text-[11.5px] leading-relaxed text-fgFaint">
                   {c.subtitle}
                 </div>
-                <div className="mono mt-1 text-[10.5px] text-fgFaint">
-                  {c.sliceCount} 切片 · {c.driverCount} 参数
+                {/* 切片命中条：每格 = 一个切片，亮 = 当前参数下命中。跟着参数实时变 */}
+                <div className="mt-2 flex gap-[3px]" aria-label={`命中 ${hit} / ${c.slices.length} 个切片`}>
+                  {c.slices.map((s) => {
+                    const active = cPlan.activeSlices.some(({ slice }) => slice.id === s.id);
+                    return (
+                      <span key={s.id} className="h-[5px] flex-1 rounded-[1px]" title={s.goal}
+                        style={{ background: active ? 'rgba(217,164,65,0.9)' : 'rgba(232,240,236,0.10)' }} />
+                    );
+                  })}
                 </div>
+                <ParamFingerprint kase={c} params={cParams} />
               </button>
             );
           })}
         </aside>
 
-        {/* 参数面板 */}
-        <aside className="space-y-3 lg:sticky lg:top-4 lg:self-start">
+        {/* 参数面板。⚠️ sticky 必须配 max-h + overflow —— 面板比视口高时
+            光钉住会把底部（互斥提示 / 复制按钮）永远留在屏幕外。 */}
+        <aside className="scroll-thin space-y-3 lg:sticky lg:top-4 lg:max-h-[calc(100vh-2rem)] lg:self-start lg:overflow-y-auto lg:pr-1.5">
           <div className="flex items-center justify-between">
             <span className="text-2xs uppercase tracking-[0.14em] text-fgFaint">参数</span>
             <button onClick={() => setParamsMap((m) => ({ ...m, [kase.id]: defaultParams(kase) }))}
@@ -448,6 +555,7 @@ export default function CaseLab() {
 
           {kase.drivers.map((d) => {
             const selected = d.levels.find((lv) => lv.id === params[d.id]);
+            const exclusive = (kase.exclusiveGroups ?? []).some((g) => g.drivers.includes(d.id));
             return (
               <div key={d.id} className="rounded-lg border border-line bg-surface p-3">
                 <div className="flex items-baseline justify-between gap-2">
@@ -456,24 +564,10 @@ export default function CaseLab() {
                 </div>
                 {d.hint && <div className="mt-0.5 text-[11px] text-fgFaint">{d.hint}</div>}
 
-                {/* 段选器：整条轨道连通、各档等宽分割。比散按钮更能表达
-                    「这几个档位是同一个参数的取值」这件事 —— 散按钮看起来像并列的开关。 */}
-                <div className="mt-2 flex overflow-hidden rounded-md border border-line">
-                  {d.levels.map((lv, i) => {
-                    const on = params[d.id] === lv.id;
-                    return (
-                      <button key={lv.id} onClick={() => setLevel(d.id, lv.id)} title={lv.note ?? ''}
-                        aria-pressed={on}
-                        className={`mono flex-1 px-1 py-1 text-[11px] leading-tight transition-colors ${
-                          i > 0 ? 'border-l border-line' : ''
-                        } ${on
-                          ? 'bg-accent/15 font-medium text-fg'
-                          : 'text-fgMuted hover:bg-white/[0.03] hover:text-fg'}`}>
-                        {lv.label}
-                      </button>
-                    );
-                  })}
-                </div>
+                {/* 档位轴：位置即序（小 → 大），填充段 = 已选到的量级。
+                    互斥路线没有大小语义，轴上不填充（见 LevelAxis 注释）。 */}
+                <LevelAxis driver={d} value={params[d.id] ?? d.levels[0]?.id ?? ''}
+                  exclusive={exclusive} onChange={(id) => setLevel(d.id, id)} />
                 {selected?.note && (
                   <div className="mt-1 text-[11px] leading-relaxed text-fgMuted">{selected.note}</div>
                 )}
