@@ -45,6 +45,7 @@ import DeliveryDeck from './DeliveryDeck';
 import DeployGuides from './DeployGuides';
 import { SlotWire, WireLayer } from './WireLayer';
 import ProgressRing from './ProgressRing';
+import { useStackHistory, type StackSnapshot } from './history';
 import {
   clearProvenance,
   loadBaseSnapshot,
@@ -149,6 +150,52 @@ export default function StackComposer() {
   const [exported, setExported] = useState<{ name: string; bytes: number; files: number } | null>(
     null
   );
+
+  // ── 撤销 / 重做（S2-3）────────────────────────────────────
+  // 快照在「写入前」记录；snapRef 每次提交后同步，保证事件回调里拿到的是最新状态
+  const hist = useStackHistory();
+  const snapRef = useRef<StackSnapshot>({ picks, meta, baseId });
+  useEffect(() => {
+    snapRef.current = { picks, meta, baseId };
+  });
+
+  /** 把历史快照放回三个 state。presetId 高亮与导出产物随之作废 */
+  function restore(s: StackSnapshot) {
+    setPicks(s.picks);
+    setMeta(s.meta);
+    setBaseId(s.baseId);
+    setPresetId(null);
+    setExported(null);
+  }
+
+  function undo() {
+    const s = hist.undo(snapRef.current);
+    if (s) restore(s);
+  }
+
+  function redo() {
+    const s = hist.redo(snapRef.current);
+    if (s) restore(s);
+  }
+
+  // Ctrl/Cmd+Z 撤销、Ctrl/Cmd+Shift+Z（及 Ctrl+Y）重做。
+  // 文本输入框里不拦 —— 那是浏览器原生编辑语义，归输入框自己；下拉框没有文本编辑，不豁免。
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (!(e.metaKey || e.ctrlKey)) return;
+      if (e.key !== 'z' && e.key !== 'Z' && e.key !== 'y' && e.key !== 'Y') return;
+      const t = e.target as HTMLElement | null;
+      const typing =
+        t?.tagName === 'INPUT' || t?.tagName === 'TEXTAREA' || t?.isContentEditable === true;
+      if (typing) return;
+      e.preventDefault();
+      if (e.shiftKey || e.key.toLowerCase() === 'y') redo();
+      else undo();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   /**
    * 挂载时恢复上次的选型 / 形态 / 基底 / 出处。
@@ -262,6 +309,7 @@ export default function StackComposer() {
   ];
 
   function applyPicks(next: StackPicks, preset: string | null) {
+    hist.record(snapRef.current);
     setPicks(next);
     // 换预设 = 换一整套发言。形态与参数是上一套留下的发言，必须一起清掉 ——
     // 否则「切到最小骨架」之后，K8s 清单里还写着上一套的 5 副本。
@@ -275,12 +323,14 @@ export default function StackComposer() {
   }
 
   function pick(dimId: string, optId: string) {
+    hist.record(snapRef.current);
     setPicks((p) => ({ ...p, [dimId]: optId }));
     setPresetId(null);
     setExported(null);
   }
 
   function clear(dimId: string) {
+    hist.record(snapRef.current);
     setPicks((p) => ({ ...p, [dimId]: '' }));
     setPresetId(null);
     setActiveDim(dimId);
@@ -289,13 +339,16 @@ export default function StackComposer() {
 
   /** 换集群形态。只写 meta，不碰 picks —— 形态不是「选项」的一部分 */
   function pickTopology(dimId: string, modeId: string) {
+    hist.record(snapRef.current);
     setMeta((m) => withTopology(m, dimId, modeId));
     setPresetId(null);
     setExported(null);
   }
 
-  /** 滑杆。五条参数写进 meta.params，产物侧一律从 `paramValue()` 读 */
+  /** 滑杆。五条参数写进 meta.params，产物侧一律从 `paramValue()` 读。
+   *  同一条滑杆的连续拖动用 tag 合并成一步 —— 20 步栈不 serve 拖动噪音 */
   function setParam(key: string, value: number) {
+    hist.record(snapRef.current, `param:${key}`);
     setMeta((m) => withParam(m, key, value));
     setPresetId(null);
     setExported(null);
@@ -413,11 +466,36 @@ export default function StackComposer() {
         />
 
         <div className="ml-auto flex flex-wrap items-center gap-1.5">
+          {/* 撤销 / 重做（S2-3）：数字是栈深；滑杆连续拖动合并为一步。
+              回退到底后按钮禁用，不提供假按钮 */}
+          <button
+            type="button"
+            onClick={undo}
+            disabled={hist.undoSteps === 0}
+            title="撤销 (Ctrl+Z)"
+            className="mono flex items-center gap-1 rounded-md border px-2 py-1 text-[10px] transition-colors disabled:cursor-not-allowed disabled:opacity-40"
+            style={{ borderColor: '#243029', color: hist.undoSteps > 0 ? '#93A39C' : '#5E6E67' }}
+          >
+            ↶ {hist.undoSteps}
+          </button>
+          <button
+            type="button"
+            onClick={redo}
+            disabled={hist.redoSteps === 0}
+            title="重做 (Ctrl+Shift+Z)"
+            className="mono flex items-center gap-1 rounded-md border px-2 py-1 text-[10px] transition-colors disabled:cursor-not-allowed disabled:opacity-40"
+            style={{ borderColor: '#243029', color: hist.redoSteps > 0 ? '#93A39C' : '#5E6E67' }}
+          >
+            ↷ {hist.redoSteps}
+          </button>
           {/* 技术栈基底：全局声明，不进选型维度。它决定导出骨架里的 Spring Boot 版本 */}
           <span className="mono mr-0.5 text-[10px] uppercase tracking-wider text-fgFaint">基底</span>
           <select
             value={baseId}
-            onChange={(e) => setBaseId(e.target.value)}
+            onChange={(e) => {
+              hist.record(snapRef.current);
+              setBaseId(e.target.value);
+            }}
             className="rounded-md border px-2 py-1 text-[11px] outline-none"
             style={{ borderColor: '#243029', background: 'transparent', color: '#CFDCD6' }}
             title={
@@ -772,7 +850,7 @@ export default function StackComposer() {
                 <Fragment key={g.group}>
                   {gi > 0 && <span className="h-[16px] w-px bg-line" />}
                   <div className="flex items-center gap-1">
-                    <span className="mono mr-0.5 text-[9px] uppercase tracking-wider text-fgFaint">
+                    <span className="mono mr-0.5 text-[10px] uppercase tracking-wider text-fgFaint">
                       {g.group}
                     </span>
                     {g.tabs.map((t) => {
@@ -791,7 +869,7 @@ export default function StackComposer() {
                           <span className="mono text-[11px] leading-none">{t.glyph}</span>
                           {t.label}
                           {t.count !== undefined && t.count > 0 && (
-                            <span className="mono text-[9px] text-fgFaint">{t.count}</span>
+                            <span className="mono text-[10px] text-fgFaint">{t.count}</span>
                           )}
                         </button>
                       );
@@ -954,7 +1032,7 @@ export default function StackComposer() {
                             {ops.map((o, i) => (
                               <li key={i} className="flex gap-3 px-4 py-2.5">
                                 <span
-                                  className="mono mt-[1px] flex h-[16px] w-[16px] shrink-0 items-center justify-center rounded border text-[9px]"
+                                  className="mono mt-[1px] flex h-[16px] w-[16px] shrink-0 items-center justify-center rounded border text-[10px]"
                                   style={{ borderColor: 'rgba(217,164,65,0.4)', color: '#D9A441' }}
                                 >
                                   {i + 1}

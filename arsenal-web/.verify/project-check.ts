@@ -1878,6 +1878,43 @@ console.log('\n【18】装配台 P1 第二组（S1-4 / S1-5 / S2-7）');
       /setTab\(focusTab\)/.test(deckSrc) &&
       /onFocusConsumed\?\.\(\)/.test(deckSrc)
   );
+
+  // ── S1-6 收尾 / S2-8 V2-12 / S2-3 撤销重做（09-24 白天补） ────
+  const stackFiles = [
+    'src/app/stack/SlotBlock.tsx',
+    'src/app/stack/Inspector.tsx',
+    'src/app/stack/DeliveryDeck.tsx',
+    'src/app/stack/GapCard.tsx',
+    'src/app/stack/TopologyPicker.tsx',
+    'src/app/stack/StackComposer.tsx',
+  ].map(readRel);
+  const with9px = ['SlotBlock', 'Inspector', 'DeliveryDeck', 'GapCard', 'TopologyPicker', 'StackComposer'].filter(
+    (_, i) => stackFiles[i].includes('text-[9px]')
+  );
+  check(
+    'S1-6 装配台六个活跃组件全部无 9px 字号（9px 连排清零；孤儿文件 ProjectTree 不在扫描内）',
+    with9px.length === 0,
+    `仍有 9px：${with9px.join(' ')}`
+  );
+
+  const topologySrc = readRel('src/lib/topology.ts');
+  check(
+    'S2-8 V2-12 副本数来源可辨：paramIsSet 导出 + Capacity 带 replicasSource（未设显示 —，不许拿哨兵 0 当输入值）',
+    /export function paramIsSet\(/.test(topologySrc) &&
+      /replicasSource: 'override' \| 'topology'/.test(topologySrc) &&
+      deckSrc.includes('capacity.replicasSource') &&
+      deckSrc.includes('paramIsSet(meta')
+  );
+
+  const historySrc = readRel('src/app/stack/history.ts');
+  check(
+    'S2-3 撤销 / 重做：history.ts 快照栈（20 上限 + 同 tag 合并）且 StackComposer 全部写入口挂 record',
+    /const LIMIT = 20;/.test(historySrc) &&
+      /top\.tag === tag/.test(historySrc) &&
+      /useStackHistory\(\)/.test(composerSrc) &&
+      (composerSrc.match(/hist\.record\(/g) ?? []).length >= 6 &&
+      /e\.shiftKey \|\| e\.key\.toLowerCase\(\) === 'y'/.test(composerSrc)
+  );
 }
 
 zipChecks().then(() => {

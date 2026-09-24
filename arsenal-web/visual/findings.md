@@ -194,3 +194,11 @@ V2-05（89/81 矛盾）、V2-06（两张能力卡正文重复）、V2-07…V2-17
 > 现在空态给出「装谁」与「装了有什么用」，且点了就能装 —— 该条成立的部分已被覆盖。
 > 注意它**不是**「一键添加」按钮（那是 S2-2 一键补齐的活），所以 L2 只关了「无引导」这一半。
 
+
+## 09-24 白天会话补录（S1-6 收尾 + S2-8 / S2-3）
+
+| # | 对应 finding | 证据 | 结论 |
+|---|---|---|---|
+| **H-1** | **V2-12**（P2，副本数显示 0 与滑块 value=1 不一致） | ① 根因坐实：`topology.ts` PARAM_SPECS 的 `app.replicas` fallback=0 是「未设」哨兵，滑杆把哨兵 0 当输入值显示，而容量数字走 `effectiveAppReplicas()`（下限 1），两处不同源；② 修复：新增 `paramIsSet()`，`Capacity` 增加 `replicasSource: 'override' \| 'topology'`；滑杆未设时数值显示 `—`、滑块位置落在形态推导值上，页头与容量摘要都标注来源（「按形态推导」/「滑杆的手动设定」）；③ 断言：【18】新增 V2-12 一条（paramIsSet + replicasSource + DeliveryDeck 两处消费） | **关闭**（未跑验证，等用户实测确认） |
+| **H-2** | **V2-06**（P1→复核，「鉴权」卡与「幂等」卡文案相同） | 复核：09-22 走查所指的「应用能力 4/4」面板在 S1 系列重写后的代码里**已找不到对应物**——全仓无「幂等」能力卡渲染点，architecture.json / stack.json 里也无「幂等」条目（唯一一处是调度 policy 的 fix 文案）。当时的重复文案源（policy 卡错挂）在现版结构中不存在 | **转待复核**——不盲改数据硬凑；下轮视觉走查若复现再立 finding |
+| **H-3** | **V2-02 残留**（装配台 9px 连排，S1-6 余下部分） | S1-6 计划只列了 SlotBlock/Inspector/DeliveryDeck；本棒把活跃组件全清了：Inspector 5 处、DeliveryDeck 4 处、StackComposer 3 处、GapCard 2 处、TopologyPicker 2 处 → 全部收进 meta 档（10px/15px）。断言：【18】新增「六个活跃组件无 9px」 | **关闭**（孤儿文件 ProjectTree.tsx 仍有 9px，但无任何引用，不渲染） |

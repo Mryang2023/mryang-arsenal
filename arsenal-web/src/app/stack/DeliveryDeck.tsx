@@ -29,6 +29,7 @@ import {
   estimateCapacity,
   nodeTopologyMap,
   PARAM_SPECS,
+  paramIsSet,
   paramValue,
   type StackPicksMeta,
 } from '@/lib/topology';
@@ -173,7 +174,9 @@ export default function DeliveryDeck({
           <span className="mono text-[10px] text-fgFaint">· 实时</span>
           <span className="ml-auto flex items-center gap-2">
             <span className="mono text-[10px] text-fgFaint">
-              {capacity.appReplicas} 副本 · {deployFiles.length} 个交付文件
+              {capacity.appReplicas} 副本
+              {capacity.replicasSource === 'topology' && '（按形态推导）'} ·{' '}
+              {deployFiles.length} 个交付文件
             </span>
             {note && (
               <button
@@ -208,7 +211,7 @@ export default function DeliveryDeck({
                 <span className="mono text-[11px] leading-none">{t.glyph}</span>
                 {t.label}
                 {t.id === 'risk' && hazards > 0 && (
-                  <span className="mono text-[9px] text-fgFaint">{hazards}</span>
+                  <span className="mono text-[10px] text-fgFaint">{hazards}</span>
                 )}
               </button>
             );
@@ -220,7 +223,7 @@ export default function DeliveryDeck({
       {(tab === 'arch' || tab === 'topology' || tab === 'deps') && (
         <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 border-b border-line px-3 py-2">
           <div className="flex items-center gap-1">
-            <span className="mono mr-0.5 text-[9px] uppercase tracking-wider text-fgFaint">主题</span>
+            <span className="mono mr-0.5 text-[10px] uppercase tracking-wider text-fgFaint">主题</span>
             {DELIVERY_THEMES.map((t) => (
               <button
                 key={t.id}
@@ -325,9 +328,21 @@ export default function DeliveryDeck({
         </div>
         <div className="grid gap-x-4 gap-y-1.5 sm:grid-cols-2">
           {PARAM_SPECS.map((spec) => {
-            const v = paramValue(meta, spec.key);
+            const isSet = paramIsSet(meta, spec.key);
+            // V2-12：app.replicas 未设时 paramValue 返回哨兵 0，不能当输入值显示。
+            // 滑块位置落在按形态推导的当前生效值上，数值显示「—」；拖动即变显式设定
+            const unsetReplicas = spec.key === 'replicas' && !isSet;
+            const v = unsetReplicas ? capacity.appReplicas : paramValue(meta, spec.key);
             return (
-              <label key={spec.key} className="flex items-center gap-2" title={spec.impact}>
+              <label
+                key={spec.key}
+                className="flex items-center gap-2"
+                title={
+                  unsetReplicas
+                    ? `${spec.impact}\n\n未手动设置：滑块位置是按所选形态推导的当前值，拖动即变为手动设定。`
+                    : spec.impact
+                }
+              >
                 <span className="w-[92px] shrink-0 text-[10px] text-fgMuted">{spec.label}</span>
                 <input
                   type="range"
@@ -340,8 +355,14 @@ export default function DeliveryDeck({
                   style={{ background: '#243029', accentColor: '#D9A441' }}
                 />
                 <span className="mono w-[62px] shrink-0 text-right text-[10px]" style={{ color: '#D9A441' }}>
-                  {v}
-                  <span className="ml-0.5 text-[9px] text-fgFaint">{spec.unit}</span>
+                  {unsetReplicas ? (
+                    <span className="text-fgFaint">—</span>
+                  ) : (
+                    <>
+                      {v}
+                      <span className="ml-0.5 text-[10px] text-fgFaint">{spec.unit}</span>
+                    </>
+                  )}
                 </span>
               </label>
             );
@@ -810,20 +831,20 @@ function ManifestBlock({
                 <span className="mono min-w-0 flex-1 truncate text-[10px] text-fgMuted">
                   {f.path}
                 </span>
-                <span className="mono shrink-0 text-[9px] text-fgFaint">
+                <span className="mono shrink-0 text-[10px] text-fgFaint">
                   {formatBytes(f.content.length)}
                 </span>
                 <button
                   type="button"
                   onClick={() => downloadText(f.path.split('/').pop() ?? 'file.txt', f.content, 'text/plain;charset=utf-8')}
-                  className="mono shrink-0 text-[9px] text-fgFaint hover:text-fg"
+                  className="mono shrink-0 text-[10px] text-fgFaint hover:text-fg"
                 >
                   下载
                 </button>
                 <button
                   type="button"
                   onClick={() => copy(f.content, onNote, `${f.path} 已复制`)}
-                  className="mono shrink-0 text-[9px] text-fgFaint hover:text-fg"
+                  className="mono shrink-0 text-[10px] text-fgFaint hover:text-fg"
                 >
                   复制
                 </button>
@@ -933,6 +954,12 @@ function CapacityBlock({ capacity }: { capacity: ReturnType<typeof estimateCapac
       </div>
 
       <ul className="space-y-0.5 text-[10px] leading-[15px] text-fgFaint">
+        <li>
+          · 应用副本 {capacity.appReplicas} 来自
+          {capacity.replicasSource === 'override'
+            ? '滑杆的手动设定。'
+            : '所选形态的推导（滑杆未动过，它不是输入值）。'}
+        </li>
         <li>· JVM 堆 {capacity.heapMb} MB，另计约 512MB 堆外（元空间 / 直接内存 / 线程栈）。</li>
         <li>· 单实例限流 {capacity.qpsLimit} QPS × {capacity.appReplicas} 副本 = {capacity.totalQps} QPS 入口上限。</li>
         <li>· 分片数 {capacity.shardCount}：只在数据库形态为「分库分表」时影响真实路由，其余形态只影响形态图的格子数。</li>

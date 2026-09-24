@@ -46,7 +46,7 @@ export default function GapCard({
             <button
               type="button"
               onClick={() => onFocus(gap.dim)}
-              className="mono mt-1 rounded-sm border border-line px-1 text-[9px] leading-[15px] text-fgFaint transition-colors hover:border-lineHi hover:text-fg"
+              className="mono mt-1 rounded-sm border border-line px-1 text-[10px] leading-[15px] text-fgFaint transition-colors hover:border-lineHi hover:text-fg"
             >
               定位到「{dim.name}」↑
             </button>
@@ -63,7 +63,7 @@ export default function GapCard({
 
           {gap.symptoms?.length ? (
             <div className="mt-2">
-              <p className="mono text-[9px] uppercase tracking-wider" style={{ color: t.color }}>
+              <p className="mono text-[10px] uppercase tracking-wider" style={{ color: t.color }}>
                 会看到的现象
               </p>
               <ul className="mt-1 space-y-1">

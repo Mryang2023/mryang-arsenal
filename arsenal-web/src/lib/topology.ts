@@ -235,6 +235,20 @@ export function paramValue(meta: StackPicksMeta | undefined, key: string): numbe
   return spec.fallback;
 }
 
+/**
+ * 这条参数**用户调过没有**。
+ *
+ * `app.replicas` 的 fallback 是 0（「未设」哨兵，见 PARAM_SPECS）——
+ * V2-12 事故的根源就是把哨兵 0 当输入值显示了出来。UI 侧判「未设」
+ * 必须走这里，不许拿 `paramValue() === 0` 猜。
+ */
+export function paramIsSet(meta: StackPicksMeta | undefined, key: string): boolean {
+  const spec = paramByKey.get(key);
+  if (!spec) return false;
+  const v = meta?.params?.[spec.dimId]?.[spec.key];
+  return typeof v === 'number' && Number.isFinite(v);
+}
+
 /** 写一条参数，返回新的 meta（不改原对象 —— 与 composeStack 的纯度要求一致） */
 export function withParam(
   meta: StackPicksMeta | undefined,
@@ -334,6 +348,8 @@ export interface CapacityRow {
 
 export interface Capacity {
   appReplicas: number;
+  /** 副本数的来源：滑杆显式设定（override）或按所选形态推导（topology，V2-12） */
+  replicasSource: 'override' | 'topology';
   /** 每个应用实例的 JVM 堆（MB） */
   heapMb: number;
   /** 每实例连接池上限 */
@@ -386,6 +402,7 @@ export function estimateCapacity(
 
   return {
     appReplicas: replicas,
+    replicasSource: paramIsSet(meta, 'replicas') ? 'override' : 'topology',
     heapMb,
     poolSize,
     dbConnections: replicas * poolSize,

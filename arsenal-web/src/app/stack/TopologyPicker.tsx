@@ -71,10 +71,10 @@ export default function TopologyPicker({
               style={{ color: active ? '#D9A441' : '#93A39C' }}
             >
               {mode.label}
-              <span className="mono text-[9px] opacity-70">×{mode.replicas}</span>
+              <span className="mono text-[10px] opacity-70">×{mode.replicas}</span>
             </span>
             {mode.note && (
-              <span className="mt-1 block text-[9px] leading-[12px] text-fgFaint">{mode.note}</span>
+              <span className="mt-1 block text-[10px] leading-[15px] text-fgFaint">{mode.note}</span>
             )}
           </button>
         ))}

@@ -222,7 +222,7 @@ function Picker({
           <h2 className="text-[13px] font-semibold text-fg">{dim.name}</h2>
           {node.required && (
             <span
-              className="mono rounded-sm px-1 text-[9px] leading-[14px]"
+              className="mono rounded-sm px-1 text-[10px] leading-[15px]"
               style={{ color: '#E5484D', background: 'rgba(229,72,77,0.14)' }}
             >
               必选
@@ -254,7 +254,7 @@ function Picker({
                 >
                   <div className="flex items-center gap-2">
                     <span
-                      className="mono flex h-[13px] w-[13px] shrink-0 items-center justify-center rounded-full border text-[9px] leading-none"
+                      className="mono flex h-[13px] w-[13px] shrink-0 items-center justify-center rounded-full border text-[10px] leading-none"
                       style={{
                         borderColor: on ? '#7FA650' : '#33413A',
                         color: on ? '#7FA650' : 'transparent',
@@ -264,7 +264,7 @@ function Picker({
                     </span>
                     <span className="text-2xs font-medium text-fg">{o.name}</span>
                     {o.badge && (
-                      <span className="mono ml-auto rounded-sm border border-line px-1 text-[9px] leading-[14px] text-fgFaint">
+                      <span className="mono ml-auto rounded-sm border border-line px-1 text-[10px] leading-[15px] text-fgFaint">
                         {o.badge}
                       </span>
                     )}
@@ -276,7 +276,7 @@ function Picker({
                     {capsOf(dimId, o.id).map((c) => (
                       <span
                         key={c}
-                        className="mono rounded-sm px-1 text-[9px] leading-[14px]"
+                        className="mono rounded-sm px-1 text-[10px] leading-[15px]"
                         style={{ color: '#7FA650', background: 'rgba(127,166,80,0.10)' }}
                       >
                         +{capLabel(c)}
@@ -285,7 +285,7 @@ function Picker({
                     {needsOf(dimId, o.id).map((c) => (
                       <span
                         key={c}
-                        className="mono rounded-sm px-1 text-[9px] leading-[14px]"
+                        className="mono rounded-sm px-1 text-[10px] leading-[15px]"
                         style={{ color: '#93A39C', background: 'rgba(255,255,255,0.04)' }}
                       >
                         需 {capLabel(c)}
