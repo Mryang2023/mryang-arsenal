@@ -36,6 +36,7 @@ import { buildArchifyIr } from '@/lib/archify-ir';
 import { deliverArchify } from '@/lib/arsenal-api';
 import type { ComposedStack, StackPicks } from '@/lib/content-types';
 import { TONE } from './palette';
+import ProgressRing from './ProgressRing';
 
 /**
  * 动态交付台 —— 装配台的右半边。
@@ -75,6 +76,8 @@ export default function DeliveryDeck({
   composed,
   baseId,
   onParam,
+  focusTab,
+  onFocusConsumed,
 }: {
   picks: StackPicks;
   meta: StackPicksMeta;
@@ -83,6 +86,12 @@ export default function DeliveryDeck({
   /** 技术栈基底 id —— 决定这里导出的 pom parent / gradle 插件版本 */
   baseId: string;
   onParam: (key: string, value: number) => void;
+  /**
+   * 外部请求切到的页签（S2-7：产物区的架构图/隐患页签砍掉后，
+   * 「看架构图」这类入口改走右栏）。null = 没有待处理请求。
+   */
+  focusTab?: DeckTab | null;
+  onFocusConsumed?: () => void;
 }) {
   const [tab, setTab] = useState<DeckTab>('overview');
   const [theme, setTheme] = useState<CanvasTheme>('doc');
@@ -90,6 +99,14 @@ export default function DeliveryDeck({
   const [lean, setLean] = useState(false);
   const [hd, setHd] = useState(false);
   const [note, setNote] = useState<string | null>(null);
+
+  // 外部入口（「看架构图」按钮）请求切页签：切完立刻回报「已消费」，
+  // 否则同一个值来两次（连点两下按钮）第二次就不生效了。
+  useEffect(() => {
+    if (!focusTab) return;
+    setTab(focusTab);
+    onFocusConsumed?.();
+  }, [focusTab, onFocusConsumed]);
 
   const topo = useMemo(() => nodeTopologyMap(picks, meta), [picks, meta]);
   const techArch = useMemo(
@@ -935,37 +952,8 @@ function Num({ label, value, accent }: { label: string; value: string; accent?: 
   );
 }
 
-function ProgressRing({ ratio, tone }: { ratio: number; tone: string }) {
-  const R = 22;
-  const C = 2 * Math.PI * R;
-  const on = Math.max(0, Math.min(1, ratio)) * C;
-  return (
-    <svg width="56" height="56" viewBox="0 0 56 56" aria-label="必选项覆盖">
-      <circle cx="28" cy="28" r={R} fill="none" stroke="#243029" strokeWidth="5" />
-      <circle
-        cx="28"
-        cy="28"
-        r={R}
-        fill="none"
-        stroke={tone}
-        strokeWidth="5"
-        strokeLinecap="round"
-        strokeDasharray={`${on} ${C - on}`}
-        transform="rotate(-90 28 28)"
-      />
-      <text
-        x="28"
-        y="32"
-        textAnchor="middle"
-        fontFamily="'Cascadia Code',Consolas,monospace"
-        fontSize="12"
-        fill={tone}
-      >
-        {Math.round(ratio * 100)}%
-      </text>
-    </svg>
-  );
-}
+// ProgressRing 已提取为共享组件（./ProgressRing）—— 装配台结论条（S1-5）与
+// 这里共用同一份定义，改动半径只需要一处。
 
 // ─────────────────────────────────────────────────────────────
 // 小工具

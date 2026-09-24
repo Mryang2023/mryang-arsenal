@@ -13,7 +13,7 @@ import {
   STATUS_META,
   lanes,
 } from '@/lib/arch';
-import type { ArchGap } from '@/lib/arch';
+import type { SlotState } from '@/lib/arch';
 import {
   baseById,
   bases,
@@ -35,20 +35,16 @@ import {
   formatBytes,
   projectDoc,
   renderAppClass,
-  renderTreeText,
-  riskReportMarkdown,
 } from '@/lib/project';
 import { downloadZip } from '@/lib/zip';
 import type { StackPicks } from '@/lib/content-types';
-import GapCard from './GapCard';
 import Inspector from './Inspector';
-import ProjectTree from './ProjectTree';
 import SlotBlock from './SlotBlock';
 import type { SlotWeight } from './SlotBlock';
-import ArchDiagram from './ArchDiagram';
-import TechArch from './TechArch';
-import DeployGuides from './DeployGuides';
 import DeliveryDeck from './DeliveryDeck';
+import DeployGuides from './DeployGuides';
+import { SlotWire, WireLayer } from './WireLayer';
+import ProgressRing from './ProgressRing';
 import {
   clearProvenance,
   loadBaseSnapshot,
@@ -78,12 +74,15 @@ import { TONE } from './palette';
  * 页签 id。**加了这里就必须在下面渲染区补一个 `tab === 'x'` 分支** ——
  * 只加 id 不加分支的后果是页签按钮在、点进去一片空白，而且没有任何东西会报错
  * （「技术架构图」就这么空了一段时间）。结构层断言守这条。
+ *
+ * S2-7（2026-09-24）：`tree` / `arch` / `risk` 三个页签已砍 —— 与右栏交付预览
+ * 的「目录树 / 架构图 / 隐患」功能重叠，两处各养一份渲染是双倍维护。
+ * 只留文件类页签；想看那三样走右侧交付预览（产物区页签条尾部有入口）。
  */
 type TabId =
   | 'build' | 'yaml' | 'env'
   | 'app' | 'config' | 'code'
-  | 'tree' | 'arch'
-  | 'risk' | 'ops' | 'prompt' | 'deploy';
+  | 'ops' | 'prompt' | 'deploy';
 
 interface TabSpec {
   id: TabId;
@@ -139,8 +138,13 @@ export default function StackComposer() {
   const [presetId, setPresetId] = useState<string | null>('standard');
   const [activeDim, setActiveDim] = useState<string | null>(null);
   const [tab, setTab] = useState<TabId>('build');
-  /** 架构图页签内的子视图：版式图（事实泳道）/ 画布（可拖拽 + Archify 出图） */
-  const [archView, setArchView] = useState<'layout' | 'canvas'>('layout');
+  /**
+   * 「点亮请求链路」开关（S1-4）。默认关 —— 动效是给「想看请求怎么穿」的人
+   * 的放大镜，不是常驻装饰；关闭时连线退回 treeLine 静态实线，零动效。
+   */
+  const [flowOn, setFlowOn] = useState(false);
+  /** 外部请求右栏切到的页签（S2-7：「看架构图」入口改走交付预览）；消费后回 null */
+  const [deckFocus, setDeckFocus] = useState<'arch' | null>(null);
   const [showArtifacts, setShowArtifacts] = useState(true);
   const [exported, setExported] = useState<{ name: string; bytes: number; files: number } | null>(
     null
@@ -198,11 +202,8 @@ export default function StackComposer() {
   const promptText = useMemo(() => renderPrompt(composed), [composed]);
   const configMd = useMemo(() => renderConfigClassesMarkdown(composed), [composed]);
   const appCode = useMemo(() => renderAppClass(picks), [picks]);
-  const treeText = useMemo(() => renderTreeText(picks), [picks]);
-  const riskMd = useMemo(
-    () => riskReportMarkdown(picks, audit, projectDoc.artifactId),
-    [picks, audit]
-  );
+  // treeText / riskMd 随 S2-7 砍页签一并撤下：目录树与隐患单的唯一消费方
+  // 是右栏交付预览，底部不再各养一份复制按钮。
   const ops = useMemo(() => renderOps(composed), [composed]);
 
   /** 槽位 → 它参与的组合隐患标题。「有隐患」三个字没有用，得说清是什么。 */
@@ -227,6 +228,9 @@ export default function StackComposer() {
   const hazardCount = audit.blockers.length + audit.risks.length + audit.notes.length;
   const buildLabel = picks.build === 'gradle' ? 'build.gradle' : 'pom.xml';
 
+  // S2-7：底部产物区只留文件类页签。目录树 / 架构图 / 隐患单在右栏交付预览
+  // 有完整得多的版本（九块实时预览 vs 这里的一份静态渲染），两处各养一份
+  // 渲染分支是双倍维护 + 「两边数据对不上」的隐患源。
   const TAB_GROUPS: { group: string; tabs: TabSpec[] }[] = [
     {
       group: '构建与配置',
@@ -245,14 +249,8 @@ export default function StackComposer() {
       ],
     },
     {
-      group: '项目结构',
-      tabs: [{ id: 'tree', glyph: '▦', label: '目录与导出', count: plan.files.length }],
-    },
-    {
       group: '交付',
       tabs: [
-        { id: 'arch', glyph: '⊞', label: '架构图' },
-        { id: 'risk', glyph: '⚠', label: '隐患体检单', count: hazardCount },
         { id: 'ops', glyph: '▥', label: '运维清单' },
         { id: 'prompt', glyph: '⎘', label: '给 AI 的约束' },
       ],
@@ -313,17 +311,20 @@ export default function StackComposer() {
    */
   const productsRef = useRef<HTMLElement | null>(null);
   const deckRef = useRef<HTMLDivElement | null>(null);
+  const benchRef = useRef<HTMLDivElement | null>(null);
 
   /**
-   * 「看架构图」：切到产物区的架构图页签 + 滚到那一屏。
+   * 「看架构图」：点亮右栏交付预览的架构图页签 + 滚到那一屏。
    *
-   * 之前只 `scrollIntoView` 到交付预览（DeliveryDeck），而它的默认页签是
-   * 「总览」不是图 —— 点了之后屏幕上没有任何架构图，正是这次要修的 bug。
+   * S2-7 之前它切的是底部产物区的 arch 页签；页签去重后架构图的唯一完整版
+   * 在右栏（九块实时预览），入口改走 deckFocus 信号 —— DeliveryDeck 收到后
+   * 自己切页签并回报「已消费」，这里只负责滚过去。注意必须**先给信号再滚**，
+   * 顺序反了会滚到一个还没长出图来的位置。
    */
   function focusArch() {
-    setTab('arch');
+    setDeckFocus('arch');
     requestAnimationFrame(() => {
-      productsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      deckRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     });
   }
 
@@ -343,11 +344,18 @@ export default function StackComposer() {
       {/* 页面级主标题：装配台是画布式界面，视觉上没有传统页头，
           所以用 sr-only 给屏幕阅读器与文档大纲留一个唯一的 h1（视觉零变化）。 */}
       <h1 className="sr-only">架构装配台</h1>
-      {/* ── 顶部：这套组合能不能跑 ─────────────────────────── */}
+      {/* ── 顶部：这套组合能不能跑（S1-5 闭环仪表） ────────────── */}
       <div
         className="panel flex flex-wrap items-center gap-x-5 gap-y-3 px-4 py-3.5"
         style={{ borderColor: tone.border, background: tone.soft }}
       >
+        {/* 必选覆盖率环：三档结论（✓ 能跑 / ! 零件不全 / × 跑不起来）的量化面。
+            tone 与三档同源 —— ring 的颜色就是结论的颜色，不另设一套。 */}
+        <ProgressRing
+          ratio={audit.stats.requiredTotal > 0 ? audit.stats.requiredFilled / audit.stats.requiredTotal : 0}
+          tone={tone.color}
+          size={44}
+        />
         <div className="flex min-w-0 items-center gap-3">
           <span
             className="mono flex h-[26px] w-[26px] shrink-0 items-center justify-center rounded-full text-[14px] leading-none"
@@ -388,6 +396,21 @@ export default function StackComposer() {
             </p>
           </div>
         </div>
+
+        {/* 33 格点阵（S1-5）：每个格子 = 一个槽位 = dimensions 里的一维，
+            颜色与卡片同规则（filled 绿 / conflict 黄 / missing-required 红虚线 /
+            其余灰）。格子太小说明不了问题，所以带 title 与点击直达 ——
+            它是结论的「哪儿不对」索引，不是装饰条。 */}
+        <SlotDotMatrix
+          slotStates={audit.slotStates}
+          activeDim={activeDim}
+          onSelect={(dimId) => {
+            setActiveDim(dimId);
+            requestAnimationFrame(() => {
+              benchRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            });
+          }}
+        />
 
         <div className="ml-auto flex flex-wrap items-center gap-1.5">
           {/* 技术栈基底：全局声明，不进选型维度。它决定导出骨架里的 Spring Boot 版本 */}
@@ -512,15 +535,32 @@ export default function StackComposer() {
       {/* ── 左：装配 ───────────── 右：交付预览（常驻，实时） ───── */}
       <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(0,1.05fr)]">
         <div className="space-y-2">
-          <p className="rounded-md border border-line bg-surface px-4 py-2.5 text-[10px] leading-[15px] text-fgMuted">
-            点任意方块 → 在右侧选零件、换<span className="text-fg">集群形态</span>（单实例 / 主从 /
-            组复制 / 分片 / 云原生，图形化切换）；右侧的交付预览会立刻跟着变。
-            下方五根滑杆直接写进 yaml 与交付清单。
-          </p>
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-md border border-line bg-surface px-4 py-2 text-[10px] leading-[15px] text-fgMuted">
+            <p className="min-w-0 flex-1">
+              点任意方块 → 在右侧选零件、换<span className="text-fg">集群形态</span>（单实例 /
+              主从 / 组复制 / 分片 / 云原生，图形化切换）；右侧的交付预览会立刻跟着变。
+              下方五根滑杆直接写进 yaml 与交付清单。
+            </p>
+            <button
+              type="button"
+              onClick={() => setFlowOn((v) => !v)}
+              aria-pressed={flowOn}
+              className="flex shrink-0 items-center gap-1.5 rounded-md border px-2 py-0.5 text-[10px] transition-colors"
+              style={
+                flowOn
+                  ? { borderColor: 'rgba(217,164,65,0.6)', background: 'rgba(217,164,65,0.12)', color: '#D9A441' }
+                  : { borderColor: '#243029', background: 'transparent', color: '#93A39C' }
+              }
+              title="把请求真正流经的连线点亮成流动虚线（泳道间的竖线 + 链路上的箭头）；旁路件不亮。再点一次熄灭"
+            >
+              <span className="mono text-[11px] leading-none">{flowOn ? '⚡' : '⌀'}</span>
+              {flowOn ? '链路已点亮' : '点亮请求链路'}
+            </button>
+          </div>
           {/* 台面（L0）：34px 网格底 + 比 surface 暗一档的底色。
               泳道面板（L1）浮在台面上、零件卡（L2）浮在面板上 ——
               三层深度全部靠底色差与边框表达，不引进第二种配色。 */}
-          <div className="stack-bench space-y-1.5 rounded-lg border border-line p-1.5 sm:p-2">
+          <div ref={benchRef} className="stack-bench scroll-mt-4 space-y-1.5 rounded-lg border border-line p-1.5 sm:p-2">
           {lanes.map((lane, laneIdx) => {
             const slotIds = slotsOfLane(lane.id);
             /** 参与请求链路的槽位顺序；其余槽位是旁路件（如迁移工具） */
@@ -530,7 +570,7 @@ export default function StackComposer() {
               <Fragment key={lane.id}>
                 {laneIdx > 0 && (
                   <div className="flex items-center gap-2 py-0.5 pl-[15px] sm:pl-[17px]">
-                    <LaneWire />
+                    <WireLayer flowOn={flowOn} />
                     <span className="mono text-[10px] uppercase leading-[15px] tracking-wider text-fgFaint">
                       请求向下穿过
                     </span>
@@ -578,12 +618,9 @@ export default function StackComposer() {
                         return (
                           <span key={dimId} className="flex shrink-0 items-stretch">
                             {/* 箭头与方块绑在同一个 flex item 里 —— 否则窄屏换行时
-                                箭头会被留在上一行末尾，指向一个不存在的东西 */}
-                            {inPipeline && pipedIdx > 0 && (
-                              <span className="mono flex items-center pr-1.5 text-[13px] leading-none text-fgFaint">
-                                →
-                              </span>
-                            )}
+                                箭头会被留在上一行末尾，指向一个不存在的东西。
+                                S1-4：字符箭头换 SVG（SlotWire），点亮时随链路流动。 */}
+                            {inPipeline && pipedIdx > 0 && <SlotWire flowOn={flowOn} />}
                             {/* 旁路件：不在请求链路上，用一条竖线隔开 */}
                             {!inPipeline && pipelineOrder.length > 0 && (
                               <span
@@ -643,6 +680,8 @@ export default function StackComposer() {
             composed={composed}
             baseId={baseId}
             onParam={setParam}
+            focusTab={deckFocus}
+            onFocusConsumed={() => setDeckFocus(null)}
           />
         </div>
       </div>
@@ -760,6 +799,24 @@ export default function StackComposer() {
                   </div>
                 </Fragment>
               ))}
+
+              {/* S2-7：目录树 / 架构图 / 隐患单三个页签已收编进右栏交付预览
+                  （那边是九块实时预览，比这里的一份静态渲染完整）。砍页签不砍入口。 */}
+              <span className="h-[16px] w-px bg-line" />
+              <button
+                type="button"
+                onClick={() => {
+                  setDeckFocus('arch');
+                  requestAnimationFrame(() => {
+                    deckRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                  });
+                }}
+                className="flex items-center gap-1.5 rounded-md px-2 py-1 text-[11px] text-fgMuted transition-colors hover:text-fg"
+                title="目录树、架构图、隐患单在右侧交付预览里 —— 图都是实时算出来的"
+              >
+                <span className="mono text-[11px] leading-none">⬢</span>
+                目录树 / 架构图 / 隐患单 → 右侧交付预览
+              </button>
             </div>
 
             <div className="p-4">
@@ -878,98 +935,6 @@ export default function StackComposer() {
                         label={`${s.dimName} · ${s.optName} — ${s.title}`}
                       />
                     ))
-                  )}
-                </div>
-              )}
-
-              {tab === 'tree' && (
-                <div className="space-y-4">
-                  <ProjectTree picks={picks} plan={plan} />
-                  <div className="flex flex-wrap justify-end gap-2">
-                    <CopyButton text={treeText} label="复制目录树文本" />
-                    <CopyButton text={riskMd} label="复制隐患体检单（Markdown）" />
-                  </div>
-                </div>
-              )}
-
-              {tab === 'arch' && (
-                <div className="space-y-3">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <div className="flex items-center gap-1 rounded border border-line p-0.5">
-                      {(
-                        [
-                          ['layout', '版式图', '事实泳道：谁依赖谁'],
-                          ['canvas', '画布', '可拖拽 · 可交 Archify 出图'],
-                        ] as ['layout' | 'canvas', string, string][]
-                      ).map(([id, label, hint]) => (
-                        <button
-                          key={id}
-                          type="button"
-                          title={hint}
-                          onClick={() => setArchView(id)}
-                          className={
-                            'rounded px-2.5 py-1 text-2xs transition-colors ' +
-                            (archView === id ? 'bg-surfaceHi text-brass' : 'text-fgMuted hover:text-fg')
-                          }
-                        >
-                          {label}
-                        </button>
-                      ))}
-                    </div>
-                    <span className="text-2xs text-fgFaint">
-                      两张都是军火库按当前选型现画的；画布那张还能拖、能隐藏节点、能一键交 Archify 出交互图
-                    </span>
-                  </div>
-
-                  {archView === 'layout' ? (
-                    <ArchDiagram picks={picks} audit={audit} />
-                  ) : (
-                    <TechArch picks={picks} meta={meta} />
-                  )}
-                </div>
-              )}
-
-              {tab === 'risk' && (
-                <div className="space-y-4">
-                  <Hint text="隐患是「组合」的属性，不是单个选项的属性 —— 所以它只能在选定之后才算得出来。每条都给了触发条件与可核对的现象：如果现象对不上，说明这条不成立，不必照着改。" />
-
-                  {hazardCount === 0 && audit.gaps.length === 0 ? (
-                    <Empty text="当前组合没有隐患。零件齐全、能力闭环，也没有拼起来才出现的问题。" />
-                  ) : (
-                    <>
-                      <RiskSection
-                        title="跑不起来"
-                        hint="启动就会失败"
-                        tone="bad"
-                        items={audit.blockers}
-                        onFocus={(d) => setActiveDim(d)}
-                      />
-                      <RiskSection
-                        title="缺件"
-                        hint="能启动，但少能力"
-                        tone="warn"
-                        items={audit.gaps}
-                        onFocus={(d) => setActiveDim(d)}
-                      />
-                      <RiskSection
-                        title="组合隐患"
-                        hint="单独看都对，拼起来出事"
-                        tone="warn"
-                        items={audit.risks}
-                        onFocus={(d) => setActiveDim(d)}
-                      />
-                      <RiskSection
-                        title="提示"
-                        hint="知道就行"
-                        tone="info"
-                        items={audit.notes}
-                        onFocus={(d) => setActiveDim(d)}
-                      />
-
-                      <div className="flex justify-end">
-                        <CopyButton text={riskMd} label="复制完整体检单（Markdown）" />
-                      </div>
-                    </>
                   )}
                 </div>
               )}
@@ -1094,69 +1059,75 @@ export default function StackComposer() {
   );
 }
 
-function RiskSection({
-  title,
-  hint,
-  tone,
-  items,
-  onFocus,
+/**
+ * 33 格槽位点阵（S1-5）。
+ *
+ * 一格 = 一个槽位 = dimensions 里的一维；颜色规则与零件卡**同一份映射**
+ * （filled → ok / conflict → warn / missing-required → bad，其余 idle）——
+ * 在这里另写一套颜色语义就违反「语义色只许 TONE 五色、含义不许复用」。
+ *
+ * 它回答的是「三档结论说不对，那到底哪儿不对」：一格一个槽位扫一眼，
+ * 点击直达该槽位（选中 + 滚到台面）。格数必须等于 dimensions.length ——
+ * 点阵不是装饰，少一格就有一个槽位没被索引到（【18】断言守着）。
+ */
+function SlotDotMatrix({
+  slotStates,
+  activeDim,
+  onSelect,
 }: {
-  title: string;
-  hint: string;
-  tone: 'bad' | 'warn' | 'info';
-  items: ArchGap[];
-  onFocus: (dim: string) => void;
+  slotStates: Record<string, SlotState>;
+  activeDim: string | null;
+  onSelect: (dimId: string) => void;
 }) {
-  if (!items.length) return null;
-  const color = tone === 'bad' ? TONE.bad.color : tone === 'warn' ? TONE.warn.color : TONE.info.color;
+  const STATE_LABEL: Record<SlotState, string> = {
+    filled: '已装配',
+    conflict: '参与组合隐患',
+    'missing-required': '必选未装 —— 跑不起来',
+    'missing-recommended': '建议件未装',
+    empty: '可选未装',
+  };
   return (
-    <section className="space-y-2">
-      <div className="flex items-baseline gap-2 px-1">
-        <span className="mono text-[10px] uppercase tracking-wider" style={{ color }}>
-          {title}
-        </span>
-        <span className="mono text-[10px] text-fgFaint">{items.length}</span>
-        <span className="ml-auto text-[10px] text-fgFaint">{hint}</span>
+    <div className="flex items-center gap-2">
+      <span className="mono shrink-0 text-[10px] uppercase leading-[15px] tracking-wider text-fgFaint">
+        {dimensions.length} 格
+      </span>
+      <div className="flex max-w-[272px] flex-wrap items-center gap-[3px]">
+        {dimensions.map((d) => {
+          const st = slotStates[d.id] ?? 'empty';
+          const t =
+            st === 'missing-required' ? TONE.bad
+              : st === 'conflict' ? TONE.warn
+                : st === 'filled' ? TONE.ok
+                  : TONE.idle;
+          const dashed = st !== 'filled' && st !== 'conflict';
+          return (
+            <button
+              key={d.id}
+              type="button"
+              data-dim={d.id}
+              data-state={st}
+              onClick={() => onSelect(d.id)}
+              title={`${d.name} · ${STATE_LABEL[st]}（点击直达该槽位）`}
+              aria-label={`${d.name}：${STATE_LABEL[st]}`}
+              className={
+                'h-[10px] w-[10px] rounded-sm border transition-transform hover:scale-125 ' +
+                (activeDim === d.id ? 'ring-1 ring-brass ring-offset-1 ring-offset-transparent' : '')
+              }
+              style={{
+                borderColor: t.border,
+                borderStyle: dashed ? 'dashed' : 'solid',
+                background: t.soft,
+              }}
+            />
+          );
+        })}
       </div>
-      {items.map((g, i) => (
-        <GapCard key={`${g.title}-${i}`} gap={g} tone={tone} onFocus={onFocus} />
-      ))}
-    </section>
+    </div>
   );
 }
 
 function findOption(dimId: string, optId: string) {
   return dimensionById.get(dimId)?.options.find((o) => o.id === optId);
-}
-
-/**
- * 泳道之间的竖连线（S1-1）。
- *
- * 原来这里是一个下箭头字符 —— 字号随浏览器变、基线对不齐、换字体就错位，
- * 而且它表达的是「一条链路穿过」而不是「一个字符」。换成 SVG 后线宽、
- * 箭尖、与上方标签列的对齐全部是算出来的，不依赖字体。
- * 线色用 treeLine（已有 token，结构线专用），不是语义色。
- */
-function LaneWire() {
-  return (
-    <svg
-      width="10"
-      height="24"
-      viewBox="0 0 10 24"
-      aria-hidden="true"
-      className="shrink-0 overflow-visible"
-    >
-      <line x1="5" y1="0" x2="5" y2="17" stroke="#3C4D45" strokeWidth="1" />
-      <path
-        d="M2 14 L5 18 L8 14"
-        fill="none"
-        stroke="#3C4D45"
-        strokeWidth="1"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-    </svg>
-  );
 }
 
 /**

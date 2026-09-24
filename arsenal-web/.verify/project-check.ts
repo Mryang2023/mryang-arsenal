@@ -1604,8 +1604,9 @@ console.log('\n【17】装配台视觉契约（/stack P1 第一组）');
     /writingMode:\s*'vertical-rl'/.test(composerSrc)
   );
   check(
-    'S1-1 泳道之间的连线是 SVG（LaneWire），不再用 ↓ 字符',
-    /function LaneWire\(/.test(composerSrc) && !composerSrc.includes('↓'),
+    'S1-1 泳道之间的连线是 SVG（WireLayer，S1-4 迁出），不再用 ↓ 字符',
+    /export function WireLayer\(/.test(readRel('src/app/stack/WireLayer.tsx')) &&
+      !composerSrc.includes('↓'),
     composerSrc.includes('↓') ? 'StackComposer 源码里还有 ↓ 字符' : ''
   );
 
@@ -1726,18 +1727,19 @@ console.log('\n【17】装配台视觉契约（/stack P1 第一组）');
   );
 
   // ── 配色守卫：语义色仍然只有 TONE 五色 + 既有文本 token ──────
-  // 只扫本棒新写/重写的两处：SlotBlock 全文件 + StackComposer 里新增的 LaneWire。
+  // 只扫本棒新写/重写的两处：SlotBlock 全文件 + WireLayer 全文件
+  // （S1-4 起连线职责从 StackComposer 的 LaneWire 迁到独立文件 WireLayer.tsx）。
   // 不扫整个 StackComposer（54KB，历史色值不归本棒管，扫了只会报一堆无法归因的红）。
-  const laneWireSrc = /\/\*\*\s*\n \* 泳道之间的竖连线[\s\S]*?\n\}/.exec(composerSrc)?.[0] ?? '';
+  const wireSrc = readRel('src/app/stack/WireLayer.tsx');
   check(
-    '配色守卫：LaneWire 函数体已从源码定位到（定位不到的话上面的色值扫描就是空跑）',
-    laneWireSrc.includes('#3C4D45') && laneWireSrc.length > 200
+    '配色守卫：WireLayer.tsx 已读到且含连线（定位不到的话下面的色值扫描就是空跑）',
+    wireSrc.includes('#3C4D45') && wireSrc.length > 800
   );
   const ALLOWED_HEX = new Set([
     '#E5484D', '#D9A441', '#7FA650', '#5E6E67', '#6E8FA8',
     '#E8F0EC', '#80918A', '#93A39C', '#3C4D45',
   ]);
-  const hexScan = `${slotSrc}\n${laneWireSrc}`;
+  const hexScan = `${slotSrc}\n${wireSrc}`;
   const strayHex = [
     ...new Set([...hexScan.matchAll(/#[0-9A-Fa-f]{6}\b/g)].map((m) => m[0].toUpperCase())),
   ].filter((h) => !ALLOWED_HEX.has(h));
@@ -1745,6 +1747,136 @@ console.log('\n【17】装配台视觉契约（/stack P1 第一组）');
     '配色守卫：装配台两个文件没有新增第二配色谱系',
     strayHex.length === 0,
     `不在允许清单里的色值：${strayHex.join(' ')}`
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════
+// 【18】装配台 P1 第二组 —— S1-4 连线可视化 / S1-5 结论条闭环仪表 / S2-7 去重收编
+//
+// 三条都是「呈现规则」级改动，继续沿用【17】的口径：源码即数据，
+// 字符串包含 + 正则提取，解析前不剥注释（误伤面小；改写法要同步这里）。
+// S2-7 的「页签 id ↔ 页签条 ↔ 渲染分支」三处一致性本身由【13】④ 守着，
+// 这里钉的是「砍掉」这个事实本身（防回潮：把 tree/arch/risk 加回去必须改这里）。
+// ═══════════════════════════════════════════════════════════════
+console.log('\n【18】装配台 P1 第二组（S1-4 / S1-5 / S2-7）');
+{
+  const webRoot = path.resolve(here, '..');
+  const readRel = (rel: string) => fs.readFileSync(path.join(webRoot, rel), 'utf8');
+  const wireSrc = readRel('src/app/stack/WireLayer.tsx');
+  const ringSrc = readRel('src/app/stack/ProgressRing.tsx');
+  const deckSrc = readRel('src/app/stack/DeliveryDeck.tsx');
+  const composerSrc = readRel('src/app/stack/StackComposer.tsx');
+  const globalsCss = readRel('src/app/globals.css');
+
+  // ── S1-4 连线可视化 ──────────────────────────────────────────
+  check(
+    'S1-4 WireLayer.tsx 同时导出泳道间连线与槽内箭头（两类连线一份出处）',
+    /export function WireLayer\(/.test(wireSrc) && /export function SlotWire\(/.test(wireSrc)
+  );
+  check(
+    'S1-4 字符箭头已清零：链路箭头由 SVG 出（旧的 mono → span 模式不再出现）',
+    !/text-\[13px\][^>]*>\s*→/.test(composerSrc.replace(/\/\*[\s\S]*?\*\//g, '')) &&
+      composerSrc.includes('<SlotWire flowOn={flowOn} />') &&
+      composerSrc.includes('<WireLayer flowOn={flowOn} />'),
+    '槽内箭头没有走 SlotWire，或旧的字符箭头还在'
+  );
+  check(
+    'S1-4 开关默认关（flowOn useState(false)），动效是放大镜不是常驻装饰',
+    /useState<\s*boolean\s*>\(false\)|setFlowOn\]\s*=\s*useState\(false\)/.test(
+      composerSrc.replace(/\s+/g, ' ')
+    ) || /const \[flowOn, setFlowOn\] = useState\(false\)/.test(composerSrc),
+    'flowOn 初值不是 false —— 违反「关闭时零动效」的默认'
+  );
+  check(
+    'S1-4 关闭时零动效：连线类名是三元（flowOn ? 流动类 : undefined），不是常挂',
+    /className=\{flowOn \? 'stack-wire-flow' : undefined\}/.test(wireSrc) &&
+      (wireSrc.match(/className=\{flowOn \? 'stack-wire-flow' : undefined\}/g)?.length ?? 0) === 2,
+    '两条连线（WireLayer/SlotWire）都必须在关闭时挂 undefined'
+  );
+  check(
+    'S1-4 流动类定义在 globals.css 且尊重 prefers-reduced-motion',
+    globalsCss.includes('.stack-wire-flow') &&
+      /@keyframes stack-wire-dash/.test(globalsCss) &&
+      /prefers-reduced-motion:\s*reduce/.test(globalsCss)
+  );
+  check(
+    'S1-4 开关按钮可访问（aria-pressed 反映状态）',
+    /aria-pressed=\{flowOn\}/.test(composerSrc)
+  );
+
+  // ── S1-5 结论条闭环仪表 ──────────────────────────────────────
+  check(
+    'S1-5 ProgressRing 只有一份定义，两处消费方都是 import（抄一份必漂移）',
+    /export default function ProgressRing\(/.test(ringSrc) &&
+      /import ProgressRing from '\.\/ProgressRing'/.test(deckSrc) &&
+      /import ProgressRing from '\.\/ProgressRing'/.test(composerSrc) &&
+      !deckSrc.includes('function ProgressRing(') &&
+      !composerSrc.includes('function ProgressRing(')
+  );
+  check(
+    'S1-5 结论条挂了必选覆盖率环（ratio 来自 audit.stats，不另算一遍）',
+    /<ProgressRing[\s\S]{0,200}?ratio=\{audit\.stats\.requiredTotal > 0 \? audit\.stats\.requiredFilled \/ audit\.stats\.requiredTotal : 0\}/.test(
+      composerSrc
+    ),
+    '结论条没有 ProgressRing，或 ratio 不是从 audit.stats 算的'
+  );
+  // 点阵格数从数据核：点阵 map 的必须是 dimensions（33），不是写死的数组。
+  const dimsLen = dimensions.length;
+  const dotMap = /dimensions\.map\(\(d\) =>/.test(composerSrc);
+  check(
+    `S1-5 点阵一格一维：map 的是 dimensions（当前 ${dimsLen} 维），不是写死的数组`,
+    dotMap && dimsLen === 33,
+    dotMap ? `维度数 ${dimsLen} ≠ 33，若数据真变了要同步改这条` : '点阵没有 map dimensions'
+  );
+  check(
+    'S1-5 点阵可点击直达（onSelect → setActiveDim + benchRef 滚动）',
+    /onSelect=\{\(dimId\) =>/.test(composerSrc) &&
+      /benchRef\.current\?\.scrollIntoView/.test(composerSrc) &&
+      /ref=\{benchRef\}/.test(composerSrc),
+    '点阵点了没反应，或台面容器没挂 benchRef'
+  );
+  check(
+    'S1-5 点阵颜色与零件卡同一份语义（bad/conflict→warn/filled→ok/其余 idle）',
+    /st === 'missing-required' \? TONE\.bad/.test(composerSrc) &&
+      /st === 'conflict' \? TONE\.warn/.test(composerSrc) &&
+      /st === 'filled' \? TONE\.ok/.test(composerSrc) &&
+      /TONE\.idle/.test(composerSrc),
+    '点阵另写了一套颜色语义 —— 违反「TONE 五色含义不许复用/另立」'
+  );
+
+  // ── S2-7 去重收编 ────────────────────────────────────────────
+  const cutTabs = ['tree', 'arch', 'risk'];
+  const idUnion = [
+    ...(/type TabId\s*=([\s\S]*?);/.exec(composerSrc)?.[1] ?? '').matchAll(/'([a-z]+)'/g),
+  ].map((m) => m[1]);
+  check(
+    'S2-7 TabId 已不含 tree / arch / risk（回潮 = 与右栏双份渲染，先改这里）',
+    cutTabs.every((t) => !idUnion.includes(t)),
+    `仍在 TabId 里: ${cutTabs.filter((t) => idUnion.includes(t)).join('、')}`
+  );
+  const branches = [...composerSrc.matchAll(/tab === '([a-z]+)'/g)].map((m) => m[1]);
+  check(
+    'S2-7 被砍页签的渲染分支同步清零（id 与分支必须一起动，【13】④ 守一致性）',
+    cutTabs.every((t) => !branches.includes(t)),
+    `仍有渲染分支: ${cutTabs.filter((t) => branches.includes(t)).join('、')}`
+  );
+  check(
+    'S2-7 被砍分支的专属组件不再被装配台引用（ProjectTree / ArchDiagram / TechArch / GapCard / RiskSection）',
+    ['ProjectTree', 'ArchDiagram', 'TechArch', 'GapCard', 'RiskSection'].every(
+      (n) => !new RegExp(`[<]${n}[\\s/]`).test(composerSrc)
+    ),
+    '砍了页签但组件还挂在别处 —— 检查是否留了半截渲染'
+  );
+  check(
+    'S2-7 右栏入口存在：产物区有指向交付预览的按钮（砍页签不砍入口）',
+    composerSrc.includes('目录树 / 架构图 / 隐患单 → 右侧交付预览') &&
+      /setDeckFocus\('arch'\)/.test(composerSrc)
+  );
+  check(
+    'S2-7 DeliveryDeck 有 focusTab 消费点（setTab + onFocusConsumed 回报，否则同值第二次不生效）',
+    /if \(!focusTab\) return;/.test(deckSrc) &&
+      /setTab\(focusTab\)/.test(deckSrc) &&
+      /onFocusConsumed\?\.\(\)/.test(deckSrc)
   );
 }
 
