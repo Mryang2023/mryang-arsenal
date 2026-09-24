@@ -261,3 +261,80 @@ export function saveBaseSnapshot(baseId: string): void {
     // 同 savePicksSnapshot
   }
 }
+
+// ── S3-3 分享链接：picks + meta + baseId → URL hash ──
+// 静态站没有后端，URL hash 是唯一能跨人承载状态的通道。格式 #s=<base64url(json)>。
+// UTF-8 必须先过 TextEncoder 再 btoa —— 直接 btoa(unicode) 抛 InvalidCharacterError。
+
+export interface SharePayload {
+  picks: StackPicks;
+  meta: StackPicksMeta;
+  baseId: string;
+}
+
+function toBase64Url(bytes: Uint8Array): string {
+  let bin = '';
+  for (const b of bytes) bin += String.fromCharCode(b);
+  return btoa(bin).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+}
+
+/** 编码当前三通道快照为 hash 载荷（不含 #s= 前缀，拼接方负责） */
+export function encodeSharePayload(payload: SharePayload): string {
+  return toBase64Url(new TextEncoder().encode(JSON.stringify(payload)));
+}
+
+/**
+ * 解析 location.hash 里的分享载荷。任何坏形（无 #s= / 坏 base64 / 坏 JSON /
+ * 字段形状不对）都返回 null —— 分享链接解析失败时装配台回落 localStorage，
+ * 绝不带病进画布。
+ */
+export function parseShareHash(hash: string): SharePayload | null {
+  const m = /#s=([A-Za-z0-9\-_]+)/.exec(hash);
+  if (!m) return null;
+  try {
+    const bin = atob(m[1].replace(/-/g, '+').replace(/_/g, '/'));
+    const bytes = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+    const parsed: unknown = JSON.parse(new TextDecoder().decode(bytes));
+    if (typeof parsed !== 'object' || parsed === null) return null;
+    const p = parsed as Record<string, unknown>;
+    if (
+      typeof p.baseId !== 'string' ||
+      typeof p.picks !== 'object' ||
+      p.picks === null ||
+      typeof p.meta !== 'object' ||
+      p.meta === null
+    ) {
+      return null;
+    }
+    const picks: StackPicks = {};
+    for (const [k, v] of Object.entries(p.picks as Record<string, unknown>)) {
+      if (typeof v === 'string') picks[k] = v;
+    }
+    const rawMeta = p.meta as Record<string, unknown>;
+    if (
+      typeof rawMeta.topology !== 'object' ||
+      rawMeta.topology === null ||
+      typeof rawMeta.params !== 'object' ||
+      rawMeta.params === null
+    ) {
+      return null;
+    }
+    const topology: Record<string, string> = {};
+    for (const [k, v] of Object.entries(rawMeta.topology as Record<string, unknown>)) {
+      if (typeof v === 'string') topology[k] = v;
+    }
+    const params: Record<string, Record<string, number>> = {};
+    for (const [dim, bag] of Object.entries(rawMeta.params as Record<string, unknown>)) {
+      if (typeof bag !== 'object' || bag === null) continue;
+      const slot: Record<string, number> = {};
+      for (const [k, v] of Object.entries(bag as Record<string, unknown>)) {
+        if (typeof v === 'number' && Number.isFinite(v)) slot[k] = v;
+      }
+      params[dim] = slot;
+    }
+    return { picks, meta: { topology, params }, baseId: p.baseId };
+  } catch {
+    return null;
+  }
+}

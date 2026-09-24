@@ -1829,9 +1829,9 @@ console.log('\n【18】装配台 P1 第二组（S1-4 / S1-5 / S2-7）');
     dotMap ? `维度数 ${dimsLen} ≠ 33，若数据真变了要同步改这条` : '点阵没有 map dimensions'
   );
   check(
-    'S1-5 点阵可点击直达（onSelect → setActiveDim + benchRef 滚动）',
-    /onSelect=\{\(dimId\) =>/.test(composerSrc) &&
-      /benchRef\.current\?\.scrollIntoView/.test(composerSrc) &&
+    'S1-5 点阵可点击直达（onSelect → focusDim：setActiveDim + benchRef 滚动）',
+    /onSelect=\{focusDim\}/.test(composerSrc) &&
+      /function focusDim\(dimId: string\) \{[\s\S]{0,200}?setActiveDim\(dimId\)[\s\S]{0,200}?benchRef\.current\?\.scrollIntoView/.test(composerSrc) &&
       /ref=\{benchRef\}/.test(composerSrc),
     '点阵点了没反应，或台面容器没挂 benchRef'
   );
@@ -1914,6 +1914,159 @@ console.log('\n【18】装配台 P1 第二组（S1-4 / S1-5 / S2-7）');
       /useStackHistory\(\)/.test(composerSrc) &&
       (composerSrc.match(/hist\.record\(/g) ?? []).length >= 6 &&
       /e\.shiftKey \|\| e\.key\.toLowerCase\(\) === 'y'/.test(composerSrc)
+  );
+
+  // ── S2-1 就地换件 / S2-2 一键补齐 / S2-4 搜索与筛选（09-24 白天补） ──
+  const inspectorSrc = readRel('src/app/stack/Inspector.tsx');
+  const slotSrc = readRel('src/app/stack/SlotBlock.tsx');
+  check(
+    'S2-1 选项行只有一份渲染：Inspector 导出 OptionList，Picker 与卡片换件菜单都吃它',
+    /export function OptionList\(/.test(inspectorSrc) &&
+      /<OptionList[\s\S]{0,80}?onPick=\{onPick\}/.test(inspectorSrc) &&
+      /<OptionList[\s\S]{0,200}?onPick=/.test(slotSrc) &&
+      (inspectorSrc.match(/divide-y divide-line/g) ?? []).length === 1,
+    '选项行模板不止一份（divide-y ul 全 Inspector 应只出现一次，就在 OptionList 里）'
+  );
+  check(
+    'S2-1 换件菜单走 portal + fixed 定位（泳道 section 有 overflow-hidden，卡片内绝对定位会被裁）',
+    slotSrc.includes('createPortal') &&
+      slotSrc.includes('document.body') &&
+      slotSrc.includes('data-swap-menu')
+  );
+  check(
+    'S2-1 推荐排序出自事实源：recommendedOrder 读 defaultOption，「不用 X」档垫底（退出项不是候选）',
+    /function recommendedOrder\(/.test(inspectorSrc) &&
+      /defaultOption/.test(inspectorSrc) &&
+      /o\.id !== 'none'/.test(inspectorSrc)
+  );
+  check(
+    'S2-2 一键补齐只补必选未装（slotStates missing-required），且走 hist.record 一步可撤销',
+    /function fillRecommended\(/.test(composerSrc) &&
+      /function fillRecommended\([\s\S]{0,600}?=== 'missing-required'/.test(composerSrc) &&
+      (composerSrc.match(/hist\.record\(/g)?.length ?? 0) >= 7,
+    '补齐入口不见了，或补齐没走历史栈（撤不回 = 假补齐）'
+  );
+  check(
+    'S2-2 补齐入口挂在缺必需模块时（missingRequired > 0），补了哪几块有回执且可撤销',
+    composerSrc.includes('data-fill-cta') &&
+      /missingRequired > 0 && \(/.test(composerSrc) &&
+      composerSrc.includes('data-fill-note') &&
+      composerSrc.includes('已按推荐补齐') &&
+      composerSrc.includes('撤销补齐')
+  );
+  check(
+    'S2-4 搜索框 + 三档筛选存在且互斥单选（aria-pressed，再点一次取消）',
+    composerSrc.includes('data-dim-search') &&
+      composerSrc.includes("data-filter-chip={key}") &&
+      ['unpicked|未选', 'hazard|有隐患', 'required|必选'].every((pair) => {
+        const [k, label] = pair.split('|');
+        return composerSrc.includes(`'${k}', '${label}'`);
+      }) &&
+      /setDimFilter\(on \? null : key\)/.test(composerSrc)
+  );
+  check(
+    'S2-4 命中集合 map dimensions 全集（搜索词 ∩ 筛选档），卡片用 muted 聚光灯而非移除',
+    /for \(const d of dimensions\)/.test(composerSrc) &&
+      /muted=\{visibleDims !== null && !visibleDims\.has\(dimId\)\}/.test(composerSrc) &&
+      /opacity: muted \? 0\.28/.test(slotSrc),
+    '筛选不生效，或把卡片从台面上搬走了（搬家丢泳道空间记忆）'
+  );
+
+  // ── S2-5 键盘导航 / S2-6 方案对比（09-24 中午补） ──
+  const draftsSrc = readRel('src/app/stack/drafts.ts');
+  check(
+    'S2-5 Esc 分层关闭：换件菜单 > 草稿面板 > 右栏选件面板（DOM 探测 data-swap-menu 让位）',
+    /if \(e\.key !== 'Escape'\) return;/.test(composerSrc) &&
+      /document\.querySelector\('\[data-swap-menu\]'\)/.test(composerSrc) &&
+      /setShowDraftSave\(false\)/.test(composerSrc) &&
+      /if \(activeDim\) setActiveDim\(null\);/.test(composerSrc)
+  );
+  check(
+    'S2-5 泳道可导航：section 挂 data-lane，卡片 ←→ 沿 button[data-dim] 移动焦点',
+    /data-lane=\{lane\.id\}/.test(composerSrc) &&
+      /closest\('\[data-lane\]'\)/.test(slotSrc) &&
+      /querySelectorAll<HTMLButtonElement>\('button\[data-dim\]'\)/.test(slotSrc) &&
+      /'ArrowLeft' && e\.key !== 'ArrowRight'/.test(slotSrc)
+  );
+  check(
+    'S2-6 草稿键读写同源：drafts.ts 唯一持有 arsenal-stack-drafts-v1，StackComposer 消费 loadDrafts/saveDrafts（只写不读的键不许存在）',
+    draftsSrc.includes("STACK_DRAFTS_KEY = 'arsenal-stack-drafts-v1'") &&
+      (draftsSrc.match(/localStorage/g) ?? []).length >= 2 &&
+      /import \{ DRAFTS_LIMIT, loadDrafts, saveDrafts, type StackDraft \} from '\.\/drafts';/.test(
+        composerSrc
+      ) &&
+      /loadDrafts\(\)/.test(composerSrc) &&
+      /saveDrafts\(/.test(composerSrc)
+  );
+  check(
+    'S2-6 草稿结构完整：picks + meta + baseId 一起存（缺一对比就是错话），上限 DRAFTS_LIMIT 生效',
+    /picks: StackPicks;/.test(draftsSrc) &&
+      /meta: StackPicksMeta;/.test(draftsSrc) &&
+      /baseId: string;/.test(draftsSrc) &&
+      /list\.slice\(0, DRAFTS_LIMIT\)/.test(draftsSrc)
+  );
+  check(
+    'S2-6 保存写的是当前三通道快照（picks/meta/baseId）且差异条逐维度出自 picks 对比、chip 可直达',
+    /savedAt: new Date\(\)\.toISOString\(\),[\s\S]{0,120}?picks,\s*[\s\S]{0,60}?meta,\s*[\s\S]{0,60}?baseId,/.test(
+      composerSrc
+    ) &&
+      composerSrc.includes('data-diff-bar') &&
+      composerSrc.includes('data-diff-chip') &&
+      /\(picks\[d\.id\] \?\? ''\) !== \(diffDraft\.picks\[d\.id\] \?\? ''\)/.test(composerSrc) &&
+      /onClick=\{\(\) => focusDim\(d\.id\)\}/.test(composerSrc),
+    '差异条没从 picks 实时算，或 chip 点了不跳'
+  );
+
+  // ── S3-3 分享链接 / S3-4 规则联动（09-24 中午补） ──
+  const picksStoreSrc = readRel('src/lib/picks-store.ts');
+  const ruleHitsSrc = readRel('src/lib/rule-hits.ts');
+  const ruleHitsTsx = readRel('src/app/stack/RuleHits.tsx');
+  check(
+    'S3-3 分享编码/解码同源：picks-store 唯一持有 #s= 格式，TextEncoder 过 UTF-8 再 base64url',
+    /export function encodeSharePayload\(/.test(picksStoreSrc) &&
+      /export function parseShareHash\(/.test(picksStoreSrc) &&
+      picksStoreSrc.includes('new TextEncoder().encode(JSON.stringify(payload))') &&
+      picksStoreSrc.includes("replace(/\\+/g, '-')") &&
+      picksStoreSrc.includes("replace(/\\//g, '_')") &&
+      picksStoreSrc.includes('#s=')
+  );
+  check(
+    'S3-3 hash 优先于 localStorage 且是一次性引子：恢复后 replaceState 抹掉 hash，刷新回到新当前态',
+    /const shared = parseShareHash\(window\.location\.hash\);/.test(composerSrc) &&
+      /parseShareHash[\s\S]{0,600}?loadSnapshot\(\)/.test(composerSrc) &&
+      /history\.replaceState\(null, '', window\.location\.pathname \+ window\.location\.search\)/.test(
+        composerSrc
+      ),
+    'hash 恢复不是一次性（刷新会永远回到过期分享态），或没有优先于 localStorage'
+  );
+  check(
+    'S3-3 分享按钮接剪贴板、失败降级为可全选复制的输入行（静默失败 = 假按钮）',
+    /data-share-cta/.test(composerSrc) &&
+      /navigator\.clipboard\?\.writeText/.test(composerSrc) &&
+      /\.catch\(\(\) => setShareUrl\(url\)\)/.test(composerSrc) &&
+      /data-share-fallback/.test(composerSrc)
+  );
+  check(
+    'S3-4 映射有据：java-17↔java 17+、spring-boot-3↔line 3.x（精确排除 Quarkus3/Boot4）、maven/git 骨架恒含、mysql 同名、jdbc 非空数据库',
+    ruleHitsSrc.includes("base.java === '17+'") &&
+      ruleHitsSrc.includes("base.line.startsWith('3.')") &&
+      ruleHitsSrc.includes("keys.add('mysql')") &&
+      /db !== 'none'/.test(ruleHitsSrc) &&
+      /GENERAL_STACK_KEYS = \['java-17', 'spring-boot-3', 'maven', 'git'\]/.test(ruleHitsSrc)
+  );
+  check(
+    'S3-4 id 必须真实存在：命中的规则全部来自 @/lib/rules 的 rules（appliesTo 过滤），无写死 id 数组',
+    /import \{ rules \} from '@\/lib\/rules';/.test(ruleHitsSrc) &&
+      /appliesTo\?\.stack \?\? \[\]\).some\(/.test(ruleHitsSrc) &&
+      !/['"](?:SKEL|DATA|TEST|SVC|API)-[A-Z]+-\d+['"]/.test(ruleHitsSrc) &&
+      /import \{ rules \} from '@\/lib\/rules';/.test(ruleHitsTsx)
+  );
+  check(
+    'S3-4 装配台消费：Inspector 结论区挂 RuleHits（选型层逐条 + 基底层收一行），链接指向 /rules/<id>',
+    /<RuleHits picks=\{picks\} baseId=\{baseId\} \/>/.test(inspectorSrc) &&
+      /data-rule-hit/.test(ruleHitsTsx) &&
+      /href=\{`\/rules\/\$\{r\.id\}`\}/.test(ruleHitsTsx) &&
+      /href="\/rules"/.test(ruleHitsTsx)
   );
 }
 

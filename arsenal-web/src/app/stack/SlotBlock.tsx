@@ -1,10 +1,14 @@
 'use client';
 
+import { useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { capLabel, capsOf, needsOf, nodeArch } from '@/lib/arch';
 import type { SlotState } from '@/lib/arch';
 import type { StackOption, StackPicks } from '@/lib/content-types';
 import type { StackPicksMeta } from '@/lib/topology';
+import { dimensionById } from '@/lib/stack';
 import TopologyPicker from './TopologyPicker';
+import { OptionList } from './Inspector';
 import { TONE } from './palette';
 
 /**
@@ -72,6 +76,10 @@ export default function SlotBlock({
   meta,
   /** 点选形态时写回 `meta.topology[dimId]` */
   onTopology,
+  /** 就地换件回调（S2-1）——给了才画「换」chip */
+  onSwap,
+  /** 搜索 / 筛选未命中降噪（S2-4） */
+  muted,
 }: {
   dimId: string;
   state: SlotState;
@@ -87,7 +95,34 @@ export default function SlotBlock({
   picks: StackPicks;
   meta: StackPicksMeta;
   onTopology: (dimId: string, modeId: string) => void;
+  /**
+   * 就地换件（S2-1）：给了这个回调，卡片上才出「换」chip。
+   * 不给（老调用方 /arch 页）就不画 —— 老页面没有 pick 语义。
+   */
+  onSwap?: (dimId: string, optId: string) => void;
+  /**
+   * 搜索 / 筛选未命中（S2-4）：聚光灯式降噪到 0.28，而不是把卡片搬走 ——
+   * 搬家会破坏「哪个零件在哪条泳道」的空间记忆，降噪保留方位。
+   */
+  muted?: boolean;
 }) {
+  // 换件菜单（S2-1）。hooks 必须摆在 `!node` 早退之前 —— 早退虽然实际不触发
+  // （nodeArch 覆盖全部槽位），但 hook 数量随渲染分支变化是硬违规，规矩不靠运气立。
+  const [swapOpen, setSwapOpen] = useState(false);
+  const [menuPos, setMenuPos] = useState<{ left: number; top?: number; bottom?: number } | null>(
+    null
+  );
+  const cardRef = useRef<HTMLButtonElement | null>(null);
+
+  useEffect(() => {
+    if (!swapOpen) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setSwapOpen(false);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [swapOpen]);
+
   const node = nodeArch[dimId];
   if (!node) return null;
 
@@ -107,14 +142,50 @@ export default function SlotBlock({
   /** 没用上 = 没选，或明确选了「不用」。这是正常态不是错误 —— 淡一档而不是报红 */
   const unused = isNone || (!picked && !node.required);
 
+  /** 打开换件菜单：按卡片矩形定位，右缘夹进视口，下方放不下往上翻 */
+  function openSwap() {
+    const r = cardRef.current?.getBoundingClientRect();
+    if (r) {
+      const W = 288;
+      const H = 336;
+      const M = 8;
+      const left = Math.min(Math.max(M, r.left), Math.max(M, window.innerWidth - W - M));
+      const fitsBelow = r.bottom + M + H <= window.innerHeight;
+      setMenuPos(
+        fitsBelow
+          ? { left, top: r.bottom + M }
+          : { left, bottom: window.innerHeight - r.top + M }
+      );
+    }
+    setSwapOpen(true);
+  }
+
   return (
     <div className="flex shrink-0 flex-col self-start">
     <button
       type="button"
+      ref={cardRef}
       data-dim={dimId}
       data-state={state}
       data-weight={weight}
       onClick={onClick}
+      onKeyDown={(e) => {
+        // S2-5：←→ 在同泳道卡片间移动焦点（DOM 顺序 = 泳道内槽位顺序）。
+        // Tab 管全台面遍历，←→ 管泳道内微调 —— 两套粒度各管一层。
+        // 泳道容器靠 data-lane 定位（StackComposer 泳道 section），
+        // 卡片靠 button[data-dim] 圈定，形态卡等其他按钮不混进来。
+        if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
+        const laneEl = (e.currentTarget as HTMLElement).closest('[data-lane]');
+        if (!laneEl) return;
+        const cards = Array.from(laneEl.querySelectorAll<HTMLButtonElement>('button[data-dim]'));
+        const i = cards.indexOf(e.currentTarget as HTMLButtonElement);
+        if (i < 0) return;
+        const target = cards[e.key === 'ArrowRight' ? i + 1 : i - 1];
+        if (target) {
+          e.preventDefault();
+          target.focus();
+        }
+      }}
       title={picked ? `${node.role}：${option?.name}` : node.missing}
       className="relative flex shrink-0 flex-col rounded-lg border px-3 py-2.5 text-left transition-all duration-150 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brass"
       style={{
@@ -126,9 +197,9 @@ export default function SlotBlock({
           : picked
             ? 'var(--stack-part)'
             : 'rgba(255,255,255,0.012)',
-        // L4 选中：黄铜 ring + 抬升；L1 同层降噪 0.96；未用件 0.72
+        // L4 选中：黄铜 ring + 抬升；L1 同层降噪 0.96；未用件 0.72；筛选未命中 0.28（S2-4 聚光灯）
         boxShadow: active ? '0 0 0 1px #D9A441, 0 12px 32px -16px rgba(0,0,0,0.9)' : undefined,
-        opacity: unused ? 0.72 : dimmed ? 0.96 : 1,
+        opacity: muted ? 0.28 : unused ? 0.72 : dimmed ? 0.96 : 1,
       }}
     >
       {/* ① 身份行 */}
@@ -162,14 +233,39 @@ export default function SlotBlock({
         ) : null}
       </div>
 
-      {/* ② 零件行 */}
-      <div
-        className="mt-1.5 truncate text-[12px] font-semibold leading-[18px]"
-        style={{
-          color: picked ? '#E8F0EC' : state === 'missing-required' ? '#E5484D' : '#5E6E67',
-        }}
-      >
-        {picked ? option?.name : node.required ? '未选型' : '未使用'}
+      {/* ② 零件行：零件名 + 就地换件 chip（S2-1）。整张卡本来就是 <button>，
+          chip 只能用 role=button 的 span（button 套 button 会 hydration 报错），
+          与右上角移除按钮同一套路；stopPropagation 防止点 chip 触发开面板。 */}
+      <div className="mt-1.5 flex items-center gap-1.5">
+        <div
+          className="min-w-0 flex-1 truncate text-[12px] font-semibold leading-[18px]"
+          style={{
+            color: picked ? '#E8F0EC' : state === 'missing-required' ? '#E5484D' : '#5E6E67',
+          }}
+        >
+          {picked ? option?.name : node.required ? '未选型' : '未使用'}
+        </div>
+        {onSwap && picked && !isNone && (
+          <span
+            role="button"
+            tabIndex={0}
+            aria-label={`换掉 ${option?.name ?? node.role}`}
+            onClick={(e) => {
+              e.stopPropagation();
+              openSwap();
+            }}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                e.stopPropagation();
+                openSwap();
+              }
+            }}
+            className="mono shrink-0 cursor-pointer rounded-sm border border-line px-1 text-[10px] leading-[15px] text-fgMuted transition-colors hover:border-brass hover:text-fg focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-brass"
+          >
+            换
+          </span>
+        )}
       </div>
 
       {/* ③ 能力行 —— 这张图的核心信息。
@@ -275,6 +371,53 @@ export default function SlotBlock({
         meta={meta}
         onPick={onTopology}
       />
+
+      {/* 就地换件菜单（S2-1）：portal 到 body —— 泳道 section 带 overflow-hidden，
+          卡片内绝对定位的菜单会在泳道边缘被整块裁掉。fixed 定位按卡片矩形算，
+          右缘 / 下缘夹进视口，Esc 或点遮罩关闭；选项行吃 Inspector 的 OptionList（推荐在前）。 */}
+      {swapOpen &&
+        menuPos &&
+        createPortal(
+          <>
+            <div
+              className="fixed inset-0 z-40"
+              onClick={() => setSwapOpen(false)}
+              aria-hidden="true"
+            />
+            <div
+              data-swap-menu=""
+              role="menu"
+              aria-label={`换掉 ${node.role} 的零件`}
+              className="panel fixed z-50 w-[288px] overflow-hidden rounded-lg"
+              style={{
+                left: menuPos.left,
+                ...(menuPos.top !== undefined
+                  ? { top: menuPos.top }
+                  : { bottom: menuPos.bottom }),
+                boxShadow: '0 16px 40px -16px rgba(0,0,0,0.9)',
+              }}
+            >
+              <div className="flex items-baseline gap-2 border-b border-line px-3 py-2">
+                <span className="text-[12px] leading-none text-brass">{node.icon}</span>
+                <p className="text-[11px] font-semibold text-fg">
+                  {dimensionById.get(dimId)?.name ?? node.role}
+                </p>
+                <span className="mono ml-auto text-[10px] text-fgFaint">推荐在前</span>
+              </div>
+              <div className="max-h-[300px] overflow-y-auto">
+                <OptionList
+                  dimId={dimId}
+                  current={picks[dimId] ?? ''}
+                  onPick={(d, o) => {
+                    setSwapOpen(false);
+                    onSwap?.(d, o);
+                  }}
+                />
+              </div>
+            </div>
+          </>,
+          document.body
+        )}
     </div>
   );
 }

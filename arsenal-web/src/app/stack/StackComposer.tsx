@@ -39,6 +39,7 @@ import {
 import { downloadZip } from '@/lib/zip';
 import type { StackPicks } from '@/lib/content-types';
 import Inspector from './Inspector';
+import RuleHits from './RuleHits';
 import SlotBlock from './SlotBlock';
 import type { SlotWeight } from './SlotBlock';
 import DeliveryDeck from './DeliveryDeck';
@@ -46,11 +47,14 @@ import DeployGuides from './DeployGuides';
 import { SlotWire, WireLayer } from './WireLayer';
 import ProgressRing from './ProgressRing';
 import { useStackHistory, type StackSnapshot } from './history';
+import { DRAFTS_LIMIT, loadDrafts, saveDrafts, type StackDraft } from './drafts';
 import {
   clearProvenance,
+  encodeSharePayload,
   loadBaseSnapshot,
   loadProvenance,
   loadSnapshot,
+  parseShareHash,
   saveBaseSnapshot,
   savePicksSnapshot,
   type PicksProvenance,
@@ -150,6 +154,20 @@ export default function StackComposer() {
   const [exported, setExported] = useState<{ name: string; bytes: number; files: number } | null>(
     null
   );
+  // ── S2-4：搜索 + 三档筛选（互斥单选，再点一次取消；与搜索词取交集） ──
+  const [query, setQuery] = useState('');
+  const [dimFilter, setDimFilter] = useState<'unpicked' | 'hazard' | 'required' | null>(null);
+  // ── S2-2：按推荐补齐的回执 —— 补了哪几块，可一步撤销 ──
+  const [fillNote, setFillNote] = useState<{ dimName: string; optName: string }[] | null>(null);
+  // ── S2-6：方案草稿（localStorage arsenal-stack-drafts-v1，读写在 drafts.ts）──
+  const [drafts, setDrafts] = useState<StackDraft[]>([]);
+  const [showDraftSave, setShowDraftSave] = useState(false);
+  const [draftName, setDraftName] = useState('');
+  const [showDraftList, setShowDraftList] = useState(false);
+  const [diffDraftId, setDiffDraftId] = useState<string | null>(null);
+  // ── S3-3：分享链接（复制反馈 + 剪贴板不可用时的降级展示行）──
+  const [copied, setCopied] = useState(false);
+  const [shareUrl, setShareUrl] = useState<string | null>(null);
 
   // ── 撤销 / 重做（S2-3）────────────────────────────────────
   // 快照在「写入前」记录；snapRef 每次提交后同步，保证事件回调里拿到的是最新状态
@@ -197,6 +215,106 @@ export default function StackComposer() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // S2-5：Esc 关闭当前打开的层。优先级：换件菜单 > 草稿面板 > 右栏选件面板。
+  // 换件菜单自己挂了 window keydown —— 两处监听都会跑，这里用 DOM 探测让位：
+  // 菜单还在 DOM 里（data-swap-menu）就什么都不做，只让菜单自己的 handler 关它。
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return;
+      if (document.querySelector('[data-swap-menu]')) return;
+      if (showDraftSave || showDraftList) {
+        setShowDraftSave(false);
+        setShowDraftList(false);
+        return;
+      }
+      if (activeDim) setActiveDim(null);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [showDraftSave, showDraftList, activeDim]);
+
+  // ── S2-6：草稿存取 ──
+  /** 打开保存行。默认名 = 现有草稿数 + 1，可改 */
+  function openDraftSave() {
+    const list = loadDrafts();
+    setDrafts(list);
+    setDraftName(`方案 ${list.length + 1}`);
+    setShowDraftList(false);
+    setShowDraftSave(true);
+  }
+
+  function doSaveDraft() {
+    const name = draftName.trim() || `方案 ${drafts.length + 1}`;
+    const draft: StackDraft = {
+      id: `d${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`,
+      name,
+      savedAt: new Date().toISOString(),
+      picks,
+      meta,
+      baseId,
+    };
+    setDrafts(saveDrafts([draft, ...drafts]));
+    setShowDraftSave(false);
+  }
+
+  function openDraftList() {
+    setDrafts(loadDrafts());
+    setShowDraftSave(false);
+    setShowDraftList((v) => !v);
+  }
+
+  function doDeleteDraft(id: string) {
+    const next = drafts.filter((d) => d.id !== id);
+    setDrafts(saveDrafts(next));
+    if (diffDraftId === id) setDiffDraftId(null);
+  }
+
+  /**
+   * S3-3 分享：三通道快照编码进 #s=，复制到剪贴板。剪贴板不可用
+   * （file:// / 隐私模式 / 权限被拒）不静默 —— 降级成可全选复制的输入行，
+   * 链接还是能手工拿走。
+   */
+  function doShare() {
+    const url = `${window.location.origin}${window.location.pathname}${
+      window.location.search
+    }#s=${encodeSharePayload({ picks, meta, baseId })}`;
+    if (navigator.clipboard?.writeText) {
+      navigator.clipboard
+        .writeText(url)
+        .then(() => {
+          setShareUrl(null);
+          setCopied(true);
+          window.setTimeout(() => setCopied(false), 2000);
+        })
+        .catch(() => setShareUrl(url));
+    } else {
+      setShareUrl(url);
+    }
+  }
+
+  /** 当前选用的对比草稿 */
+  const diffDraft = useMemo(
+    () => (diffDraftId ? drafts.find((d) => d.id === diffDraftId) ?? null : null),
+    [drafts, diffDraftId]
+  );
+
+  /**
+   * 选型差异集（S2-6）：只比「维度 → 选项」这一层；基底不同在标题里提示一句。
+   * 形态/参数的差异不进 chip —— 对比回答的是「搭的是不是同一套房子」，
+   * 不是「同一栋房子里家具摆得一样不一样」。
+   */
+  const diffDims = useMemo(() => {
+    if (!diffDraft) return [];
+    return dimensions.filter((d) => (picks[d.id] ?? '') !== (diffDraft.picks[d.id] ?? ''));
+  }, [diffDraft, picks]);
+
+  function focusDim(dimId: string) {
+    setActiveDim(dimId);
+    requestAnimationFrame(() => {
+      benchRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+  }
+
   /**
    * 挂载时恢复上次的选型 / 形态 / 基底 / 出处。
    *
@@ -209,6 +327,23 @@ export default function StackComposer() {
    * 恢复出来若正好等于某个预设，就把该预设按钮点亮；是自定义组合则不高亮任何预设。
    */
   useEffect(() => {
+    // S3-3：分享链接**优先于 localStorage** —— 带 #s= 的 URL 以链接里的组合为准。
+    // hash 是一次性引子：恢复后立刻从地址栏抹掉，之后用户改选型、刷新，回到的
+    // 是新的当前态（写入 effect 会把它落进 localStorage），而不是过期的分享态。
+    const shared = parseShareHash(window.location.hash);
+    if (shared) {
+      setPicks(shared.picks);
+      setMeta(shared.meta);
+      setBaseId(shared.baseId);
+      setProvenance(null);
+      const sharedMatched = presets.find((p) =>
+        dimensions.every((d) => (shared.picks[d.id] ?? '') === (p.picks[d.id] ?? ''))
+      );
+      setPresetId(sharedMatched ? sharedMatched.id : null);
+      setHydrated(true);
+      history.replaceState(null, '', window.location.pathname + window.location.search);
+      return;
+    }
     const snap = loadSnapshot();
     setPicks(snap.picks);
     setMeta(snap.meta);
@@ -272,6 +407,33 @@ export default function StackComposer() {
     statusMeta.tone === 'bad' ? 'bad' : statusMeta.tone === 'warn' ? 'warn' : 'ok'
   ];
 
+  /**
+   * S2-4：搜索 / 筛选的命中集合。null = 未启用（全部卡片正常显示）。
+   *
+   * 非空时**不在集合里的卡片降透明度（muted 0.28），不从台面上移除** ——
+   * 聚光灯而不是搬家：搬家会让泳道里只剩几张卡、失去「哪类零件在哪条泳道」
+   * 的空间记忆；聚光灯既看清命中，又保留方位。搜索词与筛选档取交集。
+   */
+  const visibleDims = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    if (!q && dimFilter === null) return null;
+    const hits = new Set<string>();
+    for (const d of dimensions) {
+      if (q) {
+        const cur = picks[d.id] ? (findOption(d.id, picks[d.id])?.name ?? '') : '';
+        const hay = `${d.name} ${nodeArch[d.id]?.role ?? ''} ${cur}`.toLowerCase();
+        if (!hay.includes(q)) continue;
+      }
+      if (dimFilter === 'unpicked' && (picks[d.id] ?? '') !== '') continue;
+      if (dimFilter === 'hazard' && !(hazardsByDim[d.id]?.length)) continue;
+      if (dimFilter === 'required' && !nodeArch[d.id]?.required) continue;
+      hits.add(d.id);
+    }
+    return hits;
+    // findOption 是模块级函数声明（提升），不进依赖
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [query, dimFilter, picks, hazardsByDim]);
+
   const hazardCount = audit.blockers.length + audit.risks.length + audit.notes.length;
   const buildLabel = picks.build === 'gradle' ? 'build.gradle' : 'pom.xml';
 
@@ -316,6 +478,8 @@ export default function StackComposer() {
     setMeta(emptyMeta());
     setPresetId(preset);
     setExported(null);
+    // 选型变了，补齐回执就是过期信息（里面列的块可能已被换掉）
+    setFillNote(null);
     // 出处同理：换了一整套选型，上一套的出处就不代表现在这套了。
     // 留着它会在界面上写出「来自代码扫描」而实际选型已经全换的错话。
     clearProvenance();
@@ -327,6 +491,7 @@ export default function StackComposer() {
     setPicks((p) => ({ ...p, [dimId]: optId }));
     setPresetId(null);
     setExported(null);
+    setFillNote(null);
   }
 
   function clear(dimId: string) {
@@ -335,6 +500,7 @@ export default function StackComposer() {
     setPresetId(null);
     setActiveDim(dimId);
     setExported(null);
+    setFillNote(null);
   }
 
   /** 换集群形态。只写 meta，不碰 picks —— 形态不是「选项」的一部分 */
@@ -352,6 +518,32 @@ export default function StackComposer() {
     setMeta((m) => withParam(m, key, value));
     setPresetId(null);
     setExported(null);
+  }
+
+  /**
+   * S2-2：一键补齐 —— 只补「必选未装」（slotStates 的 missing-required），
+   * 建议件与可选件不动（那是用户的设计决策，不是缺陷）。
+   * 推荐档出处是事实源的 defaultOption；整次补齐**一个写入口、一步历史** ——
+   * 「撤销」一下就回到补齐前，而不是逐块撤 N 次。
+   */
+  function fillRecommended() {
+    const next = { ...picks };
+    const filled: { dimName: string; optName: string }[] = [];
+    for (const d of dimensions) {
+      if (audit.slotStates[d.id] === 'missing-required') {
+        const opt = recommendedOptionFor(d.id);
+        if (opt) {
+          next[d.id] = opt.id;
+          filled.push({ dimName: d.name, optName: opt.name });
+        }
+      }
+    }
+    if (filled.length === 0) return;
+    hist.record(snapRef.current);
+    setPicks(next);
+    setPresetId(null);
+    setExported(null);
+    setFillNote(filled);
   }
 
   /**
@@ -448,6 +640,24 @@ export default function StackComposer() {
               )}
             </p>
           </div>
+          {/* S2-2：一键补齐入口 —— 只在缺必需模块时出现。放结论条里是因为
+              「哪里坏了」和「怎么修」必须出现在同一个视线里，跳走就断了。 */}
+          {missingRequired > 0 && (
+            <button
+              type="button"
+              onClick={fillRecommended}
+              data-fill-cta=""
+              className="shrink-0 rounded-md border px-2 py-1 text-[11px] font-medium transition-colors"
+              style={{
+                borderColor: 'rgba(217,164,65,0.6)',
+                background: 'rgba(217,164,65,0.12)',
+                color: '#D9A441',
+              }}
+              title="把缺的必需模块按事实源推荐档补上；补了哪几块会列出来，一步可撤销"
+            >
+              按推荐补齐
+            </button>
+          )}
         </div>
 
         {/* 33 格点阵（S1-5）：每个格子 = 一个槽位 = dimensions 里的一维，
@@ -457,12 +667,7 @@ export default function StackComposer() {
         <SlotDotMatrix
           slotStates={audit.slotStates}
           activeDim={activeDim}
-          onSelect={(dimId) => {
-            setActiveDim(dimId);
-            requestAnimationFrame(() => {
-              benchRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-            });
-          }}
+          onSelect={focusDim}
         />
 
         <div className="ml-auto flex flex-wrap items-center gap-1.5">
@@ -487,6 +692,37 @@ export default function StackComposer() {
             style={{ borderColor: '#243029', color: hist.redoSteps > 0 ? '#93A39C' : '#5E6E67' }}
           >
             ↷ {hist.redoSteps}
+          </button>
+          {/* 方案草稿（S2-6）：存当前组合 → 跟任意一份草稿比差异。
+              键 arsenal-stack-drafts-v1 读写都在 drafts.ts，读方就在这里 ——
+              只写不读的键不许存在（硬约定）。 */}
+          <button
+            type="button"
+            onClick={openDraftSave}
+            data-draft-cta=""
+            title="把当前这套选型 + 形态 + 基底存成命名草稿"
+            className="rounded-md border px-2 py-1 text-[11px] text-fgMuted transition-colors hover:border-lineHi hover:text-fg"
+          >
+            存草稿
+          </button>
+          <button
+            type="button"
+            onClick={openDraftList}
+            data-draft-list-cta=""
+            aria-expanded={showDraftList}
+            title="选一份已存的草稿，逐维度比差异"
+            className="rounded-md border px-2 py-1 text-[11px] text-fgMuted transition-colors hover:border-lineHi hover:text-fg"
+          >
+            对比
+          </button>
+          <button
+            type="button"
+            onClick={doShare}
+            data-share-cta=""
+            title="把当前选型 + 形态 + 基底编码进链接（#s=…），发给谁都能一键还原"
+            className="rounded-md border px-2 py-1 text-[11px] text-fgMuted transition-colors hover:border-lineHi hover:text-fg"
+          >
+            {copied ? '已复制' : '分享'}
           </button>
           {/* 技术栈基底：全局声明，不进选型维度。它决定导出骨架里的 Spring Boot 版本 */}
           <span className="mono mr-0.5 text-[10px] uppercase tracking-wider text-fgFaint">基底</span>
@@ -594,6 +830,205 @@ export default function StackComposer() {
             六大架构
           </Link>
         </div>
+
+        {/* S2-2 补齐回执：补了哪几块逐个列出（可核对），撤销一步回到补齐前。
+            面板是 flex-wrap，w-full 让它独占第二行。任何后续选型改动都会清掉它。 */}
+        {fillNote && fillNote.length > 0 && (
+          <div
+            data-fill-note=""
+            className="flex w-full flex-wrap items-center gap-x-3 gap-y-1.5 border-t border-line pt-2.5"
+          >
+            <span className="mono text-[11px] leading-none" style={{ color: '#7FA650' }}>
+              ✓
+            </span>
+            <p className="min-w-0 flex-1 text-2xs text-fgMuted">
+              已按推荐补齐 <span className="mono text-fg">{fillNote.length}</span> 块：
+              {fillNote.map((f) => `${f.dimName}=${f.optName}`).join(' · ')}
+            </p>
+            <button
+              type="button"
+              onClick={undo}
+              className="mono shrink-0 text-[10px] text-fgFaint transition-colors hover:text-fg"
+              title="撤销本次补齐（等价 Ctrl+Z，一步回退）"
+            >
+              撤销补齐
+            </button>
+            <button
+              type="button"
+              onClick={() => setFillNote(null)}
+              className="mono shrink-0 text-[10px] text-fgFaint transition-colors hover:text-fg"
+            >
+              知道了
+            </button>
+          </div>
+        )}
+
+        {/* S2-6 保存行：命名 + 确认。inline 展开而不是弹窗 —— 草稿是顺手动作，
+            弹窗会把「存一下」变成一个任务。 */}
+        {showDraftSave && (
+          <div
+            data-draft-save=""
+            className="flex w-full flex-wrap items-center gap-2 border-t border-line pt-2.5"
+          >
+            <span className="mono text-[10px] uppercase tracking-wider text-fgFaint">存草稿</span>
+            <input
+              data-draft-name=""
+              type="text"
+              value={draftName}
+              onChange={(e) => setDraftName(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') doSaveDraft();
+              }}
+              maxLength={24}
+              placeholder="给这套方案起个名"
+              aria-label="草稿名称"
+              autoFocus
+              className="w-[180px] min-w-0 rounded-md border px-2 py-1 text-[11px] outline-none transition-colors placeholder:text-fgFaint focus:border-brass"
+              style={{ borderColor: '#243029', background: 'transparent', color: '#CFDCD6' }}
+            />
+            <button
+              type="button"
+              onClick={doSaveDraft}
+              className="rounded-md border px-2 py-1 text-[11px] font-medium transition-colors"
+              style={{
+                borderColor: 'rgba(127,166,80,0.6)',
+                background: 'rgba(127,166,80,0.12)',
+                color: '#7FA650',
+              }}
+            >
+              保存
+            </button>
+            <button
+              type="button"
+              onClick={() => setShowDraftSave(false)}
+              className="mono text-[10px] text-fgFaint transition-colors hover:text-fg"
+            >
+              取消
+            </button>
+            <span className="mono text-[10px] text-fgFaint">
+              已存 {drafts.length}/{DRAFTS_LIMIT} 份，超出挤掉最旧
+            </span>
+          </div>
+        )}
+
+        {/* S2-6 草稿列表：选一份来比，或删掉不要的。 */}
+        {showDraftList && (
+          <div
+            data-draft-list=""
+            className="w-full border-t border-line pt-2.5"
+          >
+            <div className="flex items-baseline gap-2">
+              <span className="mono text-[10px] uppercase tracking-wider text-fgFaint">对比</span>
+              <span className="text-[10px] text-fgFaint">选一份草稿，逐维度比差异</span>
+            </div>
+            {drafts.length === 0 ? (
+              <p className="mt-1.5 text-2xs text-fgFaint">
+                还没有草稿 —— 点「存草稿」把当前这套存下来。
+              </p>
+            ) : (
+              <ul className="mt-1.5 space-y-1">
+                {drafts.map((d) => (
+                  <li key={d.id} className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      data-draft-item=""
+                      onClick={() => {
+                        setDiffDraftId(d.id);
+                        setShowDraftList(false);
+                      }}
+                      className="min-w-0 flex-1 truncate rounded-md border border-line px-2 py-1 text-left text-[11px] text-fgMuted transition-colors hover:border-lineHi hover:text-fg"
+                      title={`与当前组合比差异（存于 ${d.savedAt.slice(0, 10)}）`}
+                    >
+                      {d.name}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => doDeleteDraft(d.id)}
+                      aria-label={`删除草稿 ${d.name}`}
+                      className="mono shrink-0 rounded-md border border-line px-1.5 py-1 text-[10px] text-fgFaint transition-colors hover:border-lineHi hover:text-fg"
+                    >
+                      ×
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        )}
+
+        {/* S2-6 差异条：与草稿逐维度比。chip = 差异维度，点了直达那个槽位；
+            title 里写「当前 → 草稿」两边各是什么，chip 本身保持一行短词。
+            选型完全一致时明说「一致」，不渲染空 chip 列表。 */}
+        {diffDraft && (
+          <div
+            data-diff-bar=""
+            className="flex w-full flex-wrap items-center gap-1.5 border-t border-line pt-2.5"
+          >
+            <span className="mono text-[10px] uppercase tracking-wider text-fgFaint">对比</span>
+            <p className="min-w-0 shrink-0 text-2xs text-fgMuted">
+              与「{diffDraft.name}」差{' '}
+              <span className="mono text-fg">{diffDims.length}</span> 处
+              {diffDraft.baseId !== baseId ? '（基底也不同）' : ''}：
+            </p>
+            {diffDims.length === 0 ? (
+              <span className="text-2xs text-fgMuted">选型完全一致</span>
+            ) : (
+              diffDims.map((d) => {
+                const curName = picks[d.id] ? (findOption(d.id, picks[d.id])?.name ?? '未选') : '未选';
+                const draftName2 = diffDraft.picks[d.id]
+                  ? (findOption(d.id, diffDraft.picks[d.id])?.name ?? '未选')
+                  : '未选';
+                return (
+                  <button
+                    key={d.id}
+                    type="button"
+                    data-diff-chip=""
+                    onClick={() => focusDim(d.id)}
+                    title={`当前：${curName} / 草稿：${draftName2} —— 点击直达该槽位`}
+                    className="rounded-sm border border-line px-1.5 py-0.5 text-[10px] leading-[15px] text-fgMuted transition-colors hover:border-brass hover:text-fg"
+                  >
+                    {d.name}
+                  </button>
+                );
+              })
+            )}
+            <button
+              type="button"
+              onClick={() => setDiffDraftId(null)}
+              className="mono shrink-0 text-[10px] text-fgFaint transition-colors hover:text-fg"
+            >
+              收起
+            </button>
+          </div>
+        )}
+
+        {/* S3-3 剪贴板降级：clipboard API 不可用时给出可全选复制的输入行，
+            链接照样能手工拿走 —— 静默失败等于「分享按钮是坏的」。 */}
+        {shareUrl && (
+          <div
+            data-share-fallback=""
+            className="flex w-full flex-wrap items-center gap-2 border-t border-line pt-2.5"
+          >
+            <span className="mono text-[10px] uppercase tracking-wider text-fgFaint">
+              分享链接
+            </span>
+            <input
+              readOnly
+              value={shareUrl}
+              onFocus={(e) => e.currentTarget.select()}
+              aria-label="分享链接（点击全选复制）"
+              className="min-w-0 flex-1 rounded-md border px-2 py-1 text-[10px] outline-none focus:border-brass"
+              style={{ borderColor: '#243029', background: 'transparent', color: '#CFDCD6' }}
+            />
+            <button
+              type="button"
+              onClick={() => setShareUrl(null)}
+              className="mono shrink-0 text-[10px] text-fgFaint transition-colors hover:text-fg"
+            >
+              关闭
+            </button>
+          </div>
+        )}
       </div>
 
       {/* ── 选型出处：这套选型是扫描读出来的，还是人点出来的 ───────
@@ -619,6 +1054,54 @@ export default function StackComposer() {
               主从 / 组复制 / 分片 / 云原生，图形化切换）；右侧的交付预览会立刻跟着变。
               下方五根滑杆直接写进 yaml 与交付清单。
             </p>
+            {/* S2-4：搜索 + 三档筛选。互斥单选（aria-pressed），再点一次取消；
+                与搜索词取交集。命中的卡片正常显示、未命中降噪到 0.28 ——
+                聚光灯而不是搬家，泳道空间记忆不丢（顺带守 V2-02：
+                输入框 min-w-0 + 外层 flex-wrap，移动端不横向溢出）。 */}
+            <div className="flex shrink-0 flex-wrap items-center gap-1.5">
+              <input
+                data-dim-search=""
+                type="text"
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder="搜维度 / 零件名"
+                aria-label="搜索选型维度或零件名"
+                className="w-[150px] min-w-0 rounded-md border px-2 py-1 text-[11px] outline-none transition-colors placeholder:text-fgFaint focus:border-brass"
+                style={{ borderColor: '#243029', background: 'transparent', color: '#CFDCD6' }}
+              />
+              {(
+                [
+                  ['unpicked', '未选'],
+                  ['hazard', '有隐患'],
+                  ['required', '必选'],
+                ] as const
+              ).map(([key, label]) => {
+                const on = dimFilter === key;
+                return (
+                  <button
+                    key={key}
+                    type="button"
+                    data-filter-chip={key}
+                    aria-pressed={on}
+                    onClick={() => setDimFilter(on ? null : key)}
+                    className="rounded-md border px-2 py-1 text-[10px] transition-colors"
+                    style={{
+                      borderColor: on ? 'rgba(217,164,65,0.6)' : '#243029',
+                      background: on ? 'rgba(217,164,65,0.10)' : 'transparent',
+                      color: on ? '#D9A441' : '#93A39C',
+                    }}
+                    title={`只看${label}的槽位；再点一次取消`}
+                  >
+                    {label}
+                  </button>
+                );
+              })}
+              {visibleDims !== null && (
+                <span className="mono text-[10px] text-fgFaint">
+                  命中 {visibleDims.size}/{dimensions.length}
+                </span>
+              )}
+            </div>
             <button
               type="button"
               onClick={() => setFlowOn((v) => !v)}
@@ -654,7 +1137,7 @@ export default function StackComposer() {
                     </span>
                   </div>
                 )}
-                <section className="panel flex overflow-hidden">
+                <section data-lane={lane.id} className="panel flex overflow-hidden">
                   {/* 泳道标签列（竖轴）：固定 30/34px，不随卡片换行移动。
                       原来表头横排在顶部，七根泳道看不出「上下穿过」的先后。 */}
                   <div className="flex w-[30px] shrink-0 flex-col items-center gap-2 border-r border-line bg-[rgba(255,255,255,0.015)] py-2.5 sm:w-[34px]">
@@ -720,6 +1203,8 @@ export default function StackComposer() {
                               picks={picks}
                               meta={meta}
                               onTopology={pickTopology}
+                              onSwap={pick}
+                              muted={visibleDims !== null && !visibleDims.has(dimId)}
                             />
                           </span>
                         );
@@ -743,11 +1228,12 @@ export default function StackComposer() {
               activeDim={activeDim}
               picks={picks}
               meta={meta}
+              baseId={baseId}
               onPick={pick}
               onClear={clear}
               onTopology={pickTopology}
               onClose={() => setActiveDim(null)}
-              onFocusDim={(d) => setActiveDim(d)}
+              onFocusDim={focusDim}
             />
           )}
 
@@ -1206,6 +1692,20 @@ function SlotDotMatrix({
 
 function findOption(dimId: string, optId: string) {
   return dimensionById.get(dimId)?.options.find((o) => o.id === optId);
+}
+
+/**
+ * 「推荐件」判定（S2-1 换件排序 / S2-2 一键补齐共用）：出处是事实源的
+ * `defaultOption` 且不是「不用」档 —— 这里不打分、不写死名字。
+ * 维度连真零件都没有（选项只有 none）就返回 undefined，调用方跳过。
+ */
+function recommendedOptionFor(dimId: string) {
+  const dim = dimensionById.get(dimId);
+  if (!dim) return undefined;
+  return (
+    dim.options.find((o) => o.id === dim.defaultOption && o.id !== 'none') ??
+    dim.options.find((o) => o.id !== 'none')
+  );
 }
 
 /**

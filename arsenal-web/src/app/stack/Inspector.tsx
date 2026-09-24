@@ -2,10 +2,11 @@
 
 import { capLabel, capsOf, needsOf, nodeArch, STATUS_META } from '@/lib/arch';
 import type { ArchAudit, ArchGap } from '@/lib/arch';
-import type { StackOption, StackPicks } from '@/lib/content-types';
+import type { StackDimension, StackOption, StackPicks } from '@/lib/content-types';
 import type { StackPicksMeta } from '@/lib/topology';
 import { dimensionById } from '@/lib/stack';
 import GapCard from './GapCard';
+import RuleHits from './RuleHits';
 import TopologyPicker from './TopologyPicker';
 import { TONE } from './palette';
 
@@ -22,6 +23,7 @@ export default function Inspector({
   activeDim,
   picks,
   meta,
+  baseId,
   onPick,
   onClear,
   onTopology,
@@ -33,6 +35,8 @@ export default function Inspector({
   picks: StackPicks;
   /** 形态与参数。形态不是「选项」的一部分，所以走单独一条通道 */
   meta: StackPicksMeta;
+  /** 技术栈基底（S3-4 规则联动按它算 Java/Spring key） */
+  baseId: string;
   onPick: (dimId: string, optId: string) => void;
   onClear: (dimId: string) => void;
   onTopology: (dimId: string, modeId: string) => void;
@@ -132,6 +136,10 @@ export default function Inspector({
               items={audit.notes}
               onFocusDim={onFocusDim}
             />
+
+            {/* S3-4 规则联动：这套组合牵动的规则（选型层逐条、基底层收成一行），
+                换件实时变；id 来自 rules.json，/rules/<id> 必然存在。 */}
+            <RuleHits picks={picks} baseId={baseId} />
           </div>
         </>
       )}
@@ -241,62 +249,7 @@ function Picker({
       </div>
 
       <div className="min-h-0 flex-1 overflow-y-auto">
-        <ul className="divide-y divide-line">
-          {dim.options.map((o) => {
-            const on = o.id === current;
-            return (
-              <li key={o.id}>
-                <button
-                  type="button"
-                  onClick={() => onPick(dimId, o.id)}
-                  className="w-full px-4 py-2.5 text-left transition-colors"
-                  style={{ background: on ? 'rgba(127,166,80,0.07)' : undefined }}
-                >
-                  <div className="flex items-center gap-2">
-                    <span
-                      className="mono flex h-[13px] w-[13px] shrink-0 items-center justify-center rounded-full border text-[10px] leading-none"
-                      style={{
-                        borderColor: on ? '#7FA650' : '#33413A',
-                        color: on ? '#7FA650' : 'transparent',
-                      }}
-                    >
-                      ✓
-                    </span>
-                    <span className="text-2xs font-medium text-fg">{o.name}</span>
-                    {o.badge && (
-                      <span className="mono ml-auto rounded-sm border border-line px-1 text-[10px] leading-[15px] text-fgFaint">
-                        {o.badge}
-                      </span>
-                    )}
-                  </div>
-                  <p className="mt-1 pl-[21px] text-[10px] leading-[15px] text-fgMuted">
-                    {o.summary}
-                  </p>
-                  <div className="mt-1.5 flex flex-wrap gap-1 pl-[21px]">
-                    {capsOf(dimId, o.id).map((c) => (
-                      <span
-                        key={c}
-                        className="mono rounded-sm px-1 text-[10px] leading-[15px]"
-                        style={{ color: '#7FA650', background: 'rgba(127,166,80,0.10)' }}
-                      >
-                        +{capLabel(c)}
-                      </span>
-                    ))}
-                    {needsOf(dimId, o.id).map((c) => (
-                      <span
-                        key={c}
-                        className="mono rounded-sm px-1 text-[10px] leading-[15px]"
-                        style={{ color: '#93A39C', background: 'rgba(255,255,255,0.04)' }}
-                      >
-                        需 {capLabel(c)}
-                      </span>
-                    ))}
-                  </div>
-                </button>
-              </li>
-            );
-          })}
-        </ul>
+        <OptionList dimId={dimId} current={current} onPick={onPick} />
 
         {/* 形态选择器紧挨着零件库——选完零件，紧接着就是「几个实例、怎么摆」。
             它是这台装配台从「选组件」变成「装配一个项目」的那一步。 */}
@@ -325,6 +278,96 @@ function Picker({
         )}
       </div>
     </>
+  );
+}
+
+/**
+ * 就地换件 / 零件库共用的候选排序（S2-1）。
+ *
+ * 「按推荐排」的数据出处是事实源的 `defaultOption`，不是这里另打分：
+ * 推荐档（且不是「不用 X」）排最前，其余按事实源原序，「不用 X」永远垫底 ——
+ * 它是退出项，不是候选，排中间会诱导误点。
+ */
+export function recommendedOrder(dim: StackDimension): StackOption[] {
+  const head = dim.options.find((o) => o.id === dim.defaultOption && o.id !== 'none');
+  const none = dim.options.find((o) => o.id === 'none');
+  const rest = dim.options.filter((o) => o.id !== 'none' && o.id !== dim.defaultOption);
+  return [...(head ? [head] : []), ...rest, ...(none ? [none] : [])];
+}
+
+/**
+ * 选项行的一份渲染（S2-1）：右栏零件库（Picker）与卡片上的就地换件菜单
+ * 都吃它 —— 两处各养一份 <li> 模板必然漂移（改一处忘一处）。
+ */
+export function OptionList({
+  dimId,
+  current,
+  onPick,
+}: {
+  dimId: string;
+  /** 当前选中的选项 id；'' = 未选 */
+  current: string;
+  onPick: (dimId: string, optId: string) => void;
+}) {
+  const dim = dimensionById.get(dimId);
+  if (!dim) return null;
+  return (
+    <ul className="divide-y divide-line">
+      {recommendedOrder(dim).map((o) => {
+        const on = o.id === current;
+        return (
+          <li key={o.id}>
+            <button
+              type="button"
+              onClick={() => onPick(dimId, o.id)}
+              className="w-full px-4 py-2.5 text-left transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-brass"
+              style={{ background: on ? 'rgba(127,166,80,0.07)' : undefined }}
+            >
+              <div className="flex items-center gap-2">
+                <span
+                  className="mono flex h-[13px] w-[13px] shrink-0 items-center justify-center rounded-full border text-[10px] leading-none"
+                  style={{
+                    borderColor: on ? '#7FA650' : '#33413A',
+                    color: on ? '#7FA650' : 'transparent',
+                  }}
+                >
+                  ✓
+                </span>
+                <span className="text-2xs font-medium text-fg">{o.name}</span>
+                {o.badge && (
+                  <span className="mono ml-auto rounded-sm border border-line px-1 text-[10px] leading-[15px] text-fgFaint">
+                    {o.badge}
+                  </span>
+                )}
+              </div>
+              <p className="mt-1 pl-[21px] text-[10px] leading-[15px] text-fgMuted">
+                {o.summary}
+              </p>
+              <div className="mt-1.5 flex flex-wrap gap-1 pl-[21px]">
+                {capsOf(dimId, o.id).map((c) => (
+                  <span
+                    key={c}
+                    className="mono rounded-sm px-1 text-[10px] leading-[15px]"
+                    style={{ color: '#7FA650', background: 'rgba(127,166,80,0.10)' }}
+                  >
+                    +{capLabel(c)}
+                  </span>
+                ))}
+                {needsOf(dimId, o.id).map((c) => (
+                  <span
+                    key={c}
+                    className="mono rounded-sm px-1 text-[10px] leading-[15px]"
+                    style={{ color: '#93A39C', background: 'rgba(255,255,255,0.04)' }}
+                  >
+                    需 {capLabel(c)}
+                  </span>
+                ))}
+              </div>
+            </button>
+          </li>
+        );
+      })}
+    </ul>
   );
 }
 
