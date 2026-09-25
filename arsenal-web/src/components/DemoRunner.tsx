@@ -1,11 +1,15 @@
 'use client';
 
 /**
- * 嵌入式案例实验室 —— 最佳实践案例库详情页里的「模拟测试」运行台。
+ * 嵌入式演示运行台 —— 最佳实践案例库详情页里的「模拟测试」运行台。
  *
  * 数据来源只有一份：所在蓝图的 playground[] 字段（arsenal-cookbook），
  * 不做任何全局示例摊平 —— 那是合并前独立 /playground 页的旧职责。
  * 后端用 JDK 21 子进程编译并执行，返回 stdout / stderr / 退出码。
+ *
+ * 为什么叫 DemoRunner 而不叫 CaseLab：仓库里曾经有两个 CaseLab ——
+ * 这个（蓝图演示台，265 行）和 `src/app/cases/CaseLab.tsx`（症状分诊台，909 行）。
+ * 同名不同职责，改错文件的事发生过。名字必须能看出它是跑 demo 的，不是分诊的。
  */
 
 import { useEffect, useState } from 'react';
@@ -19,7 +23,7 @@ import {
 import type { PlaygroundDemo, PlaygroundFile } from '@/lib/content-types';
 import CodeEditor from '@/components/CodeEditor';
 
-export default function CaseLab({ demos }: { demos: PlaygroundDemo[] }) {
+export default function DemoRunner({ demos }: { demos: PlaygroundDemo[] }) {
   const [jdk, setJdk] = useState<CaseJdkOutcome | null>(null);
   const [demoId, setDemoId] = useState(demos[0]?.id ?? '');
   const [files, setFiles] = useState<PlaygroundFile[]>(

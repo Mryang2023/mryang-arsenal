@@ -3,7 +3,7 @@
 import { useMemo, useState } from 'react';
 import Link from 'next/link';
 import CodeWithNotes from '@/components/CodeWithNotes';
-import CaseLab from '@/components/CaseLab';
+import DemoRunner from '@/components/DemoRunner';
 import { getRule } from '@/lib/rules';
 import { layerTheme } from '@/lib/theme';
 import { SEVERITY_THEME } from '@/lib/theme';
@@ -324,7 +324,7 @@ export default function BlueprintView({ feature }: { feature: Feature }) {
               代码可改 · 后端用 JDK 21 子进程编译执行 · 返回 stdout / stderr / 退出码
             </span>
           </div>
-          <CaseLab demos={feature.playground} />
+          <DemoRunner demos={feature.playground} />
         </section>
       )}
 
