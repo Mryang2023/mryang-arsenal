@@ -1,0 +1,149 @@
+{
+  "棒次": 1,
+  "任务": "案例库 B0：修 /cases 白屏 Bug + 补字段一致性断言",
+  "方案": "docs/开发计划-2026-09-23/案例库UI升级计划-2026-09-23.md §二（B0）",
+  "状态": "完成",
+  "开工": "2026-09-23T23:20:00+08:00",
+  "收工": "2026-09-23T23:55:00+08:00",
+  "模型": "（本会话运行时标注；跑在 WorkBuddy「夜跑 09-23 · 第1棒 案例库B0」定时任务上）",
+  "时间预算": { "单棒": 232, "开发": 140, "自检": 46, "review": 46 },
+
+  "开发": {
+    "砍定范围": "B0-1 全量核字段 / B0-2 类型改可选 + UI 守卫 / B0-4 新增字段契约断言 / 冒烟。B0-3（给 4 个缺失场景补 benchmark 数据）砍掉 —— Q1 待杨先生拍板，且补数据必须改 tools/content/cases/*.py 并撰写 4 份性能参照内容，140 分钟开发预算装不下",
+    "做完的": [
+      "B0-1：case-types.ts 14 个必选顶层字段 × 6 个 arsenal-cases/*.json、content-types.ts Feature 21 个必选字段 × 4 条 arsenal-cookbook/*.json 逐个核；外加 11 个嵌套类型全部实例核（CaseSlice 48 / Driver 36 / DriverLevel 120 / SliceDecision 48 / SliceHighlight 128 / ArchNode 38 / ArchLink 33 / FlowStep 23 / FeatureFile 32 / Highlight 98 / FeatureReference 16，无一缺失）",
+      "B0-2：src/lib/case-types.ts 的 benchmark 改 benchmark?（附为什么必须可选的注释）；src/app/cases/CaseLab.tsx 性能参照整块加 kase.benchmark ? … : 空态，空态文案「本场景未提供性能参照 —— 没有实测口径的数字不写，避免把量级结论当成通用结论照抄。」（虚线框，与折叠态可区分）",
+      "B0-2 附：src/lib/content-types.ts 注释澄清 fileCount/highlightCount/ruleCount/lines 是 sync 注入字段，事实源里没有",
+      "B0-4：.verify/project-check.ts 新增【16】字段契约一致性，224 条",
+      "冒烟：node scripts/next-run.mjs build EXIT=0；6 个场景 + 4 条 feature 逐个点开，0 条 console/pageerror、无白屏"
+    ],
+    "未做完的": [
+      "B0-3：给 async-pipeline / high-throughput-io / hotspot-cache / wide-table-search 补 benchmark 数据（要改 tools/content/cases/*.py 四份 + 跑 build-content.py + sync）—— 卡在 Q1，需杨先生拍板"
+    ],
+    "降级处理的": [
+      "cookbook 的 4 个 sync 注入字段在事实源里 4/4 全无：不改类型（类型描述的是同步后的记录），改由【16】A3 组对着 src/generated/cookbook.json 断言注入真的发生了"
+    ]
+  },
+
+  "自检": {
+    "验收对照": [
+      "B0-1 全量核字段 ✅（两个库 + 11 个嵌套类型，产出字段×数据清单，见 01-running.json）",
+      "B0-2 类型改可选 + UI 守卫 ✅（tsc 根配置 521 文件 0 错；.verify 配置 10 个脚本 0 错）",
+      "B0-3 补数据 ❌ 按计划砍掉（Q1 待拍板）",
+      "B0-4 补断言 ✅ 224 条，已进结构与导出层",
+      "验收：6 个场景逐个点击不白屏 ✅；新断言注入错误后变红 ✅（4 处反着验）"
+    ],
+    "反着验": [
+      "R-1 删 arsenal-cases/hotspot-cache.json 的 problem → 项目层红 2 条（「场景案例库：hotspot-cache 有必选字段 problem」+「异构字段一律声明为可选」），EXIT=1 → git checkout 还原复绿",
+      "R-2 case-types.ts 的 benchmark?: 改回 benchmark: → 红 5 条（4 条 A 方向 + 1 条 B 方向）+ 项数对不上「声明 637 / 实测 643」，EXIT=1 → cp 备份还原复绿",
+      "R-3 删 arsenal-cases/huge-rowcount-rdb.json 的 benchmark → sync + 重建 out/ → 冒烟：该场景可见文本 1430 字、显示「本场景未提供性能参照」空态、0 条 console 报错 → git checkout 还原 + 重建",
+      "R-4 给 case-types.ts 的 order 字段加行尾注释 → 项数仍 637（确认注释剥离没吞字段）→ 已还原"
+    ],
+    "静默失败": [
+      "【16】A3 组在「场景案例库」侧产出 0 条断言 —— cases 没有 sync 注入字段，这是已知的零样本区：若哪天 cookbook 的注入字段也被搬进事实源，A3 会整体归零而无人报警（已点名，未加守卫）",
+      "【16】A5 的 58 条把 items.length > 0 折进判据，样本为 0 直接判红 —— 已堵住空跑",
+      "【16】每库 1 条「样本量 > 0」—— 堵住「0 条记录时全部断言空跑」",
+      "冒烟脚本的 visible < 200 白屏判据：默认场景只有 1418 字（默认参数下 0 切片命中）仍高于阈值，没被判白屏 —— 但它暴露了一个独立问题，见 review.P2 的补充发现"
+    ],
+    "引用核实": [
+      "case-types.ts benchmark 必选声明 ✅ 核实",
+      "CaseLab.tsx 四处无守卫读取 ✅ 核实",
+      "6 个 case 的 benchmark 有无 ✅ 与方案一致（2 有 / 4 无）",
+      "arsenal-profiles/arsenal.json 不是 build-content.py 的产物 ✅（grep 无命中，是手写事实源，可直接改）",
+      "project-check.ts 的手写总数常数已被 09-22 第 4 棒删除 ✅（grep 413 → 0 命中），所以「四处」现在是三处 + 一处已消灭"
+    ],
+    "补做的": [
+      "反着验 R-3 第一次是假通过（删了事实源的 benchmark 但没重跑 sync，out/ 还是旧的）→ 补做 sync + 重建后才真正验到空态",
+      "README 分项表 verify:project 行的描述补上【16】字段契约一致性的说明"
+    ],
+    "未完成": []
+  },
+
+  "review": {
+    "审查范围": "本棒改的 6 个文件：src/lib/case-types.ts、src/lib/content-types.ts、src/app/cases/CaseLab.tsx、.verify/project-check.ts、arsenal-profiles/arsenal.json、README.md",
+    "P0": [],
+    "P1": [
+      "[P1] .verify/project-check.ts ifaceFields —— 只剥行首注释，字段带行尾注释时会把注释并进下一条声明，让该字段从字段表静默消失 → 根因：剥注释的正则只匹配行首 → 已修：改成剥所有 //；R-4 反着验确认",
+      "[P1] .verify/project-check.ts【16】A5 —— SliceDecision 这类从父对象 map 出来的实例若为 undefined 会被 filter(Boolean) 静默丢掉，只有全丢光才会被 items.length>0 抓到 → 已修：加 raw.length !== items.length 判据"
+    ],
+    "P2": [
+      "[P2] .verify/project-check.ts【16】B 方向只覆盖「类型里已声明」的字段；事实源里出现类型没声明的新字段不会被拦。未修：sync 对这两个库是对象展开、无字段白名单，加白名单是行为变更",
+      "[P2] .verify/project-check.ts【16】NESTED 循环里每个 spec 都重读一次类型文件（13 次，合计 <20ms）。未修：加缓存要引入模块级可变状态，收益不抵风险",
+      "[P2] .verify/project-check.ts【16】libs 与 NESTED 两处各自硬编码「库 → 类型文件」映射。未修：只有两个库，抽象了反而难读",
+      "[P2] src/app/cases/CaseLab.tsx 空态用的 div 而非 p。未修：无功能/可访问性影响（对比度 6.75:1 达标、h1 唯一不受影响）"
+    ],
+    "已修": ["上面 P1 两条，修完重跑项目层仍 637 项 / 0 失败，tsc 两套配置均 0 错"],
+    "未修原因": [
+      "P2-1（数据有而类型没声明）→ 属字段白名单口径，需先定「sync 要不要裁剪」",
+      "P2-2（缓存）→ 引入可变状态的收益不抵风险",
+      "P2-3（两处映射）→ 只有两个库，抽象反而难读",
+      "P2-4（div vs p）→ 无功能影响",
+      "补充发现（非本棒引入，进清单等拍板）：/cases 落地页默认参数下 0 切片命中 —— 默认场景 huge-rowcount-rdb 的数据规模默认 1000 万，而它的切片都挂在「亿级」以上档位，结果区只显示「当前参数下没有任何切片命中」，可见文本 1418 字（其它场景 5600–8000 字）。要不要调默认参数是产品决策，本棒不动"
+    ]
+  },
+
+  "验证": {
+    "全量跑了": true,
+    "总数": 914,
+    "分项": {
+      "架构判定": 35, "图与交互": 68, "结构与导出": 637, "场景案例": 33,
+      "引擎样本": 17, "前后端一致性": 12, "Archify 链路": 31, "代码扫描": 69, "视觉断言": 12
+    },
+    "通过": 914, "跳过": 0, "失败": 0, "退出码": 0,
+    "元核对": 53,
+    "跳过明细": [],
+    "额外": [
+      "后端（3011）本棒起了，所以前后端一致性 12/12 全过、Archify 31 项也过了（wrench-ai 技能在）",
+      "刻意未跑 2 项（照旧）：scan 的 5-4 500MB 闸门、8-6 真等 180s",
+      "视觉层 45 张 × 7 项断言全绿（A4 有 15 张未适用：移动端无 sticky）",
+      "build：node scripts/next-run.mjs build EXIT=0"
+    ]
+  },
+
+  "数字同步": {
+    "位置数": 4,
+    "是否全同步": true,
+    "实测值": 914,
+    "明细": [
+      "arsenal-profiles/arsenal.json → 结构与导出 413 → 637 ✅（改后重跑 sync-content.mjs）",
+      "README.md 总数句 690 → 914 ✅（三处：共 914 项 / 那 914 项不是手写的 / 914 的口径不受影响）",
+      "README.md 分项表 verify:project 413 → 637 ✅（并补了【16】描述）",
+      "arsenal-web/.verify/project-check.ts 手写总数常数 → 已被 09-22 第 4 棒整条删除，改由链尾 verify:meta 比对，所以实际是三处 + 一处已消灭"
+    ],
+    "复跑确认": "verify:meta【5】段：README 914 / 档案 914；分项表九行逐层对上；【3】段九层全部「对得上」"
+  },
+
+  "提交": {
+    "已提交": true,
+    "hash": "e3d6afe5846dcc4bbae2cb4b1ecbe6132650e6b8",
+    "message": "fix(cases): benchmark 改可选 + UI 空态守卫 + 补字段契约一致性断言 224 条",
+    "是否按路径add": true,
+    "提交文件": [
+      "README.md", "arsenal-profiles/arsenal.json", "arsenal-web/.verify/project-check.ts",
+      "arsenal-web/src/app/cases/CaseLab.tsx", "arsenal-web/src/lib/case-types.ts",
+      "arsenal-web/src/lib/content-types.ts"
+    ],
+    "夹带说明": "git log --stat -1 确认恰好 6 个文件。其中 README.md / arsenal-profiles/arsenal.json / .verify/project-check.ts 开工前就带白天会话的已暂存改动（README 49 行、arsenal.json 6 行、project-check.ts 30 行，内容是 nav-active 高亮断言与 411→413、59→68 数字同步）—— git 按文件提交无法只挑 hunk，这三处的白天改动一并进了本提交，已在 commit message 里写明。其余 36 个白天暂存文件（含脚本、文档、误建的无名文件）一律未动。"
+  },
+
+  "清理": {
+    "调试产物已删": true,
+    "残留": [
+      "arsenal-web/.workbuddy/ 下 _3010.txt、_dev*.log、_patch*.py、_probe-k8s.ts、_shot_*.mjs、_verify_*.log、_shots/、icons-batch1.html —— 都是白天会话的，不是本棒产出，按「不擅自删别人的文件」保留"
+    ]
+  },
+
+  "踩的坑": [
+    "node scripts/next-run.mjs build 不会跑 sync：prebuild 只有走 npm run build 才触发。直接 next-run 会用旧的 src/generated/ 出静态页 —— R-3 第一次假通过就是这么来的。改事实源后必须显式 sync-content.mjs 再 build。",
+    "无头浏览器访问不到外部起的 python 静态站：python -m http.server 3021 起得来、node fetch 也 200，但 msedge 报 ERR_CONNECTION_REFUSED。冒烟脚本改成内置 node createServer（端口 0）就通了。",
+    "后台进程不能用 (cmd &) 起：bash 工具的 shell 一退出子进程就被杀。要用 run_in_background=true。",
+    "git 按文件提交，无法只挑 hunk —— 白天已暂存的改动会随同文件路径一起进提交（见 提交.夹带说明）。"
+  ],
+
+  "给下一棒的话": [
+    "后端 3011 我没停，还活着 —— 你跑 verify 时 parity 应该是 12/12；要停就 taskkill。",
+    "九层现在 914 项，结构与导出 637。你如果加断言，四处（档案 + README 两处 + 分项表）要一起改，改完必跑 sync-content.mjs。",
+    "/cases 的默认参数下 0 切片命中（落地页结果区是空的），不是我改出来的，是默认档位比切片门槛低。你如果在 /cases 附近加 UI，先知道有这回事。",
+    "B0-3（补 4 个场景的 benchmark 数据）被我砍了，卡在 Q1；你要是顺手做，必须改 tools/content/cases/*.py 再跑 build-content.py，别改 JSON。"
+  ]
+}
