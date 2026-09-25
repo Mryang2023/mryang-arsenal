@@ -34,8 +34,14 @@ export function normalizeParams(kase: CaseDef, params: CaseParams): CaseParams {
   return out;
 }
 
-/** when 是否命中：列出的每个 driver 的当前档位都必须在其允许列表里 */
-function whenHits(when: Record<string, string[]> | undefined, params: CaseParams): boolean {
+/**
+ * when 是否命中：列出的每个 driver 的当前档位都必须在其允许列表里。
+ *
+ * 对外导出是因为「这条告警现在是不是在响」这个问题不只引擎要回答 ——
+ * 参数面板要给 inert 参数标「⚠ 2/3」（引用它的 3 条告警里有 2 条正在响），
+ * 那必须和引擎用同一把尺子，否则会出现「顶部没黄条、参数卡上却写着 ⚠ 1」。
+ */
+export function whenHits(when: Record<string, string[]> | undefined, params: CaseParams): boolean {
   if (!when) return true;
   for (const [did, levels] of Object.entries(when)) {
     if (!levels || levels.length === 0) continue;

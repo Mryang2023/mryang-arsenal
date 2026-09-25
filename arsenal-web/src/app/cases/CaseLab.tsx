@@ -4,7 +4,7 @@ import { useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import type { ArchLink, ArchNode, CaseDef, CaseParams, CasePlan, CaseSlice, CaseSymptom, Driver } from '@/lib/case-types';
 import { allSymptoms, cases, casesMeta, casesStats, defaultParams, symptomParams } from '@/lib/case-cases';
-import { planToPrompt, sliceFileName, synthCase } from '@/lib/case-synth';
+import { planToPrompt, sliceFileName, synthCase, whenHits } from '@/lib/case-synth';
 import { DIAGRAM_PALETTE, textWidth } from '@/lib/arch-diagram';
 import { buildZip } from '@/lib/zip-lite';
 import CodeBlock from '@/components/CodeBlock';
@@ -681,6 +681,15 @@ export default function CaseLab() {
           {kase.drivers.map((d) => {
             const selected = d.levels.find((lv) => lv.id === params[d.id]);
             const exclusive = (kase.exclusiveGroups ?? []).some((g) => g.drivers.includes(d.id));
+            // 这个参数能改变什么 —— 构建期实测，页面只负责把结论说破。
+            // 引用它的告警条数 / 当前正在响的条数，用与引擎同一把尺子（whenHits）算，
+            // 免得出现「顶部没黄条、参数卡上却写着 ⚠ 1」。
+            const confRules = kase.conflicts.filter((c) => (c.when[d.id] ?? []).length > 0);
+            const nsRules = kase.notSuitableFor.filter((n) => (n.when[d.id] ?? []).length > 0);
+            const warnRules = [...confRules, ...nsRules];
+            const warnFired = warnRules.filter((r) => whenHits(r.when, params)).length;
+            const warnKind = nsRules.length === 0 ? '矛盾告警'
+              : confRules.length === 0 ? '适用性提示' : '告警';
             return (
               <div key={d.id} className="rounded-lg border border-line bg-surface p-3">
                 <div className="flex items-baseline justify-between gap-2">
@@ -696,6 +705,39 @@ export default function CaseLab() {
                 {selected?.note && (
                   <div className="mt-1 text-[11px] leading-relaxed text-fgMuted">{selected.note}</div>
                 )}
+
+                {/* 影响面：拖这个滑块到底会不会改变结果。
+                    不说破的话，11 个 inert 参数会让用户判定「页面坏了」。 */}
+                {d.inert ? (
+                  <div className="mt-1.5 flex items-center gap-1.5 rounded px-1.5 py-1"
+                    style={{ border: '1px solid rgba(217,164,65,0.28)', background: 'rgba(217,164,65,0.06)' }}>
+                    <span className="text-[10.5px]" style={{ color: '#D9A441' }}>⊘</span>
+                    <span className="text-[10.5px] leading-tight text-fgMuted">
+                      只影响{warnKind} · 不改变命中切片
+                    </span>
+                    {warnRules.length > 0 && (
+                      <span className="mono ml-auto shrink-0 text-[10px]"
+                        style={{ color: warnFired > 0 ? '#D9A441' : '#80918A' }}
+                        title={`引用这个参数的告警共 ${warnRules.length} 条，当前参数下触发 ${warnFired} 条`}>
+                        ⚠ {warnFired}/{warnRules.length}
+                      </span>
+                    )}
+                  </div>
+                ) : typeof d.sensitivity === 'number' ? (
+                  <div className="mt-1.5 flex items-center gap-1.5"
+                    title="切换这个参数的档位时，命中切片集合发生变化的比例（构建期穷举实测）">
+                    <span className="text-[10px] text-fgFaint">影响面</span>
+                    <span className="h-[3px] w-12 overflow-hidden rounded-full"
+                      style={{ background: 'rgba(232,240,236,0.12)' }}>
+                      <span className="block h-full rounded-full"
+                        style={{ width: `${Math.round(d.sensitivity * 100)}%`,
+                          background: 'rgba(127,166,80,0.85)' }} />
+                    </span>
+                    <span className="mono text-[10px] text-fgMuted">
+                      {Math.round(d.sensitivity * 100)}%
+                    </span>
+                  </div>
+                ) : null}
               </div>
             );
           })}

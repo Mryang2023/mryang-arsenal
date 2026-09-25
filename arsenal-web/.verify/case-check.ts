@@ -467,4 +467,41 @@ console.log('\n【13】导出整包：ZIP 写出器必须产出结构自洽、�
   );
 }
 
+console.log('\n【14】驱动参数不许是摆设：必须有引用，且 inert / sensitivity 标注与数据一致');
+{
+  const orphan: string[] = [];
+  const inertBad: string[] = [];
+  const sensBad: string[] = [];
+  for (const k of cases) {
+    const inSlice = new Set<string>();
+    for (const s of k.slices) for (const did of Object.keys(s.when ?? {})) inSlice.add(did);
+    const inWarn = new Set<string>();
+    k.conflicts.forEach((c) => Object.keys(c.when ?? {}).forEach((d) => inWarn.add(d)));
+    k.notSuitableFor.forEach((n) => Object.keys(n.when ?? {}).forEach((d) => inWarn.add(d)));
+
+    for (const d of k.drivers) {
+      // ① 三处都不引用 = 拖它没有任何反馈，连一条告警都弹不出来
+      if (!inSlice.has(d.id) && !inWarn.has(d.id)) {
+        orphan.push(`${k.id}/${d.id}`);
+      }
+      // ② inert 是给前端的承诺，必须由数据背书 —— 声明 inert 却被切片引用（或反之）
+      //    会让「只影响告警 · 不改变命中切片」这句话变成假话
+      if (d.inert !== !inSlice.has(d.id)) {
+        inertBad.push(`${k.id}/${d.id}：inert=${d.inert}，实际被 slice.when 引用=${inSlice.has(d.id)}`);
+      }
+      // ③ 敏感度必须是 [0,1] 区间内的实测值，且与 inert 自洽
+      const s = d.sensitivity;
+      if (typeof s !== 'number' || Number.isNaN(s) || s < 0 || s > 1) {
+        sensBad.push(`${k.id}/${d.id}：sensitivity=${String(s)}`);
+      } else if (d.inert !== (s === 0)) {
+        sensBad.push(`${k.id}/${d.id}：inert=${d.inert} 但 sensitivity=${s}`);
+      }
+    }
+  }
+  check('每个 driver 至少被 slices.when / conflicts / notSuitableFor 之一引用',
+    orphan.length === 0, `摆设参数：${orphan.join('、')}`);
+  check('inert 标记与「是否被 slice.when 引用」一致', inertBad.length === 0, inertBad.join('\n      '));
+  check('sensitivity ∈ [0,1] 且与 inert 自洽', sensBad.length === 0, sensBad.join('\n      '));
+}
+
 finish('cases');
