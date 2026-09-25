@@ -53,12 +53,13 @@
 
 - **装配台下一步升级计划（2026-09-25 制定）** → `docs/开发计划-2026-09-25/装配台向导升级计划-2026-09-25.md`。⚠️ 两个关键结论：① **形态只预填不约束**（`StackComposer.tsx:573 applyShape` 只有 `presetPicks`，全仓无过滤逻辑）—— 用户「上一层确定下一层」只兑现拆分未兑现约束；② 层级约束**只能灰显不能隐藏**，否则【17】33 槽位分布 3/1/29 断言静默变红。P0=落袋 4 批 + `scopes?: string[]`（须可选，走 `tools/content/stack_*.py`）；P1=跨步骤摘要条 / ③减压 / 画布(S3-1) / 冲突文案；P2=评分卡(S3-2，分值不许编造) / 形态模板。P0-2 与 P2-1 需 mryang 拍板内容决策。（全部未提交，等 mryang 过目）
 
-- **案例实验室**：后端 `com.arsenal.cases`（8 文件 + 两处接入）、前端 `CaseLab` 调 `/api/cases/run`（JDK21 子进程）。编码坑：javac 诊断 + JVM 控制台流都要 `sun.stdout/stderr.encoding=UTF-8`。⚠️ 现**两份 CaseLab 并存**（`src/app/cases/CaseLab.tsx` 909 行 / `src/components/CaseLab.tsx` 265 行）—— 并行会话产物，合并前别抢。⚠️ 实验依赖 3011，纯静态 `out/` 离线不可用。
+- **案例实验室**：后端 `com.arsenal.cases`（8 文件 + 两处接入）、前端 `CaseLab` 调 `/api/cases/run`（JDK21 子进程）。编码坑：javac 诊断 + JVM 控制台流都要 `sun.stdout/stderr.encoding=UTF-8`。⚠️ 曾**两份 CaseLab 并存**；09-26 已把 `src/components/CaseLab.tsx`(265) 改名 **`DemoRunner.tsx`**（C1-4），现在只剩 `src/app/cases/CaseLab.tsx`(909) 叫 CaseLab。**合并仍未做**（蓝图 C-7），别抢。⚠️ 实验依赖 3011，纯静态 `out/` 离线不可用。
 - **装配台 UI 升级** `docs/开发计划-2026-09-23/装配台UI升级计划-2026-09-23.md`：P1/P2 全 ✅ + P3 的 S3-3/S3-4 ✅（三批均未提交）。**只剩 S3-1 画布 / S3-2 评分卡**（须改 `tools/content/stack*.py`）。
 - **案例库升级计划** `docs/开发计划-2026-09-25/最佳实践案例库升级计划-2026-09-25.md`（2026-09-25 制定）：C-1 AI 出口 / C-2 代码自证 / C-3 规则互链 为 P1。
 - **场景案例库升级计划** `docs/开发计划-2026-09-25/场景案例库升级计划-2026-09-25.md`（2026-09-25 制定）：P1=补 6 个 Java 日常场景（幂等/慢SQL/导出超时/分布式事务/文件上传/越权脱敏）+ 参数虚胖治理 + 症状墙筛选兜底 + 消同名陷阱；P2=可运行切片 / benchmark / 规则反查 / deep link；P3=模糊匹配 / A-B 对比 / 跨页互链。
-  - ⚠️ **实测（别重算）**：47 个 driver 里 **11 个敏感度 0%** —— 9 个只参与 `conflicts`（告警型，需 UI 标注「只影响告警、不改变命中」），2 个三处都不引用（真摆设 `msi/growth`、`vt/lifespan`）。另：benchmark 切片 **0**、`/rules` 对场景**零反查**、`app/cases/**` 无 URL 同步（结果不可分享）、切片代码不可运行。建议起手：虚胖治理（一晚、零内容成本）+ 先做「幂等」「慢 SQL」两个当样板。
-  - ⚠️ **两个 CaseLab 不是重复文件**：`app/cases/CaseLab.tsx`(909) = 症状分诊台；`components/CaseLab.tsx`(265) = 蓝图页跑 `feature.playground` 的演示控制台（`BlueprintView.tsx:327` 消费）。同名不同职责，改前看清路径；C2-1 可运行切片可直接复用后者，不用新造轮子。
+  - ✅ **C1-2 参数虚胖治理已落地（09-26 夜跑第 2 棒）**：构建期断言「driver 必须被 `slices.when`/`conflicts`/`notSuitableFor` 之一引用」，否则 build 失败；`sensitivity` + `inert` 由 `build-content.py` 实测写进产物；前端参数卡标注「只影响告警 · 不改变命中切片 / ⚠ n/m / 影响面 NN%」；`.verify/case-check.ts`【14】三条守着（场景案例层 33 → 36，九层合计 **1027**）。
+  - ⚠️ **实测（别重算，09-26 已修正）**：47 个 driver 里 **11 个 inert**（不被任何 `slices[].when` 引用 = 不改变命中切片）—— 其中 10 个参与 `conflicts`、1 个（`vt/lifespan`）参与 `notSuitableFor`。⚠️ 09-25 那版结论说「`vt/lifespan` 三处都不引用」是**错的**，它一直在 `virtual_thread.py` 的 `NOT_SUITABLE_FOR` 里。真孤儿当时只有 `msi/growth`（已补 conflicts）。另：benchmark 切片 **0**、`/rules` 对场景**零反查**、`app/cases/**` 无 URL 同步（结果不可分享）、切片代码不可运行。建议起手：虚胖治理（一晚、零内容成本）+ 先做「幂等」「慢 SQL」两个当样板。
+  - ⚠️ **两个 CaseLab 不是重复文件**（09-26 已改名）：`app/cases/CaseLab.tsx`(909) = 症状分诊台；`components/DemoRunner.tsx`(265，原 `components/CaseLab.tsx`) = 蓝图页跑 `feature.playground` 的演示控制台（`BlueprintView.tsx:327` 消费）。C2-1 可运行切片可直接复用 `DemoRunner`。
 - 场景案例 7 号 `multi-source-ingestion`、8 号 `virtual-thread` 已建未提交（8 场景 / 61 切片 / 175 锚点）。
 - B0-3：4 个场景仍无 `benchmark`。`/cases` 默认参数 0 切片命中（产品决策，未动）。
 - findings.md 还剩 ~14 条：P1 三条（archify 硬编码 localhost:3011、export PREVIEW 原始 Markdown + `<sub>` 泄漏、icons 89 vs 81）。63/81 位图图标缺失。
