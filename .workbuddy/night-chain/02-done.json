@@ -1,0 +1,160 @@
+{
+  "棒次": 2,
+  "任务": "/cases C1-2 参数虚胖治理（+ 富余 C1-4 改名）",
+  "方案": "docs/开发计划-2026-09-25/场景案例库升级计划-2026-09-25.md §2 C1-2 / §2 C1-4",
+  "开工": "2026-09-25T23:37:00+08:00",
+  "收工": "2026-09-26T00:12:00+08:00",
+  "状态": "完成（C1-2 三条处置全做 + 富余 C1-4 也做完；方案与记忆里的一处事实错误已修正）",
+
+  "开发": {
+    "砍定范围": "P0 构建期断言 + 真摆设处置 + sensitivity 计算 + TS 可选字段；P1 前端标注；P2 全量 47 个 sensitivity 进 JSON；富余 C1-4 改名。一项未砍。",
+    "已做完": {
+      "断言": "tools/build-content.py build_cases ⑥：每个 driver 必须被 slices[].when / conflicts / notSuitableFor 之一引用，否则构建失败（报错带 driver id）",
+      "sensitivity": "同处计算并写进产物 JSON：遍历「其它驱动组合 × 本驱动档位对」，统计命中切片集合发生变化的档位对占比（当前最大对照组 576 组，构建全程 0.4s）",
+      "inert": "同处写进产物 JSON：= 不被任何 slices[].when 引用。47 个 driver / 11 个 inert",
+      "真摆设处置": "multi-source-ingestion/growth 补一条 conflicts（年增 5 倍+ × 解析 VCF/报告 = 存储与索引爆炸）；vt/lifespan 实测已在 NOT_SUITABLE_FOR 里，无需处置（见『事实修正』）",
+      "类型": "src/lib/case-types.ts 的 Driver 加 sensitivity?: number / inert?: boolean（可选，【16】异构字段要求）",
+      "前端": "src/app/cases/CaseLab.tsx 参数卡：inert → 「⊘ 只影响矛盾告警/适用性提示/告警 · 不改变命中切片」+ ⚠ 已响/总数（与引擎共用 whenHits）；非 inert → 「影响面 NN%」+ 进度条",
+      "verify": ".verify/case-check.ts 新增【14】三条（33 → 36）",
+      "富余 C1-4": "components/CaseLab.tsx git mv → DemoRunner.tsx + BlueprintView.tsx:6,327 同步；grep -rn \"components/CaseLab\" = 0"
+    },
+    "未做完的": "无 —— C1-2 与 C1-4 的全部条目都已落地。C1-1（补 6 场景）、C1-3（症状墙筛选）不在本棒范围，未动。",
+    "偏离方案的决定": [
+      "方案说「5 个低敏感度参数显示百分比」→ 做成全部 36 个非 inert 参数都显示（理由：只看到低的几个，反而不知道哪个旋钮最有效）。已在方案文档里注明",
+      "vt/lifespan 按方案要补进 notSuitableFor —— 实测它本来就在，未重复补；改为只给 msi/growth 补 conflicts"
+    ],
+    "事实修正（终检请核）": {
+      "错的是": "方案 §1.1 D-3 与 .workbuddy/memory/2026-09-25.md 都写「2 个彻底无用：msi/growth、vt/lifespan」",
+      "真相": "virtual_thread.py 的 NOT_SUITABLE_FOR 第 3 条就是 {'when': {'lifespan': ['long']}} —— vt/lifespan 一直在被引用。真孤儿只有 msi/growth 一个",
+      "已改": "MEMORY.md 两条相关表述已改；方案文档 §2 C1-2 加了一条修正说明"
+    }
+  },
+
+  "自检": {
+    "验收对照（方案 §2 C1-2）": {
+      "告警型 9 个：保留 + 前端标注「只影响矛盾告警 · 不改变命中切片」": "✅（实际 11 个 inert 全标注，文案按引用来源分三种：矛盾告警 / 适用性提示 / 告警）",
+      "滑块旁显示告警计数": "✅ UI 实测 0/4、0/3、0/2、0/1 → 触发后变 1/1",
+      "真摆设 2 个：补进 conflicts / notSuitableFor": "✅ 1 个（msi/growth）补了；另 1 个（vt/lifespan）实测已在 notSuitableFor，无需补",
+      "低敏感度 5 个：显示敏感度百分比": "✅（扩成全部 36 个非 inert 都显示）",
+      "新增构建期断言：driver 必须有引用": "✅ 注入两次都真红（R-1 / R-2）",
+      "验收：11 个零影响参数全部被标注或处置": "✅ 11/11",
+      "验收：断言注入测试真红": "✅",
+      "验收：verify 计数同步": "✅ 场景案例 33 → 36，九层合计 1024 → 1027，meta 53/53"
+    },
+    "存在性核验": "改动的 10 个文件逐个 git status / ls 确认在（含 R095 重命名对）",
+    "反着验": [
+      {
+        "编号": "R-1（构建期断言 · 孤儿注入）",
+        "注入": "给 tools/content/cases/virtual_thread.py 的 DRIVERS 加 probeOrphan（2 档）",
+        "打中确认": "grep -c probeOrphan = 1",
+        "结果": "build exit 1，报「virtual-thread/probeOrphan 是摆设参数：slices[].when / conflicts / notSuitableFor 三处都不引用它」",
+        "还原": "git checkout -- <file> → build exit 0，git status 该行消失"
+      },
+      {
+        "编号": "R-2（构建期断言 · 删已有引用）",
+        "注入": "删掉本棒刚给 msi/growth 补的那条 conflicts",
+        "打中确认": "grep -c \"'id': 'growth'\" = 1（driver 还在）",
+        "结果": "build exit 1，报「multi-source-ingestion/growth 是摆设参数…」",
+        "还原": "Edit 加回 → build exit 0，git diff --stat = 5 insertions"
+      },
+      {
+        "编号": "R-3（verify【14】· 伪造标注）",
+        "注入": "把 src/generated/cases.json 里 multi-source-ingestion/growth.inert 改成 false",
+        "打中确认": "回读该字段打印 inert=false",
+        "结果": "verify:cases 34 通过 / 2 失败 / exit 1 ——「inert 标记与『是否被 slice.when 引用』一致」与「sensitivity 与 inert 自洽」两条同时红",
+        "还原": "重跑 sync-content.mjs → 36 / 0 / 0"
+      }
+    ],
+    "静默失败排查": {
+      "构建期断言": "样本 = 全部 47 个 driver（8 场景逐个遍历），不是抽样式检查",
+      "verify【14】": "遍历 8 场景 × 47 driver，三段各自独立记账；R-3 证明样本非空且能红",
+      "未覆盖的一条": "build-content.py 的 MAX_COMBOS=20000 降采样分支当前跑不到（最大对照组 576）—— 记 P2-3"
+    },
+    "引用核实": "方案点名的 11 个 driver id 逐个在 arsenal-cases/*.json 里核对存在；msi/growth 的档位 id（g1x/g5x/g20x）与 parseDepth 的（meta/variant/full）核对存在后才写进 conflicts",
+    "UI 核对": "无头 chromium + node createServer 起静态站进 /cases：默认场景 2 条 inert 标注 / 4 条影响面；切 msi 后 queryQps ⚠ 0/2、growth ⚠ 0/1；把 growth 切「年增 20 倍」+ parseDepth 切「VCF + 报告」→ 顶部黄条出现、新冲突文案在场、pill 变 ⚠ 1/1；0 console 错误"
+  },
+
+  "review": {
+    "范围": "本次改动的文件（不审全仓）",
+    "P0": [],
+    "P1": [],
+    "P2": [
+      {
+        "id": "P2-1",
+        "位置": "tools/build-content.py ⑥ 降采样提示",
+        "问题": "原写法在切片后再乘 stride 反推原始组合数，数字不对",
+        "根因": "先切片再 len()",
+        "处置": "已当场修：先存 total_combos 再切片"
+      },
+      {
+        "id": "P2-2",
+        "位置": "src/app/cases/CaseLab.tsx 参数卡告警计数",
+        "问题": "conflicts 被 filter 了两遍",
+        "根因": "先拼 warnRules 再单独算 confN",
+        "处置": "已当场修：拆成 confRules / nsRules 两个常量"
+      },
+      {
+        "id": "P2-3",
+        "位置": "tools/build-content.py MAX_COMBOS 分支",
+        "问题": "降采样分支无数据覆盖（最大对照组 576）",
+        "根因": "现有场景参数空间都不够大",
+        "处置": "未修（无从注入验证）；已在代码注释与本文档点名"
+      }
+    ]
+  },
+
+  "验证": {
+    "基线（开工，来自 01-done.json）": "九层 1024 / 结构与导出 747 / 场景案例 33",
+    "收尾全量九层": {
+      "命令": "node scripts/verify-all.mjs",
+      "实测": 1027,
+      "通过": 1027,
+      "跳过": 0,
+      "失败": 0,
+      "退出码": 0,
+      "耗时": "127.1s",
+      "分层": "架构 35 / 图交互 68 / 场景案例 36 / 结构与导出 747 / 引擎样本 17 / 前后端一致 12 / Archify 31 / 代码扫描 69 / 视觉断言 12",
+      "刻意未跑": "2 项（scan 5-4 500MB 闸门、8-6 真等 180s）",
+      "元核对": "53 / 0 / 0"
+    },
+    "单元门禁": "tsc 0 错 · typecheck:verify 0 错 · next-run.mjs build 绿 · verify:cases 36/0/0",
+    "后端": "3011 由本棒重启（SKIP_COMPILE=1 bash arsenal-server/scripts/run.sh），parity 层 12/12 实跑通过"
+  },
+
+  "数字同步": {
+    "四处": [
+      { "处": "arsenal-profiles/arsenal.json verifyChain 场景案例 count", "值": "33 → 36（desc 同步补「驱动参数不许是摆设」）", "状态": "✅" },
+      { "处": "README 总数句", "值": "1024 → 1027（两处）", "状态": "✅" },
+      { "处": "README 分项表 verify:cases", "值": "33 → 36，并补了三条新断言的说明", "状态": "✅" },
+      { "处": "project-check.ts 手写总数常数", "值": "09-22 已删除，由 verify:meta 兜底", "状态": "meta 53/53 ✅" }
+    ],
+    "重跑 sync-content.mjs": "已跑 3 次（改名后、注入还原后、最终），工作区无额外变更（src/generated 不入库）"
+  },
+
+  "提交": {
+    "hash 列表": ["074f51f", "b001a91", "bed0693", "docs 修正", "memory + 状态文件"],
+    "纪律": "全程 git add <路径> + git commit -- <pathspec>；未用 git add -A / .；无 _* 产物夹带（git diff --cached --name-only | grep '/_' = 0）",
+    "插曲": "git mv 预先把重命名放进索引，批次 1 的 git diff --cached 里多出 DemoRunner.tsx —— commit 带 pathspec 未把它卷进去（git show --stat 074f51f = 10 文件，已核）"
+  },
+
+  "清理": {
+    "_* 产物": [
+      ".workbuddy/_02_probe.py",
+      ".workbuddy/_02-{sync,sync2,sync3,build,build2,build3,cases,injectA,injectB,restoreA,restoreB,server,verifyall}.log",
+      "arsenal-web/.verify/tmp/_02-cases-ui.mjs"
+    ],
+    "状态": "已全部删除（.workbuddy/ 下仅剩前夜遗留的 _archify-view / _superseded，非本棒产物）",
+    "归档": "上一夜同名 .workbuddy/night-chain/02-done.json → 02-done.2026-09-24.json"
+  },
+
+  "交棒": {
+    "下一棒": "夜跑 09-25 · 第3棒 蓝图代码自证",
+    "automation id": "e71462f7-b00a-4a95-af70-0aba925a5308",
+    "动作": "scheduledAt 改为本棒收工 + 3 分钟",
+    "给终检的三条": [
+      "反着验 R-1 / R-2 / R-3 可复现，命令在 .workbuddy/memory/2026-09-26.md",
+      "重点核：方案与 09-25 记忆里「vt/lifespan 是摆设」这句是错的，本棒已修正",
+      "重点核：批次 1 的 commit 有没有把 git mv 预暂存的重命名卷进去（实测没有）"
+    ]
+  }
+}

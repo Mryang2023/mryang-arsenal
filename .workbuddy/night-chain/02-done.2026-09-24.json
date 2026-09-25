@@ -1,0 +1,173 @@
+{
+  "棒次": 2,
+  "任务": "架构装配台 P1 第一组：S1-1 / S1-2 / S1-3（+S1-6、S1-7）",
+  "方案": "docs/开发计划-2026-09-23/装配台UI升级计划-2026-09-23.md §1~§5",
+  "状态": "完成",
+  "开工": "2026-09-23T23:53:00+08:00",
+  "收工": "2026-09-24T01:05:00+08:00",
+  "模型": "（本会话运行时标注；跑在 WorkBuddy「夜跑 09-23 · 第2棒 装配台P1」定时任务上）",
+  "时间预算": { "单棒": 187, "开发": 100, "自检": 35, "review": 25, "收尾": 27 },
+
+  "开发": {
+    "砍定范围": "S1-1 / S1-2 / S1-3 必做全做；S1-6 / S1-7 余力做完；S1-4（WireLayer + amFlow 开关）、S1-5（结论条闭环仪表）砍掉 —— 是新增组件与仪表，单独立项风险更可控。Inspector / DeliveryDeck 侧的字号未动（S1-6 只做卡内，避免扩大热点文件所有权冲突）。不动 33 维数据语义、不动 composeStack、不动导出产物内容。",
+    "做完的": [
+      "S1-1 台面化：globals.css :root 新增 4 变量（--stack-bench #101614 / --stack-bench-grid rgba(36,48,41,0.55) / --stack-part #1A2220 / --stack-part-hi #212B28）+ 组件类 .stack-bench（34px 网格，规格与 .grid-bg 相同，线色底色走变量；.grid-bg 本身未动，避免影响其它页面的 A5 基线）；泳道容器套台面；泳道表头改左侧固定标签列（30/34px，writing-mode:vertical-rl，原 h3 转 sr-only 防泳道名出现两遍）；泳道之间连线改 SVG 组件 LaneWire（treeLine #3C4D45），源码里 ↓ 字符清零（有断言守着）",
+      "S1-2 权重分级：SlotBlock 新增 weight prop（core 208 / regular 172 / bypass 148），StackComposer 按 §2.4 判定：inPipeline → core；泳道有链路但不在链路上 → bypass；其余 → regular。三视口 DOM 实测分布 core 3 / bypass 1 / regular 29（合计 33）。未选且非必需降 opacity 0.72 —— 并发现「未使用」的第二种形态：事实源里 none 那一档（mq/registry/gateway/search/analytics/objectstore 六个默认槽），已一并纳入",
+      "S1-3 焦点与深度：选中态 = 0 0 0 1px #D9A441 + 0 12px 32px -16px rgba(0,0,0,0.9) + 背景 var(--stack-part-hi)；台面其余卡降到 0.96（dimmed prop，activeDim 驱动）；移除按钮 group-hover:flex → 常驻，触摸点击区 32×32（视觉本体 20×20，盒 -right-2.5 -top-2.5 z-10 右上对齐挂角外）；tabIndex 0 + Enter/Space 键盘可达；focus-visible 黄铜 outline（探针实测 outlineWidth 2px / rgb(217,164,65)）",
+      "S1-6 字号与密度：SlotBlock 卡内 9px 全部清除，收成 4 档 —— meta 10/15、body 11/16、strong 12/18、title 14",
+      "S1-7 空态与引导：未选与 none 档补两行 —— 「装 X →」（X = 事实源 defaultOption，defaultOption 本身是 none 时取第一个真零件）+「装了有什么用」（该选项 summary，退回维度 why），虚线上沿分隔；网关路由卡从「放大一个『无』」变成「无 + 装 Spring Cloud Gateway → + 说明 + 点卡直达」",
+      "卡内 8 处 text-fgFaint 提到 text-fgMuted（fgFaint 配 surfaceMax 4.39:1，撞验收门禁「禁止 text-fgFaint 配 bg-surfaceMax」的明文禁令）",
+      ".verify/project-check.ts 新增【17】装配台视觉契约 24 条（见 验证.分项）"
+    ],
+    "未做完的": [
+      "S1-4 连线可视化（新文件 stack/WireLayer.tsx + amFlow 流动虚线 + 「点亮请求链路」开关）—— 未开工，本棒只做了泳道之间的静态 SVG 竖连线（LaneWire），槽内 → 字符与动效开关原样保留",
+      "S1-5 结论条改闭环仪表（三档结论 + 复用 ProgressRing + 33 格槽位点阵点击直达）—— 未开工",
+      "S1-6 的 Inspector / DeliveryDeck 侧字号收敛 —— 未做（卡内已做完），这两份热点文件本棒未碰",
+      "V2-13 台账未在 visual/findings.md 标记关闭（代码已修，台账留给终检验证后关闭）"
+    ],
+    "降级处理的": [
+      "「泳道容器套 .grid-bg」按字面改成了新组件类 .stack-bench：网格规格（34px / -1px -1px / 双向 linear-gradient）与 .grid-bg 完全一致，只是线色与底色参数化到装配台变量 —— 直接改 .grid-bg 会给其它使用方凭空加上 #101614 底色，可能动 A5 基线，不敢动共享类"
+    ]
+  },
+
+  "自检": {
+    "验收对照": [
+      "S1-1 三视口截图 + A1 无横向溢出 ✅（探针实测 390/768/1440 horizontalOverflowPx 全 0；临时截图已删，视觉层 45 张重跑全绿是替代证据）",
+      "S1-2 源码断言：33 张卡宽度分布符合规则 ✅（【17】里三档宽度常量 + 分布钉死 3/1/29 + 权重判定体形状三重断言；DOM 探针按 data-weight 逐卡核对 148:1 / 172:29 / 208:3）",
+      "S1-3 移动端实测能删除 ✅（27 个可移除卡按钮常驻可见、命中盒 32×32、× 中心 elementFromPoint 命中自己）；focus-visible 可见 ✅",
+      "S1-6 A5 对比度全过 ✅（视觉层重跑 12 项全绿）；SlotBlock 内 grep 无 text-[9px] ✅（有断言）",
+      "S1-7 V2-13 关闭 ✅（网关卡有引导 + 直达）；空态不再只有「无」✅（6 个 none 槽全部有引导，DOM 探针计数 6）"
+    ],
+    "反着验": [
+      "R-1 把 database 从 pipelines.data 移出（改 generated/architecture.json）→ 「S1-2 三档分布与数据一致」红（实测 core 2 / bypass 2 / regular 29），EXIT=1 → sync-content 还原（cmp 字节一致）复绿",
+      "R-2 移除按钮注回 group-hover:flex + core 改 172（一次两处注入，先断言两处替换都命中再跑）→ 「S1-3 移除按钮不再依赖 hover」与「S1-2 SLOT_WIDTH 三档」两条红，EXIT=1 → cp 备份还原（cmp 字节一致）复绿",
+      "R-3「pipelines 的键都是真实泳道」「链路引用的槽位都属于该泳道」与 R-1 同源，覆盖幽灵泳道键与越界槽位引用两种错法"
+    ],
+    "静默失败": [
+      "三档分布断言第一版是「各至少 1 且合计=33」—— R-1 式注入它照样绿，等于摆设 → 已改成钉死 3/1/29，数据一变就红（这三个数需人工同步，已写进断言文案）",
+      "配色守卫第一版扫整个 StackComposer（54KB），5 个历史色值（#3FB950/#243029/#CFDCD6/#16211F/#E5A33D）被报成新增配色 —— 无法归因的红 → 收窄到 SlotBlock 全文件 + LaneWire 函数体，并加「函数体定位不到即红」的空跑守卫",
+      "「空态引导两行」断言用字符串包含（includes('装 ')），比【16】的结构化解析弱 —— 注释里出现同样的字会假绿；已用 DOM 探针补运行时证据（6 个 none 槽全有引导），终检如需更强可升级为 JSX 结构解析",
+      "权重判定体断言靠 regex 提取 ternary；若整段重构 regex 落空 → 空串 → 三条子判据全 false → 红（不会静默绿），detail 里带实际匹配文本"
+    ],
+    "引用核实": [
+      "palette.ts TONE 五色（bad #E5484D / warn #D9A441 / ok #7FA650 / idle #5E6E67 / info #6E8FA8）✅ 存在且未被复用",
+      "globals.css .grid-bg ✅ 存在（34px，与 .stack-bench 同规格）",
+      "tailwind.config.ts shadow-lift = '0 12px 32px -16px rgba(0,0,0,0.9)' ✅ —— 选中态把 ring 与 lift 合成一个 boxShadow（CSS 不允许两个 box-shadow 工具类叠加），值与 token 逐字一致，有断言钉住",
+      "arch.pipelines 真实键只有 data（3 环）✅；孤儿泳道键与越界槽位引用各有断言",
+      "StackDimension.defaultOption / options ✅ 存在，slotHint 全部取自事实源",
+      "visual/findings.md V2-13 ✅ 确为「网关路由卡空态无引导」",
+      "方案 §2.5「触摸目标 ≥44px」与任务书「≥32×32」口径不一致 —— 按任务书做了 32×32，已记录"
+    ],
+    "补做的": [
+      "移除按钮遮挡核验（不在验收单里但属 S1-3 真风险）：32×32 盒居中在角上会盖住「必选」徽标、伸出 8px 会被下一张卡 paint 覆盖 —— 改为盒右上对齐挂角外 + z-10，elementFromPoint 三点实测全过（× 中心 / 必选徽标中心 / 邻卡左上角）",
+      "数字同步第一次写 936，verify:meta 当场红（README 936 / 档案 937）→ 改对 937；补一条断言后 660→661、937→938，meta 复绿",
+      "arsenal.json 的 count 行缩进被 Edit 写成 3 空格（原 8）→ 修回，diff 只剩内容行"
+    ],
+    "未完成": []
+  },
+
+  "review": {
+    "审查范围": "本棒改的 6 个文件：globals.css / SlotBlock.tsx / StackComposer.tsx / .verify/project-check.ts / arsenal-profiles/arsenal.json / README.md（diff 逐 hunk 过：StackComposer 恰 5 个 hunk 全为本棒，SlotBlock 全文件重写，无他人改动混入）",
+    "P0": [],
+    "P1": [
+      "[P1] SlotBlock.tsx 移除按钮 —— 32×32 命中盒以卡片角为圆心会（a）盖住「必选」徽标（徽标右缘=卡右缘-12px，20×20 居中时左伸 18px 压上去）（b）被右侧邻卡 paint 覆盖（盒伸出 8px > 卡间距 6px，兄弟节点按文档顺序绘制）→ 根因：绝对定位角标 + flex 行绘制顺序 → 已修：命中盒 -right-2.5 -top-2.5 + z-10 + 视觉本体 items-start justify-end 挂角外，elementFromPoint 三点实测全过",
+      "[P1] .verify/project-check.ts 配色守卫 —— 扫描范围写成整个 StackComposer，5 个不归本棒管的历史色值被报成「新增第二配色谱系」→ 根因：54KB 热点文件的历史色值没有清单 → 已修：收窄到 SlotBlock 全文件 + LaneWire 函数体，加「LaneWire 定位不到即红」防空跑",
+      "[P1] .verify/project-check.ts 三档分布断言 —— 「各至少 1 且合计=维度数」的松判据抓不住「某维度移出链路」（R-1 注入后 core 2 / bypass 2 依旧全绿）→ 根因：判据与判定逻辑同源、没钉值 → 已修：钉死 3/1/29，断言名里写明「pipelines 数据变了要同步改这里」",
+      "[P1] 提交流程 —— git add 按路径 + 裸 git commit 把索引里白天会话已暂存的 43 个文件全卷进提交（5391 insertions）→ 根因：git commit 不带路径提交的是整个索引，「按路径 add」防不住索引里已有的东西 → 已修：git reset --soft HEAD~1 撤销后改用 git commit -- <paths>，复得 6 文件干净提交；此教训需写回 NIGHT-RUN 收尾清单"
+    ],
+    "P2": [
+      "[P2] SlotBlock.tsx 未用件 opacity 0.72 的卡内文字实际对比度约 2.2–3.9:1（低于 AA 4.5）—— A5 测不到：assert.mjs 按设计不猜半透明背景（祖先 opacity<1 即 NA）且跳过 <12px 文字。未修：未用件刻意降权是方案 §2.4 明文要求，提文字色会削弱「未使用」的视觉语义，属设计取舍待拍板；已把卡内 8 处 fgFaint 提为 fgMuted 兜底",
+      "[P2] SlotBlock.tsx 移除按钮是 button 内嵌 span[role=button]（interactive 嵌套，ARIA 不推荐）—— 未修：根治要把卡片从 <button> 换成 div+role，牵动【13】契约与点击路径，留给 S2-5 键盘与焦点",
+      "[P2] StackComposer.tsx 选中一张卡时 0.96 降噪也压到 bad/warn 隐患卡 —— 未修：方案 L4 明文「台面其余卡片降到 0.96」，是否豁免隐患卡待拍板",
+      "[P2] SlotBlock.tsx SLOT_WIDTH 一度导出但无外部读取方 —— 已修：回收为模块内常量，消灭无读取方的导出面",
+      "[P2] StackComposer.tsx slotHint 每次渲染新建对象（33 次/帧）—— 未修：量级可忽略，加 useMemo 反而引入依赖数组维护成本",
+      "[P2] StackComposer.tsx 泳道名竖排 tracking-[0.18em] 在竖排模式下末字后有字距尾巴 —— 未修：1px 级视觉影响，无功能影响"
+    ],
+    "已修": [
+      "P1 四条全部当场修，修完重跑：project 层 661/661 绿、verify:meta 53/53 绿、全量 verify 938/938 绿、tsc 两套配置 0 错、build EXIT=0"
+    ],
+    "未修原因": [
+      "P2-1（0.72 对比度）→ 设计取舍，方案明文要求，A5 判不到；等拍板",
+      "P2-2（interactive 嵌套）→ 根治动卡片本体结构，归 S2-5",
+      "P2-3（隐患卡降噪豁免）→ 方案明文，待拍板",
+      "P2-5/6 → 无功能影响，收益不抵改动"
+    ]
+  },
+
+  "验证": {
+    "全量跑了": true,
+    "总数": 938,
+    "分项": {
+      "架构判定": 35, "图与交互": 68, "结构与导出": 661, "场景案例": 33,
+      "引擎样本": 17, "前后端一致性": 12, "Archify 链路": 31, "代码扫描": 69, "视觉断言": 12
+    },
+    "通过": 938, "跳过": 0, "失败": 0, "退出码": 0,
+    "元核对": 53,
+    "跳过明细": [],
+    "额外": [
+      "build：node scripts/next-run.mjs build EXIT=0（视觉层前置守卫通过，45 张重跑全绿）",
+      "tsc：根配置 521 文件 0 错；.verify 配置 10 脚本 0 错",
+      "后端 3011 是本棒重新拉起的（接棒时第 1 棒留下的已死）→ parity 12/12、Archify 31/31 全过、无跳过",
+      "刻意未跑 2 项（照旧）：scan 5-4 500MB 闸门、8-6 真等 180s",
+      "DOM 探针（临时脚本已删）：三视口 33 卡宽度分布 148:1/172:29/208:3、移除按钮 27 个全可见 32×32、focus outline 2px 黄铜、0 条 console 报错"
+    ]
+  },
+
+  "数字同步": {
+    "位置数": 4,
+    "是否全同步": true,
+    "实测值": 938,
+    "明细": [
+      "arsenal-profiles/arsenal.json → 结构与导出 637 → 661 ✅（desc 补【17】说明；改后重跑 sync-content.mjs）",
+      "README.md 总数句 914 → 938 ✅（三处：共 938 项 / 那 938 项不是手写的 / 938 的口径不受影响）",
+      "README.md 分项表 verify:project 637 → 661 ✅（并补【17】装配台视觉契约说明）",
+      "arsenal-web/.verify/project-check.ts 手写总数常数 → 不存在（09-22 第 4 棒已删，由链尾 verify:meta 比对）"
+    ],
+    "复跑确认": "verify:meta：【3】段九层全部对得上、【5】段 README 938 / 档案 938，53/53 绿。中途被它抓出两次手写错（936、660），不是摆设"
+  },
+
+  "提交": {
+    "已提交": true,
+    "hash": "7257cbe（7257cbe38897ab5013671fe463e64162728be560 的短 hash）",
+    "message": "feat(stack): 装配台 P1 第一组 —— 台面化 / 权重三档 / 焦点与深度 / 字号四档 / 空态引导",
+    "是否按路径add": true,
+    "提交文件": [
+      "README.md", "arsenal-profiles/arsenal.json", "arsenal-web/.verify/project-check.ts",
+      "arsenal-web/src/app/globals.css", "arsenal-web/src/app/stack/SlotBlock.tsx",
+      "arsenal-web/src/app/stack/StackComposer.tsx"
+    ],
+    "夹带说明": "git log --stat -1 确认恰好 6 个文件、452+/84-。第一次提交失误（git add 按路径 + 裸 git commit 卷进索引里白天会话的 43 个已暂存文件），已 git reset --soft HEAD~1 撤销并用 git commit -- <paths> 重做，期间未推送、无残留。其余约 40 个白天暂存文件一律未动。"
+  },
+
+  "清理": {
+    "调试产物已删": true,
+    "残留": [
+      "arsenal-web/.workbuddy/_server.log —— 本棒起的后端进程还在写它，删除会影响运行中的服务，留给终检用完后删",
+      "arsenal-web/.workbuddy/ 其余 _*（_3010.txt、_dev*.log、_patch*.py、icons-batch1.html 等）是 09-21/09-22 白天会话的，按「不擅自删别人的文件」保留"
+    ]
+  },
+
+  "踩的坑": [
+    "「按路径 add」防不住夹带：索引里已有别人的暂存内容时，裸 git commit 提交的是整个索引 —— 必须 git commit -- <paths>。本棒第一次提交卷进 43 个文件（5391 插入），靠 git log --stat 抓住后 reset --soft 撤销重做。",
+    "「未使用」有两种形态：没选（picks 为空）和选了事实源 none 档。只处理前者的话，/stack 默认态 33 格全是 filled，空态引导一条都不出 —— V2-13 就是后者。",
+    "A5 测不到半透明底上的文字对比度（按设计 NA）且跳过 <12px 文字 —— 视觉层全绿不代表所有文字达标，卡内小字要自己算。",
+    "32×32 角标命中盒有两个隐藏坑：盖住卡内右上角已有元素（必选徽标）、被下一个兄弟卡片 paint 覆盖 —— elementFromPoint 三点实测才敢说「移动端能删」。",
+    "给共享 CSS 类（.grid-bg）加背景色会影响其它页面的 A5 基线 —— 新增变量 + 新类是更安全的增量路径。",
+    "Edit 工具不会自动对齐原文件缩进（arsenal.json 的 count 行被写成 3 空格），改完要用 diff 确认没有空白噪音。"
+  ],
+
+  "给下一棒的话": {
+    "给终检棒": [
+      "后端 3011 活着（本棒拉的，SKIP_COMPILE=1 bash arsenal-server/scripts/run.sh，日志 arsenal-web/.workbuddy/_server.log）—— 跑 parity/archify 前先探活，别假设它还活着。",
+      "「三档分布 3/1/29」是钉死的断言（project-check.ts 【17】），pipelines 数据一变就红 —— 红了先改那三个数并重跑 sync，别当代码坏了。",
+      "数字同步别手算：本棒被 verify:meta 抓出两次手写错（936、660），改完跑一遍 meta 让它对账。",
+      "V2-13 建议在 visual/findings.md 标关闭（网关卡已从裸空态变为「装 X → + 说明 + 直达」）；台账本棒没动，由终检验证后关闭。",
+      "工作区仍有约 40 个白天会话的未提交/已暂存文件 —— 终检核对提交范围以 git log --stat 为准，别把它们的红当本棒产物。",
+      "night-chain 里的 02-done.2026-09-22.json 是上一晚的旧档，本次已归档改名，别混。"
+    ],
+    "下一晚开发棒": [
+      "装配台剩 S1-4（WireLayer + amFlow 开关）、S1-5（结论条闭环仪表 + 33 格点阵）与 P2 七条 / P3 四条，方案在 docs/开发计划-2026-09-23/装配台UI升级计划-2026-09-23.md；热点文件所有权：StackComposer / DeliveryDeck 一棒一文件。",
+      "本棒留的钩子：SlotBlock 已有 weight / dimmed / hint 三个 prop，S1-4 的链路点亮可以直接按 data-weight=\"core\" 选卡，不用再动数据。"
+    ]
+  }
+}
