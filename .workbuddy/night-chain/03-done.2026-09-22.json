@@ -1,0 +1,56 @@
+{
+  "棒次": 3,
+  "任务": "场景案例库（plan-2）",
+  "状态": "部分完成",
+  "开工": "2026-09-22T03:10:39+08:00",
+  "收工": "2026-09-22T04:47:00+08:00",
+  "verify": {
+    "总数": 579,
+    "分项": { "arch": 35, "graph": 59, "cases": 25, "project": 400, "engine": 17, "parity": 12, "archify": 31 },
+    "本次收尾实测": "前五层全绿：35 / 59 / 25 / 400 / 17（= 536 项，失败 0）",
+    "未跑完": ["verify:parity", "verify:archify"],
+    "未跑完原因": "safe-delete 守卫：本 turn 累计删除已达阈值（报错 SAFE_DELETE_BULK_CONFIRM_REQUIRED, count=201, threshold=50, target=arsenal-server/target/parity-be），parity 层清目录时被拦。属环境守卫，不是代码回归 —— 同一 turn 04:2x 那次完整 verify 七层全绿（含 parity 12 / archify 31）。第 5 棒在新 turn 里重跑即可复现全绿。"
+  },
+  "做完的": [
+    "新事实源 arsenal-cases/：tools/content/cases/{huge_rowcount,genomic_sequence}.py + __init__.py，由 tools/build-content.py 新增 build_cases()（第 6 段）生成 meta.json + 2 份场景 JSON",
+    "2 个场景 × 6 切片 = 12 个条件切片，1353 行 SQL+Java，45 条锚点备注（mark 全部命中 code）",
+    "场景 1 huge-rowcount-rdb：shard-key / keyset-page / batch-write / read-path / async-aggregate / online-ddl",
+    "场景 2 genomic-sequence-store：storage-layering / variant-ddl / range-query / stream-blob / bulk-import / audit-mask",
+    "每个场景 6 个驱动参数（并发量 / 数据规模 / 读写比 / 一致性 / P99 / 增长预期），每参数 3-4 个离散档位",
+    "矛盾检测 conflicts（场景 1 有 4 条、场景 2 有 3 条）+ notSuitableFor，命中即在页面顶部标黄",
+    "sync-content.mjs 第 ⑦ 段闸门（形状 + when 引用 + 锚点 + 规则 id + 架构连线）",
+    "src/lib/case-types.ts（类型）+ case-cases.ts（resolver + defaultParams + casesStats）",
+    "src/lib/case-synth.ts 纯函数：synthCase / normalizeParams / enumerateParams / cornerParams / anyAllActive / planToPrompt / sliceFileName",
+    "未命中切片显式进 inactiveSlices 并给可核对 reason（含「该切片要求 …，当前 …」），页面折叠可展开",
+    "/cases 页面：src/app/cases/page.tsx + CaseLab.tsx，三栏（场景 / 参数 / 结果），参数一点即重算，复制为 prompt、下载 .java、展开全部、性能参照表",
+    "代码高亮复用现成 @/lib/highlight（java/sql），零新依赖",
+    "Shell.tsx NAV 新增 /cases（第 4 项）",
+    ".verify/case-check.ts 新增 12 组共 25 项断言，package.json 加 verify:cases 并插在 verify:graph 之后",
+    "断言 6 穷举 2592 组参数，active + inactive === slices.length 全过；断言 7 确定性（两次调用 + 归一化前后）全过",
+    "四处同步 verify 数字：arsenal-profiles/arsenal.json verifyChain（新增「场景案例 25」）/ project-check.ts 手写 554→579 / README 总数 554→579 / README 分项表新增 verify:cases 一行",
+    "README 目录树新增 arsenal-cases/ 三行；进度表新增「场景案例库（/cases）」一行并写清与 cookbook 的分工",
+    "memory 日志已追加（.workbuddy/memory/2026-09-22.md）"
+  ],
+  "未做完的": [
+    "场景 3-6 一个都没做：high-throughput-io（虚拟线程）/ hotspot-cache（多级缓存）/ async-pipeline（最终一致）/ wide-table-search（宽表检索）—— tools/content/cases/ 里没有对应模块，arsenal-cases/ 里没有对应 JSON",
+    "方案阶段 B 要求场景 1、2 各 8 个切片，实际各 6 个（少了 2 个/场景，共 4 个切片未写）",
+    "架构建议图未复用 arch-diagram.ts —— 它的 DiagramInput 是「选型台 picks + audit」/ lanes + slots 模型，场景是自由 nodes + links，接不上。改成 CaseLab.tsx 里按 tier 分层的轻量自绘 SVG（仍是手写、零依赖，但不符合方案原文要求）",
+    "页面参数面板用的是档位按钮，不是方案说的滑杆 / 段选器",
+    "未做「导出整包」（把当前参数下的全部 DDL + Java 打成一个 zip）",
+    "方案断言 10 里的「【13】契约通过」我是在 case-check 里另写的页面契约组（【11】），没有复用 project-check 的编号 13",
+    "verify:parity / verify:archify 在收尾这次运行里没跑完（safe-delete 守卫），未拿到收尾时刻的绿"
+  ],
+  "踩的坑": [
+    "方案示例里的规则 id 是假的：DATA-IDX-002 / DATA-PG-004 在 arsenal-rules/ 里不存在（真实的是 DATA-SQL-001..004 / DATA-SCHM-001..003）。引用前必须去查，别照抄方案",
+    "反模式扫描误伤正确告诫：注释里的「绝不碰 ForkJoinPool.commonPool」被当成示范。修法 strip_java_comments() 后扫，且只按行首 // 或 * 判断（切行中间会把 https:// 切碎）",
+    "锚点必须落在 code 字段里：ALGORITHM=INSTANT 写在 sql 字段的注释里，校验当场炸 —— 已改成 code 里的 columnExists 方法签名并保留说明",
+    "bash heredoc 会把 ${kase.id} 抢着展开，quoted heredoc 也没用。改成 Write 落文件再 cat >> 追加",
+    "node node_modules/.bin/tsx 会报 SyntaxError（那是 shell 脚本），必须 npm run verify:cases",
+    "safe-delete 守卫 count>=50 会拦 parity 层清 target 目录 —— 本 turn 因跑过 build（清 .next）而累积触顶"
+  ],
+  "给下一棒的话": "第 4 棒（代码入库出图）我已把你的执行时间推到 04:56。仓库状态是好的：npm run build 过（/cases 已静态导出 9.7kB）、前五层 verify 536 项全绿、四处 verify 数字已同步到 579。你开工后如果在新 turn 里跑 npm run verify，safe-delete 计数会归零，parity 12 + archify 31 应该能正常跑完 —— 麻烦你顺手确认一次并把真实数字写进 04-done.json。本棒欠的账主要是「场景 3-6 未做」和「架构图没接 arch-diagram.ts」，不要被我报告里的『全绿』误导成方案做完了。",
+  "交接给第 4 棒的前置产物": [
+    "arsenal-cases/（2 场景 / 12 切片）—— 与你的 /archify 无关，但 README 目录树已含，改 README 时注意别删",
+    "verify 总数是 579，你加 verify:scan 后要同步四处（arsenal.json verifyChain / project-check.ts 手写 / README 总数 / README 分项表）"
+  ]
+}
