@@ -100,6 +100,14 @@ def build_cookbook():
       ① 每一层都要划边界 —— 只讲优点不划边界的范例，会诱导人在错误场景照抄。
       ② L3 的「模拟接口」必须是真接口：声明了 mock-endpoint 却用 sleep 假装 IO，
          pinning 与背压这类差异一个都暴露不出来，等于给了一个假的确定感。
+
+    ⚠ 硬约定（2026-09-26 立，C-2 案例代码自证随之生效）：
+      **recipes[].files[].code 只放 good 版**，bad 示例一律写进 pitfalls 或
+      规则本身的 bad/good 对照里。
+      理由：前端 `src/lib/cookbook-lint.ts` 会把 files[] 喂进自己的规则引擎
+      （文本层正则判定），它分不出「这是在演示错写法」和「这就是错写法」——
+      files 里混入 bad 示例，自证就会把教具当成违规误报，闸门随即变成噪音。
+      改动方：本函数（生成方）+ cookbook-lint.ts（消费方）+ MEMORY.md（约定）。
     """
     print('[1/4] arsenal-cookbook —— 最佳实践案例库（技术 / 场景 / 方案）')
     topics = []

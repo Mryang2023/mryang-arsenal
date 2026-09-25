@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from 'react';
 import Link from 'next/link';
+import BlueprintSelfCheck from '@/components/BlueprintSelfCheck';
 import CodeWithNotes from '@/components/CodeWithNotes';
 import DemoRunner from '@/components/DemoRunner';
 import { getRule } from '@/lib/rules';
@@ -106,6 +107,9 @@ export default function BlueprintView({ feature }: { feature: Feature }) {
           </div>
         </div>
       </header>
+
+      {/* ── 代码自证：这套范例过没过我们自己的规则引擎 ── */}
+      <BlueprintSelfCheck feature={feature} />
 
       {/* ── 数据流 ───────────────────────────────────── */}
       <section className="panel p-5">

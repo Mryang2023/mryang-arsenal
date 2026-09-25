@@ -22,8 +22,9 @@ import { filterTree, buildExportPlan, projectDoc, renderAppClass, renderTreeText
 import { buildArchDiagram, archDiagramD2, archDiagramMermaid } from '@/lib/arch-diagram';
 import type { StackPicks } from '@/lib/content-types';
 import { buildZip } from '@/lib/zip';
-import { liveStats, orderedCategories } from '@/lib/rules';
-import { cookbookStats } from '@/lib/cookbook';
+import { liveStats, orderedCategories, rules } from '@/lib/rules';
+import { cookbookStats, recipeLocations } from '@/lib/cookbook';
+import { lintFeatureFiles } from '@/lib/cookbook-lint';
 import {
   APP_ENDPOINTS,
   APP_ROUTES,
@@ -2134,6 +2135,186 @@ console.log('\n【18】装配台 P1 第二组（S1-4 / S1-5 / S2-7）');
       /data-rule-hit/.test(ruleHitsTsx) &&
       /href=\{`\/rules\/\$\{r\.id\}`\}/.test(ruleHitsTsx) &&
       /href="\/rules"/.test(ruleHitsTsx)
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════
+// 【19】案例代码自证 —— 「我的范例符合我的规范」必须是一句被验证过的话
+//
+// 案例库存在的全部理由是「让 AI 照抄我的写法」。可它自己的代码从来没有喂进
+// 自己的规则引擎过 —— 也就是说，「照抄我的范例 = 合规」这句承诺此前没人验过。
+//
+// 本组把 `src/lib/cookbook-lint.ts` 的自证结果钉成契约，四条底线：
+//   · 样本必须非空 —— 0 个 recipe 时「零违规」是空话，不是结论
+//   · MUST/NEVER 违规必须为 0 —— 这是闸门
+//   · 可执行 / 未判两档的条数必须来自**规则集实测**，不许写死常数
+//     （写死的「35 条 / 34 条」在规则涨到 40 条那天就成了假话）
+//   · 闸门必须自证有效 —— 内置一段反例喂进去，必须真报出违规
+//
+// ⚠ 硬约定：`recipes[].files[].code` 只放 good 版，bad 示例写进 pitfalls。
+// 引擎是文本层正则判定，分不出「演示错写法」和「这是错写法」，混进 bad 就是误报。
+// ═══════════════════════════════════════════════════════════════
+console.log('\n【19】案例代码自证（recipes[].files 过自己的引擎）');
+{
+  const webRoot = path.resolve(here, '..');
+  const repoRoot = path.resolve(here, '..', '..');
+  const readRel = (rel: string) => fs.readFileSync(path.join(webRoot, rel), 'utf8');
+
+  const activeRules = rules.filter((r) => r.status === 'active');
+  const expectedExecutable = activeRules.filter((r) => r.check?.regex?.pattern).length;
+  const expectedSkipped = activeRules.length - expectedExecutable;
+
+  const results = recipeLocations.map((loc) => ({
+    id: `${loc.topic.id}/${loc.scenario.id}/${loc.recipe.id}`,
+    res: lintFeatureFiles(loc.recipe.files),
+  }));
+  const filesTotal = results.reduce((n, x) => n + x.res.fileCount, 0);
+  const blockingAll = results.flatMap((x) => x.res.blocking);
+
+  // ① 样本口径 —— 空跑通过的断言等于摆设，先把样本量钉住
+  check(
+    `自证样本非空且与案例库统计一致（${results.length} 套方案 / ${filesTotal} 个文件）`,
+    results.length > 0 &&
+      filesTotal > 0 &&
+      results.length === cookbookStats.recipes &&
+      filesTotal === cookbookStats.files,
+    `方案 ${results.length} vs stats.recipes ${cookbookStats.recipes}；文件 ${filesTotal} vs stats.files ${cookbookStats.files}`
+  );
+
+  // ② 闸门本体
+  check(
+    '全部方案的代码零 MUST/NEVER 违规',
+    blockingAll.length === 0,
+    blockingAll.map((v) => `${v.ruleId} @ ${v.file}:${v.line}`).join('；') || '（无）'
+  );
+
+  // ③ 可执行条数取自规则集实测
+  const badExec = results.filter((x) => x.res.executableRules !== expectedExecutable);
+  check(
+    `可执行规则数取自规则集实测（当前 ${expectedExecutable} 条），不是写死的常数`,
+    expectedExecutable > 0 && badExec.length === 0,
+    badExec.map((x) => `${x.id}=${x.res.executableRules}`).join('；')
+  );
+
+  // ④ 未判如实披露，且分层计数自洽
+  const badSkip = results.filter(
+    (x) =>
+      x.res.skippedRules !== expectedSkipped ||
+      x.res.skippedByLayer.reduce((n, s) => n + s.count, 0) !== expectedSkipped
+  );
+  check(
+    `未判规则数如实披露（当前 ${expectedSkipped} 条 = 规则池 − 可执行），分层计数与之自洽`,
+    expectedSkipped > 0 && badSkip.length === 0,
+    badSkip.map((x) => `${x.id}=${x.res.skippedRules}`).join('；')
+  );
+
+  // ⑤ 三档守恒 + 无规则缺陷（规则自己的正则编译不过 ≠ 能力边界）
+  const badSum = results.filter(
+    (x) => x.res.executableRules + x.res.skippedRules + x.res.brokenRules !== x.res.rulePool
+  );
+  check(
+    '三档守恒：可执行 + 未判 + 规则缺陷 = 规则池，且规则缺陷为 0',
+    badSum.length === 0 && results.every((x) => x.res.brokenRules === 0),
+    badSum
+      .map(
+        (x) =>
+          `${x.id}: ${x.res.executableRules}+${x.res.skippedRules}+${x.res.brokenRules}≠${x.res.rulePool}`
+      )
+      .join('；')
+  );
+
+  // ⑥ 未判清单逐条可核
+  const badSkipItem = results.flatMap((x) =>
+    x.res.skipped.filter((s) => {
+      const r = rules.find((y) => y.id === s.ruleId);
+      return !r || !!r.check?.regex?.pattern;
+    })
+  );
+  check(
+    '未判清单逐条可核：ruleId 在规则集里存在，且确实没有 check.regex',
+    badSkipItem.length === 0,
+    badSkipItem.map((s) => s.ruleId).join('、') || '（无）'
+  );
+
+  // ⑦ 闸门自证 —— 内置反例，不需要人工注入就能证明它不是摆设
+  const probe = lintFeatureFiles([
+    {
+      path: 'src/main/java/com/example/vt/BadProbe.java',
+      code: [
+        'package com.example.vt;',
+        'class BadProbe {',
+        '  void go() {',
+        '    new Thread(() -> {}).start();',
+        '    Executors.newCachedThreadPool();',
+        '  }',
+        '}',
+        '',
+      ].join('\n'),
+    },
+  ]);
+  const probeIds = new Set(probe.blocking.map((v) => v.ruleId));
+  check(
+    '闸门自证：喂一段 new Thread(...) + Executors.newCachedThreadPool() 必须报出 CONC-POOL-001 / 002',
+    probe.blocking.length > 0 && probeIds.has('CONC-POOL-001') && probeIds.has('CONC-POOL-002'),
+    `实测命中 ${probe.blocking.length} 条：${[...probeIds].join('、') || '（无）'}`
+  );
+
+  // ⑧ 徽标数字必须算出来 —— 文案里写死计数是第二天就会变假的话
+  const badgeSrc = readRel('src/components/BlueprintSelfCheck.tsx');
+  const lintSrc = readRel('src/lib/cookbook-lint.ts');
+  // 先剥注释再扫：注释里会**点名**这些反模式（「不许写死条数」「不许渲染 durationMs」），
+  // 不剥的话守卫会把自己写的说明当成违规，红得莫名其妙（实测踩过一次）。
+  const badgeCode = badgeSrc
+    .replace(/\/\*[\s\S]*?\*\//g, '')
+    .replace(/\/\/[^\n]*/g, '');
+  const hardcodedCopy = [...badgeCode.matchAll(/[「（(]?\s*(\d{1,3})\s*条/g)].map((m) => m[1]);
+  check(
+    '徽标数字取自 lint 结果：文案里没有写死的条数，数字全部来自 selfCheckFeature',
+    hardcodedCopy.length === 0 &&
+      /lintFeatureFiles\(feature\.files\)/.test(badgeCode) &&
+      /selfCheckSummary\(r\)/.test(badgeCode) &&
+      // 引擎耗时两次跑不一样，渲染进文案会让整页水合报 #425（实测踩过）
+      !badgeCode.includes('durationMs') &&
+      // 比数值不够，还要比**出处**：把当前正确的 34 直接写死，数值断言依然全绿
+      // （实测过：`skippedRules: 34` 时 ④⑤ 都是绿的）。所以这里钉住「不许是常数」。
+      !/(?:executableRules|skippedRules|rulePool):\s*\d+/.test(
+        lintSrc.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '')
+      ),
+    `文案里出现写死条数：${hardcodedCopy.join('、') || '（无）'}；或把非确定性的 durationMs 渲染进了 DOM；或 cookbook-lint 里存在写死的常数`
+  );
+
+  // ⑨ 页面真挂上 + 展开区契约
+  const viewSrc = readRel('src/components/BlueprintView.tsx');
+  check(
+    '方案页真挂自证徽标，且展开区四类数据齐全（开关 / 详情 / 命中行 / 未判清单）',
+    /import BlueprintSelfCheck from '@\/components\/BlueprintSelfCheck';/.test(viewSrc) &&
+      /<BlueprintSelfCheck feature=\{feature\} \/>/.test(viewSrc) &&
+      /data-selfcheck-toggle/.test(badgeSrc) &&
+      /data-selfcheck-detail/.test(badgeSrc) &&
+      /data-selfcheck-hit/.test(badgeSrc) &&
+      /data-selfcheck-skipped/.test(badgeSrc),
+    'BlueprintView 没渲染徽标，或展开区缺数据锚点'
+  );
+
+  // ⑩ 引擎按路径匹配 —— 喂 id 会让带 targetGlob 的规则静默不适用
+  check(
+    '喂引擎的是 file.path（不是 id）：否则带 targetGlob 的规则全部静默不适用',
+    /name:\s*f\.path/.test(lintSrc),
+    'cookbook-lint.ts 没有把 path 作为 SourceFile.name'
+  );
+
+  // ⑪ 硬约定三处登记：生成方 / 消费方 / 长期记忆
+  const buildSrc = fs.readFileSync(path.join(repoRoot, 'tools', 'build-content.py'), 'utf8');
+  const memSrc = fs.readFileSync(
+    path.join(repoRoot, '.workbuddy', 'memory', 'MEMORY.md'),
+    'utf8'
+  );
+  check(
+    '「files[].code 只放 good 版」硬约定三处登记（cookbook-lint / build_cookbook / MEMORY）',
+    lintSrc.includes('只放 good 版') &&
+      buildSrc.includes('只放 good 版') &&
+      memSrc.includes('只放 good 版'),
+    '生成方或长期记忆里没写这条约定 —— 半年后坏示例混进 files 就没人拦得住'
   );
 }
 
