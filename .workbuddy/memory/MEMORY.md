@@ -29,6 +29,7 @@
 9. **改装配台前先 grep `.verify/project-check.ts` 对 `StackComposer.tsx` 的字符串断言**（`stack-bench` / TabId 三处一致 / `onSelect={focusDim}` / `loadSnapshot(` / `loadDrafts` / 目录树字面量 / `hist.record(`≥6）。这些是对**源码文本**断言，抽成新文件会让断言静默变红。
 10. **加/改一层 verify 改五处**：`package.json` + `verify-all.mjs`(LAYERS) + `report.ts`(LAYER_NAMES) + `meta-check.ts`(CHAIN_ORDER) + 档案 `verifyChain`；另加 README 两处。
 11. **加/删断言同步四处数字**：`arsenal-profiles/arsenal.json` 的 `verifyChain[*].count`、README 总数句、README 分项表，改完**必跑 sync-content.mjs**。漏了不静默：`finish()` 打「声明 X / 实测 Y」退出 1。
+12. **分批提交两条 git 纪律（2026-09-25 夜跑实测，都真踩了）**：① 仓库里常有白天会话**预暂存**的删除/重命名，`git commit` 不带 pathspec 会把它们连坐进本批 —— 一律 `git add <路径>` + **`git commit -- <路径>`**，提交前看 `git diff --cached --stat` 只含本批；误提交了就 `git reset --soft HEAD~1` + `git reset HEAD -- <被连坐路径>` 复原（不动工作区）。② **目录级 pathspec 会夹带 `_*` 调试产物**（实测 `git add src/app/stack/steps` 把 `steps/_probe.tsx` 也请进索引）→ 逐文件 add，或 add 后 `git diff --cached --name-only | grep '/_'` 复核。`.workbuddy/_*` 有 gitignore 兜底，`src/**/_*` 没有。
 
 ## 校验与运行
 

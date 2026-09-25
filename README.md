@@ -233,7 +233,7 @@ cd arsenal-web && npm run verify
 
 一条命令跑完九层、共 **1024 项**，外加两个**闸门层**（`typecheck` 与 `verify:meta`，都不计入项数）：
 
-> 那 1016 项**不是手写的**：每层跑完把自己的实测项数写成
+> 那 1024 项**不是手写的**：每层跑完把自己的实测项数写成
 > `.verify/tmp/layer-<key>.json`，链尾的 `verify:meta` 再逐层与
 > `arsenal-profiles/arsenal.json` 的 `project.verifyChain` 比对 ——
 > **对不上就红**。层内加了断言却不改档案，verify 不再全绿（详见下面「项数由实测得出」）。
