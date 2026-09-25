@@ -1,9 +1,9 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
-import type { ArchLink, ArchNode, CaseDef, CaseParams, CasePlan, CaseSlice, Driver } from '@/lib/case-types';
-import { cases, casesMeta, casesStats, defaultParams } from '@/lib/case-cases';
+import type { ArchLink, ArchNode, CaseDef, CaseParams, CasePlan, CaseSlice, CaseSymptom, Driver } from '@/lib/case-types';
+import { allSymptoms, cases, casesMeta, casesStats, defaultParams, symptomParams } from '@/lib/case-cases';
 import { planToPrompt, sliceFileName, synthCase } from '@/lib/case-synth';
 import { DIAGRAM_PALETTE, textWidth } from '@/lib/arch-diagram';
 import { buildZip } from '@/lib/zip-lite';
@@ -384,6 +384,99 @@ function SliceCard({ kase, slice, open, onToggle }: {
   );
 }
 
+/**
+ * 症状分诊台。
+ *
+ * 场景库原来的入口只有 8 个场景名 —— 用户得先知道「我的问题叫什么」，
+ * 而 `symptoms` 里那 32 条大白话（「翻页越往后越慢」）写了却没人消费。
+ * 分诊台把入口翻过来：先说现象，再落到场景和参数。
+ *
+ * 每条症状卡下面带一个小点阵，显示点进去能命中几个切片 ——
+ * 不是装饰：它让「这条症状有多重的方案等着你」在点之前就可见，
+ * 也顺带暴露「某条症状其实只对应 1 个切片」这类内容厚度不均。
+ */
+function TriageBoard({ active, onPick }: {
+  active: { caseId: string; symptomId: string } | null;
+  onPick: (kase: CaseDef, symptom: CaseSymptom) => void;
+}) {
+  const [q, setQ] = useState('');
+  const all = useMemo(() => allSymptoms(), []);
+
+  // 命中数预览：32 条症状 × 纯函数重算，代价可忽略，但必须 memo ——
+  // 搜索框每敲一个字都会重渲染，不 memo 就是每次 32 次全场景合成。
+  const rows = useMemo(
+    () => all.map(({ kase, symptom }) => ({
+      kase,
+      symptom,
+      hit: synthCase(kase, symptomParams(kase, symptom)).activeSlices.length,
+    })),
+    [all]
+  );
+
+  const kw = q.trim();
+  const filtered = kw
+    ? rows.filter((r) => r.symptom.text.includes(kw)
+      || r.kase.name.includes(kw)
+      || (r.kase.domain ?? []).some((d) => d.includes(kw)))
+    : rows;
+
+  return (
+    <section data-triage className="rounded-xl border border-line bg-surface">
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-2 border-b border-line px-4 py-3">
+        <span className="text-2xs uppercase tracking-[0.14em] text-fgFaint">先说症状</span>
+        <input
+          value={q}
+          onChange={(e) => setQ(e.target.value)}
+          placeholder="描述你看到的现象，或搜场景 / 领域"
+          aria-label="搜索症状"
+          className="min-w-[220px] flex-1 rounded-md border border-line bg-canvas px-2.5 py-1.5 text-[12.5px] text-fg placeholder:text-fgFaint focus:border-accent/50 focus:outline-none"
+        />
+        <span className="mono text-[11px] text-fgFaint">
+          {filtered.length}/{rows.length}
+        </span>
+      </div>
+
+      {/* grid-cols-1 必须显式写 —— 缺省的 auto track 按 max-content 取宽，
+          移动端单列时整片症状墙会被最长那行文本撑出视口（A1 溢出） */}
+      <div className="grid grid-cols-1 gap-px bg-line sm:grid-cols-2 xl:grid-cols-3">
+        {filtered.map(({ kase, symptom, hit }) => {
+          const on = active?.caseId === kase.id && active?.symptomId === symptom.id;
+          return (
+            <button
+              data-symptom={`${kase.id}/${symptom.id}`}
+              data-hit={hit}
+              key={`${kase.id}/${symptom.id}`} onClick={() => onPick(kase, symptom)}
+              className={`group px-3.5 py-2.5 text-left transition-colors ${on
+                ? 'bg-accent/[0.08]'
+                : 'bg-surface hover:bg-white/[0.02]'}`}>
+              <div className="text-[12.5px] leading-relaxed text-fg">{symptom.text}</div>
+              <div className="mt-1.5 flex items-center gap-2">
+                <span className="mono shrink-0 text-[10.5px]" style={{ color: '#D9A441' }}>{kase.glyph}</span>
+                {/* min-w-0 与 truncate 必须成对 —— truncate 只会截自己的内容，
+                    而 flex 子项默认 min-width:auto，长场景名会把整张卡撑出视口 */}
+                <span className="min-w-0 truncate text-[11px] text-fgFaint">{kase.name}</span>
+                {/* 点阵：亮格 = 点进去后会命中的切片 */}
+                <span className="ml-auto flex shrink-0 gap-[2px]" aria-label={`命中 ${hit} 个切片`}>
+                  {Array.from({ length: kase.slices.length }, (_, i) => (
+                    <span key={i} className="h-[4px] w-[5px] rounded-[1px]"
+                      style={{ background: i < hit ? 'rgba(217,164,65,0.9)' : 'rgba(232,240,236,0.10)' }} />
+                  ))}
+                </span>
+              </div>
+            </button>
+          );
+        })}
+      </div>
+
+      {filtered.length === 0 && (
+        <div className="px-4 py-8 text-center text-[12.5px] text-fgMuted">
+          没有匹配的症状 —— 试试「慢」「超时」「OOM」「重复」这类现象词。
+        </div>
+      )}
+    </section>
+  );
+}
+
 export default function CaseLab() {
   const [caseId, setCaseId] = useState(cases[0]?.id ?? '');
   const [paramsMap, setParamsMap] = useState<Record<string, Record<string, string>>>(() => {
@@ -394,6 +487,9 @@ export default function CaseLab() {
   const [openSlices, setOpenSlices] = useState<Record<string, boolean>>({});
   const [showInactive, setShowInactive] = useState(false);
   const [toast, setToast] = useState('');
+  /** 当前是从哪条症状进来的。手动改参数就清掉 —— 参数一改，入口就不再是依据了 */
+  const [activeSymptom, setActiveSymptom] = useState<{ caseId: string; symptomId: string } | null>(null);
+  const resultRef = useRef<HTMLElement>(null);
 
   const kase = cases.find((c) => c.id === caseId) ?? cases[0];
   const params = paramsMap[kase.id] ?? defaultParams(kase);
@@ -402,8 +498,28 @@ export default function CaseLab() {
   const plan: CasePlan = useMemo(() => synthCase(kase, params), [kase, params]);
 
   const setLevel = (driverId: string, levelId: string) => {
+    setActiveSymptom(null);
     setParamsMap((m) => ({ ...m, [kase.id]: { ...(m[kase.id] ?? {}), [driverId]: levelId } }));
   };
+
+  /**
+   * 点症状：切场景 + 把参数设成「推荐档补齐症状声明的那几个维度」，再滚到结果。
+   *
+   * 只设症状声明的维度是不够的 —— 剩下 4~5 个维度会落到第一档，
+   * 又变成空屏。所以这里一律走 symptomParams 补齐。
+   */
+  const pickSymptom = (target: CaseDef, symptom: CaseSymptom) => {
+    setCaseId(target.id);
+    setParamsMap((m) => ({ ...m, [target.id]: symptomParams(target, symptom) }));
+    setActiveSymptom({ caseId: target.id, symptomId: symptom.id });
+    requestAnimationFrame(() => {
+      resultRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+  };
+
+  const activeSymptomText = activeSymptom?.caseId === kase.id
+    ? kase.symptoms.find((s) => s.id === activeSymptom?.symptomId)?.text
+    : undefined;
 
   const copyPrompt = async () => {
     const text = planToPrompt(plan);
@@ -468,16 +584,19 @@ export default function CaseLab() {
             场景案例库
           </h1>
           <p className="mt-3 max-w-3xl text-[14.5px] leading-relaxed text-fgMuted">
-            说出你的问题、调几个参数，直接给<span className="text-fg">建表 DDL 与生产级 Java</span>。
+            <span className="text-fg">先说症状，再拿方案</span> —— 下面
+            <span className="text-fg">{casesStats.symptoms} 条症状</span>是入口，
+            点一条就落到对应场景，并把参数设到这个症状该在的档位上，直接给
+            <span className="text-fg">建表 DDL 与生产级 Java</span>。
             每个代码切片都带命中条件：<span className="text-fg">命中的给出代码</span>，
             没命中的<span className="text-fg">必须写明为什么不适用</span> —— 不许静默省略。
-            参数组合本身成立不了（比如「百万 QPS + 强一致 + P99&lt;50ms」）会在顶部标黄。
             与「最佳实践案例库」的分工：那边讲
             <span className="text-fg">一个功能标准该怎么写</span>，这边讲
             <span className="text-fg">在这些约束下该怎么设计</span>。
           </p>
-          <div className="mt-6 grid grid-cols-2 gap-px overflow-hidden rounded-lg border border-line bg-line md:grid-cols-5">
+          <div className="mt-6 grid grid-cols-2 gap-px overflow-hidden rounded-lg border border-line bg-line md:grid-cols-6">
             {[
+              { k: '症状', v: casesStats.symptoms, s: '个入口' },
               { k: '场景', v: casesStats.cases, s: '个真实问题' },
               { k: '切片', v: casesStats.slices, s: '个条件切片' },
               { k: '驱动参数', v: casesStats.drivers, s: '个可调维度' },
@@ -492,6 +611,9 @@ export default function CaseLab() {
           </div>
         </div>
       </header>
+
+      {/* ── 症状分诊台 ───────────────────────────────── */}
+      <TriageBoard active={activeSymptom} onPick={pickSymptom} />
 
       {/* ── 三栏 ─────────────────────────────────────── */}
       <div className="grid gap-4 lg:grid-cols-[200px_260px_minmax(0,1fr)]">
@@ -542,7 +664,10 @@ export default function CaseLab() {
         <aside className="scroll-thin space-y-3 lg:sticky lg:top-4 lg:max-h-[calc(100vh-2rem)] lg:self-start lg:overflow-y-auto lg:pr-1.5">
           <div className="flex items-center justify-between">
             <span className="text-2xs uppercase tracking-[0.14em] text-fgFaint">参数</span>
-            <button onClick={() => setParamsMap((m) => ({ ...m, [kase.id]: defaultParams(kase) }))}
+            <button onClick={() => {
+              setActiveSymptom(null);
+              setParamsMap((m) => ({ ...m, [kase.id]: defaultParams(kase) }));
+            }}
               className="mono rounded border border-line px-1.5 py-0.5 text-[10px] text-fgMuted hover:text-fg">
               重置
             </button>
@@ -603,7 +728,26 @@ export default function CaseLab() {
         </aside>
 
         {/* 结果区 */}
-        <section className="min-w-0 space-y-4">
+        <section ref={resultRef} className="min-w-0 space-y-4">
+          {/* 入口溯源：这组参数是哪条症状推出来的，必须看得见 ——
+              否则用户看到 6 个参数已被设好，无从判断该不该信。 */}
+          {activeSymptomText && (
+            <div className="flex items-start gap-2 rounded-lg border px-3 py-2"
+              style={{ borderColor: 'rgba(217,164,65,0.35)', background: 'rgba(217,164,65,0.05)' }}>
+              <span className="mono mt-[2px] text-[11px]" style={{ color: '#D9A441' }}>↳</span>
+              <span className="text-[12px] leading-relaxed text-fgMuted">
+                从症状进入：<span className="text-fg">{activeSymptomText}</span>
+                <span className="text-fgFaint"> —— 参数已按该症状设好，改动任一参数即解除</span>
+              </span>
+              <button onClick={() => {
+                setActiveSymptom(null);
+                setParamsMap((m) => ({ ...m, [kase.id]: defaultParams(kase) }));
+              }} className="mono ml-auto shrink-0 text-[11px] text-fgFaint hover:text-fg">
+                回到推荐档
+              </button>
+            </div>
+          )}
+
           {/* 矛盾告警 */}
           {plan.warnings.length > 0 && (
             <div className="rounded-lg border px-4 py-3"

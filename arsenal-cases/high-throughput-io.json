@@ -13,11 +13,44 @@
     ],
     "problem": "峰值写入巨大，单条 fsync 代价 × 写入量压垮磁盘；下游变慢时内存堆积 OOM；历史数据越积越多拖慢全库。",
     "symptoms": [
-      "写入 QPS 一高，磁盘 IO 打满，P99 直线上升",
-      "下游慢一点，进程内存就暴涨直到 OOM",
-      "表越来越大，备份和查询都变慢",
-      "发布停机后发现有数据「少了一批」"
+      {
+        "id": "y1",
+        "text": "写入 QPS 一高，磁盘 IO 打满，P99 直线上升",
+        "params": {
+          "qps": "q100k"
+        }
+      },
+      {
+        "id": "y2",
+        "text": "下游慢一点，进程内存就暴涨直到 OOM",
+        "params": {
+          "qps": "q100k"
+        }
+      },
+      {
+        "id": "y3",
+        "text": "表越来越大，备份和查询都变慢",
+        "params": {
+          "volume": "v1b",
+          "growth": "g5x"
+        }
+      },
+      {
+        "id": "y4",
+        "text": "发布停机后发现有数据「少了一批」",
+        "params": {
+          "durable": "durable"
+        }
+      }
     ],
+    "recommended": {
+      "qps": "q100k",
+      "volume": "v1b",
+      "latency": "l50",
+      "durable": "durable",
+      "burst": "stream",
+      "growth": "g5x"
+    },
     "drivers": [
       {
         "id": "qps",

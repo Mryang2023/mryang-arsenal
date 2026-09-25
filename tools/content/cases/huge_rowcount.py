@@ -4,7 +4,7 @@
 用户的原始提问：「我有一个 Java 项目，仓库的数据是以亿为单位的，数据量很大，
 教我怎么搭数据库、Java 代码怎么写、怎么处理这么高并发的数据」。
 
-这个场景不是「一张表怎么写 CRUD」（那是 arsenal-cookbook/crud-basic 的事），
+这个场景不是「一张表怎么写 CRUD」（那是最佳实践案例库 arsenal-cookbook 的事），
 而是「当行数与并发同时破阈值之后，哪些写法会失效、该换成什么」。
 
 when 条件的设计原则：只有当参数真的把某条做法**逼出来**时才激活它。
@@ -1463,11 +1463,15 @@ CASE = {
     'domain': ['电商', '金融', '物联网', '物流'],
     'problem': '单表行数以亿计、QPS 数千到数万，深分页超时、统计查询拖垮主库、加索引没效果、改表锁死几小时。',
     'symptoms': [
-        '翻页越往后越慢，第 1000 页直接超时',
-        '一条统计 SQL 跑起来，所有在线接口跟着变慢',
-        '明明有索引，EXPLAIN 却还是全表扫',
-        'ALTER TABLE 加个字段，几小时没结束',
+        {'id': 'y1', 'text': "翻页越往后越慢，第 1000 页直接超时", 'params': {'rows': 'r100m', 'qps': 'q10k'}},
+        {'id': 'y2', 'text': "一条统计 SQL 跑起来，所有在线接口跟着变慢", 'params': {'rows': 'r1b', 'qps': 'q10k'}},
+        {'id': 'y3', 'text': "明明有索引，EXPLAIN 却还是全表扫", 'params': {'rows': 'r100m', 'qps': 'q10k'}},
+        {'id': 'y4', 'text': "ALTER TABLE 加个字段，几小时没结束", 'params': {'growth': 'g5x', 'rows': 'r1b'}},
     ],
+    'recommended': {
+        'qps': 'q10k', 'rows': 'r1b', 'rw': 'rw11',
+        'consist': 'strong', 'latency': 'l50', 'growth': 'g5x',
+    },
     'drivers': DRIVERS,
     'conflicts': CONFLICTS,
     'slices': SLICES,

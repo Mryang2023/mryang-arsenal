@@ -100,7 +100,13 @@ export interface CaseDef {
   glyph: string;
   domain: string[];
   problem: string;
-  symptoms: string[];
+  symptoms: CaseSymptom[];
+  /**
+   * 首屏默认参数。**必填** —— 取每个驱动的第一档会让落地场景命中 0 个切片，
+   * 页面一打开就是「没有任何切片命中」的空屏。
+   * 构建期由 build-content.py 断言它至少命中一个切片，且不能触发矛盾告警。
+   */
+  recommended: CaseParams;
   drivers: Driver[];
   conflicts: CaseConflict[];
   slices: CaseSlice[];
@@ -145,6 +151,19 @@ export interface CasesDoc {
 
 /** driver id → level id */
 export type CaseParams = Record<string, string>;
+
+/**
+ * 一条可点击的症状 —— 场景库的入口不再只是场景名。
+ *
+ * `params` 是这条症状暗示的那几个维度（翻页变慢 → 数据规模上亿），
+ * 其余维度由场景的 `recommended` 补齐。点症状 = 描述自己的情况 = 直接拿到方案，
+ * 不需要先理解 6 个参数各自是什么。
+ */
+export interface CaseSymptom {
+  id: string;
+  text: string;
+  params: CaseParams;
+}
 
 export interface SlicePlan {
   slice: CaseSlice;

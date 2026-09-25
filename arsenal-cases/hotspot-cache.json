@@ -13,11 +13,46 @@
     ],
     "problem": "高并发读下，缓存一失效整库被打挂；热点 key 把单节点打爆；不存在的 key 打穿缓存；一批 key 同时过期引发雪崩。",
     "symptoms": [
-      "大促开始缓存一过期的瞬间，数据库 CPU 直接 100%",
-      "某个热点商品把单个缓存节点带宽打满",
-      "大量非法 id 请求把数据库连接池耗光",
-      "缓存节点宕机后，流量直接把库冲垮"
+      {
+        "id": "y1",
+        "text": "大促开始缓存一过期的瞬间，数据库 CPU 直接 100%",
+        "params": {
+          "hotspot": "extreme",
+          "qps": "q100k"
+        }
+      },
+      {
+        "id": "y2",
+        "text": "某个热点商品把单个缓存节点带宽打满",
+        "params": {
+          "hotspot": "extreme",
+          "qps": "q100k"
+        }
+      },
+      {
+        "id": "y3",
+        "text": "大量非法 id 请求把数据库连接池耗光",
+        "params": {
+          "qps": "q1m"
+        }
+      },
+      {
+        "id": "y4",
+        "text": "缓存节点宕机后，流量直接把库冲垮",
+        "params": {
+          "replicas": "r32",
+          "consist": "strong"
+        }
+      }
     ],
+    "recommended": {
+      "qps": "q100k",
+      "hotspot": "extreme",
+      "latency": "l50",
+      "consist": "strong",
+      "ttl": "fixed",
+      "replicas": "r4"
+    },
     "drivers": [
       {
         "id": "qps",

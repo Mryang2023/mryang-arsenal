@@ -13,11 +13,43 @@
     ],
     "problem": "三类文件散在多台机器多个共享盘，6 家公司命名规则各异，编号藏在文件夹名与文件名里；数万文件没有统一索引，VCF 内容还要逐行进亿级变异表。",
     "symptoms": [
-      "同一个病例的 VCF、FASTQ、报告对不上号，全靠人肉翻文件夹",
-      "重扫一遍重复入库，同一文件在库里出现 N 条",
-      "匹配不上的文件被静默跳过，谁也说不清丢了多少、为什么丢",
-      "每接入一家新公司就要改一串 if-else，扫描脚本越来越长"
+      {
+        "id": "y1",
+        "text": "同一个病例的 VCF、FASTQ、报告对不上号，全靠人肉翻文件夹",
+        "params": {
+          "parseDepth": "full"
+        }
+      },
+      {
+        "id": "y2",
+        "text": "重扫一遍重复入库，同一文件在库里出现 N 条",
+        "params": {
+          "scanMode": "periodic"
+        }
+      },
+      {
+        "id": "y3",
+        "text": "匹配不上的文件被静默跳过，谁也说不清丢了多少、为什么丢",
+        "params": {
+          "idQuality": "n70"
+        }
+      },
+      {
+        "id": "y4",
+        "text": "每接入一家新公司就要改一串 if-else，扫描脚本越来越长",
+        "params": {
+          "scale": "f20w"
+        }
+      }
     ],
+    "recommended": {
+      "scale": "f5w",
+      "idQuality": "n90",
+      "scanMode": "periodic",
+      "parseDepth": "full",
+      "queryQps": "solo",
+      "growth": "g1x"
+    },
     "drivers": [
       {
         "id": "scale",

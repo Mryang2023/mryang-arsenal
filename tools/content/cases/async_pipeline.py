@@ -921,11 +921,15 @@ CASE = {
     'problem': '下单要异步通知库存/积分/物流，怎么保证不丢、不重、不乱序，'
                '失败了能重试进死信，最好能查到每笔处理到哪了。',
     'symptoms': [
-        '下游一抖，消息重试风暴把整个服务打挂',
-        '重复消费导致用户被扣两次款',
-        '消息顺序乱了，余额先加后减变成先减后加',
-        '死信队列只进不出，业务缺口越积越大',
+        {'id': 'y1', 'text': "下游一抖，消息重试风暴把整个服务打挂", 'params': {'failRate': 'f1'}},
+        {'id': 'y2', 'text': "重复消费导致用户被扣两次款", 'params': {'delivery': 'atleast'}},
+        {'id': 'y3', 'text': "消息顺序乱了，余额先加后减变成先减后加", 'params': {'order': 'oall'}},
+        {'id': 'y4', 'text': "死信队列只进不出，业务缺口越积越大", 'params': {'failRate': 'f1', 'services': 's5'}},
     ],
+    'recommended': {
+        'tps': 't100k', 'delivery': 'atleast', 'failRate': 'f001',
+        'window': 'wmin', 'services': 's5', 'order': 'okey',
+    },
     'drivers': DRIVERS,
     'conflicts': CONFLICTS,
     'slices': SLICES,

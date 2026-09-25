@@ -13,11 +13,47 @@
     ],
     "problem": "单表行数以亿计、QPS 数千到数万，深分页超时、统计查询拖垮主库、加索引没效果、改表锁死几小时。",
     "symptoms": [
-      "翻页越往后越慢，第 1000 页直接超时",
-      "一条统计 SQL 跑起来，所有在线接口跟着变慢",
-      "明明有索引，EXPLAIN 却还是全表扫",
-      "ALTER TABLE 加个字段，几小时没结束"
+      {
+        "id": "y1",
+        "text": "翻页越往后越慢，第 1000 页直接超时",
+        "params": {
+          "rows": "r100m",
+          "qps": "q10k"
+        }
+      },
+      {
+        "id": "y2",
+        "text": "一条统计 SQL 跑起来，所有在线接口跟着变慢",
+        "params": {
+          "rows": "r1b",
+          "qps": "q10k"
+        }
+      },
+      {
+        "id": "y3",
+        "text": "明明有索引，EXPLAIN 却还是全表扫",
+        "params": {
+          "rows": "r100m",
+          "qps": "q10k"
+        }
+      },
+      {
+        "id": "y4",
+        "text": "ALTER TABLE 加个字段，几小时没结束",
+        "params": {
+          "growth": "g5x",
+          "rows": "r1b"
+        }
+      }
     ],
+    "recommended": {
+      "qps": "q10k",
+      "rows": "r1b",
+      "rw": "rw11",
+      "consist": "strong",
+      "latency": "l50",
+      "growth": "g5x"
+    },
     "drivers": [
       {
         "id": "qps",

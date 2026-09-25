@@ -13,11 +13,45 @@
     ],
     "problem": "几百列的宽表，业务要按各种条件组合查还要快，数据量特别大，建表与查询不当就会全表扫、回表、索引爆炸。",
     "symptoms": [
-      "组合查询一复杂就全表扫，P99 直接上秒",
-      "加了索引但 EXPLAIN 还是回表，IO 翻倍",
-      "表越来越大，备份和全表 COUNT 都慢",
-      "想给 8 维每种组合都建索引，索引数爆炸"
+      {
+        "id": "y1",
+        "text": "组合查询一复杂就全表扫，P99 直接上秒",
+        "params": {
+          "dims": "d8"
+        }
+      },
+      {
+        "id": "y2",
+        "text": "加了索引但 EXPLAIN 还是回表，IO 翻倍",
+        "params": {
+          "rows": "r1b",
+          "latency": "l50"
+        }
+      },
+      {
+        "id": "y3",
+        "text": "表越来越大，备份和全表 COUNT 都慢",
+        "params": {
+          "rows": "r1b",
+          "cold": "mixed"
+        }
+      },
+      {
+        "id": "y4",
+        "text": "想给 8 维每种组合都建索引，索引数爆炸",
+        "params": {
+          "dims": "d8"
+        }
+      }
     ],
+    "recommended": {
+      "rows": "r1b",
+      "qps": "q10k",
+      "dims": "d8",
+      "latency": "l50",
+      "rw": "rw91",
+      "cold": "mixed"
+    },
     "drivers": [
       {
         "id": "rows",

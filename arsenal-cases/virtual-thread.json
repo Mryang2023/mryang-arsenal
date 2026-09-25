@@ -13,11 +13,46 @@
     ],
     "problem": "大量 IO 等待型任务（远端 HTTP 调用、JDBC 查询、文件读写）并发跑，平台线程池被阻塞占满，吞吐上不去；盲目上虚拟线程后又踩 pinning、ThreadLocal 放大、无背压雪崩。",
     "symptoms": [
-      "批量聚合调用时 Tomcat 容器线程被打满，新请求 503",
-      "开了虚拟线程但 CPU 占用不降反升，吞吐没变化",
-      "高峰期数千虚拟线程各自的 ThreadLocal 把堆内存拉爆",
-      "虚拟线程无上限创建，下游被打挂后连锁失败"
+      {
+        "id": "y1",
+        "text": "批量聚合调用时 Tomcat 容器线程被打满，新请求 503",
+        "params": {
+          "jdk": "j21",
+          "scale": "high"
+        }
+      },
+      {
+        "id": "y2",
+        "text": "开了虚拟线程但 CPU 占用不降反升，吞吐没变化",
+        "params": {
+          "jdk": "j21",
+          "blocking": "syncBlock"
+        }
+      },
+      {
+        "id": "y3",
+        "text": "高峰期数千虚拟线程各自的 ThreadLocal 把堆内存拉爆",
+        "params": {
+          "jdk": "j21",
+          "scale": "high"
+        }
+      },
+      {
+        "id": "y4",
+        "text": "虚拟线程无上限创建，下游被打挂后连锁失败",
+        "params": {
+          "jdk": "j21",
+          "scale": "high"
+        }
+      }
     ],
+    "recommended": {
+      "jdk": "j21",
+      "workload": "io",
+      "scale": "high",
+      "blocking": "noCrit",
+      "lifespan": "short"
+    },
     "drivers": [
       {
         "id": "jdk",
