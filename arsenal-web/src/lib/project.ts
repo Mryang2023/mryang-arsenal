@@ -662,11 +662,21 @@ function archSummaryMarkdown(audit: ArchAudit): string {
   return `${parts.join(' · ')}。`;
 }
 
-/** 导出文件汇总。等价于「这套选型的产物」在磁盘上的完整落位。 */
+/**
+ * 导出文件汇总。等价于「这套选型的产物」在磁盘上的完整落位。
+ *
+ * `projectName` 是用户在装配台 ① 项目定义里起的名字。它必须**贯通**所有出口：
+ * pom 的 artifactId、application.yml 的 spring.application.name、K8s / Compose 的
+ * 应用名、README 与风险报告的标题、架构图的标题、导出 zip 的文件名。
+ * 只改其中一两处，用户解压后会拿着一个「包名是 order.service、K8s 里叫
+ * arsenal-demo」的工程 —— 两边都不报错，但那是两套名字在打架。
+ * 不传就回落事实源的默认 artifactId（内部调用与后端导出都还走这条）。
+ */
 export function buildExportPlan(
   picks: StackPicks,
   audit: ArchAudit,
-  baseId?: string
+  baseId?: string,
+  projectName?: string
 ): ExportPlan {
   const composed = composeStack(picks);
   const files: ExportFile[] = [];
@@ -674,6 +684,7 @@ export function buildExportPlan(
   const javaVersion = composed.properties['java.version'] ?? '17';
   // 基底决定 pom parent / gradle 插件里写的 Spring Boot 版本
   const bootVersion = bootVersionOf(baseId);
+  const name = (projectName ?? '').trim() || projectDoc.artifactId;
 
   // ── 构建文件 ──
   if (isGradle) {
@@ -682,7 +693,7 @@ export function buildExportPlan(
   } else {
     files.push({
       path: 'pom.xml',
-      content: renderPom(composed, projectDoc.artifactId, bootVersion),
+      content: renderPom(composed, name, bootVersion),
       group: '构建',
     });
   }
@@ -745,7 +756,7 @@ export function buildExportPlan(
   // 文件名与结构树里的节点逐一对齐：结构图画出 deploy/k8s/04-deployment.yaml，
   // 导出包就必须真有它。两边任何一边多了少了，用户照着图会找不到文件 ——
   // 这个一致性由 npm run verify:project 断言。
-  for (const f of buildDeployPlan(picks, composed, { appName: projectDoc.artifactId })) {
+  for (const f of buildDeployPlan(picks, composed, { appName: name })) {
     files.push({ path: f.path, content: f.content, group: '部署', from: f.from });
   }
 
@@ -762,7 +773,7 @@ export function buildExportPlan(
   // ── 文档 ──
   files.push({
     path: 'docs/risk-report.md',
-    content: riskReportMarkdown(picks, audit, projectDoc.artifactId),
+    content: riskReportMarkdown(picks, audit, name),
     group: '文档',
   });
 
@@ -773,13 +784,13 @@ export function buildExportPlan(
   const diagram = buildArchDiagram({
     picks,
     audit,
-    title: projectDoc.artifactId,
+    title: name,
     theme: 'light',
   });
   files.push({ path: 'architecture.svg', content: diagram.svg, group: '文档' });
   files.push({
     path: 'ARCHITECTURE.md',
-    content: architectureDocMarkdown(picks, audit, projectDoc.artifactId),
+    content: architectureDocMarkdown(picks, audit, name),
     group: '文档',
   });
   // 顺手把同一张图的 DSL 源码也给了：拼字符串不要钱，而想自己改图、改配色、
@@ -814,7 +825,7 @@ export function buildExportPlan(
     )
     .join('\n');
 
-  const riskBlock = riskReportMarkdown(picks, audit, projectDoc.artifactId)
+  const riskBlock = riskReportMarkdown(picks, audit, name)
     .split('\n')
     .slice(1)
     .join('\n')

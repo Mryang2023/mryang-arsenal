@@ -320,15 +320,21 @@ ${depsBlock}
 `;
 }
 
-/** 生成 application.yml：基础骨架 + 各选项贡献的片段 */
-export function renderYaml(composed: ComposedStack): string {
+/**
+ * 生成 application.yml：基础骨架 + 各选项贡献的片段。
+ *
+ * `appName` 默认取骨架自带的 artifactId；装配台传用户在 ① 项目定义里起的名字 ——
+ * 导出包里的 `spring.application.name` 必须与 pom 的 artifactId 同名，
+ * 否则注册中心与 K8s 里会出现两个名字指同一个服务。
+ */
+export function renderYaml(composed: ComposedStack, appName = 'arsenal-demo'): string {
   const head = `server:
   port: 8080
   shutdown: graceful
 
 spring:
   application:
-    name: arsenal-demo
+    name: ${appName}
   lifecycle:
     timeout-per-shutdown-phase: 30s
 `;
