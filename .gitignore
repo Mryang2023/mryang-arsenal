@@ -41,10 +41,15 @@ arsenal-demo-*.zip
 # ── 夜跑接力链的瞬时状态文件（2026-09-21 夜跑引入）──────────────
 #    .workbuddy/night-chain/ 下每一棒开工/收工都会写状态文件，跑完即弃；
 #    但同目录的 REVIEW.md 是给人看的产出，**故意不忽略**。
+#    ⚠️ 归档用的带日期副本（*-done.2026-09-22.json）**不**匹配 `*-done.json`，
+#    会冒成未跟踪项 —— 归档即提交，别让它挂着（2026-09-26 终检棒）。
 #    说明见 docs/hy4-night-plans/NIGHT-RUN.md §二。
 .workbuddy/night-chain/*-running.json
 .workbuddy/night-chain/*-done.json
 .workbuddy/night-chain/*-blocked.json
+
+# ── 自动化会话记忆：每次调度写一份，属会话产物不是资产 ──────────
+.workbuddy/memory/automations/
 
 # ── IDE 本地配置：每台机器、每个人都不一样，不进仓库 ──────────
 #    JetBrains 会在项目根建 .idea/，VS Code 建 .vscode/
