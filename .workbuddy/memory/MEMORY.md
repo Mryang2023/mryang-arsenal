@@ -31,6 +31,9 @@
 11. **加/删断言同步四处数字**：`arsenal-profiles/arsenal.json` 的 `verifyChain[*].count`、README 总数句、README 分项表，改完**必跑 sync-content.mjs**。漏了不静默：`finish()` 打「声明 X / 实测 Y」退出 1。
 12. **分批提交两条 git 纪律（2026-09-25 夜跑实测，都真踩了）**：① 仓库里常有白天会话**预暂存**的删除/重命名，`git commit` 不带 pathspec 会把它们连坐进本批 —— 一律 `git add <路径>` + **`git commit -- <路径>`**，提交前看 `git diff --cached --stat` 只含本批；误提交了就 `git reset --soft HEAD~1` + `git reset HEAD -- <被连坐路径>` 复原（不动工作区）。② **目录级 pathspec 会夹带 `_*` 调试产物**（实测 `git add src/app/stack/steps` 把 `steps/_probe.tsx` 也请进索引）→ 逐文件 add，或 add 后 `git diff --cached --name-only | grep '/_'` 复核。`.workbuddy/_*` 有 gitignore 兜底，`src/**/_*` 没有。
 
+13. **`recipes[].files[].code` 只放 good 版**（2026-09-26 立，C-2 自证生效）。bad 示例写进 `pitfalls` / 规则自身的 bad-good 对照。理由：引擎是文本层正则判定，分不出「演示错写法」和「这是错写法」，files 混进 bad 就误报，闸门变噪音。三处登记：`src/lib/cookbook-lint.ts`（消费方）+ `tools/build-content.py build_cookbook()`（生成方）+ 本条。【19】⑪ 守着。
+   - **案例代码自证**：`src/lib/cookbook-lint.ts` 把 recipe 的 `files[]` 喂进 `engine.lint()`，产三档 —— 违规 / 可执行（当前 35）/ 未判（当前 34，如实披露绝不伪造）。喂引擎必须用 `file.path` 作 `SourceFile.name`，否则带 `targetGlob` 的规则静默不适用。徽标在 `src/components/BlueprintSelfCheck.tsx`（数字一律算出来，写死即判红）。
+
 ## 校验与运行
 
 - `npm run verify` 九层 = 35 架构 + 68 图交互 + **739** 结构导出（含【16】字段契约 252、【17】装配台视觉 24、【18】装配台交互 23）+ 33 场景 + 17 引擎样本 + 12 前后端一致 + 31 Archify + 69 代码扫描 + 12 视觉 = **1016**；cases 穷举守恒 9072 组。
