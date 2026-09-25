@@ -74,7 +74,9 @@
             "id": "t1m",
             "label": "100 万"
           }
-        ]
+        ],
+        "sensitivity": 0.778,
+        "inert": false
       },
       {
         "id": "delivery",
@@ -94,7 +96,9 @@
             "id": "best",
             "label": "尽力"
           }
-        ]
+        ],
+        "sensitivity": 0.667,
+        "inert": false
       },
       {
         "id": "failRate",
@@ -118,7 +122,9 @@
             "id": "f10",
             "label": "10%"
           }
-        ]
+        ],
+        "sensitivity": 0.5,
+        "inert": false
       },
       {
         "id": "window",
@@ -142,7 +148,9 @@
             "id": "wday",
             "label": "天级"
           }
-        ]
+        ],
+        "sensitivity": 0.444,
+        "inert": false
       },
       {
         "id": "services",
@@ -162,7 +170,9 @@
             "id": "s10",
             "label": "10"
           }
-        ]
+        ],
+        "sensitivity": 0.667,
+        "inert": false
       },
       {
         "id": "order",
@@ -182,7 +192,9 @@
             "id": "oall",
             "label": "全局有序"
           }
-        ]
+        ],
+        "sensitivity": 0.5,
+        "inert": false
       }
     ],
     "conflicts": [

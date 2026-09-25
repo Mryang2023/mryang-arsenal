@@ -75,7 +75,9 @@
             "label": "Java 25",
             "note": "虚拟线程更完善，ScopedValue 转正"
           }
-        ]
+        ],
+        "sensitivity": 0.667,
+        "inert": false
       },
       {
         "id": "workload",
@@ -98,7 +100,9 @@
             "label": "混合",
             "note": "计算与等待交替"
           }
-        ]
+        ],
+        "sensitivity": 0.0,
+        "inert": true
       },
       {
         "id": "scale",
@@ -119,7 +123,9 @@
             "label": ">1k",
             "note": "高并发，pinning 与背压问题集中爆发"
           }
-        ]
+        ],
+        "sensitivity": 0.667,
+        "inert": false
       },
       {
         "id": "blocking",
@@ -147,7 +153,9 @@
             "label": "JNI / 本地阻塞",
             "note": "JVM 调度不可见，必 pin"
           }
-        ]
+        ],
+        "sensitivity": 0.333,
+        "inert": false
       },
       {
         "id": "lifespan",
@@ -165,7 +173,9 @@
             "label": "秒级",
             "note": "长时间占住载体线程，吞吐下降"
           }
-        ]
+        ],
+        "sensitivity": 0.0,
+        "inert": true
       }
     ],
     "conflicts": [

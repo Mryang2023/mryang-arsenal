@@ -77,7 +77,9 @@
             "label": "100 万",
             "value": 1000000
           }
-        ]
+        ],
+        "sensitivity": 0.333,
+        "inert": false
       },
       {
         "id": "idQuality",
@@ -100,7 +102,9 @@
             "label": "≤70%",
             "note": "多来源混名，特殊格式占比高"
           }
-        ]
+        ],
+        "sensitivity": 0.667,
+        "inert": false
       },
       {
         "id": "scanMode",
@@ -123,7 +127,9 @@
             "label": "准实时监听",
             "note": "目录变更事件驱动"
           }
-        ]
+        ],
+        "sensitivity": 0.667,
+        "inert": false
       },
       {
         "id": "parseDepth",
@@ -146,7 +152,9 @@
             "label": "VCF + 报告",
             "note": "另含 Word 临床信息提取"
           }
-        ]
+        ],
+        "sensitivity": 0.917,
+        "inert": false
       },
       {
         "id": "queryQps",
@@ -169,7 +177,9 @@
             "label": "对外服务",
             "note": "临床多科室检索"
           }
-        ]
+        ],
+        "sensitivity": 0.0,
+        "inert": true
       },
       {
         "id": "growth",
@@ -189,7 +199,9 @@
             "id": "g20x",
             "label": "年增 20 倍"
           }
-        ]
+        ],
+        "sensitivity": 0.0,
+        "inert": true
       }
     ],
     "conflicts": [
@@ -236,6 +248,19 @@
           ]
         },
         "text": "周期增量扫描与对外检索争同一块盘：增量判变要全量比对 size + mtime，是顺序扫盘操作，与在线查询共享磁盘队列。扫描走只读副本或低峰窗口，且多副本任务必须用唯一键互斥，见切片「增量重扫」。"
+      },
+      {
+        "when": {
+          "growth": [
+            "g5x",
+            "g20x"
+          ],
+          "parseDepth": [
+            "variant",
+            "full"
+          ]
+        },
+        "text": "年增 5 倍以上 + 逐行解析变异内容：变异位点的行数随病例数线性放大（一个 VCF 十几万行），增速 20 倍意味着三年后单表就是当下的 8000 倍，索引维护与备份窗口会先于磁盘容量崩掉。必须提前定好冷热分层与分区策略（见切片「VCF 批量导入」），并把「只入元数据 + 按需回解析」当成默认选项重新评估一遍。"
       }
     ],
     "slices": [

@@ -74,7 +74,9 @@
             "id": "q1m",
             "label": "100 万"
           }
-        ]
+        ],
+        "sensitivity": 0.833,
+        "inert": false
       },
       {
         "id": "volume",
@@ -98,7 +100,9 @@
             "id": "v10b",
             "label": "100 亿"
           }
-        ]
+        ],
+        "sensitivity": 0.833,
+        "inert": false
       },
       {
         "id": "latency",
@@ -118,7 +122,9 @@
             "id": "l1s",
             "label": "<1s"
           }
-        ]
+        ],
+        "sensitivity": 0.0,
+        "inert": true
       },
       {
         "id": "durable",
@@ -138,7 +144,9 @@
             "id": "best",
             "label": "尽力"
           }
-        ]
+        ],
+        "sensitivity": 0.667,
+        "inert": false
       },
       {
         "id": "burst",
@@ -158,7 +166,9 @@
             "id": "mixed",
             "label": "混合"
           }
-        ]
+        ],
+        "sensitivity": 0.0,
+        "inert": true
       },
       {
         "id": "growth",
@@ -178,7 +188,9 @@
             "id": "g20x",
             "label": "年增 20 倍"
           }
-        ]
+        ],
+        "sensitivity": 0.667,
+        "inert": false
       }
     ],
     "conflicts": [

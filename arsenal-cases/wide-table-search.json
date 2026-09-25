@@ -75,7 +75,9 @@
             "id": "r10b",
             "label": "100 亿"
           }
-        ]
+        ],
+        "sensitivity": 0.833,
+        "inert": false
       },
       {
         "id": "qps",
@@ -99,7 +101,9 @@
             "id": "q100k",
             "label": "10 万"
           }
-        ]
+        ],
+        "sensitivity": 0.667,
+        "inert": false
       },
       {
         "id": "dims",
@@ -119,7 +123,9 @@
             "id": "d8",
             "label": "8 维"
           }
-        ]
+        ],
+        "sensitivity": 1.0,
+        "inert": false
       },
       {
         "id": "latency",
@@ -139,7 +145,9 @@
             "id": "l1s",
             "label": "<1s"
           }
-        ]
+        ],
+        "sensitivity": 1.0,
+        "inert": false
       },
       {
         "id": "rw",
@@ -159,7 +167,9 @@
             "id": "rw19",
             "label": "1:9 写多"
           }
-        ]
+        ],
+        "sensitivity": 0.0,
+        "inert": true
       },
       {
         "id": "cold",
@@ -179,7 +189,9 @@
             "id": "cold",
             "label": "需分层"
           }
-        ]
+        ],
+        "sensitivity": 0.667,
+        "inert": false
       }
     ],
     "conflicts": [

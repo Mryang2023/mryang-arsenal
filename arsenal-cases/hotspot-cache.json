@@ -76,7 +76,9 @@
             "id": "q1m",
             "label": "100 万"
           }
-        ]
+        ],
+        "sensitivity": 0.944,
+        "inert": false
       },
       {
         "id": "hotspot",
@@ -96,7 +98,9 @@
             "id": "extreme",
             "label": "99/1 极端"
           }
-        ]
+        ],
+        "sensitivity": 0.583,
+        "inert": false
       },
       {
         "id": "latency",
@@ -116,7 +120,9 @@
             "id": "l1s",
             "label": "<1s"
           }
-        ]
+        ],
+        "sensitivity": 0.0,
+        "inert": true
       },
       {
         "id": "consist",
@@ -136,7 +142,9 @@
             "id": "eventual",
             "label": "最终一致"
           }
-        ]
+        ],
+        "sensitivity": 0.667,
+        "inert": false
       },
       {
         "id": "ttl",
@@ -156,7 +164,9 @@
             "id": "none",
             "label": "不过期"
           }
-        ]
+        ],
+        "sensitivity": 0.667,
+        "inert": false
       },
       {
         "id": "replicas",
@@ -176,7 +186,9 @@
             "id": "r32",
             "label": "32 节点"
           }
-        ]
+        ],
+        "sensitivity": 0.444,
+        "inert": false
       }
     ],
     "conflicts": [

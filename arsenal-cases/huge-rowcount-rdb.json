@@ -81,7 +81,9 @@
             "label": "100 万",
             "value": 1000000
           }
-        ]
+        ],
+        "sensitivity": 0.5,
+        "inert": false
       },
       {
         "id": "rows",
@@ -109,7 +111,9 @@
             "label": "100 亿",
             "value": 10000000000
           }
-        ]
+        ],
+        "sensitivity": 0.833,
+        "inert": false
       },
       {
         "id": "rw",
@@ -132,7 +136,9 @@
             "label": "1:9 写多",
             "note": "典型日志/埋点/物联网"
           }
-        ]
+        ],
+        "sensitivity": 0.667,
+        "inert": false
       },
       {
         "id": "consist",
@@ -155,7 +161,9 @@
             "label": "最终一致",
             "note": "分钟级可接受"
           }
-        ]
+        ],
+        "sensitivity": 0.0,
+        "inert": true
       },
       {
         "id": "latency",
@@ -175,7 +183,9 @@
             "id": "l1s",
             "label": "<1s"
           }
-        ]
+        ],
+        "sensitivity": 0.0,
+        "inert": true
       },
       {
         "id": "growth",
@@ -195,7 +205,9 @@
             "id": "g20x",
             "label": "年增 20 倍"
           }
-        ]
+        ],
+        "sensitivity": 0.667,
+        "inert": false
       }
     ],
     "conflicts": [

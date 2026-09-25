@@ -12,6 +12,7 @@
     arsenal-stacks/*.json      技术选型维度与选项
 """
 import importlib.util
+import itertools
 import json
 import os
 import re
@@ -1043,6 +1044,9 @@ def build_cases():
 
         # ① 驱动参数：id 唯一、档位 id 唯一、至少 4 个驱动、每驱动至少 2 档
         driver_levels = {}
+        # 档位的**声明顺序**。敏感度计算要用它做笛卡尔积 —— 用 set 会让产物随
+        # PYTHONHASHSEED 漂移，同一份事实源两次构建产出不同 JSON。
+        level_order = {}
         seen_driver = set()
         for d in kase.get('drivers') or []:
             if d['id'] in seen_driver:
@@ -1057,6 +1061,7 @@ def build_cases():
                 problems.append('%s/%s 只有 %d 个档位 —— 驱动参数必须离散且可选'
                                 % (cid, d['id'], len(lids)))
             driver_levels[d['id']] = lids
+            level_order[d['id']] = [lv['id'] for lv in d.get('levels') or []]
         if len(seen_driver) < 4:
             problems.append('%s 只有 %d 个驱动参数 —— 少于 4 个就退化成静态文案了'
                             % (cid, len(seen_driver)))
@@ -1064,6 +1069,8 @@ def build_cases():
         # ② 切片：id 唯一、order 连续、when 合法、锚点命中、规则真实
         seen_slice = set()
         orders = []
+        # 被 slices[].when 引用过的 driver —— ⑥ 判断「摆设参数」要用
+        in_slice_when = set()
         for s in kase.get('slices') or []:
             where = '%s/%s' % (cid, s['id'])
             if s['id'] in seen_slice:
@@ -1072,6 +1079,7 @@ def build_cases():
             orders.append(s.get('order'))
 
             check_when(where, s.get('when'), driver_levels)
+            in_slice_when.update((s.get('when') or {}).keys())
 
             code = s.get('code') or ''
             hl = s.get('highlights') or []
@@ -1111,12 +1119,16 @@ def build_cases():
             problems.append('%s 的切片 order 不连续：%s' % (cid, orders))
 
         # ③ 矛盾与不适用：when 同样要合法
+        in_conflict = set()
+        in_not_suitable = set()
         for i, c in enumerate(kase.get('conflicts') or []):
             check_when('%s/conflict[%d]' % (cid, i), c.get('when'), driver_levels)
+            in_conflict.update((c.get('when') or {}).keys())
             if not c.get('text'):
                 problems.append('%s/conflict[%d] 没有说明矛盾在哪' % (cid, i))
         for i, n in enumerate(kase.get('notSuitableFor') or []):
             check_when('%s/notSuitableFor[%d]' % (cid, i), n.get('when'), driver_levels)
+            in_not_suitable.update((n.get('when') or {}).keys())
             if not n.get('reason'):
                 problems.append('%s/notSuitableFor[%d] 没有给出该看什么的理由' % (cid, i))
 
@@ -1183,8 +1195,70 @@ def build_cases():
             if rec and hit_count({**rec, **sym_params}) == 0:
                 problems.append('%s 点进去命中 0 个切片 —— 症状入口不能通向空结果' % where)
 
+        # ⑥ 驱动参数不许是摆设，且「它到底能不能改变产出」必须算出来写进产物
+        #
+        # 存在理由：47 个驱动参数里实测有 11 个「拖到底，命中的切片一个都不变」。
+        # 用户拖了半天滑块页面纹丝不动，只能得出一个结论 —— 这东西坏了。
+        # 所以两条：
+        #   ① 一个驱动至少要在 slices[].when / conflicts / notSuitableFor 里出现一次。
+        #      三处都不引用的参数连提示都弹不出来，留着只是给页面凑数 —— 构建期直接拦掉。
+        #   ② 把敏感度算出来写进 JSON，让前端照实标注「这个旋钮有多少用」，
+        #      而不是让用户自己试出来。
+        #
+        # 敏感度的定义：固定其它驱动的每一组取值，把这个驱动依次切到每个档位，
+        # 统计「命中切片集合发生变化」的档位对占比。0 = 纯摆设，1 = 每换一档结果都变。
+        # ⚠️ 遍历的是「其它驱动的组合 × 本驱动档位对」，不是全部参数笛卡尔积 ——
+        #    后者是 O(档位数 ^ 驱动数)，加一个驱动就翻几倍。
+        slice_hits = [(s.get('id'), s.get('when') or {}) for s in kase.get('slices') or []]
+
+        def active_ids(params):
+            return frozenset(sid for sid, w in slice_hits
+                             if all((not lv) or params.get(did) in lv
+                                    for did, lv in w.items()))
+
+        MAX_COMBOS = 20000
+        new_drivers = []
+        for d in kase.get('drivers') or []:
+            did = d['id']
+            if not (did in in_slice_when or did in in_conflict or did in in_not_suitable):
+                problems.append(
+                    '%s/%s 是摆设参数：slices[].when / conflicts / notSuitableFor 三处都不引用它 —— '
+                    '用户拖动它不会有任何变化。补进告警条件，或从 drivers 里删掉' % (cid, did))
+
+            others = [o for o in level_order if o != did]
+            combos = list(itertools.product(*[level_order[o] for o in others]))
+            total_combos = len(combos)
+            stride = 1
+            if total_combos > MAX_COMBOS:
+                stride = (total_combos + MAX_COMBOS - 1) // MAX_COMBOS
+                combos = combos[::stride]
+                print('  ⚠ %s/%s 的对照组 %d 组超过上限 %d，按步长 %d 抽 %d 组（敏感度是估计值）'
+                      % (cid, did, total_combos, MAX_COMBOS, stride, len(combos)))
+
+            changed = 0
+            pairs = 0
+            for combo in combos:
+                base = dict(zip(others, combo))
+                seen_sets = []
+                for lv in level_order[did]:
+                    p = dict(base)
+                    p[did] = lv
+                    seen_sets.append(active_ids(p))
+                for i in range(len(seen_sets)):
+                    for j in range(i + 1, len(seen_sets)):
+                        pairs += 1
+                        if seen_sets[i] != seen_sets[j]:
+                            changed += 1
+
+            nd = dict(d)
+            nd['sensitivity'] = round(changed / pairs, 3) if pairs else 0.0
+            # inert 是给前端的承诺：这个参数不改变命中切片集合，只可能改变告警
+            nd['inert'] = did not in in_slice_when
+            new_drivers.append(nd)
+
         cases.append({
             **kase,
+            'drivers': new_drivers,
             'sliceCount': len(kase.get('slices') or []),
             'driverCount': len(seen_driver),
             'ruleCount': len({r for s in kase.get('slices') or []
@@ -1225,8 +1299,12 @@ def build_cases():
 
     total_slices = sum(c['sliceCount'] for c in cases)
     total_lines = sum(c['lines'] for c in cases)
+    total_drivers = sum(len(c['drivers']) for c in cases)
+    inert_drivers = [(c['id'], d['id']) for c in cases for d in c['drivers'] if d.get('inert')]
     print('  %d 个场景 / %d 个切片 / %d 行代码 / 锚点与规则 id 全部命中'
           % (len(cases), total_slices, total_lines))
+    print('  %d 个驱动参数：%d 个 inert（不改变命中切片，只影响告警），已在前端标注'
+          % (total_drivers, len(inert_drivers)))
 
 
 def _tech_icon_keys():
