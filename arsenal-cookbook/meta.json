@@ -1,15 +1,21 @@
 {
   "collection": "arsenal-cookbook",
   "name": "军火库 · 最佳实践案例库",
-  "version": "0.2.0",
-  "releasedAt": "2026-09-11",
-  "description": "照着抄的代码库。每个案例是一条端到端的垂直切片：从 HTTP 入口一路到 SQL，每一层都给出可复制的完整代码，并写清「什么时候用 / 什么时候不要用 / 坑在哪 / 性能量级 / 参考出处」，同时标注它对应军火库的哪几条规则。",
+  "version": "0.3.0",
+  "releasedAt": "2026-09-24",
+  "description": "三层结构的照抄代码库：**技术**（这个技术解决什么、什么时候该选它）→ **场景**（在什么情况下用，带可核对信号）→ **实现方案**（结构 / 代码 / 陷坑 / 模拟接口实测）。每一层都写清「什么时候不要这么写」，并标注对应军火库的哪几条规则。",
   "order": [
-    "crud-basic",
-    "http-semantics",
-    "async-transaction",
-    "skeleton-config",
     "virtual-thread"
   ],
-  "count": 5
+  "count": 1,
+  "scenarioCount": 3,
+  "recipeCount": 3,
+  "demoCount": 3,
+  "families": {
+    "concurrency": "并发",
+    "data": "数据访问",
+    "web": "接口与集成",
+    "reliability": "稳定性",
+    "quality": "质量工程"
+  }
 }

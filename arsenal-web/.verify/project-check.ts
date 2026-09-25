@@ -1431,7 +1431,46 @@ console.log('\n【16】字段契约一致性（类型 ↔ 事实源）');
         return { id: f.replace(/\.json$/, ''), rec: (j[key] ?? j) as Record<string, unknown> };
       });
 
-  const libs = [
+  /**
+   * 最佳实践库是三层结构（技术 → 场景 → 方案），事实源里一条技术文件里
+   * 嵌套着多个场景、每个场景又嵌套着多个方案。这里把它们**摊平**成三类记录
+   * 分别对 `Topic` / `Scenario` / `Recipe` 三个接口做双向比对 ——
+   * 不摊平的话，嵌套层里少一个字段就没有任何一条断言会去看它。
+   */
+  const loadCookbook = (level: 'topic' | 'scenario' | 'recipe') =>
+    fs
+      .readdirSync(path.join(repoRoot, 'arsenal-cookbook'))
+      .filter((f) => f.endsWith('.json') && f !== 'meta.json')
+      .sort()
+      .flatMap((f) => {
+        const tid = f.replace(/\.json$/, '');
+        const t = readJson(path.join(repoRoot, 'arsenal-cookbook', f)).topic as Record<
+          string,
+          unknown
+        >;
+        if (level === 'topic') return [{ id: tid, rec: t }];
+        return ((t.scenarios ?? []) as Record<string, unknown>[]).flatMap((s) => {
+          const sid = String(s.id);
+          if (level === 'scenario') return [{ id: `${tid}/${sid}`, rec: s }];
+          return ((s.recipes ?? []) as Record<string, unknown>[]).map((r) => ({
+            id: `${tid}/${sid}/${String(r.id)}`,
+            rec: r,
+          }));
+        });
+      });
+
+  type LibSpec = {
+    label: string;
+    typeFile: string;
+    iface: string;
+    src: { id: string; rec: Record<string, unknown> }[];
+    genFile: string;
+    genKey: string;
+    /** 同步产物是嵌套的，用它摊平成与 src 对齐的记录数组 */
+    genFlat?: (doc: any) => any[];
+  };
+
+  const libs: LibSpec[] = [
     {
       label: '场景案例库',
       typeFile: 'lib/case-types.ts',
@@ -1441,12 +1480,33 @@ console.log('\n【16】字段契约一致性（类型 ↔ 事实源）');
       genKey: 'cases',
     },
     {
-      label: '最佳实践库',
+      label: '最佳实践库·方案',
       typeFile: 'lib/content-types.ts',
-      iface: 'Feature',
-      src: loadLib('arsenal-cookbook', 'feature'),
+      iface: 'Recipe',
+      src: loadCookbook('recipe'),
       genFile: 'cookbook.json',
-      genKey: 'features',
+      genKey: 'topics',
+      genFlat: (doc) =>
+        (doc.topics ?? []).flatMap((t: any) =>
+          (t.scenarios ?? []).flatMap((s: any) => s.recipes ?? [])
+        ),
+    },
+    {
+      label: '最佳实践库·场景',
+      typeFile: 'lib/content-types.ts',
+      iface: 'Scenario',
+      src: loadCookbook('scenario'),
+      genFile: 'cookbook.json',
+      genKey: 'topics',
+      genFlat: (doc) => (doc.topics ?? []).flatMap((t: any) => t.scenarios ?? []),
+    },
+    {
+      label: '最佳实践库·技术',
+      typeFile: 'lib/content-types.ts',
+      iface: 'Topic',
+      src: loadCookbook('topic'),
+      genFile: 'cookbook.json',
+      genKey: 'topics',
     },
   ];
 
@@ -1455,7 +1515,8 @@ console.log('\n【16】字段契约一致性（类型 ↔ 事实源）');
     const declared = new Set(fields.map((f) => f.field));
     const optional = new Set(fields.filter((f) => f.optional).map((f) => f.field));
     const required = fields.filter((f) => !f.optional).map((f) => f.field);
-    const gen = (readJson(path.join(srcRoot, 'generated', lib.genFile))[lib.genKey] ?? []) as Record<
+    const genDoc = readJson(path.join(srcRoot, 'generated', lib.genFile));
+    const gen = ((lib.genFlat ? lib.genFlat(genDoc) : genDoc[lib.genKey]) ?? []) as Record<
       string,
       unknown
     >[];
@@ -1526,14 +1587,20 @@ console.log('\n【16】字段契约一致性（类型 ↔ 事实源）');
     },
     { lib: '场景案例库', iface: 'ArchNode', pick: (r) => r.architecture?.nodes ?? [] },
     { lib: '场景案例库', iface: 'ArchLink', pick: (r) => r.architecture?.links ?? [] },
-    { lib: '最佳实践库', iface: 'FlowStep', pick: (r) => r.flow ?? [] },
-    { lib: '最佳实践库', iface: 'FeatureFile', pick: (r) => r.files ?? [] },
+    { lib: '最佳实践库·方案', iface: 'FlowStep', pick: (r) => r.flow ?? [] },
+    { lib: '最佳实践库·方案', iface: 'FeatureFile', pick: (r) => r.files ?? [] },
     {
-      lib: '最佳实践库',
+      lib: '最佳实践库·方案',
       iface: 'Highlight',
       pick: (r) => (r.files ?? []).flatMap((f: any) => f.highlights ?? []),
     },
-    { lib: '最佳实践库', iface: 'FeatureReference', pick: (r) => r.references ?? [] },
+    // 参考出处挂在**技术**层（方案不重复抄一遍出处），所以从技术记录上取
+    { lib: '最佳实践库·技术', iface: 'FeatureReference', pick: (r) => r.references ?? [] },
+    {
+      lib: '最佳实践库·技术',
+      iface: 'PlaygroundDemo',
+      pick: (r) => (r.scenarios ?? []).flatMap((s: any) => (s.recipes ?? []).flatMap((p: any) => p.playground ?? [])),
+    },
   ];
 
   for (const spec of NESTED) {

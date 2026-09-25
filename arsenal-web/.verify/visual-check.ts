@@ -12,19 +12,19 @@
  * 就是这么活过八层自检的。
  *
  * 本层不改写任何断言逻辑，只做**记账与守门**：真判据在
- * `arsenal-web/visual/assert.mjs`（A1–A7 × 45 张截图矩阵，现测几何，不读旧报告）。
+ * `arsenal-web/visual/assert.mjs`（A1–A7 × 42 张截图矩阵，现测几何，不读旧报告；cookbook 收敛后 14 URL）。
  * 分工写在那边：**断言管几何与数值，看图管语义** —— 「这个图标认不认识」
  * 「这句结论说不说得通」不写成断言，那是给自己造一个必然误报的检查。
  *
  * ─────────────────────────────────────────────────────────────
- * 项数为什么是 9 而不是 315（45 张 × 7 项）：
+ * 项数为什么是 9 而不是 294（42 张 × 7 项）：
  *
- * 45×7 会得到一个**误导性的数**：一次真实回归（比如整站溢出）会让 45 个「项」同时红，
+ * 42×7 会得到一个**误导性的数**：一次真实回归（比如整站溢出）会让 42 个「项」同时红，
  * 于是「失败 45 项」看起来像 45 个独立问题，其实是一个版式错误。而且 A4（sticky 遮挡）
- * 在移动端天然没有可判定目标（本站移动端没有 sticky 元素），按张计数的话那 15 张
+ * 在移动端天然没有可判定目标（本站移动端没有 sticky 元素），按张计数的话那 14 张
  * 只能进 `skip` —— 而「未适用」根本不是「环境不满足」，塞进 skip 会把退出码
  * 永久钉在 2 上，把「跳过」这个词的含义稀释掉。
- * 所以项的粒度 = **断言**（7）+ 2 项结构核对（矩阵、素材），样本量（45 张）
+ * 所以项的粒度 = **断言**（7）+ 2 项结构核对（矩阵、素材），样本量（42 张）
  * 写在断言名里，看得见但不冒充项数。
  *
  * ─────────────────────────────────────────────────────────────
@@ -157,19 +157,37 @@ check('视觉断言脚本存在（visual/assert.mjs）', true);
 check('构建产物存在（out/，断言测的是真实页面而不是旧报告）', true);
 
 // ═══════════════════════════════════════════════════════════════
-// 【1】实跑 assert.mjs（全量矩阵：15 URL × 3 视口）
+// 【1】实跑 assert.mjs（全量矩阵：14 URL × 3 视口）
 // ═══════════════════════════════════════════════════════════════
-console.log('\n【1】实跑 45 张矩阵（node visual/assert.mjs）');
+console.log('\n【1】实跑 42 张矩阵（node visual/assert.mjs）');
+
+/**
+ * Windows 上 spawnSync 同一个 node.exe 偶发 EBUSY —— 实时杀毒扫描正锁着 exe，
+ * CreateProcess 拿到 sharing violation。这不是 assert.mjs 的问题（它单独跑每次都成功），
+ * 但一上来就判死会让整层变红、连累九层链的可信度。所以：EBUSY 退避重试，最多 3 次。
+ */
+function spawnAssert(): ReturnType<typeof spawnSync> {
+  let last: ReturnType<typeof spawnSync> | null = null;
+  for (let attempt = 1; attempt <= 3; attempt++) {
+    const r = spawnSync(process.execPath, [assertScript], {
+      cwd: webRoot,
+      encoding: 'utf8',
+      maxBuffer: 64 * 1024 * 1024,
+      timeout: 15 * 60 * 1000,
+      // 起 msedge 会写一堆临时文件；沙箱删除守卫与本层无关，显式关掉免得误伤
+      env: { ...process.env, CODEBUDDY_SAFE_DELETE_ENABLED: '0' },
+    });
+    if (!r.error || (r.error as NodeJS.ErrnoException).code !== 'EBUSY') return r;
+    last = r;
+    console.log(`  spawnSync EBUSY（第 ${attempt} 次尝试），3 秒后重试 —— exe 被锁是偶发的，重试通常就过`);
+    // 同步等待：主线程不能 await（本文件顶层是直线代码），Atomics.wait 是标准做法
+    Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 3000);
+  }
+  return last as ReturnType<typeof spawnSync>;
+}
 
 const started = Date.now();
-const run = spawnSync(process.execPath, [assertScript], {
-  cwd: webRoot,
-  encoding: 'utf8',
-  maxBuffer: 64 * 1024 * 1024,
-  timeout: 15 * 60 * 1000,
-  // 起 msedge 会写一堆临时文件；沙箱删除守卫与本层无关，显式关掉免得误伤
-  env: { ...process.env, CODEBUDDY_SAFE_DELETE_ENABLED: '0' },
-});
+const run = spawnAssert();
 const raw = `${run.stdout ?? ''}${run.stderr ?? ''}`;
 const secs = ((Date.now() - started) / 1000).toFixed(1);
 
@@ -190,7 +208,7 @@ if (run.error) {
   process.exit(finish('visual'));
 }
 
-// ── 打印：人只需要看结论与失败明细，45 行逐张会淹掉它们 ──
+// ── 打印：人只需要看结论与失败明细，42 行逐张会淹掉它们 ──
 {
   const lines = raw.split(/\r?\n/);
   const from = lines.findIndex((l) => l.includes('逐项汇总'));
@@ -208,7 +226,7 @@ console.log(`  实测耗时 ${secs}s（完整输出：.verify/tmp/visual-assert.
 // ═══════════════════════════════════════════════════════════════
 // 【2】逐项断言：从 assert.mjs 的输出里读回实测值
 // ═══════════════════════════════════════════════════════════════
-console.log('\n【2】逐项断言（每项一条：45 张里任一红即本项红）');
+console.log('\n【2】逐项断言（每项一条：42 张里任一红即本项红）');
 
 interface Row {
   id: string;

@@ -73,55 +73,180 @@ def write_json(rel_path, doc):
     print('  %-44s %6.1f KB' % (rel_path, size / 1024))
 
 
+# 案例库三层结构：技术（L1）→ 场景（L2）→ 实现方案（L3）。
+# 加一项技术就在这里加一行 —— 与 CASES_MODULES 同一套写法，漏了等于没写。
+COOKBOOK_MODULES = ('virtual_thread',)
+
+# 技术族：只用于列表页筛选，不单独占一级页面 —— 层级就三层，不加第四层。
+COOKBOOK_FAMILIES = {
+    'concurrency': '并发',
+    'data': '数据访问',
+    'web': '接口与集成',
+    'reliability': '稳定性',
+    'quality': '质量工程',
+}
+
+
 def build_cookbook():
-    """产出最佳实践案例库，并对每个案例做一次完整性校验。
+    """产出最佳实践案例库，并对三层结构逐层做完整性校验。
 
-    校验守的是「案例库」这三个字的底线：一个案例要能被当成蓝本复制，
-    就必须同时说清「什么时候用」和「什么时候不该用」。
-    只讲优点、不划边界的范例，会诱导人在错误场景照抄 —— 那比没有案例更糟。
+    结构上是三层：
+        L1 技术      这个技术解决什么、什么时候该选它、它自身的边界
+        L2 场景      在什么**情况**下用（带可核对信号，不是形容词）
+        L3 实现方案  怎么搭：结构 / 代码 / 陷坑 / 模拟接口实测
+
+    校验守两条底线：
+      ① 每一层都要划边界 —— 只讲优点不划边界的范例，会诱导人在错误场景照抄。
+      ② L3 的「模拟接口」必须是真接口：声明了 mock-endpoint 却用 sleep 假装 IO，
+         pinning 与背压这类差异一个都暴露不出来，等于给了一个假的确定感。
     """
-    print('[1/4] arsenal-cookbook —— 最佳实践案例库')
-    features = []
+    print('[1/4] arsenal-cookbook —— 最佳实践案例库（技术 / 场景 / 方案）')
+    topics = []
     problems = []
-    for name in ('crud', 'http', 'async_tx', 'skeleton', 'virtual_thread'):
-        feat = load_module(name).FEATURE
-        fid = feat.get('id', name)
+    known_rules = rule_ids()
+    n_scen = n_recipe = n_demo = 0
 
-        # ① 案例必须能说清适用与不适用。2~5 条具体场景，不写「需要的时候」。
-        if len(feat.get('notSuitable') or []) < 2:
-            problems.append('案例 %s 的 notSuitable 少于 2 条 —— 不划边界的范例会被人照抄到错误场景'
-                            % fid)
-        if len(feat.get('scenario') or '') < 30:
-            problems.append('案例 %s 的 scenario 过于简略，说明不了什么时候用' % fid)
-
-        # ② 参考资料至少要有一条，否则「为什么这么写」无从追溯。
-        refs = feat.get('references') or []
-        if len(refs) < 2:
-            problems.append('案例 %s 的 references 少于 2 条 —— 无出处不收录' % fid)
+    def check_refs(where, refs, minimum):
+        refs = refs or []
+        if len(refs) < minimum:
+            problems.append('%s 的 references 少于 %d 条 —— 无出处不收录' % (where, minimum))
         for r in refs:
             if not r.get('title'):
-                problems.append('案例 %s 有参考资料缺少 title' % fid)
+                problems.append('%s 有参考资料缺少 title' % where)
             if not r.get('url') and not r.get('note'):
-                problems.append('案例 %s 的参考资料「%s」既没有链接也没有说明' % (fid, r.get('title')))
+                problems.append('%s 的参考资料「%s」既没有链接也没有说明' % (where, r.get('title')))
 
-        # ③ 性能段如果写了，表头与每行必须等宽，否则渲染出来是错位的表格。
-        perf = feat.get('performance')
-        if perf:
-            width = len(perf.get('columns') or [])
-            if width < 2:
-                problems.append('案例 %s 的 performance.columns 少于 2 列' % fid)
-            for row in perf.get('rows') or []:
-                if len(row) != width:
-                    problems.append('案例 %s 的 performance 有一行是 %d 列，表头是 %d 列'
-                                    % (fid, len(row), width))
-            if not (perf.get('rows') or []):
-                problems.append('案例 %s 的 performance 没有数据行' % fid)
-            if not perf.get('conclusion'):
-                problems.append('案例 %s 的 performance 没有结论 —— 只给表格不给判断，读者无法决策'
-                                % fid)
+    def check_perf(where, perf):
+        width = len(perf.get('columns') or [])
+        if width < 2:
+            problems.append('%s 的 performance.columns 少于 2 列' % where)
+        for row in perf.get('rows') or []:
+            if len(row) != width:
+                problems.append('%s 的 performance 有一行是 %d 列，表头是 %d 列'
+                                % (where, len(row), width))
+        if not (perf.get('rows') or []):
+            problems.append('%s 的 performance 没有数据行' % where)
+        if not perf.get('conclusion'):
+            problems.append('%s 的 performance 没有结论 —— 只给表格不给判断，读者无法决策' % where)
 
-        features.append(feat)
-        write_json('arsenal-cookbook/%s.json' % fid, {'feature': feat})
+    for name in COOKBOOK_MODULES:
+        topic = load_module(name).TOPIC
+        tid = topic.get('id', name)
+
+        # ── L1 技术 ────────────────────────────────────────────
+        if topic.get('family') not in COOKBOOK_FAMILIES:
+            problems.append('技术 %s 的 family「%s」不在 %s 里'
+                            % (tid, topic.get('family'), '/'.join(sorted(COOKBOOK_FAMILIES))))
+        if len(topic.get('intent') or '') < 30:
+            problems.append('技术 %s 的 intent 过于简略，说不清它解决什么' % tid)
+        # 「外场选择」这一层的存在意义就是比较：至少给出两条与其它技术的取舍
+        if len(topic.get('pickWhen') or []) < 2:
+            problems.append(
+                '技术 %s 的 pickWhen 少于 2 条 —— 说不出什么时候该选它，这一层就没有意义' % tid)
+        for p in topic.get('pickWhen') or []:
+            if not p.get('vs') or not p.get('text'):
+                problems.append('技术 %s 有 pickWhen 缺少 vs 或 text' % tid)
+        if len(topic.get('limits') or []) < 2:
+            problems.append('技术 %s 的 limits 少于 2 条 —— 不写自身边界的技术会被当成银弹' % tid)
+        check_refs('技术 %s' % tid, topic.get('references'), 2)
+
+        # ── L2 场景 ────────────────────────────────────────────
+        scenarios = topic.get('scenarios') or []
+        if not scenarios:
+            problems.append('技术 %s 一个场景都没有' % tid)
+        seen_scen = set()
+        for sc in scenarios:
+            sid = sc.get('id')
+            where = '%s/%s' % (tid, sid)
+            if sid in seen_scen:
+                problems.append('技术 %s 的场景 id 重复：%s' % (tid, sid))
+            seen_scen.add(sid)
+            if len(sc.get('when') or '') < 30:
+                problems.append('%s 的 when 过于简略，说明不了什么情况下用' % where)
+            if len(sc.get('signals') or []) < 2:
+                problems.append('%s 的 signals 少于 2 条 —— 没有可核对信号，「适用」就只是形容词'
+                                % where)
+            if not sc.get('decision'):
+                problems.append('%s 没有 decision（为什么在这个场景下用它）' % where)
+            if len(sc.get('notSuitable') or []) < 2:
+                problems.append('%s 的 notSuitable 少于 2 条' % where)
+
+            # ── L3 实现方案 ────────────────────────────────────
+            recipes = sc.get('recipes') or []
+            if not recipes:
+                problems.append('%s 没有任何实现方案 —— 场景不能悬空' % where)
+            seen_recipe = set()
+            for rp in recipes:
+                rid = rp.get('id')
+                at = '%s/%s' % (where, rid)
+                if rid in seen_recipe:
+                    problems.append('%s 的方案 id 重复：%s' % (where, rid))
+                seen_recipe.add(rid)
+                if len(rp.get('approach') or '') < 20:
+                    problems.append('%s 的 approach 过于简略，说不清实现方式' % at)
+                if len(rp.get('files') or []) < 1:
+                    problems.append('%s 没有代码文件 —— 方案必须给得出代码' % at)
+                for f in rp.get('files') or []:
+                    if len(f.get('highlights') or []) < 2:
+                        problems.append(
+                            '%s/%s 只有 %d 条 highlights —— 少于 2 条说明这段代码没人真的读过'
+                            % (at, f.get('id'), len(f.get('highlights') or [])))
+                if len(rp.get('checklist') or []) < 3:
+                    problems.append('%s 的 checklist 少于 3 条' % at)
+                if len(rp.get('pitfalls') or []) < 2:
+                    problems.append('%s 的 pitfalls 少于 2 条' % at)
+                for r in rp.get('relatedRules') or []:
+                    if r not in known_rules:
+                        problems.append('%s 引用了不存在的规则 id：%s' % (at, r))
+                if rp.get('performance'):
+                    check_perf(at, rp['performance'])
+
+                # 模拟接口测试：声明了 mock-endpoint，就得真起一个接口
+                lab = rp.get('lab') or {}
+                demos = rp.get('playground') or []
+                if lab.get('kind') == 'mock-endpoint':
+                    if not demos:
+                        problems.append('%s 声明了模拟接口测试却没有可运行示例' % at)
+                    if not lab.get('intro'):
+                        problems.append('%s 的 lab 没有 intro（这组实验在测什么）' % at)
+                    if len(lab.get('observe') or []) < 2:
+                        problems.append('%s 的 lab.observe 少于 2 条 —— 不给预期现象，读者看不懂输出'
+                                        % at)
+                for d in demos:
+                    if not d.get('id') or not d.get('label'):
+                        problems.append('%s 有示例缺少 id 或 label' % at)
+                    main_class = d.get('mainClass') or ''
+                    if not main_class:
+                        problems.append('%s/%s 没有声明 mainClass' % (at, d.get('id')))
+                    files = d.get('files') or []
+                    if not files:
+                        problems.append('%s/%s 没有可提交的文件' % (at, d.get('id')))
+                        continue
+                    main_file = next(
+                        (x for x in files if x.get('path') == '%s.java' % main_class), None)
+                    if main_file is None:
+                        problems.append('%s/%s 找不到入口文件 %s.java' % (at, d.get('id'), main_class))
+                        continue
+                    code = main_file.get('code') or ''
+                    if 'public static void main' not in code:
+                        problems.append('%s/%s 的入口类没有 main 方法' % (at, d.get('id')))
+                    # 实测要对得上它声明的口径：说好跑模拟接口，就得真起 HttpServer；
+                    # 说好测 per-thread 存储放大，就得真用 ThreadLocal。
+                    for kind, needle, why in (
+                        ('mock-endpoint', 'HttpServer',
+                         '用 sleep 假装 IO，pinning 与背压的差异一个都测不出来'),
+                        ('thread-local', 'ThreadLocal', '测不出 per-thread 存储被放大成多少份'),
+                    ):
+                        if lab.get('kind') == kind and needle not in code:
+                            problems.append(
+                                '%s/%s 声明了 %s 实测，但入口代码里没有 %s —— %s'
+                                % (at, d.get('id'), kind, needle, why))
+                    n_demo += 1
+                n_recipe += 1
+            n_scen += 1
+
+        topics.append(topic)
+        write_json('arsenal-cookbook/%s.json' % tid, {'topic': topic})
 
     if problems:
         print('\n[arsenal] 案例库数据校验失败：')
@@ -132,16 +257,22 @@ def build_cookbook():
     write_json('arsenal-cookbook/meta.json', {
         'collection': 'arsenal-cookbook',
         'name': '军火库 · 最佳实践案例库',
-        'version': '0.2.0',
-        'releasedAt': '2026-09-11',
+        'version': '0.3.0',
+        'releasedAt': '2026-09-24',
         'description': (
-            '照着抄的代码库。每个案例是一条端到端的垂直切片：从 HTTP 入口一路到 SQL，'
-            '每一层都给出可复制的完整代码，并写清「什么时候用 / 什么时候不要用 / 坑在哪 / '
-            '性能量级 / 参考出处」，同时标注它对应军火库的哪几条规则。'
+            '三层结构的照抄代码库：**技术**（这个技术解决什么、什么时候该选它）→ '
+            '**场景**（在什么情况下用，带可核对信号）→ **实现方案**（结构 / 代码 / 陷坑 / '
+            '模拟接口实测）。每一层都写清「什么时候不要这么写」，并标注对应军火库的哪几条规则。'
         ),
-        'order': [f['id'] for f in features],
-        'count': len(features),
+        'order': [t['id'] for t in topics],
+        'count': len(topics),
+        'scenarioCount': n_scen,
+        'recipeCount': n_recipe,
+        'demoCount': n_demo,
+        'families': COOKBOOK_FAMILIES,
     })
+    print('  %d 项技术 / %d 个场景 / %d 套实现方案 / %d 个可运行模拟接口实验'
+          % (len(topics), n_scen, n_recipe, n_demo))
 
 
 def build_stacks():
@@ -998,6 +1129,59 @@ def build_cases():
                                 % (cid, ln['from'], ln['to']))
         for n in arch.get('nodes') or []:
             check_when('%s/arch/%s' % (cid, n['id']), n.get('whenAny'), driver_levels)
+
+        # ⑤ 推荐档与症状入口：点进来必须有东西看
+        #
+        # 这条断言的存在理由：默认参数原本取每个驱动的第一档（最小档），
+        # 而切片条件几乎都写在中高档 —— 落地场景 huge-rowcount-rdb 首屏命中 0/8，
+        # 用户打开页面看到的只是「当前参数下没有任何切片命中」。
+        # 「逻辑正确（小规模确实不需要这套方案）」挡不住「产品上是空屏」，
+        # 所以推荐档必须由数据显式声明，并且在这里强制它真的有产出。
+        def hit_count(params):
+            return sum(1 for s in kase.get('slices') or []
+                       if all((not lv) or params.get(did) in lv
+                              for did, lv in (s.get('when') or {}).items()))
+
+        rec = kase.get('recommended')
+        if not rec:
+            problems.append('%s 缺少 recommended —— 默认参数取最小档会让首屏命中 0 个切片' % cid)
+            rec = {}
+        else:
+            for did, lv in rec.items():
+                if did not in driver_levels:
+                    problems.append('%s 的 recommended 引用了未声明的 driver：%s' % (cid, did))
+                elif lv not in driver_levels[did]:
+                    problems.append('%s 的 recommended 给了 driver %s 不存在的档位：%s' % (cid, did, lv))
+            for d in kase.get('drivers') or []:
+                if d['id'] not in rec:
+                    problems.append('%s 的 recommended 缺少驱动 %s —— 缺省会让该维度静默落到第一档'
+                                    % (cid, d['id']))
+            if hit_count(rec) == 0:
+                problems.append('%s 的 recommended 命中 0 个切片 —— 首屏会是空的' % cid)
+
+        seen_sym = set()
+        for i, sy in enumerate(kase.get('symptoms') or []):
+            where = '%s/symptom[%d]' % (cid, i)
+            if not isinstance(sy, dict) or not sy.get('text'):
+                problems.append('%s 不是结构化症状 {id,text,params}' % where)
+                continue
+            sid = sy.get('id')
+            if not sid:
+                problems.append('%s 缺少 id' % where)
+            elif sid in seen_sym:
+                problems.append('%s 的症状 id 重复：%s' % (where, sid))
+            seen_sym.add(sid)
+
+            sym_params = sy.get('params') or {}
+            for did, lv in sym_params.items():
+                if did not in driver_levels:
+                    problems.append('%s 的 params 引用了未声明的 driver：%s' % (where, did))
+                elif lv not in driver_levels[did]:
+                    problems.append('%s 的 params 给了 driver %s 不存在的档位：%s' % (where, did, lv))
+            # 症状只声明它关心的维度，其余用推荐档补齐后再算命中 ——
+            # 症状入口若通向空结果，用户会以为是自己描述得不对。
+            if rec and hit_count({**rec, **sym_params}) == 0:
+                problems.append('%s 点进去命中 0 个切片 —— 症状入口不能通向空结果' % where)
 
         cases.append({
             **kase,

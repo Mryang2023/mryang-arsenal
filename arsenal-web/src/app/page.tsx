@@ -169,7 +169,7 @@ export default function HomePage() {
                 '每段代码旁边都有编号备注说明为什么这样写、对应哪条规则，' +
                 '并写明什么时候不要用这套写法。',
               stats: [
-                `${cookbookStats.features} 条案例`,
+                `${cookbookStats.features} 条技术主线`,
                 `${cookbookStats.files} 个文件`,
                 `${cookbookStats.lines} 行代码`,
                 `${cookbookStats.highlights} 条要点`,

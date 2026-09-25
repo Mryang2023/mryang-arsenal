@@ -105,7 +105,7 @@
       {
         "name": "最佳实践蓝图",
         "desc": "按功能切片的真实代码案例，备注用片段锚点钉在代码上",
-        "metric": "{{cookbook.features}} 切片 · {{cookbook.lines}} 行"
+        "metric": "{{cookbook.features}} 条主线 · {{cookbook.scenarios}} 场景 · {{cookbook.lines}} 行"
       },
       {
         "name": "选型装配",
@@ -162,7 +162,7 @@
       {
         "path": "arsenal-cookbook/*.json",
         "name": "蓝图库",
-        "metric": "{{cookbook.features}} 切片 · {{cookbook.files}} 文件 · {{cookbook.lines}} 行",
+        "metric": "{{cookbook.features}} 条主线 · {{cookbook.scenarios}} 场景 · {{cookbook.recipes}} 方案 · {{cookbook.lines}} 行",
         "desc": "{{cookbook.highlights}} 处高亮备注，全部用片段锚点定位，不用行号"
       },
       {
@@ -220,7 +220,7 @@
       {
         "path": "/blueprints",
         "name": "最佳实践案例库",
-        "desc": "{{cookbook.features}} 切片 · {{cookbook.lines}} 行真实代码"
+        "desc": "{{cookbook.recipes}} 套方案 · {{cookbook.lines}} 行真实代码"
       },
       {
         "path": "/stack",
@@ -395,7 +395,7 @@
       },
       {
         "path": "arsenal-cookbook/",
-        "role": "蓝图事实源（{{cookbook.features}} 切片）"
+        "role": "案例事实源（{{cookbook.features}} 条主线 / {{cookbook.scenarios}} 场景）"
       },
       {
         "path": "arsenal-stacks/",
@@ -441,7 +441,7 @@
       },
       {
         "name": "结构与导出",
-        "count": 718,
+        "count": 747,
         "desc": "目录树 / 部署产物 / 导出包 / zip 解压复验 / 导航与页签契约 / 项目档案契约 / 图标资产库（矢量 key 不许静默回落、位图清单与磁盘双向对齐）/ 装配台视觉契约（/stack P1 第一组：台面化 / 权重三档 / 焦点与深度 / 字号四档 / 空态引导）"
       },
       {

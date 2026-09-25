@@ -10,15 +10,15 @@
  * 因为 `channel: 'msedge'` 在这台机器上找不到它 —— Edge 装在版本子目录里）。
  *
  * 用法：
- *   node visual/shoot.mjs              # 跑全部 15 URL × 3 视口 = 45 张
+ *   node visual/shoot.mjs              # 跑全部 14 URL × 3 视口 = 42 张（cookbook 收敛后只剩 1 个蓝图）
  *   VISUAL_BASE_URL=http://127.0.0.1:3021/ node visual/shoot.mjs
  *
  * 退出码：
- *   0 = 四项闸门全过（截图数 45 / 每张 >8KB / 无 4xx 响应 / 无运行时报错）
+ *   0 = 四项闸门全过（截图数 42 / 每张 >8KB / 无 4xx 响应 / 无运行时报错）
  *   1 = 任一闸门不过，或 URL 发现数与预期不符 —— 全文打印实际错误
  *
  * 产物：
- *   visual/shots/*.png      45 张（已 gitignore，不入库）
+ *   visual/shots/*.png      42 张（已 gitignore，不入库）
  *   visual/manifest.json    机器可读（V-3 assert.mjs 的输入）
  *   visual/report.md        人读
  */
@@ -45,9 +45,11 @@ const BASE_URL = (process.env.VISUAL_BASE_URL || 'http://127.0.0.1:3021').replac
 const EXPECTED = {
   fixedPages: 10,
   rulePicks: 3,
-  blueprintPicks: 2,
-  urls: 15,
-  shots: 45,
+  // cookbook 收敛后只剩 virtual-thread 一个蓝图（2026-09-24），
+  // 首/末抽同一实例 → 去重后只拍 1 个。曾预期 2，收敛时漏同步导致 42/45 的假红。
+  blueprintPicks: 1,
+  urls: 14,
+  shots: 42,
   minBytes: 8 * 1024,
 };
 
@@ -459,7 +461,7 @@ function buildReport(manifest) {
   L.push(`## 横向溢出的元凶（${overflowShots.length} 张有溢出）`);
   L.push('');
   if (overflowShots.length === 0) {
-    L.push('（无 —— 全部 45 张 scrollWidth === clientWidth）');
+    L.push('（无 —— 全部 42 张 scrollWidth === clientWidth）');
   } else {
     L.push('「最深」的那个元素才是元凶（父容器会连带越界）。');
     L.push('');
@@ -512,7 +514,7 @@ function buildReport(manifest) {
   L.push('');
   L.push('- 监听器（`pageerror` / `console` / `requestfailed` / `response`）**在 `page.goto` 之前注册**，按 URL×视口分别累积，不共用数组。');
   L.push('- 每张图附带：截图字节数、`documentElement.scrollWidth/clientWidth`、`scrollHeight`、`img` 失败清单、`h1` 数量、**越界元素清单（最深 5 个）**。');
-  L.push('- 退出码 1 的条件：截图数 ≠ 45、任一张 ≤ 8KB、**未申报的** pageerror/console.error/requestfailed/HTTP≥400 任一非 0、URL 发现数 ≠ 15。');
+  L.push('- 退出码 1 的条件：截图数 ≠ 42、任一张 ≤ 8KB、**未申报的** pageerror/console.error/requestfailed/HTTP≥400 任一非 0、URL 发现数 ≠ 14。');
   L.push('');
   L.push('## 相关文件');
   L.push('');

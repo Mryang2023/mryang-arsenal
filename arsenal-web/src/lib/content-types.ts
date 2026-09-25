@@ -81,7 +81,7 @@ export interface FeatureReference {
 }
 
 /**
- * 案例实验室（/playground）可直接运行的示例。
+ * 蓝图详情页「模拟测试」（原独立 /playground 案例实验室，已并入案例库）可直接运行的示例。
  *
  * 这是「最佳实践案例库」的第三种出口：人查 / 给 AI 用 / 拿代码验之外，再加「能直接跑」。
  * 每条都是自包含、可在 JDK 21 子进程里独立编译运行的 main 类。
@@ -126,7 +126,7 @@ export interface Feature {
   /** 权威出处，至少两条 */
   references: FeatureReference[];
   /**
-   * 案例实验室（/playground）可运行示例，由 tools/content/*.py 的 PLAYGROUND 注入。
+   * 详情页「模拟测试」可运行示例，由 tools/content/*.py 的 PLAYGROUND 注入。
    * 事实源（arsenal-cookbook/*.json）里没有这个键，只有同步后的 src/generated/cookbook.json 才有 ——
    * 与 fileCount/highlightCount 等同理，属于「注入字段」。
    */
@@ -145,6 +145,96 @@ export interface Feature {
   lines: number;
 }
 
+/**
+ * L3「模拟接口测试」的说明层。
+ *
+ * demo 本体仍是 PlaygroundDemo（给后端跑的），这里只补三件它说不出来的事：
+ * 这一组实验在测什么（intro）、跑完该看到什么（observe）、以及它是不是**真接口**。
+ * kind=mock-endpoint 意味着示例自己会起一个 HttpServer 假下游并用 HttpClient 真去打 ——
+ * 用 sleep 假装 IO 时，pinning 与背压这类差异一个都暴露不出来。
+ */
+export interface RecipeLab {
+  /** mock-endpoint：起 HttpServer 假下游真打；thread-local：测 per-thread 存储放大 */
+  kind: 'mock-endpoint' | 'thread-local';
+  /** 这组实验在测什么 */
+  intro: string;
+  /** 预期现象，至少两条 —— 不给预期，读者看不懂那一屏输出 */
+  observe: string[];
+}
+
+/**
+ * L3 实现方案：这个场景下具体怎么搭。
+ *
+ * 沿用旧 Feature 的字段（flow / packages / files / checklist / pitfalls / performance），
+ * 因为详情页那套渲染器本来就是照着它们写的；新增的是 approach（实现方式）与 lab（实测）。
+ */
+export interface Recipe {
+  id: string;
+  order: number;
+  name: string;
+  /** 实现方式：一句话说清这套方案怎么搭 */
+  approach: string;
+  flow: FlowStep[];
+  packages: string[];
+  files: FeatureFile[];
+  checklist: string[];
+  pitfalls: string[];
+  performance?: FeaturePerformance;
+  relatedRules: string[];
+  lab?: RecipeLab;
+  /** 详情页「模拟测试」可运行示例，由 tools/content/*.py 注入 */
+  playground?: PlaygroundDemo[];
+  /** 以下四项由 scripts/sync-content.mjs 从 files[] 算出后注入 */
+  fileCount: number;
+  highlightCount: number;
+  ruleCount: number;
+  lines: number;
+}
+
+/** L2 场景：在**什么情况**下该用这个技术。 */
+export interface Scenario {
+  id: string;
+  order: number;
+  name: string;
+  /** 适用条件，≥30 字，不写「需要的时候」 */
+  when: string;
+  /** 可核对信号（≥2 条）—— 没有信号，「适用」就只是形容词 */
+  signals: string[];
+  /** 为什么在这个场景下用它 */
+  decision: string;
+  /** 什么时候**不要**用（≥2 条） */
+  notSuitable: string[];
+  recipes: Recipe[];
+}
+
+/** L1 技术：解决什么、什么时候该选它、自身边界在哪。 */
+export interface Topic {
+  id: string;
+  order: number;
+  name: string;
+  subtitle: string;
+  glyph: string;
+  /** 技术族，仅用于列表页筛选，不单独占一级页面 */
+  family: string;
+  runtime: string;
+  level: string;
+  intent: string;
+  /** 与其它技术的取舍（≥2 条）—— 外场选择这一层的存在意义就是比较 */
+  pickWhen: { vs: string; text: string }[];
+  /** 这个技术自身的硬边界（≥2 条） */
+  limits: string[];
+  references: FeatureReference[];
+  scenarios: Scenario[];
+  /** 以下由 scripts/sync-content.mjs 注入 */
+  scenarioCount: number;
+  recipeCount: number;
+  fileCount: number;
+  highlightCount: number;
+  ruleCount: number;
+  lines: number;
+  demoCount: number;
+}
+
 export interface Cookbook {
   meta: {
     collection: string;
@@ -154,8 +244,12 @@ export interface Cookbook {
     description: string;
     order: string[];
     count: number;
+    scenarioCount: number;
+    recipeCount: number;
+    demoCount: number;
+    families: Record<string, string>;
   };
-  features: Feature[];
+  topics: Topic[];
 }
 
 // ─────────────────────────────────────────────────────────────

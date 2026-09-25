@@ -32,77 +32,143 @@ function readJson(p) {
   }
 }
 
-// ── ① 最佳实践案例库 ────────────────────────────────────────
+// ── ① 最佳实践案例库（技术 → 场景 → 实现方案） ──────────────
 const cbDir = path.join(root, 'arsenal-cookbook');
 const cbMeta = readJson(path.join(cbDir, 'meta.json'));
 
-const features = [];
+const topics = [];
 const cbProblems = [];
+let totalFiles = 0;
+let totalLines = 0;
+let totalHighlights = 0;
+let totalScenarios = 0;
+let totalRecipes = 0;
+let totalDemos = 0;
 
 for (const id of cbMeta.order ?? []) {
   const doc = readJson(path.join(cbDir, `${id}.json`));
-  const f = doc.feature;
-  if (!f) cbProblems.push(`${id}.json 缺少 feature 字段`);
+  const t = doc.topic;
+  if (!t) cbProblems.push(`${id}.json 缺少 topic 字段`);
 
-  const fileIds = new Set();
-  const highlights = f.files.flatMap((file) => file.highlights ?? []);
-
-  for (const file of f.files) {
-    if (fileIds.has(file.id)) cbProblems.push(`${f.id} 内文件 id 重复：${file.id}`);
-    fileIds.add(file.id);
-
-    // 关键校验：highlights 用「片段锚点」定位，锚点必须真的存在于代码里。
-    // 用锚点而不是行号，是为了让代码改动后备注不会错位到别的行上 ——
-    // 错位的备注比没有备注更危险，它会给出一个自信的错误结论。
-    for (const h of file.highlights ?? []) {
-      if (!h.mark) {
-        cbProblems.push(`${f.id}/${file.id} 有 highlight 缺少 mark 锚点`);
-        continue;
-      }
-      if (!file.code.includes(h.mark)) {
-        cbProblems.push(
-          `${f.id}/${file.id} 锚点找不到目标：${JSON.stringify(h.mark.slice(0, 60))}`
-        );
-      }
-    }
+  // L1：技术必须说清「什么时候该选它」与自身边界 —— 否则会被当成银弹
+  if ((t.pickWhen ?? []).length < 2) {
+    cbProblems.push(`${id} 的 pickWhen 少于 2 条 —— 说不出什么时候该选它`);
   }
-
-  // 案例库的底线：只讲优点、不划边界的范例会诱导人在错误场景照抄。
-  // 生成器已校验过一遍，这里再独立校验一次 —— 手改 JSON 的人绕不过去。
-  if ((f.notSuitable ?? []).length < 2) {
-    cbProblems.push(`${f.id} 的 notSuitable 少于 2 条 —— 不划边界的范例会被照抄到错误场景`);
+  if ((t.limits ?? []).length < 2) {
+    cbProblems.push(`${id} 的 limits 少于 2 条 —— 不写自身边界的技术会被当成银弹`);
   }
-  if ((f.references ?? []).length < 2) {
-    cbProblems.push(`${f.id} 的 references 少于 2 条 —— 无出处不收录`);
+  if ((t.references ?? []).length < 2) {
+    cbProblems.push(`${id} 的 references 少于 2 条 —— 无出处不收录`);
   }
-  for (const r of f.references ?? []) {
-    if (!r.title) cbProblems.push(`${f.id} 有参考资料缺少 title`);
+  for (const r of t.references ?? []) {
+    if (!r.title) cbProblems.push(`${id} 有参考资料缺少 title`);
     else if (!r.url && !r.note) {
-      cbProblems.push(`${f.id} 的参考资料「${r.title}」既没有链接也没有说明`);
+      cbProblems.push(`${id} 的参考资料「${r.title}」既没有链接也没有说明`);
     }
   }
-  if (f.performance) {
-    const width = (f.performance.columns ?? []).length;
-    if (width < 2) cbProblems.push(`${f.id} 的 performance.columns 少于 2 列`);
-    for (const row of f.performance.rows ?? []) {
-      if (row.length !== width) {
-        cbProblems.push(
-          `${f.id} 的 performance 有一行是 ${row.length} 列，表头是 ${width} 列`
-        );
-      }
+  if (!(t.scenarios ?? []).length) cbProblems.push(`${id} 一个场景都没有`);
+
+  let tFiles = 0;
+  let tLines = 0;
+  let tHighlights = 0;
+  let tRecipes = 0;
+  let tDemos = 0;
+  const tRules = new Set();
+
+  for (const sc of t.scenarios ?? []) {
+    const sw = `${id}/${sc.id}`;
+    if ((sc.when ?? '').length < 30) {
+      cbProblems.push(`${sw} 的 when 少于 30 字，说明不了什么情况下用`);
     }
-    if (!f.performance.conclusion) {
-      cbProblems.push(`${f.id} 的 performance 没有结论 —— 只给表格不给判断`);
+    if ((sc.signals ?? []).length < 2) {
+      cbProblems.push(`${sw} 的 signals 少于 2 条 —— 没有可核对信号，「适用」只是形容词`);
+    }
+    if ((sc.notSuitable ?? []).length < 2) {
+      cbProblems.push(`${sw} 的 notSuitable 少于 2 条`);
+    }
+    if (!(sc.recipes ?? []).length) cbProblems.push(`${sw} 没有任何实现方案 —— 场景不能悬空`);
+    totalScenarios += 1;
+
+    for (const rp of sc.recipes ?? []) {
+      const at = `${sw}/${rp.id}`;
+      const fileIds = new Set();
+      let highlights = 0;
+      let lines = 0;
+
+      for (const file of rp.files ?? []) {
+        if (fileIds.has(file.id)) cbProblems.push(`${at} 内文件 id 重复：${file.id}`);
+        fileIds.add(file.id);
+        lines += (file.code ?? '').split('\n').length;
+
+        // 关键校验：highlights 用「片段锚点」定位，锚点必须真的存在于代码里。
+        // 用锚点而不是行号，是为了让代码改动后备注不会错位到别的行上 ——
+        // 错位的备注比没有备注更危险，它会给出一个自信的错误结论。
+        for (const h of file.highlights ?? []) {
+          if (!h.mark) {
+            cbProblems.push(`${at}/${file.id} 有 highlight 缺少 mark 锚点`);
+            continue;
+          }
+          if (!(file.code ?? '').includes(h.mark)) {
+            cbProblems.push(
+              `${at}/${file.id} 锚点找不到目标：${JSON.stringify(h.mark.slice(0, 60))}`
+            );
+          }
+        }
+        highlights += (file.highlights ?? []).length;
+      }
+
+      if (!(rp.files ?? []).length) cbProblems.push(`${at} 没有代码文件 —— 方案必须给得出代码`);
+      if ((rp.checklist ?? []).length < 3) cbProblems.push(`${at} 的 checklist 少于 3 条`);
+      if ((rp.pitfalls ?? []).length < 2) cbProblems.push(`${at} 的 pitfalls 少于 2 条`);
+      if (rp.lab?.kind === 'mock-endpoint' && (rp.lab.observe ?? []).length < 2) {
+        cbProblems.push(`${at} 的 lab.observe 少于 2 条 —— 不给预期现象，读者看不懂输出`);
+      }
+
+      // 可运行示例：入口文件必须真的在 files 里，否则后端拿不到东西编译
+      for (const d of rp.playground ?? []) {
+        const mainFile = (d.files ?? []).find((x) => x.path === `${d.mainClass}.java`);
+        if (!mainFile) {
+          cbProblems.push(`${at}/${d.id} 找不到入口文件 ${d.mainClass}.java`);
+          continue;
+        }
+        if (!mainFile.code.includes('public static void main')) {
+          cbProblems.push(`${at}/${d.id} 的入口类没有 main 方法`);
+        }
+        if (rp.lab?.kind === 'mock-endpoint' && !mainFile.code.includes('HttpServer')) {
+          cbProblems.push(`${at}/${d.id} 声明了模拟接口测试却没有 HttpServer`);
+        }
+        tDemos += 1;
+        totalDemos += 1;
+      }
+
+      // 四项统计不是手写内容，由本脚本从 files[] 算出后注入 —— 与旧版同一套路
+      rp.fileCount = (rp.files ?? []).length;
+      rp.highlightCount = highlights;
+      rp.ruleCount = new Set(rp.relatedRules ?? []).size;
+      rp.lines = lines;
+
+      tFiles += rp.fileCount;
+      tLines += lines;
+      tHighlights += highlights;
+      tRecipes += 1;
+      totalRecipes += 1;
+      for (const r of rp.relatedRules ?? []) tRules.add(r);
     }
   }
 
-  features.push({
-    ...f,
-    fileCount: f.files.length,
-    highlightCount: highlights.length,
-    ruleCount: new Set(f.relatedRules ?? []).size,
-    lines: f.files.reduce((n, x) => n + x.code.split('\n').length, 0),
-  });
+  t.scenarioCount = (t.scenarios ?? []).length;
+  t.recipeCount = tRecipes;
+  t.fileCount = tFiles;
+  t.highlightCount = tHighlights;
+  t.lines = tLines;
+  t.ruleCount = tRules.size;
+  t.demoCount = tDemos;
+
+  totalFiles += tFiles;
+  totalLines += tLines;
+  totalHighlights += tHighlights;
+
+  topics.push(t);
 }
 
 if (cbProblems.length) fail(cbProblems.join('\n  - '));
@@ -110,18 +176,15 @@ if (cbProblems.length) fail(cbProblems.join('\n  - '));
 fs.mkdirSync(outDir, { recursive: true });
 fs.writeFileSync(
   path.join(outDir, 'cookbook.json'),
-  JSON.stringify({ meta: cbMeta, features }, null, 2),
+  JSON.stringify({ meta: cbMeta, topics }, null, 2),
   'utf8'
 );
 
-const totalFiles = features.reduce((n, f) => n + f.fileCount, 0);
-const totalHighlights = features.reduce((n, f) => n + f.highlightCount, 0);
-const totalLines = features.reduce((n, f) => n + f.lines, 0);
-const totalRefs = features.reduce((n, f) => n + (f.references ?? []).length, 0);
 console.log(
-  `[arsenal] 已同步 ${features.length} 个案例 → src/generated/cookbook.json\n` +
+  `[arsenal] 已同步 ${topics.length} 项技术 / ${totalScenarios} 个场景 / ${totalRecipes} 套方案` +
+  ` → src/generated/cookbook.json\n` +
   `         ${totalFiles} 个文件 / ${totalLines} 行代码 / ${totalHighlights} 条要点备注（锚点全部命中）\n` +
-  `         适用与不适用边界、${totalRefs} 条参考出处均已校验`
+  `         ${totalDemos} 个模拟接口实验（入口文件与 main 方法均已核对）`
 );
 
 // ── ② 技术选型 ──────────────────────────────────────────────

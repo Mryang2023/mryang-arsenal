@@ -1,37 +1,105 @@
 import raw from '@/generated/cookbook.json';
-import type { Cookbook, Feature, FeatureFile, Highlight } from './content-types';
+import type {
+  Cookbook,
+  Feature,
+  FeatureFile,
+  Highlight,
+  Recipe,
+  Scenario,
+  Topic,
+} from './content-types';
 
 /**
- * 最佳实践案例库入口。
+ * 最佳实践案例库入口（三层：技术 → 场景 → 实现方案）。
  *
  * 数据来源：仓库根目录 arsenal-cookbook/**\/*.json。
  * 本文件不做任何内容加工，只提供检索与锚点定位。
  */
 export const cookbook = raw as unknown as Cookbook;
-export const features: Feature[] = cookbook.features;
+export const topics: Topic[] = cookbook.topics;
 export const cookbookMeta = cookbook.meta;
 
-const byId = new Map<string, Feature>();
-for (const f of features) byId.set(f.id, f);
+const topicById = new Map<string, Topic>();
+for (const t of topics) topicById.set(t.id, t);
 
-export function getFeature(id: string): Feature | undefined {
-  return byId.get(id);
+export function getTopic(id: string): Topic | undefined {
+  return topicById.get(id);
+}
+
+export function getScenario(topicId: string, scenarioId: string): Scenario | undefined {
+  return getTopic(topicId)?.scenarios.find((s) => s.id === scenarioId);
+}
+
+export function getRecipe(
+  topicId: string,
+  scenarioId: string,
+  recipeId: string
+): Recipe | undefined {
+  return getScenario(topicId, scenarioId)?.recipes.find((r) => r.id === recipeId);
+}
+
+/**
+ * 摊平的「技术 / 场景 / 方案」三元组。
+ *
+ * 详情页渲染器（BlueprintView）是从旧的一层结构长出来的，它认的是 Feature。
+ * 这里不重写那套渲染器，而是把三层数据合成一份 Feature 视图 —— 字段名一一对应，
+ * 渲染器零改动，三层结构的上下文字段（适用条件、实现方式、参考出处）则由
+ * 对应层级补齐：scenario 取场景的 when、intent 取方案的 approach、references 取技术级出处。
+ */
+export interface RecipeLocation {
+  topic: Topic;
+  scenario: Scenario;
+  recipe: Recipe;
+}
+
+export const recipeLocations: RecipeLocation[] = topics.flatMap((topic) =>
+  topic.scenarios.flatMap((scenario) =>
+    scenario.recipes.map((recipe) => ({ topic, scenario, recipe }))
+  )
+);
+
+export function toFeature({ topic, scenario, recipe }: RecipeLocation): Feature {
+  return {
+    id: `${topic.id}/${scenario.id}/${recipe.id}`,
+    order: recipe.order,
+    name: recipe.name,
+    subtitle: `${topic.name} · ${scenario.name}`,
+    glyph: topic.glyph,
+    level: topic.level,
+    scenario: scenario.when,
+    intent: recipe.approach,
+    tags: [topic.name, scenario.name, topic.runtime],
+    relatedRules: recipe.relatedRules,
+    flow: recipe.flow,
+    packages: recipe.packages,
+    files: recipe.files,
+    checklist: recipe.checklist,
+    pitfalls: recipe.pitfalls,
+    notSuitable: scenario.notSuitable,
+    performance: recipe.performance,
+    references: topic.references,
+    playground: recipe.playground,
+    fileCount: recipe.fileCount,
+    highlightCount: recipe.highlightCount,
+    ruleCount: recipe.ruleCount,
+    lines: recipe.lines,
+  };
 }
 
 /** 全部关联规则 ID（去重），用于展示「这个案例库共覆盖多少条规则」 */
 export const allRelatedRules = (() => {
   const s = new Set<string>();
-  for (const f of features) for (const r of f.relatedRules) s.add(r);
+  for (const { recipe } of recipeLocations) for (const r of recipe.relatedRules) s.add(r);
   return [...s].sort();
 })();
 
-/** 规则 ID → 引用了它的案例清单，用于规则详情页反向链接 */
-export const featuresByRule = (() => {
-  const m = new Map<string, Feature[]>();
-  for (const f of features) {
-    for (const r of f.relatedRules) {
+/** 规则 ID → 引用了它的方案清单，用于规则详情页反向链接 */
+export const recipesByRule = (() => {
+  const m = new Map<string, RecipeLocation[]>();
+  for (const loc of recipeLocations) {
+    for (const r of loc.recipe.relatedRules) {
       const list = m.get(r) ?? [];
-      list.push(f);
+      list.push(loc);
       m.set(r, list);
     }
   }
@@ -39,10 +107,17 @@ export const featuresByRule = (() => {
 })();
 
 export const cookbookStats = {
-  features: features.length,
-  files: features.reduce((n, f) => n + f.fileCount, 0),
-  lines: features.reduce((n, f) => n + f.lines, 0),
-  highlights: features.reduce((n, f) => n + f.highlightCount, 0),
+  /** L1 技术数 */
+  features: topics.length,
+  /** L2 场景数 */
+  scenarios: topics.reduce((n, t) => n + t.scenarioCount, 0),
+  /** L3 方案数 */
+  recipes: topics.reduce((n, t) => n + t.recipeCount, 0),
+  /** 可运行的模拟接口实验数 */
+  demos: topics.reduce((n, t) => n + t.demoCount, 0),
+  files: topics.reduce((n, t) => n + t.fileCount, 0),
+  lines: topics.reduce((n, t) => n + t.lines, 0),
+  highlights: topics.reduce((n, t) => n + t.highlightCount, 0),
   rules: allRelatedRules.length,
 };
 
@@ -84,7 +159,7 @@ export function anchorFile(file: FeatureFile): (Highlight & { anchor: Anchor | n
 }
 
 /** 按代码层聚合，用于详情页的目录与统计 */
-export function layersOf(f: Feature): { layer: string; files: FeatureFile[] }[] {
+export function layersOf(f: { files: FeatureFile[] }): { layer: string; files: FeatureFile[] }[] {
   const order: string[] = [];
   const m = new Map<string, FeatureFile[]>();
   for (const file of f.files) {

@@ -3,6 +3,7 @@
 import { useMemo, useState } from 'react';
 import Link from 'next/link';
 import CodeWithNotes from '@/components/CodeWithNotes';
+import CaseLab from '@/components/CaseLab';
 import { getRule } from '@/lib/rules';
 import { layerTheme } from '@/lib/theme';
 import { SEVERITY_THEME } from '@/lib/theme';
@@ -307,6 +308,25 @@ export default function BlueprintView({ feature }: { feature: Feature }) {
           </div>
         )}
       </section>
+
+      {/* ── 模拟测试（仅带 playground 的案例有） ──────── */}
+      {/* 合并自独立的 /playground 案例实验室：看完整代码之后直接原地改、原地跑。 */}
+      {feature.playground && feature.playground.length > 0 && (
+        <section className="panel p-5">
+          <div className="mb-1 flex flex-wrap items-baseline justify-between gap-2">
+            <div className="flex items-center gap-2">
+              <span className="mono text-[13px]" style={{ color: '#D9A441' }}>
+                ⚗
+              </span>
+              <h2 className="text-[14px] font-semibold text-fg">模拟测试</h2>
+            </div>
+            <span className="text-2xs text-fgFaint">
+              代码可改 · 后端用 JDK 21 子进程编译执行 · 返回 stdout / stderr / 退出码
+            </span>
+          </div>
+          <CaseLab demos={feature.playground} />
+        </section>
+      )}
 
       {/* ── 包结构 ───────────────────────────────────── */}
       <section className="panel p-5">
