@@ -258,7 +258,7 @@ JAVA_HOME="C:/Users/Administrator/.jdks/corretto-17.0.12" SKIP_COMPILE=1 bash ar
 ## 八、开工前基线（编排时实测，收尾要对回去）
 
 ```
-HEAD        = bf341d4（20:15 落袋；**开工前以你实际 `git log -1` 看到的为准**）
+HEAD        = 80fee1b（20:2x 换棒完成后的基线；**开工前以你实际 `git log -1` 看到的为准**）
 git status  = ⚠️ 20:15 实测：白天三份计划 md 与 memory 已由白天会话落袋（edcea6c / 5464275 /
               bf341d4）。**可能仍剩 1~2 条你认不出的改动** —— 本仓今晚有两个会话在写文档，
               这是反复警告过的情形。
