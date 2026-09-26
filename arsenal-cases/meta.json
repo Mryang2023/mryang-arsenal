@@ -12,7 +12,8 @@
     "async-pipeline",
     "wide-table-search",
     "multi-source-ingestion",
-    "virtual-thread"
+    "virtual-thread",
+    "idempotent-write"
   ],
-  "count": 8
+  "count": 9
 }

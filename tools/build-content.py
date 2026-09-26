@@ -46,6 +46,7 @@ CASES_MODULES = (
     'cases/wide_table_search',
     'cases/multi_source_ingestion',
     'cases/virtual_thread',
+    'cases/idempotent_write',
 )
 
 # Archify（通用绘图器）的组件类型枚举。写在这里是因为它是**对方**的词汇表：
