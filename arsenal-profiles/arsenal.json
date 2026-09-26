@@ -446,8 +446,8 @@
       },
       {
         "name": "场景案例",
-        "count": 36,
-        "desc": "驱动参数 / when 命中守恒 / 确定性 / 锚点与规则引用 / 驱动参数不许是摆设（引用存在性 + inert 与 sensitivity 自洽）"
+        "count": 48,
+        "desc": "驱动参数 / when 命中守恒 / 确定性 / 锚点与规则引用 / 驱动参数不许是摆设（引用存在性 + inert 与 sensitivity 自洽）/ **三层路由契约**（L1 / L2 的 client 根存在且带 use client；`generateStaticParams()` 必须由 cases 数组驱动，写死场景 id 会让新场景页静默不生成而本层照旧全绿）/ **参数 URL 化**（1000 组可复现伪随机 encode→decode 恒等、越界与缺位一律回退推荐档且不抛、串形态一位一个驱动）/ **三步珠链不给死链**（第 1/2 步 href 必须落到真实页面；L3 未开通时第 3 步不可点）"
       },
       {
         "name": "引擎样本",

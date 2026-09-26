@@ -1,8 +1,8 @@
 # V-1 截图矩阵 · 人读报告
 
-- 生成时间：2026-09-24T16:24:48.415Z
+- 生成时间：2026-09-26T16:16:57.660Z
 - 站点：`http://127.0.0.1:3021`（静态导出 `out/`，深色单主题）
-- 矩阵：14 个 URL × 3 个视口 = **42 张**
+- 矩阵：17 个 URL × 3 个视口 = **51 张**
 - 截图范围：`viewport`（视口尺寸 —— 整页图在长页上完全不可判读，见脚本里 FULL_PAGE 的注释）
 - 折叠线以下：由 `metrics.scrollHeight` 与越界元素清单量化；像素级逐段判读归 V-6/V-3，**本棒未做**
 
@@ -12,9 +12,9 @@
 
 | 判据 | 期望 | 实测（意外 / 已申报） | 结果 |
 |---|---|---|---|
-| 截图数 | 45 | 42 | ❌ |
+| 截图数 | 51 | 51 | ✅ |
 | 每张字节数 | > 8192 | 最小 52392（export__mobile.png） | ✅ |
-| URL 发现数 | 15 | 14 | ❌ |
+| URL 发现数 | 17 | 17 | ✅ |
 | pageerror | 0 | 0 / 0 | ✅ |
 | console.error | 0 | 3 / 3 | ❌ |
 | requestfailed | 0 | 0 / 3 | ✅ |
@@ -24,8 +24,6 @@
 
 ### 未过的闸门（原文）
 
-- URL 发现不符预期：URL 总数 14 ≠ 预期 15
-- 截图数 42 ≠ 期望 45
 - 未申报的 console.error 共 3 条（期望 0）
 
 ### 已申报基线问题（不计入闸门，但必须被人看见）
@@ -60,6 +58,9 @@
 | 12 | `/rules/REL-LOG-002/` | 规则详情（池 69，取第 35） | `out/rules/REL-LOG-002/index.html` |
 | 13 | `/rules/WEB-DTO-001/` | 规则详情（池 69，取第 69） | `out/rules/WEB-DTO-001/index.html` |
 | 14 | `/blueprints/virtual-thread/` | 蓝图详情（池 1，取第 1） | `out/blueprints/virtual-thread/index.html` |
+| 15 | `/cases/async-pipeline/` | 场景操作台（池 9，取第 1） | `out/cases/async-pipeline/index.html` |
+| 16 | `/cases/huge-rowcount-rdb/` | 场景操作台（池 9，取第 5） | `out/cases/huge-rowcount-rdb/index.html` |
+| 17 | `/cases/wide-table-search/` | 场景操作台（池 9，取第 9） | `out/cases/wide-table-search/index.html` |
 
 ## 截图明细
 
@@ -77,9 +78,9 @@
 | `blueprints__desktop.png` | `/blueprints/` | desktop | 105.0 KB | 1440×900 | 1440/1440 | 0px | 900 | 0 | 0 | 0 | 0 | 0 |
 | `blueprints__tablet.png` | `/blueprints/` | tablet | 101.1 KB | 1024×768 | 1024/1024 | 0px | 803 | 0 | 0 | 0 | 0 | 0 |
 | `blueprints__mobile.png` | `/blueprints/` | mobile | 66.5 KB | 390×844 | 390/390 | 0px | 1073 | 0 | 0 | 0 | 0 | 0 |
-| `cases__desktop.png` | `/cases/` | desktop | 255.2 KB | 1440×900 | 1440/1440 | 0px | 19411 | 0 | 0 | 0 | 0 | 0 |
-| `cases__tablet.png` | `/cases/` | tablet | 184.0 KB | 1024×768 | 1024/1024 | 0px | 29884 | 0 | 0 | 0 | 0 | 0 |
-| `cases__mobile.png` | `/cases/` | mobile | 112.2 KB | 390×844 | 390/390 | 0px | 26827 | 0 | 0 | 0 | 0 | 0 |
+| `cases__desktop.png` | `/cases/` | desktop | 242.4 KB | 1440×900 | 1440/1440 | 0px | 1666 | 0 | 0 | 0 | 0 | 0 |
+| `cases__tablet.png` | `/cases/` | tablet | 180.5 KB | 1024×768 | 1024/1024 | 0px | 2294 | 0 | 0 | 0 | 0 | 0 |
+| `cases__mobile.png` | `/cases/` | mobile | 115.0 KB | 390×844 | 390/390 | 0px | 4139 | 0 | 0 | 0 | 0 | 0 |
 | `check__desktop.png` | `/check/` | desktop | 118.0 KB | 1440×900 | 1440/1440 | 0px | 2642 | 0 | 0 | 0 | 0 | 0 |
 | `check__tablet.png` | `/check/` | tablet | 98.3 KB | 1024×768 | 1024/1024 | 0px | 2690 | 0 | 0 | 0 | 0 | 0 |
 | `check__mobile.png` | `/check/` | mobile | 61.8 KB | 390×844 | 390/390 | 0px | 3910 | 0 | 0 | 0 | 0 | 0 |
@@ -107,10 +108,19 @@
 | `blueprints-virtual-thread__desktop.png` | `/blueprints/virtual-thread/` | desktop | 130.1 KB | 1440×900 | 1440/1440 | 0px | 1598 | 0 | 0 | 0 | 0 | 0 |
 | `blueprints-virtual-thread__tablet.png` | `/blueprints/virtual-thread/` | tablet | 101.7 KB | 1024×768 | 1024/1024 | 0px | 1674 | 0 | 0 | 0 | 0 | 0 |
 | `blueprints-virtual-thread__mobile.png` | `/blueprints/virtual-thread/` | mobile | 59.7 KB | 390×844 | 390/390 | 0px | 2465 | 0 | 0 | 0 | 0 | 0 |
+| `cases-async-pipeline__desktop.png` | `/cases/async-pipeline/` | desktop | 223.7 KB | 1440×900 | 1440/1440 | 0px | 15066 | 0 | 0 | 0 | 0 | 0 |
+| `cases-async-pipeline__tablet.png` | `/cases/async-pipeline/` | tablet | 134.6 KB | 1024×768 | 1024/1024 | 0px | 17049 | 0 | 0 | 0 | 0 | 0 |
+| `cases-async-pipeline__mobile.png` | `/cases/async-pipeline/` | mobile | 63.8 KB | 390×844 | 390/390 | 0px | 19906 | 0 | 0 | 0 | 0 | 0 |
+| `cases-huge-rowcount-rdb__desktop.png` | `/cases/huge-rowcount-rdb/` | desktop | 201.8 KB | 1440×900 | 1440/1440 | 0px | 17737 | 0 | 0 | 0 | 0 | 0 |
+| `cases-huge-rowcount-rdb__tablet.png` | `/cases/huge-rowcount-rdb/` | tablet | 128.2 KB | 1024×768 | 1024/1024 | 0px | 20371 | 0 | 0 | 0 | 0 | 0 |
+| `cases-huge-rowcount-rdb__mobile.png` | `/cases/huge-rowcount-rdb/` | mobile | 54.2 KB | 390×844 | 390/390 | 0px | 23510 | 0 | 0 | 0 | 0 | 0 |
+| `cases-wide-table-search__desktop.png` | `/cases/wide-table-search/` | desktop | 213.9 KB | 1440×900 | 1440/1440 | 0px | 15426 | 0 | 0 | 0 | 0 | 0 |
+| `cases-wide-table-search__tablet.png` | `/cases/wide-table-search/` | tablet | 132.6 KB | 1024×768 | 1024/1024 | 0px | 17339 | 0 | 0 | 0 | 0 | 0 |
+| `cases-wide-table-search__mobile.png` | `/cases/wide-table-search/` | mobile | 62.5 KB | 390×844 | 390/390 | 0px | 19896 | 0 | 0 | 0 | 0 | 0 |
 
 ## 横向溢出的元凶（0 张有溢出）
 
-（无 —— 全部 45 张 scrollWidth === clientWidth）
+（无 —— 全部 51 张 scrollWidth === clientWidth）
 
 ## pageerror 全文（0 条）
 
@@ -152,7 +162,7 @@
 
 - 监听器（`pageerror` / `console` / `requestfailed` / `response`）**在 `page.goto` 之前注册**，按 URL×视口分别累积，不共用数组。
 - 每张图附带：截图字节数、`documentElement.scrollWidth/clientWidth`、`scrollHeight`、`img` 失败清单、`h1` 数量、**越界元素清单（最深 5 个）**。
-- 退出码 1 的条件：截图数 ≠ 45、任一张 ≤ 8KB、**未申报的** pageerror/console.error/requestfailed/HTTP≥400 任一非 0、URL 发现数 ≠ 15。
+- 退出码 1 的条件：截图数 ≠ 51、任一张 ≤ 8KB、**未申报的** pageerror/console.error/requestfailed/HTTP≥400 任一非 0、URL 发现数 ≠ 17。
 
 ## 相关文件
 
