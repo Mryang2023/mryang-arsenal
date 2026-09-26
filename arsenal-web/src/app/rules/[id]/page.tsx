@@ -5,6 +5,7 @@ import CodeBlock from '@/components/CodeBlock';
 import CopyButton from '@/components/CopyButton';
 import SeverityBadge from '@/components/SeverityBadge';
 import { getRule, rules, rulesOfCategory, sourceTypeLabel } from '@/lib/rules';
+import { recipesByRule } from '@/lib/cookbook';
 import { CATEGORY_THEME, SEVERITY_THEME, CHECK_LAYER_THEME } from '@/lib/theme';
 
 export function generateStaticParams() {
@@ -42,6 +43,10 @@ export default function RuleDetailPage({ params }: { params: { id: string } }) {
   const idx = siblings.findIndex((r) => r.id === rule.id);
   const prev = idx > 0 ? siblings[idx - 1] : null;
   const next = idx >= 0 && idx < siblings.length - 1 ? siblings[idx + 1] : null;
+
+  // 反向索引：`recipesByRule` 在 cookbook.ts 里早已按规则 ID 建好，此前零引用。
+  // 没有关联方案时**整块不渲染** —— 空壳区块会让「8/69 条规则有案例」这个真相看起来像 bug。
+  const relatedRecipes = recipesByRule.get(rule.id) ?? [];
 
   const check = rule.check ?? {};
 
@@ -221,6 +226,41 @@ export default function RuleDetailPage({ params }: { params: { id: string } }) {
               </CheckRow>
             </div>
           </section>
+
+          {/* 相关最佳实践 —— 这条规则在哪些真实案例里落地了 */}
+          {relatedRecipes.length > 0 && (
+            <section data-related-recipes={relatedRecipes.length}>
+              <h2 className="mb-2.5 text-[13px] font-semibold uppercase tracking-wider text-fgMuted">
+                哪些案例在用这条规则
+              </h2>
+              <div className="space-y-2">
+                {relatedRecipes.map(({ topic, scenario, recipe }) => (
+                  <Link
+                    key={`${topic.id}/${scenario.id}/${recipe.id}`}
+                    href={`/blueprints/${topic.id}/${scenario.id}`}
+                    className="panel panel-hover block px-4 py-3"
+                  >
+                    <div className="flex flex-wrap items-baseline gap-2">
+                      <span className="text-[13px] text-fg">{recipe.name}</span>
+                      <span className="mono text-2xs text-fgFaint">
+                        {topic.glyph} {topic.name} / {scenario.name}
+                      </span>
+                    </div>
+                    <p className="mt-1.5 text-xs leading-relaxed text-fgMuted">{scenario.when}</p>
+                    <p
+                      className="mt-1.5 border-l-2 pl-3 text-xs leading-relaxed text-fgMuted"
+                      style={{ borderColor: 'rgba(217,164,65,0.4)' }}
+                    >
+                      {recipe.approach}
+                    </p>
+                    <div className="mono mt-2 text-2xs text-fgFaint">
+                      /blueprints/{topic.id}/{scenario.id} →
+                    </div>
+                  </Link>
+                ))}
+              </div>
+            </section>
+          )}
 
           {/* 来源 */}
           <section>

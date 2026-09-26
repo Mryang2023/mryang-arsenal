@@ -23,7 +23,7 @@ import { buildArchDiagram, archDiagramD2, archDiagramMermaid } from '@/lib/arch-
 import type { StackPicks } from '@/lib/content-types';
 import { buildZip } from '@/lib/zip';
 import { liveStats, orderedCategories, rules } from '@/lib/rules';
-import { cookbookStats, recipeLocations } from '@/lib/cookbook';
+import { allRelatedRules, cookbookStats, recipeLocations, recipesByRule } from '@/lib/cookbook';
 import { lintFeatureFiles } from '@/lib/cookbook-lint';
 import {
   APP_ENDPOINTS,
@@ -1666,7 +1666,18 @@ console.log('\n【17】装配台视觉契约（/stack P1 第一组）');
       benchRule.includes('var(--stack-bench-grid)'),
     `规则体：${benchRule.slice(0, 90)}`
   );
-  check('S1-1 装配区容器套上台面（className 带 stack-bench）', composerSrc.includes('stack-bench'));
+  // 词边界判据：子串包含会让 `stack-benchBROKEN` / `stack-bench-grid` 这类变形也蒙混过关
+  // （2026-09-25 第 1 棒 R-2 实测：改成 stack-benchBROKEN 时 747 项全绿）。
+  // 所以这里先把 className 里的类名全部切成 token，再要求存在**恰好等于** stack-bench 的那一个。
+  const classTokens = [
+    ...composerSrc.matchAll(/className=(?:"([^"]*)"|'([^']*)'|`([^`]*)`)/g),
+  ].flatMap((m) => (m[1] ?? m[2] ?? m[3] ?? '').trim().split(/\s+/));
+  const benchTokens = classTokens.filter((c) => c === 'stack-bench');
+  check(
+    `S1-1 装配区容器套上台面（stack-bench 是完整类名，实测 ${benchTokens.length} 处）`,
+    benchTokens.length > 0,
+    'StackComposer 的 className 里没有独立的 stack-bench 类名（只比子串会让拼错的变形也判过）'
+  );
   check(
     'S1-1 泳道表头是左侧固定标签列（writing-mode vertical-rl）',
     /writingMode:\s*'vertical-rl'/.test(composerSrc)
@@ -2315,6 +2326,124 @@ console.log('\n【19】案例代码自证（recipes[].files 过自己的引擎�
       buildSrc.includes('只放 good 版') &&
       memSrc.includes('只放 good 版'),
     '生成方或长期记忆里没写这条约定 —— 半年后坏示例混进 files 就没人拦得住'
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════
+// 【20】规则 ↔ 案例双向互链 —— 「建好却没接线」是最贵的那类资产闲置
+//
+// 体检 B-3 的原文是：`recipesByRule` 在 cookbook.ts 里已经按规则 ID 建好反向索引，
+// 但 `rules/[id]` 页面**零引用** —— 用户从规则页看不到那条规则在哪个真实案例里落地了。
+// 索引存在不等于接上了，所以下面四条分别守：
+//   · 页面真的 import 了它并且真的渲染了（不是另一个半成品）
+//   · 没有关联案例时不渲染空壳（空壳会让「8/69 条规则有案例」看起来像 bug）
+//   · 链路双向可达，且不产生死 id / 死路由
+//   · 覆盖口径与实际数据自洽（不许索引漏项、也不许把总数写死）
+// ═══════════════════════════════════════════════════════════════
+console.log('\n【20】规则 ↔ 案例双向互链（C-3）');
+{
+  const webRoot = path.resolve(here, '..');
+  const ruleDetailSrc = fs.readFileSync(
+    path.join(webRoot, 'src', 'app', 'rules', '[id]', 'page.tsx'),
+    'utf8'
+  );
+  const viewSrc = fs.readFileSync(
+    path.join(webRoot, 'src', 'components', 'BlueprintView.tsx'),
+    'utf8'
+  );
+  const strip = (s: string) => s.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '');
+  const ruleDetailCode = strip(ruleDetailSrc);
+
+  // ① 反向索引真的接上了（源码契约 + 页面锚点）
+  check(
+    '规则详情页真的接了 recipesByRule 反向索引（不是另一个半成品）',
+    /import \{ recipesByRule \} from '@\/lib\/cookbook';/.test(ruleDetailSrc) &&
+      /recipesByRule\.get\(rule\.id\)/.test(ruleDetailCode) &&
+      /哪些案例在用这条规则/.test(ruleDetailSrc) &&
+      /data-related-recipes=\{relatedRecipes\.length\}/.test(ruleDetailCode),
+    'rules/[id]/page.tsx 没有消费 recipesByRule —— 索引会一直是死的'
+  );
+
+  // ② 没有关联案例时不许渲染空壳
+  check(
+    '无关联案例时不渲染空壳区块（空壳会把「只有 N 条规则有案例」伪装成 bug）',
+    /\{relatedRecipes\.length > 0 && \(/.test(ruleDetailCode),
+    '区块是无条件渲染的 —— 没有关联案例的规则页会露出一个空标题'
+  );
+
+  // ③ 链路双向可达且不产生死链接
+  const ruleIds = new Set(rules.map((r) => r.id));
+  const badRuleId = recipeLocations.flatMap((loc) =>
+    loc.recipe.relatedRules.filter((rid) => !ruleIds.has(rid)).map((rid) => `${loc.recipe.id}:${rid}`)
+  );
+  const routeKeys = new Set(
+    recipeLocations.map(({ topic, scenario }) => `${topic.id}/${scenario.id}`)
+  );
+  const deadHref = [...recipesByRule.entries()].flatMap(([rid, locs]) =>
+    locs
+      .map(({ topic, scenario }) => `${topic.id}/${scenario.id}`)
+      .filter((k) => !routeKeys.has(k))
+      .map((k) => `${rid}→${k}`)
+  );
+  check(
+    `互链双向可达且无死链接（${recipesByRule.size} 条规则有案例 / ${routeKeys.size} 个可达场景路由）`,
+    badRuleId.length === 0 &&
+      deadHref.length === 0 &&
+      // 反向：案例页的规则 chip 必须指回真实规则路由
+      /href=\{`\/rules\/\$\{rid\}`\}/.test(viewSrc) &&
+      /getRule\(rid\)/.test(viewSrc),
+    `规则侧死 id：${badRuleId.join('、') || '（无）'}；案例侧死路由：${deadHref.join('、') || '（无）'}`
+  );
+
+  // ④ 覆盖口径自洽：索引不漏项（含重复计数），且确实非空
+  const mentions = recipeLocations.reduce((n, loc) => n + loc.recipe.relatedRules.length, 0);
+  const indexed = [...recipesByRule.values()].reduce((n, v) => n + v.length, 0);
+  check(
+    `覆盖口径自洽：recipesByRule 覆盖 ${recipesByRule.size} 条规则 / ${indexed} 次引用，与事实源侧 ${mentions} 次逐条对齐`,
+    recipesByRule.size > 0 &&
+      indexed === mentions &&
+      recipesByRule.size === allRelatedRules.length &&
+      allRelatedRules.every((rid) => ruleIds.has(rid)),
+    `索引 ${indexed} vs 事实源 ${mentions}；去重后 ${recipesByRule.size} vs allRelatedRules ${allRelatedRules.length}`
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════
+// 【21】README 里的「项数口径」—— 散文里顺手写下的数字也得有人守
+//
+// `verify:meta` 守住了四处派生数字：档案 verifyChain / README 总数句 / README 分项表 / 本身。
+// 但 README **正文散文中**顺手写下的项数没人管 —— 2026-09-26 终检实测：
+// 「所以 1024 的口径不受影响」这句话从 09-25 一路错到 09-26，期间九层一直全绿。
+// 一套十层全绿，却挡不住正文里一句话过期。这次把这类写法一次性钉住。
+// ═══════════════════════════════════════════════════════════════
+console.log('\n【21】README 正文里的项数口径');
+{
+  const repoRoot = path.resolve(here, '..', '..');
+  const readmeSrc = fs.readFileSync(path.join(repoRoot, 'README.md'), 'utf8');
+  const lines = readmeSrc.split('\n');
+
+  // 抓三位数以上、紧跟「项」或「口径」的写法；刻意不抓两位数（「刻意未跑 2 项」不是这个口径），
+  // 也不抓代码块（README 里贴过一段历史运行快照，块首已写明「数字随环境变，不是规格」）。
+  // ⚠️ 排除「选项」——「33 维度 / 127 选项」里的 127 是选型台选项数，不是验证项数（误伤实测）。
+  const hits: { line: number; n: string; text: string }[] = [];
+  let inFence = false;
+  lines.forEach((text, i) => {
+    if (/^\s*```/.test(text)) {
+      inFence = !inFence;
+      return;
+    }
+    if (inFence) return;
+    for (const m of text.matchAll(/(?<![\d])(\d{3,4})\s*项(?!选)/g))
+      hits.push({ line: i + 1, n: m[1], text: text.trim().slice(0, 60) });
+    for (const m of text.matchAll(/(?<![\d])(\d{3,4})\s*的口径/g))
+      hits.push({ line: i + 1, n: m[1], text: text.trim().slice(0, 60) });
+  });
+  // 「刻意未跑 2 项」所在的行不算（它是另一种口径，且字数不到三位已经天然排除了）
+  const strays = hits.filter((h) => h.n !== String(VERIFY_TOTAL));
+  check(
+    `README 正文里的项数口径全部等于实测总数 ${VERIFY_TOTAL}（扫到 ${hits.length} 处）`,
+    hits.length > 0 && strays.length === 0,
+    strays.map((h) => `第 ${h.line} 行写着 ${h.n}：${h.text}`).join('；') || '（无）'
   );
 }
 
