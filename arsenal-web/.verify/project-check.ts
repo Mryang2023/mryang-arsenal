@@ -1081,7 +1081,15 @@ console.log('\n【13】导航与页签契约');
     shell.includes('isNavActive('),
     'Shell 自己写了一份判定 → 下面那条表驱动测的就不是页面真正用的那个函数了'
   );
-  const navRoutes = [...navHrefs, '/rules/WEB-DTO-001', '/cases/any-page', '/arch/any-view'];
+  // 场景库三层路由（2026-09-26 第 2 棒）：`[caseId]` 是二层子路径，
+  // 高亮判定是路径边界匹配，`/cases/<真实场景 id>` 必须仍然只点亮「场景库」这一项。
+  const navRoutes = [
+    ...navHrefs,
+    '/rules/WEB-DTO-001',
+    '/cases/any-page',
+    '/cases/hotspot-cache',
+    '/arch/any-view',
+  ];
   const highlight = navRoutes.map((r) => ({
     route: r,
     hits: navHrefs.filter((h) => isNavActive(r, h)),

@@ -10,7 +10,7 @@
  * 因为 `channel: 'msedge'` 在这台机器上找不到它 —— Edge 装在版本子目录里）。
  *
  * 用法：
- *   node visual/shoot.mjs              # 跑全部 14 URL × 3 视口 = 42 张（cookbook 收敛后只剩 1 个蓝图）
+ *   node visual/shoot.mjs              # 跑全部 17 URL × 3 视口 = 51 张（cookbook 收敛只剩 1 个蓝图，cases 三层 +3 页）
  *   VISUAL_BASE_URL=http://127.0.0.1:3021/ node visual/shoot.mjs
  *
  * 退出码：
@@ -48,8 +48,13 @@ const EXPECTED = {
   // cookbook 收敛后只剩 virtual-thread 一个蓝图（2026-09-24），
   // 首/末抽同一实例 → 去重后只拍 1 个。曾预期 2，收敛时漏同步导致 42/45 的假红。
   blueprintPicks: 1,
-  urls: 14,
-  shots: 42,
+  // 场景案例库三层路由（2026-09-26 第 2 棒）：L2 场景页已静态导出（9 个），
+  // 按 rules 的先例抽首/中/末 3 个；L3 切片页（61 个）次夜才做，
+  // 那时池子非空后这里的 slicePicks 必须改成 2（首/末），脚本会当场报警。
+  casePicks: 3,
+  slicePicks: 0,
+  urls: 17,
+  shots: 51,
   minBytes: 8 * 1024,
 };
 
@@ -143,6 +148,10 @@ export function discoverUrls({ outDir = OUT_DIR, expect = EXPECTED } = {}) {
   const fixed = [];
   const rules = [];
   const blueprints = [];
+  // 场景案例库三层：segs.length===2 是场景页（/cases/<caseId>），
+  // ===3 是切片施工图页（/cases/<caseId>/<sliceId>，次夜才生成）。
+  const casePages = [];
+  const caseSlicePages = [];
 
   for (const abs of htmls) {
     const segs = routeSegments(abs);
@@ -153,6 +162,10 @@ export function discoverUrls({ outDir = OUT_DIR, expect = EXPECTED } = {}) {
       rules.push({ id: segs[1], abs, segs });
     } else if (top === 'blueprints' && segs.length === 2) {
       blueprints.push({ id: segs[1], abs, segs });
+    } else if (top === 'cases' && segs.length === 2) {
+      casePages.push({ id: segs[1], abs, segs });
+    } else if (top === 'cases' && segs.length === 3) {
+      caseSlicePages.push({ id: segs[2], abs, segs });
     } else if (segs.length <= 1) {
       fixed.push({ abs, segs });
     } else {
@@ -163,19 +176,35 @@ export function discoverUrls({ outDir = OUT_DIR, expect = EXPECTED } = {}) {
   fixed.sort((a, b) => segmentsToRoute(a.segs).localeCompare(segmentsToRoute(b.segs)));
   rules.sort((a, b) => a.id.localeCompare(b.id));
   blueprints.sort((a, b) => a.id.localeCompare(b.id));
+  casePages.sort((a, b) => a.id.localeCompare(b.id));
+  caseSlicePages.sort((a, b) => a.id.localeCompare(b.id));
 
-  // 动态路由各抽实例：rules 取首/中/末，blueprints 取首/末
+  // 动态路由各抽实例：rules 取首/中/末，blueprints 取首/末，
+  // cases 取首/中/末，cases 的切片层取首/末（L3 静态页上线后这个池子才非空）
+  //
+  // ⚠️ 下标必须先去重再抽：池子里只有 1 个实例时（blueprints 收敛后就是 1 个），
+  // `[0, len-1]` 是 `[0, 0]` —— 同一个实例被抽两次，`picks` 计数会比预期多 1，
+  // 而 URL 侧靠 `seen` 去重看不出来。**这一条在 2026-09-26 之前就是红的**
+  // （本棒之前没人单独跑过 shoot.mjs：verify 链只跑 assert.mjs，它不读 mismatches）。
   const picked = [];
-  const midIdx = Math.floor(rules.length / 2);
-  for (const idx of [0, midIdx, rules.length - 1]) {
-    if (idx >= 0 && idx < rules.length) picked.push({ arr: 'rules', item: rules[idx], idx });
-  }
-  for (const idx of [0, blueprints.length - 1]) {
-    if (idx >= 0 && idx < blueprints.length) picked.push({ arr: 'blueprints', item: blueprints[idx], idx });
-  }
+  const pickFrom = (arr, pool, idxs) => {
+    for (const idx of [...new Set(idxs)]) {
+      if (idx >= 0 && idx < pool.length) picked.push({ arr, item: pool[idx], idx });
+    }
+  };
+  pickFrom('rules', rules, [0, Math.floor(rules.length / 2), rules.length - 1]);
+  pickFrom('blueprints', blueprints, [0, blueprints.length - 1]);
+  pickFrom('cases', casePages, [0, Math.floor(casePages.length / 2), casePages.length - 1]);
+  pickFrom('caseSlices', caseSlicePages, [0, caseSlicePages.length - 1]);
 
   const seen = new Set();
   const urls = [];
+  const KIND_OF = {
+    rules: 'rule-detail',
+    blueprints: 'blueprint-detail',
+    cases: 'case-bench',
+    caseSlices: 'case-slice',
+  };
   for (const f of fixed) {
     const route = segmentsToRoute(f.segs);
     if (seen.has(route)) continue;
@@ -188,33 +217,61 @@ export function discoverUrls({ outDir = OUT_DIR, expect = EXPECTED } = {}) {
     seen.add(route);
     urls.push({
       route,
-      kind: p.arr === 'rules' ? 'rule-detail' : 'blueprint-detail',
+      kind: KIND_OF[p.arr],
       slug: routeToSlug(route),
       dynamicId: p.item.id,
       pickIndex: p.idx,
-      poolSize: p.arr === 'rules' ? rules.length : blueprints.length,
+      poolSize:
+        p.arr === 'rules' ? rules.length
+          : p.arr === 'blueprints' ? blueprints.length
+            : p.arr === 'cases' ? casePages.length
+              : caseSlicePages.length,
       source: relative(WEB_ROOT, p.item.abs).replace(/\\/g, '/'),
     });
   }
 
-  const counts = { fixed: fixed.length, rules: rules.length, blueprints: blueprints.length, urls: urls.length };
+  const counts = {
+    fixed: fixed.length,
+    rules: rules.length,
+    blueprints: blueprints.length,
+    cases: casePages.length,
+    caseSlices: caseSlicePages.length,
+    urls: urls.length,
+  };
 
   // 预期值闸门：发现数不符即失败（不许静默继续）
   const mismatches = [];
+  const picksOf = (arr) => picked.filter((p) => p.arr === arr).length;
   if (counts.fixed !== expect.fixedPages) {
     mismatches.push(`固定页 ${counts.fixed} ≠ 预期 ${expect.fixedPages}`);
   }
   if (counts.urls !== expect.urls) {
     mismatches.push(`URL 总数 ${counts.urls} ≠ 预期 ${expect.urls}`);
   }
-  if (picked.filter((p) => p.arr === 'rules').length !== expect.rulePicks) {
-    mismatches.push(`rules 抽到 ${picked.filter((p) => p.arr === 'rules').length} 个 ≠ 预期 ${expect.rulePicks}`);
+  if (picksOf('rules') !== expect.rulePicks) {
+    mismatches.push(`rules 抽到 ${picksOf('rules')} 个 ≠ 预期 ${expect.rulePicks}`);
   }
-  if (picked.filter((p) => p.arr === 'blueprints').length !== expect.blueprintPicks) {
-    mismatches.push(`blueprints 抽到 ${picked.filter((p) => p.arr === 'blueprints').length} 个 ≠ 预期 ${expect.blueprintPicks}`);
+  if (picksOf('blueprints') !== expect.blueprintPicks) {
+    mismatches.push(`blueprints 抽到 ${picksOf('blueprints')} 个 ≠ 预期 ${expect.blueprintPicks}`);
+  }
+  if (picksOf('cases') !== expect.casePicks) {
+    mismatches.push(`cases 抽到 ${picksOf('cases')} 个 ≠ 预期 ${expect.casePicks}`);
+  }
+  if (picksOf('caseSlices') !== expect.slicePicks) {
+    mismatches.push(`cases 切片层抽到 ${picksOf('caseSlices')} 个 ≠ 预期 ${expect.slicePicks}（L3 静态页上线后要改成 2）`);
   }
 
-  return { urls, counts, mismatches, pools: { rules: rules.length, blueprints: blueprints.length } };
+  return {
+    urls,
+    counts,
+    mismatches,
+    pools: {
+      rules: rules.length,
+      blueprints: blueprints.length,
+      cases: casePages.length,
+      caseSlices: caseSlicePages.length,
+    },
+  };
 }
 
 // ---------- 单页采集 ----------
@@ -437,8 +494,15 @@ function buildReport(manifest) {
   L.push('');
   L.push('| # | 路由 | 类型 | 来源文件 |');
   L.push('|---|---|---|---|');
+  const KIND_LABEL = {
+    fixed: (u) => '固定页',
+    'rule-detail': (u) => `规则详情（池 ${u.poolSize}，取第 ${u.pickIndex + 1}）`,
+    'blueprint-detail': (u) => `蓝图详情（池 ${u.poolSize}，取第 ${u.pickIndex + 1}）`,
+    'case-bench': (u) => `场景操作台（池 ${u.poolSize}，取第 ${u.pickIndex + 1}）`,
+    'case-slice': (u) => `切片施工图（池 ${u.poolSize}，取第 ${u.pickIndex + 1}）`,
+  };
   manifest.urls.forEach((u, i) => {
-    const kind = u.kind === 'fixed' ? '固定页' : u.kind === 'rule-detail' ? `规则详情（池 ${u.poolSize}，取第 ${u.pickIndex + 1}）` : `蓝图详情（池 ${u.poolSize}，取第 ${u.pickIndex + 1}）`;
+    const kind = (KIND_LABEL[u.kind] ?? ((x) => x.kind))(u);
     L.push(`| ${i + 1} | \`${u.route}\` | ${kind} | \`${u.source}\` |`);
   });
   L.push('');
@@ -461,7 +525,7 @@ function buildReport(manifest) {
   L.push(`## 横向溢出的元凶（${overflowShots.length} 张有溢出）`);
   L.push('');
   if (overflowShots.length === 0) {
-    L.push('（无 —— 全部 42 张 scrollWidth === clientWidth）');
+    L.push(`（无 —— 全部 ${manifest.shots.length} 张 scrollWidth === clientWidth）`);
   } else {
     L.push('「最深」的那个元素才是元凶（父容器会连带越界）。');
     L.push('');
@@ -514,7 +578,7 @@ function buildReport(manifest) {
   L.push('');
   L.push('- 监听器（`pageerror` / `console` / `requestfailed` / `response`）**在 `page.goto` 之前注册**，按 URL×视口分别累积，不共用数组。');
   L.push('- 每张图附带：截图字节数、`documentElement.scrollWidth/clientWidth`、`scrollHeight`、`img` 失败清单、`h1` 数量、**越界元素清单（最深 5 个）**。');
-  L.push('- 退出码 1 的条件：截图数 ≠ 42、任一张 ≤ 8KB、**未申报的** pageerror/console.error/requestfailed/HTTP≥400 任一非 0、URL 发现数 ≠ 14。');
+  L.push(`- 退出码 1 的条件：截图数 ≠ ${EXPECTED.shots}、任一张 ≤ 8KB、**未申报的** pageerror/console.error/requestfailed/HTTP≥400 任一非 0、URL 发现数 ≠ ${EXPECTED.urls}。`);
   L.push('');
   L.push('## 相关文件');
   L.push('');
@@ -663,10 +727,14 @@ async function main() {
     fullPage: FULL_PAGE,
     captureMode: FULL_PAGE ? 'fullPage' : 'viewport',
     discovery: {
-      indexHtmlTotal: discovery.counts.fixed + discovery.counts.rules + discovery.counts.blueprints,
+      indexHtmlTotal:
+        discovery.counts.fixed + discovery.counts.rules + discovery.counts.blueprints
+          + discovery.counts.cases + discovery.counts.caseSlices,
       fixedPages: discovery.counts.fixed,
       rulePagesInPool: discovery.counts.rules,
       blueprintPagesInPool: discovery.counts.blueprints,
+      casePagesInPool: discovery.counts.cases,
+      caseSlicePagesInPool: discovery.counts.caseSlices,
       excludedTopDirs: Array.from(EXCLUDED_TOP_DIRS),
     },
     viewports: VIEWPORTS,

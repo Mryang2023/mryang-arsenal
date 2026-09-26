@@ -28,6 +28,8 @@ import {
 } from '@/lib/case-synth';
 import type { CaseDef, CaseParams } from '@/lib/case-types';
 import { buildZip, crc32 } from '@/lib/zip-lite';
+import { decodeParams, encodeParams, isFullyValid } from '@/app/cases/_lib/params-codec';
+import { L2_ROUTE_DIR, L3_ROUTE_DIR, L3_ROUTE_READY, STEPS, stepHref } from '@/app/cases/_lib/steps';
 // 统一记账：pass / fail / **skip（独立状态，绝不计入 pass）**，退出码 0 / 2 / 1。
 import { check, finish } from './lib/report';
 
@@ -364,11 +366,18 @@ console.log('\n【10】合成引擎不硬编码架构节点，且 prompt / 文�
     bad.length === 0, bad.join('\n      '));
 }
 
-console.log('\n【11】页面契约：/cases 路由、NAV 入口，以及【13】口径的导航双向一致性');
+console.log('\n【11】页面契约：三层路由（L1/L2）、NAV 入口，以及【13】口径的导航双向一致性');
 {
-  const pageTsx = path.join(webRoot, 'src', 'app', 'cases', 'page.tsx');
-  const labTsx = path.join(webRoot, 'src', 'app', 'cases', 'CaseLab.tsx');
+  const casesDir = path.join(webRoot, 'src', 'app', 'cases');
+  const pageTsx = path.join(casesDir, 'page.tsx');
+  const l1Tsx = path.join(casesDir, 'L1CaseIndex.tsx');
+  const l2Dir = path.join(casesDir, '[caseId]');
+  const l2Page = path.join(l2Dir, 'page.tsx');
+  const l2Tsx = path.join(l2Dir, 'CaseBench.tsx');
   const shell = fs.readFileSync(path.join(webRoot, 'src', 'components', 'Shell.tsx'), 'utf8');
+
+  const read = (p: string) => (fs.existsSync(p) ? fs.readFileSync(p, 'utf8') : '');
+  const isClientRoot = (p: string) => fs.existsSync(p) && read(p).includes("'use client'");
 
   check('/cases 路由存在（方案断言 10 第 1 条）', fs.existsSync(pageTsx));
   check('/cases 已挂进 NAV（方案断言 10 第 2 条）', /href: '\/cases'/.test(shell));
@@ -392,10 +401,26 @@ console.log('\n【11】页面契约：/cases 路由、NAV 入口，以及【13�
   check('【13】② 口径：没有孤儿页面（页面存在但导航里没有入口）', orphans.length === 0,
     `孤儿：${orphans.join('、')}`);
 
-  check('CaseLab 是客户端组件',
-    fs.existsSync(labTsx) && fs.readFileSync(labTsx, 'utf8').includes("'use client'"));
-  check('page.tsx 渲染了 CaseLab',
-    fs.existsSync(pageTsx) && fs.readFileSync(pageTsx, 'utf8').includes('<CaseLab'));
+  // ── 三层路由契约（2026-09-26 第 2 棒：909 行的 CaseLab.tsx 拆成 L1 + L2）──
+  //
+  // ⚠️ 原来这里断言的是「page.tsx 渲染了 CaseLab」。CaseLab 拆掉后那两条必然红 ——
+  // 这是预期内的，判据改成「三层各自的 client 根存在且带 'use client'」。
+  // 只对**组件存在性**断言，不对 JSX 细节断言：写法会变，路由契约不会。
+  check('L1 客户端根存在且已声明 use client（cases/L1CaseIndex.tsx）', isClientRoot(l1Tsx));
+  check('/cases 页面渲染 L1CaseIndex', read(pageTsx).includes('<L1CaseIndex'));
+
+  check('L2 动态路由目录存在（cases/[caseId]/page.tsx）', fs.existsSync(l2Page));
+  check('L2 客户端根存在且已声明 use client（cases/[caseId]/CaseBench.tsx）', isClientRoot(l2Tsx));
+
+  // generateStaticParams 必须**由 cases 数组驱动**：写死 8 个 id 会让第 9 个场景
+  // 静默不生成页面，而本层其它断言照旧全绿 —— 本仓最典型的假绿形态。
+  check(
+    'L2 的 generateStaticParams() 由 cases 数组驱动（不许写死场景 id）',
+    /generateStaticParams[\s\S]{0,300}cases\.map/.test(read(l2Page)),
+    read(l2Page).includes('generateStaticParams')
+      ? '找到了 generateStaticParams，但它没有读 cases 数组'
+      : 'generateStaticParams 不存在 —— 静态导出下 L2 一页都不会生成'
+  );
 }
 
 console.log('\n【12】事实源链路：JSON 由 tools/content/cases/*.py 生成');
@@ -502,6 +527,140 @@ console.log('\n【14】驱动参数不许是摆设：必须有引用，且 inert
     orphan.length === 0, `摆设参数：${orphan.join('、')}`);
   check('inert 标记与「是否被 slice.when 引用」一致', inertBad.length === 0, inertBad.join('\n      '));
   check('sensitivity ∈ [0,1] 且与 inert 自洽', sensBad.length === 0, sensBad.join('\n      '));
+}
+
+console.log('\n【15】参数 URL 化与三步珠链：编解码往返、越界不抛、步链不给死链');
+{
+  const appDir = path.join(webRoot, 'src', 'app');
+
+  // ── ① 随机 1000 组 encode → decode 恒等 ────────────────────────
+  //
+  // 「随机」必须是**可复现**的：本层断言确定性，自己就绝不能读 Math.random，
+  // 否则同一份代码两次跑出不同结论，「纯函数」这条承诺从验证侧就破了。
+  let seed = 20260926;
+  const rnd = () => {
+    seed = (seed * 1664525 + 1013904223) % 4294967296;
+    return seed / 4294967296;
+  };
+
+  const bad: string[] = [];
+  let pairs = 0;
+  for (let i = 0; i < 1000 && bad.length < 3; i++) {
+    const k = cases[Math.floor(rnd() * cases.length) % cases.length];
+    const p: CaseParams = {};
+    for (const d of k.drivers) {
+      p[d.id] = d.levels[Math.floor(rnd() * d.levels.length) % d.levels.length].id;
+    }
+    const back = decodeParams(k.drivers, encodeParams(k.drivers, p), defaultParams(k));
+    pairs++;
+    for (const d of k.drivers) {
+      if (back[d.id] !== p[d.id]) {
+        bad.push(`${k.id}/${d.id}：${p[d.id]} → 串 ${encodeParams(k.drivers, p)} → ${back[d.id]}`);
+      }
+    }
+  }
+  check(
+    `随机 ${pairs} 组参数 encode → decode 恒等（可复现的伪随机，种子固定）`,
+    bad.length === 0,
+    bad.join('\n      ')
+  );
+
+  // ── ② 越界：串里出现超档位数 / 非 36 进制字符 → 回退且不抛 ──────
+  const oob: string[] = [];
+  for (const k of cases) {
+    if (k.drivers.length === 0) continue;
+    const fb = defaultParams(k);
+    for (const code of ['z'.repeat(k.drivers.length), '9'.repeat(k.drivers.length)]) {
+      let got: CaseParams;
+      try {
+        got = decodeParams(k.drivers, code, fb);
+      } catch (err) {
+        oob.push(`${k.id} 解码 "${code}" 抛异常：${String(err)}`);
+        continue;
+      }
+      for (const d of k.drivers) {
+        if (got[d.id] !== fb[d.id]) oob.push(`${k.id}/${d.id}：越界串 "${code}" 没回退到推荐档`);
+      }
+      if (isFullyValid(k.drivers, code)) oob.push(`${k.id}：越界串 "${code}" 被判成完全合法`);
+    }
+  }
+  check('越界 / 非法串一律回退到推荐档，且不抛异常', oob.length === 0, oob.join('\n      '));
+
+  // ── ③ 缺位：串比驱动数短（含空串）→ 回退且不抛 ──────────────────
+  const miss: string[] = [];
+  for (const k of cases) {
+    const fb = defaultParams(k);
+    const full = encodeParams(k.drivers, fb);
+    for (const code of ['', full.slice(0, Math.max(0, full.length - 1))]) {
+      let got: CaseParams;
+      try {
+        got = decodeParams(k.drivers, code, fb);
+      } catch (err) {
+        miss.push(`${k.id} 解码 "${code}" 抛异常：${String(err)}`);
+        continue;
+      }
+      for (const d of k.drivers) {
+        if (!d.levels.some((l) => l.id === got[d.id])) {
+          miss.push(`${k.id}/${d.id}：缺位串 "${code}" 解出档位表里没有的值`);
+        }
+      }
+    }
+  }
+  check('缺位串（空 / 少一位）不抛异常且解出合法档位', miss.length === 0, miss.join('\n      '));
+
+  // ── ④ 串的形状：一位一个驱动，字符集是 36 进制 ──────────────────
+  const shape: string[] = [];
+  for (const k of cases) {
+    const code = encodeParams(k.drivers, defaultParams(k));
+    if (code.length !== k.drivers.length) {
+      shape.push(`${k.id}：串长 ${code.length} ≠ 驱动数 ${k.drivers.length}`);
+    }
+    if (!/^[0-9a-z]*$/.test(code)) shape.push(`${k.id}：串含非法字符 "${code}"`);
+  }
+  check('参数串形态：一位一个驱动、字符集 [0-9a-z]', shape.length === 0, shape.join('\n      '));
+
+  // ── ⑤ 三步珠链：常量表齐全，且第 1 步地址真的有页面 ─────────────
+  check(
+    '珠链三步齐全（挑症状 / 拧参数 / 拿方案）',
+    STEPS.length === 3 && STEPS.map((s) => s.label).join('/') === '挑症状/拧参数/拿方案',
+    STEPS.map((s) => s.label).join('/')
+  );
+  const l1Href = stepHref('symptom', {});
+  check(
+    `第 1 步 href ${l1Href} 指向的页面存在`,
+    l1Href === '/cases/' && fs.existsSync(path.join(appDir, 'cases', 'page.tsx')),
+    `stepHref('symptom') = ${String(l1Href)}`
+  );
+
+  // ── ⑥ 第 2 步：每个场景都能算出一个真实存在的 L2 目录 ───────────
+  const l2Bad: string[] = [];
+  for (const k of cases) {
+    const href = stepHref('params', { caseId: k.id });
+    if (!href || !href.startsWith('/cases/')) {
+      l2Bad.push(`${k.id}：stepHref('params') = ${String(href)}`);
+      continue;
+    }
+    if (!fs.existsSync(path.join(appDir, L2_ROUTE_DIR, 'page.tsx'))) {
+      l2Bad.push(`${L2_ROUTE_DIR}/page.tsx 不存在，第 2 步指向空地址`);
+    }
+  }
+  check('第 2 步对每个场景都给出 /cases/<id>/，且 L2 路由目录存在',
+    l2Bad.length === 0, l2Bad.join('\n      '));
+
+  // ── ⑦ 第 3 步：L3 未开通时不许给 href（死链比「未开通」三个字糟）──
+  const l3DirExists = fs.existsSync(path.join(appDir, L3_ROUTE_DIR, 'page.tsx'));
+  check(
+    `L3_ROUTE_READY(${L3_ROUTE_READY}) 与 ${L3_ROUTE_DIR}/page.tsx 是否存在(${l3DirExists}) 一致`,
+    L3_ROUTE_READY === l3DirExists,
+    L3_ROUTE_READY
+      ? '声明已开通但目录不存在 —— 珠链第 3 步会给死链'
+      : '目录已建但常量仍写 false —— 珠链第 3 步会白着不开'
+  );
+  check(
+    'L3 未开通时第 3 步不给 href（避免点了 404）',
+    L3_ROUTE_READY || stepHref('slice', { caseId: cases[0]?.id ?? '', sliceId: 'x' }) === null,
+    `stepHref('slice') = ${String(stepHref('slice', { caseId: cases[0]?.id ?? '', sliceId: 'x' }))}`
+  );
 }
 
 finish('cases');

@@ -1,6 +1,6 @@
 import type { Metadata } from 'next';
-import CaseLab from './CaseLab';
 import { casesMeta, casesStats } from '@/lib/case-cases';
+import L1CaseIndex from './L1CaseIndex';
 
 export const metadata: Metadata = {
   title: '场景案例库',
@@ -12,5 +12,6 @@ export default function CasesPage() {
   // 构建期读一次统计：cases.json 缺字段时构建直接失败，而不是页面白屏
   void casesMeta.count;
   void casesStats.slices;
-  return <CaseLab />;
+  // L1 只挑症状（不出现参数与代码）—— 拧参数在 /cases/[caseId]，拿施工图在再下一层
+  return <L1CaseIndex />;
 }
