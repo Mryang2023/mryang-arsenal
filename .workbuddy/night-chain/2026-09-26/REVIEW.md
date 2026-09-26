@@ -23,13 +23,34 @@
 
 ---
 
-## 一、⚠️ 排期前需先找 mryang 拍板
+## 一、决策项 —— ✅ 已拍板（2026-09-27 07:4x，mryang：**剩余工作量全部按兜底的来**）
 
-| # | 决策项 | 为什么现在要拍 | 已写好的兜底 |
+| # | 决策项 | 状态 | 拍板结果 |
 |---|---|---|---|
-| **D-A** | **装配台 P0-2：33 维 `scopes`（每个维度归属哪几个形态）** | 它是"形态筛维度"的唯一事实源。不拍板就没法给 `tools/content/stack*.py` 加字段，S3-1 画布 / S3-2 评分卡也跟着动不了 | 兜底默认值已写在 `docs\开发计划-2026-09-26\夜跑计划书-2026-09-26.md` §4，**可直接领用** |
+| **D-A** | **装配台 P0-2：33 维 `scopes`（每个维度归属哪几个形态）** | ✅ **已拍板，不再是阻塞项** | **全部照 `夜跑计划书-2026-09-26.md` §4 的兜底默认值执行** —— 即下表 7 个受限维度 + 其余 26 个不限。次夜 B 案棒 3 可直接开工 |
 
-> 另有两条**已开工未闭环**的任务（UI 分层 L3、W-0 共享判据）不需要拍板，方案已定，只是今晚预算不够 —— 见 §五 P0/P1。
+**拍板内容全文抄在这里，次夜不用再翻计划书（自包含）：**
+
+> 规则：`scopes` 写该维度**在哪些 preset 下可选**；**不写 = 全部形态都可选**。
+> 6 个 preset：`minimal` 单体最小集 / `standard` 生产标配 / `cloud` 云原生微服务 / `enterprise` 企业中台 / `ha` 高可用集群 / `data-intensive` 数据密集。
+> 判据很直白：**单体最小集不该出现分布式基础设施**。
+
+| 维度 | 名称 | `scopes` | 理由 |
+|---|---|---|---|
+| `registry` | 注册中心 / 配置中心 | `['standard','cloud','enterprise','ha','data-intensive']` | 单体最小集不需要服务发现；生产标配起就该有配置中心 |
+| `gateway` | API 网关 | `['cloud','enterprise','ha']` | 只有真的多服务/高可用集群才需要独立网关（**`standard` 不开**，标配用 Nginx 入口够了） |
+| `orchestration` | 编排与调度 | `['cloud','enterprise','ha','data-intensive']` | K8s 编排，单体与标配不预置 |
+| `ingress` | 入口与负载均衡 | `['cloud','enterprise','ha','data-intensive']` | 同上 |
+| `imageregistry` | 镜像与制品库 | `['cloud','enterprise','ha','data-intensive']` | 不走容器的形态不需要 |
+| `cicd` | 交付流水线 | `['standard','cloud','enterprise','ha','data-intensive']` | 最小集不建流水线 |
+| `clustertopology` | 全局部署形态 | `['cloud','enterprise','ha','data-intensive']` | 单体/标配没有全局拓扑概念 |
+
+**其余 26 个维度不限**：`jdk` `build` `web` `persistence` `database` `pool` `migration` `cache` `mq` `scheduler` `auth` `apidoc` `observability` `mapping` `boilerplate` `test` `deploy` `os` `search` `analytics` `objectstore` `testing` `qualitygate` `monitoring` `secret` `logging`。
+
+**"我拿不准的三条"也随之定了（都取兜底倾向）**：① `gateway` 在 `standard` 下**不开**；② `data-intensive` **允许** `gateway` / `cicd`（上表已体现）；③ 「强烈推荐金边提示」属 P2-2 形态模板，**不做**。
+
+> 另两条**已开工未闭环**的任务（UI 分层 L3、W-0 共享判据）本就不需要拍板，方案已定，只是今晚预算不够 —— 见 §五 P0。
+> **§五 剩余工作量清单其余各条没有"兜底 / 备选"之分，按原样执行。**
 
 ---
 
@@ -227,6 +248,8 @@ git log --name-only --format="" b927e30..HEAD | grep '/_' | sort -u
 | **P0-1** | **`arsenal-web/src/app/cases/[caseId]/[sliceId]/`** | **目录不存在；`_lib/steps.ts` 的 `L3_ROUTE_READY=false`；`shoot.mjs.slicePicks=0` 且带"非空后要改成 2"的报警** | **① 新建 `[sliceId]/page.tsx`（真静态路由，61 页）+ `SliceSheet.tsx`；② 未命中切片做灰态；③ `steps.ts` 的 `L3_ROUTE_READY` 置 `true`；④ `shoot.mjs.slicePicks` 改 2 并改 EXPECTED；⑤ 重跑 build + 九层 + 重拍视觉（张数会再涨，记得同步 §五 P2-4 说的那几个数）。③④ 各有断言盯着，漏一处就红** | **L** |
 | **P0-2** | **`tools/build-content.py` + `arsenal-web/scripts/sync-content.mjs`** | **判据双写：cookbook 的阈值判据在 `build_cookbook()` 与 `sync-content.mjs` 各内联一份。第 2 棒 W-0 被 UI 分层挤掉，未开工** | **① 抽成 `_contract.json` 或内联进 `cookbook.json` 的 `meta.contract`（推荐后者，只动 `cookbook-types.ts` 一个字段，【16】顺带守住）；② build/sync 两处改为读同一份；③ 加【22】断言组（project 层内新增，不是加一层，所以是"改四处"不是"改五处"）；④ 用**源码文本 grep** 断言旧判据已抽走（别 grep 数字阈值，会误伤）** | **M** |
 
+| **P0-3** | **`tools/content/stack_*.py` → `arsenal-stacks/stack.json` → `src/lib/stack-types.ts` → `src/app/stack/steps/*`** | **装配台 P0-2 未开工。✅ `scopes` 已拍板（§一 D-A，照兜底表），不再是阻塞项** | **① 数据侧：给维度加 `scopes?: list[str]` → 产物出现 `scopes` → 类型加 `scopes?: string[]`；② UI 侧：当前形态下 `scopes` 不含该 preset 的维度**灰显 + 不可点**（⛔ 硬约定：只能灰显不能隐藏，否则【17】的 33 槽位与三档宽度分布 3/1/29 断言会静默失效）；③ 数据侧与 UI 侧**必须串行**，别并行改同一文件；④ 反着验：把某个维度的 `scopes` 故意写错 → 对应项必须真变灰 / 断言真红，还原复绿** | **M** |
+
 ### P1 —— 闭环路径清晰，但要动结构或重跑视觉
 
 | # | 位置 | 当前状态 | 离闭环还差什么 | 档位 |
@@ -269,7 +292,7 @@ git log --name-only --format="" b927e30..HEAD | grep '/_' | sort -u
 
 ## 七、给下一夜的三句话
 
-1. **先拍 D-A（装配台 33 维 `scopes`）**，其余都不阻塞。
+1. **D-A 已拍板（`scopes` 照 §一兜底表），全清单无阻塞项** —— P0-3 装配台 P0-2 可直接领。
 2. **首棒建议 P0-1（UI 分层 L3）**—— 它是唯一"已经写好一半、只差一层就闭环"的东西，
    且 `steps.ts` 与 `shoot.mjs` 两处都有断言盯着，做完立刻能验收。P0-2（W-0）排第二棒，它是 9 条新主线的解锁件。
 3. **跑全量前先 `export CODEBUDDY_SAFE_DELETE_ENABLED=0`**，并**先探活 3011** —— 这两条今晚各坑了我一次。
