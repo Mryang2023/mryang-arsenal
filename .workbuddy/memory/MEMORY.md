@@ -28,15 +28,17 @@
 8. **同一文件多处改动必须串行**（并行 Edit 静默丢改、tsc 仍 0 错）。加 prop/state 前 grep 同名声明；状态文案局部变量叫 `statusMeta`。
 9. **改装配台前先 grep `.verify/project-check.ts` 对 `StackComposer.tsx` 的字符串断言**（`stack-bench` / TabId 三处一致 / `onSelect={focusDim}` / `loadSnapshot(` / `loadDrafts` / 目录树字面量 / `hist.record(`≥6）。这些是对**源码文本**断言，抽成新文件会让断言静默变红。
 10. **加/改一层 verify 改五处**：`package.json` + `verify-all.mjs`(LAYERS) + `report.ts`(LAYER_NAMES) + `meta-check.ts`(CHAIN_ORDER) + 档案 `verifyChain`；另加 README 两处。
-11. **加/删断言同步四处数字**：`arsenal-profiles/arsenal.json` 的 `verifyChain[*].count`、README 总数句、README 分项表，改完**必跑 sync-content.mjs**。漏了不静默：`finish()` 打「声明 X / 实测 Y」退出 1。
+11. **加/删断言同步四处数字**：`arsenal-profiles/arsenal.json` 的 `verifyChain[*].count`、README 总数句、README 分项表，改完**必跑 sync-content.mjs**。漏了不静默：`finish()` 打「声明 X / 实测 Y」退出 1。⚠️ **README 正文散文里的口径**（如「所以 N 的口径不受影响」）原是第四处漏洞、一路没人管；2026-09-26 起由 `project-check`【21】守着（判据：`\d{3,4}\s*项(?!选)` 与 `\d{3,4}\s*的口径`，**跳过代码块**（块首已声明「数字随环境变」的历史快照）、**排除「选项」**（127 选项是选型台，不是验证项数））。
 12. **分批提交两条 git 纪律（2026-09-25 夜跑实测，都真踩了）**：① 仓库里常有白天会话**预暂存**的删除/重命名，`git commit` 不带 pathspec 会把它们连坐进本批 —— 一律 `git add <路径>` + **`git commit -- <路径>`**，提交前看 `git diff --cached --stat` 只含本批；误提交了就 `git reset --soft HEAD~1` + `git reset HEAD -- <被连坐路径>` 复原（不动工作区）。② **目录级 pathspec 会夹带 `_*` 调试产物**（实测 `git add src/app/stack/steps` 把 `steps/_probe.tsx` 也请进索引）→ 逐文件 add，或 add 后 `git diff --cached --name-only | grep '/_'` 复核。`.workbuddy/_*` 有 gitignore 兜底，`src/**/_*` 没有。
 
 13. **`recipes[].files[].code` 只放 good 版**（2026-09-26 立，C-2 自证生效）。bad 示例写进 `pitfalls` / 规则自身的 bad-good 对照。理由：引擎是文本层正则判定，分不出「演示错写法」和「这是错写法」，files 混进 bad 就误报，闸门变噪音。三处登记：`src/lib/cookbook-lint.ts`（消费方）+ `tools/build-content.py build_cookbook()`（生成方）+ 本条。【19】⑪ 守着。
    - **案例代码自证**：`src/lib/cookbook-lint.ts` 把 recipe 的 `files[]` 喂进 `engine.lint()`，产三档 —— 违规 / 可执行（当前 35）/ 未判（当前 34，如实披露绝不伪造）。喂引擎必须用 `file.path` 作 `SourceFile.name`，否则带 `targetGlob` 的规则静默不适用。徽标在 `src/components/BlueprintSelfCheck.tsx`（数字一律算出来，写死即判红）。
 
+14. **反着验的还原：先分清「已提交」还是「未提交」**（2026-09-26 白天实测，真把活做丢了）。`git checkout -- <file>` 回到的是 **HEAD**，会把你**尚未提交的本棒改动一起抹掉** —— 当晚 rules/[id] 的 C-3 改动就是这么没的（好在【20】①②立刻变红，反而证明闸门有效）。规矩：**注入前 `cp` 一份到 `.verify/tmp/`（已被 gitignore），还原用 `cp` 回来再删备份**；只有「这个文件本棒没改、HEAD 就是原样」时才用 `git checkout --`。注入前先 `git status --porcelain` 看一眼哪些文件是本棒的脏文件。
+15. **子串包含型判据会静默失效**，已第二次出现（09-24【17】S1-7、09-26 S1-1）。`composerSrc.includes('stack-bench')` 对 `stack-benchBROKEN` 全绿。修法：先把 `className` 里的类名切成 token 再要求**恰好相等**，改完必跑两种反例（拼错变形必须红、真删掉必须红）。
 ## 校验与运行
 
-- `npm run verify` 九层 = 35 架构 + 68 图交互 + **739** 结构导出（含【16】字段契约 252、【17】装配台视觉 24、【18】装配台交互 23）+ 33 场景 + 17 引擎样本 + 12 前后端一致 + 31 Archify + 69 代码扫描 + 12 视觉 = **1016**；cases 穷举守恒 9072 组。
+- `npm run verify` 九层 = 35 架构 + 68 图交互 + **763** 结构导出（含【16】字段契约 252、【17】装配台视觉 24、【18】装配台交互 23、【19】案例代码自证 11、【20】互链 4、【21】README 口径 1）+ 36 场景 + 17 引擎样本 + 12 前后端一致 + 31 Archify + 69 代码扫描 + 12 视觉 = **1043**（2026-09-26 白天实测）；cases 穷举守恒 9072 组。刻意未跑 2 项。
 - 【16】= 类型 ↔ 事实源**双向**比。cookbook 三层要**摊平**成三类记录分别比 `Topic` / `Scenario` / `Recipe`（`loadCookbook(level)`）；`references` 挂技术层、`flow/files/highlights` 挂方案层、`playground` 经技术层摊平校验。fileCount 等 sync 注入字段改对 `src/generated/*.json` 核。
 - 【17】装配台 P1 呈现（三档宽度 208/172/148、分布 3/1/29 与 pipelines 互证、brass ring、字号四档 10/11/12/14）。分布数字钉死。【18】装配台交互（S1-4 连线开关默认关 / S1-5 ProgressRing 单份定义 / S2-7 去重）。
 - **视觉层**判据 A1–A7 在 `visual/assert.mjs`（42 张 = 14 路由 × 3 视口）。⚠️ 断言 `out/` 不是源码 → 先 build；A5 不猜半透明背景、跳过 <12px 文字；`shoot.mjs` 不自起静态站。⚠️ 沙箱里 `verify:visual` 包装层 spawnSync EBUSY，直接 `node visual/assert.mjs` 可过。
@@ -67,3 +69,4 @@
 - B0-3：4 个场景仍无 `benchmark`。`/cases` 默认参数 0 切片命中（产品决策，未动）。
 - findings.md 还剩 ~14 条：P1 三条（archify 硬编码 localhost:3011、export PREVIEW 原始 Markdown + `<sub>` 泄漏、icons 89 vs 81）。63/81 位图图标缺失。
 - 待人工决策：69 条规则逐条过目；5 条无检查器 AST 规则补/降级；`SVC-LAYR-003`；「性能与 JVM」「日志监控」两类未覆盖。
+
