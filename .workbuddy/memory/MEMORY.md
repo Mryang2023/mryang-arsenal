@@ -65,8 +65,8 @@
   - ✅ **C1-2 参数虚胖治理已落地（09-26 夜跑第 2 棒）**：构建期断言「driver 必须被 `slices.when`/`conflicts`/`notSuitableFor` 之一引用」，否则 build 失败；`sensitivity` + `inert` 由 `build-content.py` 实测写进产物；前端参数卡标注「只影响告警 · 不改变命中切片 / ⚠ n/m / 影响面 NN%」；`.verify/case-check.ts`【14】三条守着（场景案例层 33 → 36，九层合计 **1027**）。
   - ⚠️ **实测（别重算，09-26 已修正）**：47 个 driver 里 **11 个 inert**（不被任何 `slices[].when` 引用 = 不改变命中切片）—— 其中 10 个参与 `conflicts`、1 个（`vt/lifespan`）参与 `notSuitableFor`。⚠️ 09-25 那版结论说「`vt/lifespan` 三处都不引用」是**错的**，它一直在 `virtual_thread.py` 的 `NOT_SUITABLE_FOR` 里。真孤儿当时只有 `msi/growth`（已补 conflicts）。另：benchmark 切片 **0**、`/rules` 对场景**零反查**、`app/cases/**` 无 URL 同步（结果不可分享）、切片代码不可运行。建议起手：虚胖治理（一晚、零内容成本）+ 先做「幂等」「慢 SQL」两个当样板。
   - ⚠️ **两个 CaseLab 不是重复文件**（09-26 已改名）：`app/cases/CaseLab.tsx`(909) = 症状分诊台；`components/DemoRunner.tsx`(265，原 `components/CaseLab.tsx`) = 蓝图页跑 `feature.playground` 的演示控制台（`BlueprintView.tsx:327` 消费）。C2-1 可运行切片可直接复用 `DemoRunner`。
-- 场景案例 7 号 `multi-source-ingestion`、8 号 `virtual-thread` 已建未提交（8 场景 / 61 切片 / 175 锚点）。
-- B0-3：4 个场景仍无 `benchmark`。`/cases` 默认参数 0 切片命中（产品决策，未动）。
+- 场景案例 7 号 `multi-source-ingestion`、8 号 `virtual-thread` **已于 09-25 夜跑落袋**（当前 8 场景 / 61 切片 / 32 症状 / 175 锚点）。加第 9 个场景只需在 `tools/build-content.py:40` 的 **`CASES_MODULES`** 加一行（漏了不报错，只是静默不生成）。
+- B0-3：4 个场景仍无 `benchmark`（09-26 实测名单）：`async-pipeline` / `high-throughput-io` / `hotspot-cache` / `wide-table-search`。另 4 个有 4/3/3/2 行可照抄。`/cases` 默认参数 0 切片命中（产品决策，未动）。
 - findings.md 还剩 ~14 条：P1 三条（archify 硬编码 localhost:3011、export PREVIEW 原始 Markdown + `<sub>` 泄漏、icons 89 vs 81）。63/81 位图图标缺失。
 - 待人工决策：69 条规则逐条过目；5 条无检查器 AST 规则补/降级；`SVC-LAYR-003`；「性能与 JVM」「日志监控」两类未覆盖。
 
