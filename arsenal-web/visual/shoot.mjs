@@ -18,7 +18,7 @@
  *   1 = 任一闸门不过，或 URL 发现数与预期不符 —— 全文打印实际错误
  *
  * 产物：
- *   visual/shots/*.png      42 张（已 gitignore，不入库）
+ *   visual/shots/*.png      51 张（已 gitignore，不入库）
  *   visual/manifest.json    机器可读（V-3 assert.mjs 的输入）
  *   visual/report.md        人读
  */
