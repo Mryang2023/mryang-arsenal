@@ -58,7 +58,12 @@ public final class AstProbe {
                 new SourceFile("com/demo/controller/BadController.java", CONTROLLER),
                 // TEST-UNIT-002 是 regex+ast 双写规则，正则优先路由 —— 违规来自正则层，
                 // 其 targetGlob 是 **/src/test/**/*.java，样本路径必须落在里面才会被检出。
-                new SourceFile("src/test/java/com/demo/BadTest.java", TEST));
+                new SourceFile("src/test/java/com/demo/BadTest.java", TEST),
+                // 下面两份是 TreeScanner.reduce 缺陷的反例样本（REL-EXCP-001 没有 regex，
+                // 走的是 AST 路径 —— 所以这个缺陷在它身上是**活的**，不是理论风险）。
+                // 各放一个文件，是为了让断言能按文件名精确定位，不靠行号猜。
+                new SourceFile("com/demo/CatchPrintOnly.java", CATCH_PRINT_ONLY),
+                new SourceFile("com/demo/CatchRethrowFirst.java", CATCH_RETHROW_FIRST));
 
         LintReport report = engine.lint(new LintRequest(files));
 
@@ -112,6 +117,29 @@ public final class AstProbe {
         }
         if (llmSkipped != 5) {
             failures.add("留待 LLM 的 skipped 数应为 5，实际 " + llmSkipped);
+        }
+
+        // ── reduce 缺陷的两条反例断言 ────────────────────────────────────
+        // TreeScanner.reduce 的默认实现是 `return r1`（**不聚合**），
+        // 于是「子树里是否存在 X」这类扫描拿到的其实是「最后一条语句里有没有 X」。
+        // TryFinder 已于 2026-09-27 修过（WEB-CTRL-004 从此真检出），
+        // 但 ThrowFinder / PrintFinder / ReturnFinder / AssertFinder 同根因未修。
+        // REL-EXCP-001 没有 regex → 走 AST → 它身上的这个缺陷是**活的**。
+        boolean printThenDrop = report.violations().stream().anyMatch(v ->
+                v.ruleId().equals("REL-EXCP-001")
+                        && v.file().endsWith("CatchPrintOnly.java")
+                        && v.message().contains("仅打印"));
+        if (!printThenDrop) {
+            failures.add("漏报：打印不是最后一条语句的 catch 未被 REL-EXCP-001 检出"
+                    + "（TreeScanner.reduce 未聚合，扫到的其实是最后一条语句）");
+        }
+
+        boolean rethrowFalsePositive = report.violations().stream().anyMatch(v ->
+                v.ruleId().equals("REL-EXCP-001")
+                        && v.file().endsWith("CatchRethrowFirst.java"));
+        if (rethrowFalsePositive) {
+            failures.add("误报：分支里已经重抛的 catch 被报成「仅打印未重新抛出」"
+                    + "（ThrowFinder 只看最后一条语句，把真 throw 判成没有）");
         }
 
         System.out.println("");
@@ -221,6 +249,53 @@ public final class AstProbe {
                 }
 
                 private void doIt() {
+                }
+            }
+            """;
+
+    /**
+     * 反例样本 A：「打印之后继续执行」—— 打印**不是**块里最后一条语句。
+     *
+     * 期望：必须被 REL-EXCP-001 检出（它就是「仅打印后继续」）。
+     * 缺陷下：PrintFinder 拿到的是**最后一条语句**的扫描结果，于是漏报。
+     */
+    private static final String CATCH_PRINT_ONLY = """
+            package com.demo;
+
+            public class CatchPrintOnly {
+
+                public void run() {
+                    try {
+                        Thread.sleep(1);
+                    } catch (Exception e) {
+                        e.printStackTrace();
+                        System.out.println("ignored");
+                    }
+                }
+            }
+            """;
+
+    /**
+     * 反例样本 B：分支里重抛 + 块末尾打印 —— 它**确实**有向上抛出。
+     *
+     * 期望：不许被报成「仅打印未重新抛出」。
+     * 缺陷下：ThrowFinder 只认最后一条语句，判定成「没有 throw」，
+     * 于是把它误报成「异常被吞掉」—— 误报比漏报更糟，它会让人去改一段对的代码。
+     */
+    private static final String CATCH_RETHROW_FIRST = """
+            package com.demo;
+
+            public class CatchRethrowFirst {
+
+                public void run() {
+                    try {
+                        Thread.sleep(1);
+                    } catch (Exception e) {
+                        if (e instanceof IllegalStateException) {
+                            throw new IllegalStateException(e);
+                        }
+                        e.printStackTrace();
+                    }
                 }
             }
             """;

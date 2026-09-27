@@ -353,9 +353,13 @@ public final class AstEngine {
             @Override
             public Void visitCatch(CatchTree node, Void p) {
                 BlockTree body = node.getBlock();
-                boolean hasThrow = new ThrowFinder().scan(body, null) != null;
-                // TreeScanner<Boolean,_>.scan 在「什么都没找到」时返回 null，
-                // 直接拆箱会 NPE（曾把任何含 catch 的文件打成 500）。必须用 equals 比较。
+                // ⚠️ 两处都必须用 Boolean.TRUE.equals 比较，**不能**写 `!= null`：
+                // 聚合式 reduce（见 ExistsFinder）在「什么都没找到」时返回 FALSE 而不是 null，
+                // `!= null` 会恒为真 —— 「有没有 throw」将永远判定成「有」，
+                // 于是「仅打印未重新抛出」一条都报不出来（2026-09-27 改 reduce 时实测踩到）。
+                // 早先写 `!= null` 是因为旧 reduce 会返回 null，直接拆箱会 NPE
+                // （曾把任何含 catch 的文件打成 500）—— 那次修的是 NPE，这次修的是恒真。
+                boolean hasThrow = Boolean.TRUE.equals(new ThrowFinder().scan(body, null));
                 boolean hasPrint = Boolean.TRUE.equals(new PrintFinder().scan(body, null));
                 if (body.getStatements().isEmpty()) {
                     out.add(f(rule, node, ctx, "空 catch：捕获后未做任何处理"));
@@ -374,7 +378,8 @@ public final class AstEngine {
             @Override
             public Void visitTry(TryTree node, Void p) {
                 BlockTree fb = node.getFinallyBlock();
-                if (fb != null && new ReturnFinder().scan(fb, null) != null) {
+                // 同 cEmptyCatch：聚合式 reduce 下 `!= null` 恒为真，会把任何 finally 都报成违规
+                if (fb != null && Boolean.TRUE.equals(new ReturnFinder().scan(fb, null))) {
                     out.add(f(rule, fb, ctx, "finally 块中使用 return：会掩盖 try/catch 的返回值与异常"));
                 }
                 return super.visitTry(node, p);
@@ -587,20 +592,56 @@ public final class AstEngine {
         }
     }
 
-    /** 在子树里查找任意 ThrowTree，返回非 null 即找到。 */
-    private static class ThrowFinder extends TreeScanner<Boolean, Void> {
+    /**
+     * 「子树里**是否存在**某样东西」这一类扫描的公共基类。
+     *
+     * 关键在 {@code reduce}：JDK 17 的 {@code TreeScanner.reduce} 默认实现是
+     * {@code return r1} —— <b>不聚合</b>。而 {@code scan(Iterable, p)} 的写法是
+     * {@code r = reduce(scan(node_i), r_prev)}，默认实现下结果就是
+     * <b>最后一条语句</b>的扫描结果 —— 前面几条的 TRUE 全被抹掉，整个块的扫描
+     * 结果塌缩成「最后一条语句里有没有」。
+     *
+     * 后果不是「弱一点」，是<b>两个方向都错</b>（2026-09-27 用反例样本实测）：
+     *   · 漏报：catch 里先 {@code e.printStackTrace()} 再执行别的代码 →
+     *     打印不是最后一条语句 → 判成「没打印」→ 该报的不报；
+     *   · 误报：catch 里分支内 {@code throw}、末尾打印 → 判成「没有 throw」→
+     *     把一段<b>正确</b>的代码报成「异常被吞掉」。误报比漏报更糟。
+     *
+     * 覆写成 OR 才是「子树里存在」的语义。五个 Finder 曾各自漏掉这个覆写，
+     * 其中 TryFinder 已于 2026-09-27 单独修过（WEB-CTRL-004 从此真检出），
+     * 剩下四个是同根因 —— 与其补四份一模一样的覆写，不如收在这里一处：
+     * 将来再加第六个 Finder，只要继承它就不会重蹈覆辙。
+     */
+    private abstract static class ExistsFinder extends TreeScanner<Boolean, Void> {
+        @Override
+        public Boolean reduce(Boolean r1, Boolean r2) {
+            return Boolean.TRUE.equals(r1) || Boolean.TRUE.equals(r2);
+        }
+    }
+
+    /** 在子树里查找任意 ThrowTree。 */
+    private static class ThrowFinder extends ExistsFinder {
+        /**
+         * ⚠️ 这里必须写成「子树结果 OR 自身是 ThrowTree」，不能沿用旧写法
+         * {@code r != null ? r : (node instanceof ThrowTree ? TRUE : null)}。
+         *
+         * 旧写法依赖「没找到时 super.scan 返回 <b>null</b>」，而聚合式 reduce
+         * （见 {@link ExistsFinder}）返回的是 <b>FALSE</b> —— 非 null。于是
+         * {@code r != null} 恒真，永远走不到「自身是不是 ThrowTree」那一支，
+         * ThrowFinder 从此一个 throw 都找不到（2026-09-27 改 reduce 时实测踩到：
+         * 「分支里重抛」的 catch 又被误报成「异常被吞掉」）。
+         */
         @Override
         public Boolean scan(Tree node, Void p) {
             if (node == null) {
-                return null;
+                return Boolean.FALSE;
             }
-            Boolean r = super.scan(node, p);
-            return r != null ? r : (node instanceof ThrowTree ? Boolean.TRUE : null);
+            return Boolean.TRUE.equals(super.scan(node, p)) || node instanceof ThrowTree;
         }
     }
 
     /** 在子树里查找 printStackTrace / log.* / logger.* 调用。 */
-    private static class PrintFinder extends TreeScanner<Boolean, Void> {
+    private static class PrintFinder extends ExistsFinder {
         @Override
         public Boolean visitMethodInvocation(MethodInvocationTree node, Void p) {
             String sel = node.getMethodSelect().toString();
@@ -614,7 +655,7 @@ public final class AstEngine {
     }
 
     /** 在子树里查找 return 语句。 */
-    private static class ReturnFinder extends TreeScanner<Boolean, Void> {
+    private static class ReturnFinder extends ExistsFinder {
         @Override
         public Boolean visitReturn(ReturnTree node, Void p) {
             return Boolean.TRUE;
@@ -622,7 +663,7 @@ public final class AstEngine {
     }
 
     /** 在子树里查找 assert* 调用。 */
-    private static class AssertFinder extends TreeScanner<Boolean, Void> {
+    private static class AssertFinder extends ExistsFinder {
         @Override
         public Boolean visitMethodInvocation(MethodInvocationTree node, Void p) {
             String sel = node.getMethodSelect().toString();
@@ -633,23 +674,16 @@ public final class AstEngine {
         }
     }
 
-    /** 在子树里查找任意 try 语句。 */
-    private static class TryFinder extends TreeScanner<Boolean, Void> {
+    /**
+     * 在子树里查找任意 try 语句。
+     *
+     * 这个覆写的由来见 {@link ExistsFinder} 的类注释：WEB-CTRL-004 曾对方法内
+     * try-catch <b>永远检不出</b>（2026-09-27 AstProbe 首次实跑暴露，此前从未执行过）。
+     */
+    private static class TryFinder extends ExistsFinder {
         @Override
         public Boolean visitTry(TryTree node, Void p) {
             return Boolean.TRUE;
-        }
-
-        /**
-         * 必须覆写：JDK 17 的 {@code TreeScanner.reduce} 默认实现是 {@code return r1} ——
-         * <b>不聚合</b>。后果是 {@code visitMethod} 链尾的 {@code scanAndReduce(getDefaultValue())}
-         * （普通方法恒为 null）会把 body 里传上来的 TRUE 抹掉，类扫描结果塌缩成
-         * 「最后一个成员的扫描结果」—— 检查器对方法内 try-catch <b>永远检不出</b>（实测：
-         * AstProbe 首次实跑暴露，此前从未执行过）。覆写成 OR 才是「子树里存在 try」的语义。
-         */
-        @Override
-        public Boolean reduce(Boolean r1, Boolean r2) {
-            return Boolean.TRUE.equals(r1) || Boolean.TRUE.equals(r2);
         }
     }
 
