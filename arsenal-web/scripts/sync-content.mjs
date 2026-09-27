@@ -734,3 +734,66 @@ console.log(
   '         ' + scanDoc.count + ' 条映射 / ' + scanDoc.onCanvas + ' 条落架构图 / ' +
   scanTechs.size + ' 个技术 key（dim、opt、icon 已对画布交叉校验）'
 );
+
+// ── ⑨ 部署形态机理剧本 ──────────────────────────────────────
+// 生成器（tools/build-content.py）已校验过剧本自身；这里再独立验一次，守的是
+// 「同步产物真的能被前端播出来」：三问齐备、步数够、引用不悬空 ——
+// 少一问或悬空一条引用，机理台就会在某一帧静默卡死，页面上一片正常。
+const flowsDoc = readJson(path.join(root, 'arsenal-stacks', 'topology_flows.json'));
+const flowsProblems = [];
+const flowsRoot = flowsDoc.flows ?? {};
+let flowCount = 0;
+let sceneCount = 0;
+
+const SCENE_IDS_REQUIRED = new Set(['read', 'write', 'failover']);
+for (const [dimId, opts] of Object.entries(flowsRoot)) {
+  for (const [optId, modes] of Object.entries(opts)) {
+    for (const [modeId, flow] of Object.entries(modes)) {
+      const at = `${dimId}/${optId}/${modeId}`;
+      flowCount += 1;
+      const nodeIds = new Set((flow.nodes ?? []).map((n) => n.id));
+      const edgeIds = new Set((flow.edges ?? []).map((e) => e.id));
+      if (!nodeIds.size) flowsProblems.push(`${at} 没有节点`);
+      if (!edgeIds.size) flowsProblems.push(`${at} 没有边`);
+      for (const e of flow.edges ?? []) {
+        if (!nodeIds.has(e.from) || !nodeIds.has(e.to)) {
+          flowsProblems.push(`${at} 的边 ${e.id} 端点悬空：${e.from} -> ${e.to}`);
+        }
+      }
+      const gotScenes = new Set((flow.scenes ?? []).map((s) => s.id));
+      for (const need of SCENE_IDS_REQUIRED) {
+        if (!gotScenes.has(need)) flowsProblems.push(`${at} 缺少 ${need} 场景 —— 三问必须齐备`);
+      }
+      for (const sc of flow.scenes ?? []) {
+        sceneCount += 1;
+        if ((sc.steps ?? []).length < 3) flowsProblems.push(`${at}/${sc.id} 不足 3 步`);
+        for (const [i, st] of (sc.steps ?? []).entries()) {
+          for (const h of st.highlight ?? []) {
+            if (!nodeIds.has(h)) flowsProblems.push(`${at}/${sc.id} 第${i + 1}步 highlight 悬空：${h}`);
+          }
+          for (const a of st.active ?? []) {
+            if (!edgeIds.has(a)) flowsProblems.push(`${at}/${sc.id} 第${i + 1}步 active 悬空：${a}`);
+          }
+          if (st.token && !edgeIds.has(st.token.edge)) {
+            flowsProblems.push(`${at}/${sc.id} 第${i + 1}步 token 悬空：${st.token.edge}`);
+          }
+        }
+      }
+    }
+  }
+}
+if (flowCount === 0) flowsProblems.push('机理剧本为空 —— 形态动画化没挂上事实源');
+if (flowsProblems.length) fail(flowsProblems.join('\n  - '));
+
+// 这一份与其它产物差一条规矩：**逐字节等于事实源**（含行尾换行符）——
+// 【22】层拿 arsenal-stacks/topology_flows.json 与它做逐字节比对守「忘了 sync」，
+// 而 build-content.py 的 write_json 统一带行尾换行，所以这里必须原样跟写。
+fs.writeFileSync(
+  path.join(outDir, 'topology-flows.json'),
+  JSON.stringify(flowsDoc, null, 2) + '\n',
+  'utf8'
+);
+console.log(
+  `[arsenal] 已同步部署形态机理剧本 → src/generated/topology-flows.json\n` +
+  `         ${flowCount} 个形态剧本 / ${sceneCount} 个场景（三问齐备、引用与端点全部命中）`
+);

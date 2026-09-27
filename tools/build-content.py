@@ -401,6 +401,159 @@ def build_stacks():
           % (len(dimensions), opt_count, len(presets)))
 
 
+def build_topology_flows():
+    """产出部署形态机理剧本（arsenal-stacks/topology_flows.json），并做构建期硬校验。
+
+    剧本是数据不是代码（《部署形态动画化计划》D1）：每个形态回答
+    「怎么查 / 怎么存 / 挂了怎么办」三问，页面动画 / 导出 / 给 AI 三种出口共用这一份。
+    这里的校验守的是「剧本引用的世界必须真实存在」：
+      ① 场景三问齐备 —— 缺一个场景 = 没讲完一个形态，build 失败；
+      ② highlight / active / token.edge / edges 端点引用的 id 必须存在 ——
+         悬空引用在播放时的表现是「静默不动」，是最难查的一类事故；
+      ③ (dim, opt, mode) 必须在 TOPOLOGY 表里存在 —— 给不存在的形态写剧本 = 白写；
+      ④ 硬红线：非 client 节点数 == 该形态 replicas（K8s 副本数）——
+         动画画 3 个、清单起 2 个，是本项目最忌的「两个数字」事故；
+      ⑤ caption ≤ 40 字；含数字必须带 refs（数字不许编造，D5）；
+      ⑥ 每个场景 steps >= 3 —— 一步就演完等于没讲清；
+      ⑦ Caffeine 不得出现 masterslave / cluster 形态 —— 回归 09-27 修掉的真 bug。
+    """
+    print('[2/8] arsenal-stacks —— 部署形态机理剧本（cache/redis）')
+    flows_mod = load_module('stack_topology_flows')
+    topo_mod = load_module('stack_topology')
+    flows = getattr(flows_mod, 'TOPOLOGY_FLOWS', {})
+    topology_table = getattr(topo_mod, 'TOPOLOGY', {})
+    problems = []
+
+    node_kinds = {'client', 'primary', 'replica', 'proxy', 'store', 'cache'}
+    edge_kinds = {'data', 'repl', 'heartbeat', 'route'}
+    scene_ids_required = {'read', 'write', 'failover'}
+    digit_re = re.compile(r'[0-9０-９]')
+
+    n_modes = n_scenes = n_steps = 0
+    for dim_id, opts in flows.items():
+        for opt_id, modes in opts.items():
+            # ③ (dim, opt, mode) 必须在 TOPOLOGY 里存在：选项自己的形态表优先，'*' 兜底
+            spec = topology_table.get(dim_id) or {}
+            body = spec.get(opt_id) or spec.get('*')
+            if body is None:
+                problems.append('剧本 %s/%s 引用了没有形态表的维度或选项' % (dim_id, opt_id))
+                continue
+            valid_modes = {m['id']: m for m in body['modes']}
+            for mode_id, flow in modes.items():
+                at = '%s/%s/%s' % (dim_id, opt_id, mode_id)
+                if mode_id not in valid_modes:
+                    problems.append('%s 不在 TOPOLOGY 形态表里 —— 给不存在的形态写剧本' % at)
+                    continue
+                n_modes += 1
+
+                nodes = flow.get('nodes') or []
+                edges = flow.get('edges') or []
+                node_ids = [n['id'] for n in nodes]
+                edge_ids = [e['id'] for e in edges]
+                if len(node_ids) != len(set(node_ids)):
+                    problems.append('%s 的节点 id 重复' % at)
+                if len(edge_ids) != len(set(edge_ids)):
+                    problems.append('%s 的边 id 重复' % at)
+
+                # ④ 硬红线：非 client 节点数 == 该形态 replicas
+                replicas = valid_modes[mode_id].get('replicas')
+                drawn = sum(1 for n in nodes if n.get('kind') != 'client')
+                if not isinstance(replicas, int) or drawn != replicas:
+                    problems.append(
+                        '%s 画了 %d 个实例（client 不计），形态表 replicas 是 %r —— '
+                        '动画与产物必须是同一个数' % (at, drawn, replicas))
+                for n in nodes:
+                    if n.get('kind') not in node_kinds:
+                        problems.append('%s 节点 %s 的 kind %r 不合法' % (at, n.get('id'), n.get('kind')))
+
+                # ⑥ 边两端必须存在
+                for e in edges:
+                    for side in ('from', 'to'):
+                        if e.get(side) not in node_ids:
+                            problems.append('%s 的边 %s %s 端指向不存在的节点 %r'
+                                            % (at, e.get('id'), side, e.get(side)))
+                    if e.get('kind') not in edge_kinds:
+                        problems.append('%s 的边 %s kind %r 不合法' % (at, e.get('id'), e.get('kind')))
+
+                scenes = flow.get('scenes') or []
+                got_scenes = {s.get('id') for s in scenes}
+                # ① 三问齐备
+                if got_scenes != scene_ids_required:
+                    problems.append('%s 的场景是 %s，必须齐 read/write/failover 三问'
+                                    % (at, sorted(x for x in got_scenes if x)))
+                n_scenes += len(scenes)
+                for s in scenes:
+                    sid = s.get('id') or '?'
+                    steps = s.get('steps') or []
+                    refs = s.get('refs') or []
+                    # ⑥ 一步就演完等于没讲清
+                    if len(steps) < 3:
+                        problems.append('%s/%s 只有 %d 步 —— 至少 3 步才讲得清' % (at, sid, len(steps)))
+                    n_steps += len(steps)
+                    for i, st in enumerate(steps):
+                        cap = st.get('caption') or ''
+                        # ⑤ 旁白长度
+                        if not cap or len(cap) > 40:
+                            problems.append('%s/%s 第 %d 步旁白 %d 字（须 1~40 字）：%s'
+                                            % (at, sid, i + 1, len(cap), cap[:40]))
+                        # ② 悬空引用
+                        for nid in st.get('highlight') or []:
+                            if nid not in node_ids:
+                                problems.append('%s/%s 第 %d 步 highlight 引用不存在的节点 %s'
+                                                % (at, sid, i + 1, nid))
+                        for eid in st.get('active') or []:
+                            if eid not in edge_ids:
+                                problems.append('%s/%s 第 %d 步 active 引用不存在的边 %s'
+                                                % (at, sid, i + 1, eid))
+                        token = st.get('token')
+                        if token and token.get('edge') not in edge_ids:
+                            problems.append('%s/%s 第 %d 步 token 引用不存在的边 %s'
+                                            % (at, sid, i + 1, token.get('edge')))
+                        # ⑤ 数字必须有出处
+                        if digit_re.search(cap) and not refs:
+                            problems.append('%s/%s 第 %d 步旁白含数字但没有 refs 出处：%s'
+                                            % (at, sid, i + 1, cap))
+                    # ⑤ 场景里任一旁白含数字，refs 就必须在场
+                    if any(digit_re.search(st.get('caption') or '') for st in steps) and not refs:
+                        problems.append('%s/%s 的旁白含数字但场景没有 refs' % (at, sid))
+
+    # ⑦ Caffeine 回归红线：本地缓存不出现主从 / 集群（也接受剧本侧的红线请求）
+    caffeine = (topology_table.get('cache') or {}).get('caffeine')
+    if caffeine is None:
+        problems.append("TOPOLOGY['cache'] 缺少 caffeine 的按选项形态表 —— '*' 通配拆分没做完")
+    else:
+        bad = [m['id'] for m in caffeine['modes'] if m['id'] in ('masterslave', 'cluster', 'sentinel')]
+        if bad:
+            problems.append('Caffeine（本地缓存）出现了不该有的形态：%s' % ', '.join(bad))
+    flows_caffeine = ((flows.get('cache') or {}).get('caffeine') or {})
+    if flows_caffeine:
+        problems.append('Caffeine 不该有机理剧本（本地缓存没有主从/集群概念）：%s'
+                        % sorted(flows_caffeine))
+
+    if problems:
+        print('\n[arsenal] 形态机理剧本校验失败：')
+        for p in problems:
+            print('  - ' + p)
+        sys.exit(1)
+
+    write_json('arsenal-stacks/topology_flows.json', {
+        'collection': 'arsenal-stacks',
+        'name': '军火库 · 部署形态机理剧本',
+        'version': '0.1.0',
+        'releasedAt': '2026-09-27',
+        'description': (
+            '部署形态的机理剧本：每个形态回答「数据怎么查 / 怎么存 / 挂了怎么办」三问。'
+            '页面机理台按步播放，数字一律可溯源（refs），画出的实例数与 K8s 副本数同源。'
+        ),
+        'flowCount': n_modes,
+        'sceneCount': n_scenes,
+        'stepCount': n_steps,
+        'flows': flows,
+    })
+    print('  %d 个形态剧本 / %d 个场景 / %d 步旁白；三问齐备、引用无悬空、实例数与 replicas 一致'
+          % (n_modes, n_scenes, n_steps))
+
+
 def build_architecture():
     """产出架构图叠加层，并对它做一次严肃自检。
 
@@ -1420,6 +1573,7 @@ def build_scan():
 def main():
     build_cookbook()
     build_stacks()
+    build_topology_flows()
     build_architecture()
     build_project()
     build_icons()

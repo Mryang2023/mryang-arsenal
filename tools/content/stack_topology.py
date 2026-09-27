@@ -129,6 +129,14 @@ TOPOLOGY = {
         },
     },
     "cache": {
+        # cache 维度已按选项拆分（2026-09-27，修「本地缓存列出主从/集群」的真 bug）：
+        #   *  caffeine 只给 single / multilevel —— 本地缓存没有「主从 / 集群」这个概念；
+        #   *  redis 给 single / masterslave / sentinel / cluster / multilevel；
+        #   *  none 本来就不出现（所有消费点显式排除 opt.id == 'none'）。
+        # 选项自己的形态表优先生效（build-content.py 挂到 opt['topology']，
+        # 前端 topologySpecOf() 先查 option 再查维度）；这条 '*' 是**维度级兜底**：
+        # topologyDims() / 容量行 / 画布形态覆盖仍要靠它认得 cache 这个维度，
+        # 摘掉它缓存就会从形态图与容量摘要里整个消失 —— 那是比多列两个形态更重的事故。
         "*": {
             "default": "single",
             "modes": [
@@ -137,6 +145,38 @@ TOPOLOGY = {
                 {"id": "masterslave", "label": "主从", "replicas": 2,
                  "requires": ["cap.topo.replication"],
                  "note": "读写分离"},
+                {"id": "sentinel", "label": "哨兵", "replicas": 3,
+                 "requires": ["cap.topo.replication", "cap.topo.ha.failover"],
+                 "note": "主从加哨兵仲裁"},
+                {"id": "cluster", "label": "集群", "replicas": 3,
+                 "requires": ["cap.topo.replicaset"],
+                 "note": "数据分片集群"},
+                {"id": "multilevel", "label": "多级", "replicas": 2,
+                 "requires": ["cap.topo.replication"],
+                 "note": "多级缓存"},
+            ],
+        },
+        "caffeine": {
+            "default": "single",
+            "modes": [
+                {"id": "single", "label": "单实例", "replicas": 1,
+                 "note": "进程内本地缓存"},
+                {"id": "multilevel", "label": "多级", "replicas": 2,
+                 "requires": ["cap.topo.replication"],
+                 "note": "本地加分布式两级"},
+            ],
+        },
+        "redis": {
+            "default": "single",
+            "modes": [
+                {"id": "single", "label": "单实例", "replicas": 1,
+                 "note": "单机缓存"},
+                {"id": "masterslave", "label": "主从", "replicas": 2,
+                 "requires": ["cap.topo.replication"],
+                 "note": "读写分离"},
+                {"id": "sentinel", "label": "哨兵", "replicas": 3,
+                 "requires": ["cap.topo.replication", "cap.topo.ha.failover"],
+                 "note": "主从加哨兵仲裁"},
                 {"id": "cluster", "label": "集群", "replicas": 3,
                  "requires": ["cap.topo.replicaset"],
                  "note": "数据分片集群"},
