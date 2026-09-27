@@ -184,7 +184,7 @@ export default function RuleDetailPage({ params }: { params: { id: string } }) {
                 enabled={Boolean(check.ast)}
                 layer="ast"
                 title="AST 层 · 语法树查询"
-                note="需要 Java 解析器（JavaParser）。由后端 arsenal-server 执行，前端不做伪造判定。"
+                note="由后端 arsenal-server 执行（JDK 自带 jdk.compiler，零新增依赖），在校验台点「后端深检」即可运行；前端不做伪造判定。"
               >
                 {check.ast && (
                   <div className="mt-2.5">

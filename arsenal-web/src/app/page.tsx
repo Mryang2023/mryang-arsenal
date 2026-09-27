@@ -432,8 +432,8 @@ export default function HomePage() {
             title="后端 arsenal-server"
             items={[
               'Spring Boot 3.2.5 · 端口 3011',
-              'AST 层校验（JavaParser）',
-              'Level 2 语义校验（LLM，强制行号）',
+              'AST 层校验已完成 —— JDK 自带 jdk.compiler（零新增依赖），7 条规则经 AST 层出结论',
+              'Level 2 语义校验（LLM，强制行号）—— 未启动',
             ]}
           />
         </div>

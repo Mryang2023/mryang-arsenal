@@ -160,8 +160,9 @@ function grade(score: number): string {
  * Level 1 校验引擎（文本层）。
  *
  * 只执行 check.regex 层——这是零成本、可离线、确定性的那一层。
- * 其余层（ast / llm / manual）不在此处伪造判定，一律进 skipped 清单如实披露，
- * 交由后端 Level 1b（JavaParser）与 Level 2（LLM）处理。
+ * 其余层（ast / llm / manual）不在此处伪造判定，一律进 skipped 清单如实披露：
+ * AST 层后端已实现（JDK 自带 jdk.compiler，校验台点「后端深检」运行），
+ * Level 2 语义层（LLM）尚未启动。
  *
  * 原则：宁可说「这条我检不了」，也不要给一个假阳性把用户带偏。
  */
@@ -180,7 +181,7 @@ export function lint(files: SourceFile[], rules: Rule[]): LintReport {
       category: r.category,
       layer: r.check?.ast?.query ? 'ast' : r.check?.llm ? 'llm' : 'manual',
       reason: r.check?.ast?.query
-        ? '需 Java AST 解析 —— 交由后端 Level 1b（JavaParser）'
+        ? '需 Java AST 解析 —— 后端已实现，在校验台点「后端深检」运行'
         : r.check?.llm
         ? '需语义判定 —— 交由后端 Level 2（LLM，强制行号定位）'
         : '无法自动判定 —— 需人工过目',
