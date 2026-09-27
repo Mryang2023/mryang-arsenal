@@ -16,8 +16,8 @@
 硬红线：动画里画的实例数（client 节点不计）== 该形态在 TOPOLOGY 表里的 replicas
 == 产物 K8s 的副本数。build-content.py 与【22】层双向守这条线，数不上就红。
 
-P0-1 只写 Redis 的 single / masterslave 两个形态；sentinel / cluster / multilevel
-的剧本 P0-2 再写 —— 没写剧本的形态前端不出现「看机理」按钮，如实空态。
+P0-1 写了 single / masterslave;P0-2 补齐 sentinel / cluster / multilevel ——
+Redis 家族五种形态全部有机理台。仍没写剧本的形态前端不出现「看机理」按钮,如实空态。
 """
 
 TOPOLOGY_FLOWS = {
@@ -151,6 +151,227 @@ TOPOLOGY_FLOWS = {
                         "refs": [
                             "Redis 官方文档：Replication —— SAFETY（旧主重回须以从库身份重新加入）",
                             "装配台选项说明：failover 由 VIP / 中间件切换",
+                        ],
+                    },
+                ],
+            },
+            "sentinel": {
+                "nodes": [
+                    {"id": "client", "label": "应用", "kind": "client"},
+                    {"id": "sen1", "label": "哨兵仲裁", "kind": "proxy"},
+                    {"id": "m1", "label": "主库", "kind": "primary"},
+                    {"id": "s1", "label": "从库", "kind": "replica"},
+                ],
+                "edges": [
+                    {"id": "c-sen", "from": "client", "to": "sen1", "kind": "route"},
+                    {"id": "c-m1", "from": "client", "to": "m1", "kind": "data"},
+                    {"id": "c-s1", "from": "client", "to": "s1", "kind": "data"},
+                    {"id": "sen-m1", "from": "sen1", "to": "m1", "kind": "heartbeat"},
+                    {"id": "sen-s1", "from": "sen1", "to": "s1", "kind": "heartbeat"},
+                    {"id": "m1-s1", "from": "m1", "to": "s1", "kind": "repl"},
+                ],
+                "scenes": [
+                    {
+                        "id": "read",
+                        "title": "读：主库地址从哪来",
+                        "steps": [
+                            {"caption": "应用先问哨兵：当前主库是谁",
+                             "highlight": ["client"], "active": ["c-sen"],
+                             "token": {"edge": "c-sen", "label": "ASK"}},
+                            {"caption": "哨兵返回主库地址 —— 客户端从此直连主库",
+                             "highlight": ["sen1"], "active": ["c-sen"]},
+                            {"caption": "读主库；要分流就把部分读发给从库",
+                             "highlight": ["m1"], "active": ["c-m1"],
+                             "token": {"edge": "c-m1", "label": "GET"}},
+                            {"caption": "从库数据来自主从复制，读它要接受复制延迟",
+                             "highlight": ["s1"], "active": ["c-s1"],
+                             "token": {"edge": "c-s1", "label": "GET"}},
+                        ],
+                        "refs": [
+                            "Redis 官方文档：Sentinel —— 客户端通过哨兵发现当前主库",
+                            "Redis 官方文档：Replication —— 从库只读与复制延迟",
+                        ],
+                    },
+                    {
+                        "id": "write",
+                        "title": "写：哨兵盯着什么",
+                        "steps": [
+                            {"caption": "写命令只发主库；从库只读，写会被拒绝",
+                             "highlight": ["m1"], "active": ["c-m1"],
+                             "token": {"edge": "c-m1", "label": "SET"}},
+                            {"caption": "主库把写命令流异步推给从库",
+                             "highlight": ["s1"], "active": ["m1-s1"],
+                             "token": {"edge": "m1-s1", "label": "repl"}},
+                            {"caption": "哨兵按固定频率向主从发 PING 盯心跳",
+                             "highlight": ["sen1"], "active": ["sen-m1", "sen-s1"]},
+                            {"caption": "主库失联超时，哨兵先记主观下线（sdown）",
+                             "highlight": ["m1"], "active": ["sen-m1"]},
+                        ],
+                        "refs": [
+                            "redis.conf：sentinel down-after-milliseconds 默认 30000 毫秒",
+                            "Redis 官方文档：Sentinel —— 哨兵默认每秒一次 PING",
+                        ],
+                    },
+                    {
+                        "id": "failover",
+                        "title": "灾：主库挂了谁来接管",
+                        "steps": [
+                            {"caption": "主库失联：单个哨兵先记主观下线（sdown）",
+                             "highlight": ["sen1"], "active": ["sen-m1"]},
+                            {"caption": "quorum 个哨兵都同意，升级为客观下线（odown）",
+                             "highlight": ["sen1"], "active": ["sen-m1"]},
+                            {"caption": "哨兵组内选出 leader，由它执行故障切换",
+                             "highlight": ["sen1"]},
+                            {"caption": "leader 把从库提升为新主，客户端从哨兵拿到新地址",
+                             "highlight": ["s1"]},
+                            {"caption": "旧主回来必须以从库身份重新加入，否则脑裂双写",
+                             "highlight": ["client"]},
+                        ],
+                        "refs": [
+                            "Redis 官方文档：Sentinel —— ODOWN 需 quorum 多数同意，leader 哨兵执行切换",
+                            "Redis 官方文档：Replication —— SAFETY（旧主以从库身份回归）",
+                        ],
+                    },
+                ],
+            },
+            "cluster": {
+                "nodes": [
+                    {"id": "client", "label": "应用", "kind": "client"},
+                    {"id": "m1", "label": "分片1 主", "kind": "primary", "x": 76, "y": 64},
+                    {"id": "m2", "label": "分片2 主", "kind": "primary", "x": 220, "y": 64},
+                    {"id": "m3", "label": "分片3 主", "kind": "primary", "x": 364, "y": 64},
+                ],
+                "edges": [
+                    {"id": "c-m1", "from": "client", "to": "m1", "kind": "data"},
+                    {"id": "c-m2", "from": "client", "to": "m2", "kind": "data"},
+                    {"id": "c-m3", "from": "client", "to": "m3", "kind": "data"},
+                    {"id": "m1-m2", "from": "m1", "to": "m2", "kind": "heartbeat"},
+                    {"id": "m2-m3", "from": "m2", "to": "m3", "kind": "heartbeat"},
+                ],
+                "scenes": [
+                    {
+                        "id": "read",
+                        "title": "读：一个 key 怎么被找到",
+                        "steps": [
+                            {"caption": "应用对 key 算 CRC16 模 16384，得出所属槽",
+                             "highlight": ["client"]},
+                            {"caption": "槽在哪个分片，请求就直连那个分片的主",
+                             "highlight": ["m1"], "active": ["c-m1"],
+                             "token": {"edge": "c-m1", "label": "GET"}},
+                            {"caption": "连错分片也不怕：对方回 MOVED 带上正确槽归属",
+                             "highlight": ["m2"], "active": ["c-m2"],
+                             "token": {"edge": "c-m2", "label": "MOVED"}},
+                            {"caption": "客户端按 MOVED 重打，并把槽表缓存在本地",
+                             "highlight": ["client"], "active": ["c-m2"]},
+                        ],
+                        "refs": [
+                            "Redis 官方文档：Cluster spec —— 16384 个哈希槽，CRC16 取模定位",
+                            "Redis 官方文档：Cluster spec —— MOVED 重定向与客户端槽表缓存",
+                        ],
+                    },
+                    {
+                        "id": "write",
+                        "title": "写：数据怎么分片落下去",
+                        "steps": [
+                            {"caption": "写命令同样按槽路由，只落到所属分片的主",
+                             "highlight": ["m2"], "active": ["c-m2"],
+                             "token": {"edge": "c-m2", "label": "SET"}},
+                            {"caption": "分片各自落 AOF / RDB，互不干扰",
+                             "highlight": ["m2"]},
+                            {"caption": "主节点之间走 Gossip 总线交换集群状态",
+                             "highlight": ["m1", "m2", "m3"], "active": ["m1-m2", "m2-m3"]},
+                            {"caption": "最小集群每分片只有主：分片挂了，该槽暂不可写",
+                             "highlight": ["m1"], "active": ["c-m1"]},
+                        ],
+                        "refs": [
+                            "Redis 官方文档：Cluster spec —— Gossip 总线交换集群状态",
+                            "装配台选项说明：最小集群 3 分片，无副本",
+                        ],
+                    },
+                    {
+                        "id": "failover",
+                        "title": "灾：分片挂了会怎样",
+                        "steps": [
+                            {"caption": "某分片失联：其它主经 Gossip 标记它 PFAIL",
+                             "highlight": ["m2", "m3"], "active": ["m1-m2", "m2-m3"]},
+                            {"caption": "多数主确认后升级为 FAIL，该分片的槽下线",
+                             "highlight": ["m1"], "active": ["m2-m3"]},
+                            {"caption": "无从可晋升：等节点回来，或人工把槽迁给存活分片",
+                             "highlight": ["client"]},
+                            {"caption": "节点回归后重新加入，槽归属随集群状态恢复",
+                             "highlight": ["m1"], "active": ["m1-m2"]},
+                        ],
+                        "refs": [
+                            "Redis 官方文档：Cluster spec —— PFAIL / FAIL 需多数主节点同意",
+                            "Redis 官方文档：Cluster spec —— 无副本分片故障期间槽不可服务",
+                        ],
+                    },
+                ],
+            },
+            "multilevel": {
+                "nodes": [
+                    {"id": "client", "label": "应用", "kind": "client"},
+                    {"id": "l1", "label": "本地缓存", "kind": "cache"},
+                    {"id": "r1", "label": "Redis", "kind": "cache"},
+                ],
+                "edges": [
+                    {"id": "c-l1", "from": "client", "to": "l1", "kind": "data"},
+                    {"id": "l1-r1", "from": "l1", "to": "r1", "kind": "data"},
+                ],
+                "scenes": [
+                    {
+                        "id": "read",
+                        "title": "读：两级缓存怎么接力",
+                        "steps": [
+                            {"caption": "读先查进程内本地缓存，命中零网络直接返回",
+                             "highlight": ["l1"], "active": ["c-l1"],
+                             "token": {"edge": "c-l1", "label": "GET"}},
+                            {"caption": "本地未命中，再查分布式 Redis",
+                             "highlight": ["r1"], "active": ["l1-r1"],
+                             "token": {"edge": "l1-r1", "label": "GET"}},
+                            {"caption": "Redis 命中后回填本地，下次就是进程内命中",
+                             "highlight": ["l1"], "active": ["l1-r1"]},
+                            {"caption": "两层都没有才回源数据库，回填策略由应用定",
+                             "highlight": ["client"]},
+                        ],
+                        "refs": [
+                            "Caffeine 官方文档：进程内缓存，命中无网络开销",
+                            "装配台选项说明：本地 + 分布式两级，回源由应用编排",
+                        ],
+                    },
+                    {
+                        "id": "write",
+                        "title": "写：两层怎么保持一致",
+                        "steps": [
+                            {"caption": "写请求先落数据库，再更新或失效 Redis",
+                             "highlight": ["r1"], "active": ["l1-r1"],
+                             "token": {"edge": "l1-r1", "label": "SET"}},
+                            {"caption": "本地缓存不双写：失效它，下次读自然回填",
+                             "highlight": ["l1"]},
+                            {"caption": "回填窗口内可能读到旧值，业务要能容忍或加版本",
+                             "highlight": ["client"]},
+                        ],
+                        "refs": [
+                            "Redis 官方文档：客户端缓存与失效策略（Cache-Aside 惯例）",
+                            "装配台选项说明：先写存储再失效缓存，避免双写不一致",
+                        ],
+                    },
+                    {
+                        "id": "failover",
+                        "title": "灾：Redis 层挂了会怎样",
+                        "steps": [
+                            {"caption": "Redis 挂了：本地缓存还有热数据，服务不中断",
+                             "highlight": ["l1"]},
+                            {"caption": "本地条目陆续过期后，流量全部回源数据库",
+                             "highlight": ["client"]},
+                            {"caption": "同一批 key 同时回源 = 惊群，要用过期抖动摊平",
+                             "highlight": ["r1"], "active": ["l1-r1"]},
+                            {"caption": "Redis 恢复后逐步回填，命中率回升到常态",
+                             "highlight": ["r1"]},
+                        ],
+                        "refs": [
+                            "Redis 官方文档：缓存雪崩 —— 大量 key 同时过期，用随机 TTL 摊平",
+                            "装配台选项说明：多级容灾边界，本地层是 Redis 故障期的缓冲",
                         ],
                     },
                 ],
