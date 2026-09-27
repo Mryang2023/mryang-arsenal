@@ -51,9 +51,14 @@ public final class AstProbe {
         LintEngine engine = new LintEngine(index, ast, 5, 2_097_152);
 
         List<SourceFile> files = List.of(
-                new SourceFile("com/demo/BadService.java", SERVICE),
-                new SourceFile("com/demo/BadController.java", CONTROLLER),
-                new SourceFile("com/demo/BadTest.java", TEST));
+                // 样本路径必须落在规则的 appliesTo.pathGlob 声明范围内：
+                // SVC-TX-001 等声明 **/service/**、WEB-CTRL-002/003/004 声明 **/controller/**，
+                // AST 层按 pathGlob 收口后，声明之外的路径不再触发（这正是收口的意义）。
+                new SourceFile("com/demo/service/BadService.java", SERVICE),
+                new SourceFile("com/demo/controller/BadController.java", CONTROLLER),
+                // TEST-UNIT-002 是 regex+ast 双写规则，正则优先路由 —— 违规来自正则层，
+                // 其 targetGlob 是 **/src/test/**/*.java，样本路径必须落在里面才会被检出。
+                new SourceFile("src/test/java/com/demo/BadTest.java", TEST));
 
         LintReport report = engine.lint(new LintRequest(files));
 

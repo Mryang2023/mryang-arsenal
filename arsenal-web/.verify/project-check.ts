@@ -2453,6 +2453,50 @@ console.log('\n【21】README 正文里的项数口径');
     hits.length > 0 && strays.length === 0,
     strays.map((h) => `第 ${h.line} 行写着 ${h.n}：${h.text}`).join('；') || '（无）'
   );
+
+  // ── 两位数口径（2026-09-27 补）────────────────────────────────────────
+  // 09-26 有 4 处张数漂移（45→42→…）就是趁「两位数没人守」溜过去的。这里收窄守卫：
+  // 只守**当前规模**的断言（「N 张截图矩阵 / N 张矩阵 / 跑 N 张」「N 路由」），
+  // 数据源是 visual/shoot.mjs 的 EXPECTED 声明值（51 张 = 17 路由 × 3 视口，
+  // visual 层拿它对账、shoot.mjs 截图数对不上它自己会红）——README 跟它对齐即闭环。
+  // 刻意不守（真值不在机器源里，硬守只会教会人写假数字）：
+  //   · 历史叙事：「由 45 张同步为 42 张」是过去式，不是当前规模的断言；
+  //   · 判读进度：「判读了 34 张 / 其余 17 张 / 新增 9 张」，真值在 findings.md 散文里；
+  //   · 位图张数等其它「N 张」：数据源各异，不在这个收窄口径里。
+  const shootSrc = fs.readFileSync(path.join(repoRoot, 'arsenal-web', 'visual', 'shoot.mjs'), 'utf8');
+  const expectedM = shootSrc.match(/\burls:\s*(\d+),\s*\n\s*shots:\s*(\d+),/);
+  check(
+    'shoot.mjs 的 EXPECTED 声明可解析（urls/shots 两个常数都在）',
+    expectedM !== null,
+    '从 visual/shoot.mjs 解析不出 `urls: N, shots: N,` —— 守卫读不到数据源，先修这处锚点'
+  );
+  if (expectedM !== null) {
+    const expUrls = Number(expectedM[1]);
+    const expShots = Number(expectedM[2]);
+    const matrixHits: { line: number; unit: string; n: string; text: string }[] = [];
+    let inFence2 = false;
+    lines.forEach((text, i) => {
+      if (/^\s*```/.test(text)) {
+        inFence2 = !inFence2;
+        return;
+      }
+      if (inFence2) return;
+      for (const m of text.matchAll(/(?<![\d])(\d{1,2})\s*张(?=截图矩阵|矩阵)/g))
+        matrixHits.push({ line: i + 1, unit: '张(矩阵规模)', n: m[1], text: text.trim().slice(0, 60) });
+      for (const m of text.matchAll(/(?<![\d])跑\s*(\d{1,2})\s*张(?![\d])/g))
+        matrixHits.push({ line: i + 1, unit: '张(实跑)', n: m[1], text: text.trim().slice(0, 60) });
+      for (const m of text.matchAll(/(?<![\d])(\d{1,2})\s*个?路由(?![\d])/g))
+        matrixHits.push({ line: i + 1, unit: '路由', n: m[1], text: text.trim().slice(0, 60) });
+    });
+    const matrixStrays = matrixHits.filter(
+      (h) => h.n !== String(h.unit === '路由' ? expUrls : expShots)
+    );
+    check(
+      `README 两位数矩阵口径（张 / 路由）全部等于 shoot.mjs 的 EXPECTED（${expShots} 张 = ${expUrls} 路由，扫到 ${matrixHits.length} 处）`,
+      matrixHits.length > 0 && matrixStrays.length === 0,
+      matrixStrays.map((h) => `第 ${h.line} 行 ${h.unit}写着 ${h.n}：${h.text}`).join('；') || '（无）'
+    );
+  }
 }
 
 zipChecks().then(() => {

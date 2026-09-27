@@ -23,6 +23,14 @@
  *                 exportedAt 是唯一被容忍的易变字段，单独断言格式。
  * ─────────────────────────────────────────────────────────────
  *
+ * 另带两组与导出无关、但同属「后端能力不许静默漂移」的守门（【6】【7】）：
+ *   【6】AstProbe 实跑 —— 编译并执行 arsenal-server/.verify/AstProbe.java，
+ *        断言 15 个 AST 语法层检查器全部产生带行号违规、5 条类型依赖规则诚实留 skipped。
+ *        在此之前该探针 0 引用、从未编译执行，AstEngine 改坏多少这层都看不见。
+ *   【7】MCP 探针实跑 —— spawn arsenal-server/scripts/mcp-probe.mjs（27 项协议断言：
+ *        版本协商 / 4 工具 / resources / prompts / 错误码 / 通知静默）。
+ *        在此之前 MCP 改坏多少这层都看不见 —— 它的回归此前全靠手工喂 JSON-RPC。
+ *
  * 跑法：npm run verify:parity
  */
 import { spawnSync } from 'node:child_process';
@@ -377,5 +385,115 @@ async function probeLive(): Promise<void> {
 }
 
 probeLive().then(() => {
+  runAstGate();
+  runMcpGate();
   finish('parity');
 });
+
+// ═══════════════════════════════════════════════════════════════
+// 【6】AST 层守门（AstProbe 实跑）—— ParityProbe 只导数据、从不 lint：
+//       改坏 AstEngine（检查器没注册 / 行号塌了 / 整层静默失效），
+//       上面五节照旧全绿。这一组编译并实跑 AstProbe，断言：
+//         · 15 个语法层检查器对应规则全部产生带行号违规；
+//         · 5 条「留待 LLM」的 AST 规则如实留在 skipped；
+//         · 退出 0 且输出带 [PASS] 判定（防「退出 0 却没真断言」的假绿）。
+//       探针起不来 → 沿用本层 skip 语义如实记账，绝不静默。
+//       管线：arsenal-server/scripts/ast-probe.sh（与 parity-probe.sh 同一套
+//       _cp.sh 定位 JDK 与依赖，探针编译失败即硬失败）。
+// ═══════════════════════════════════════════════════════════════
+
+const astProbeScript = path.join(repoRoot, 'arsenal-server', 'scripts', 'ast-probe.sh');
+const astProbeJava = path.join(repoRoot, 'arsenal-server', '.verify', 'AstProbe.java');
+
+function runAstGate(): void {
+  console.log('\n【6】AST 层守门（AstProbe 实跑）');
+  const missing = [astProbeScript, astProbeJava].filter((p) => !fs.existsSync(p));
+  if (missing.length > 0) {
+    // 探针文件不在 = 守门人不在岗 —— 这是仓库自身的坏，记 fail，不算环境缺件。
+    check('AstProbe 守门组件就位（脚本 + 探针源码）', false, `缺 ${missing.join(' , ')}`);
+    skip('AstProbe 实跑（15 检查器 + 5 skipped 记账）', '守门组件缺失，无法实跑');
+    return;
+  }
+
+  const ast = spawnSync(
+    'bash',
+    [toPosix(astProbeScript), toPosix(rulesDir)],
+    { cwd: repoRoot, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }
+  );
+  const out = `${ast.stdout || ''}\n${ast.stderr || ''}`;
+
+  if (ast.error) {
+    // spawn 本身失败 = 连 bash 都没找到 —— 环境缺件，记 skip（与【2】同一语义）。
+    const why = `AstProbe 无法启动：${(ast.error as Error).message}`;
+    skip('AstProbe 实跑（15 检查器 + 5 skipped 记账）', why);
+    skip('AstProbe 判定为 [PASS]', '探针未启动，无判定可核');
+    return;
+  }
+  if (ast.status !== 0) {
+    // 「环境缺件」与「探针真的失败」分开报 —— 与【2】同一条取舍：
+    // 判据是输出里的环境特征串，不精确，但两条路的输出都会原样打出来。
+    const envLike =
+      /command not found|No such file|no such file|JAVA_HOME|javac|not recognized|Permission denied/i.test(out);
+    if (envLike) {
+      const why = `AstProbe 退出码 ${ast.status}，输出像环境缺件（bash / JDK 17）：`
+        + out.trim().split('\n').slice(-4).join(' / ');
+      skip('AstProbe 实跑（15 检查器 + 5 skipped 记账）', why);
+      skip('AstProbe 判定为 [PASS]', '探针未执行，无判定可核');
+    } else {
+      check('AstProbe 实跑（编译 + 15 检查器断言）', false, `退出码 ${ast.status}\n${out.trim()}`);
+      check('AstProbe 判定为 [PASS]', false, '探针失败，无 [PASS] 判定');
+    }
+    return;
+  }
+  check('AstProbe 实跑（编译 + 15 检查器断言）', true);
+  check(
+    'AstProbe 判定为 [PASS]（15 检查器全生效、5 条类型依赖规则诚实 skipped）',
+    /\[PASS\]/.test(ast.stdout || ''),
+    (ast.stdout || '').trim().split('\n').slice(-6).join('\n')
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════
+// 【7】MCP 层守门（mcp-probe.mjs 实跑）—— mcp-stdio.mjs 是独立 stdio 进程，
+//       上面的导出比对与探针都碰不到它。这一组 spawn 回归探针，断言：
+//         · 27 项协议断言全过（版本协商 / 4 工具 / resources / prompts /
+//           错误码 -32601·-32602·-32603 / 通知静默）；
+//         · 汇总行真实存在且「0 败」（防「退出 0 却没跑几条断言」的假绿，
+//           断言总数低于 20 也判红 —— 守卫不许被悄悄掏空）。
+//       探针是零依赖 node 脚本，不依赖后端 3011 与 JDK。
+// ═══════════════════════════════════════════════════════════════
+
+const mcpProbeScript = path.join(repoRoot, 'arsenal-server', 'scripts', 'mcp-probe.mjs');
+
+function runMcpGate(): void {
+  console.log('\n【7】MCP 层守门（mcp-probe 实跑）');
+  if (!fs.existsSync(mcpProbeScript)) {
+    // 守门人不在岗 —— 仓库自身的坏，记 fail，不算环境缺件。
+    check('MCP 守门组件就位（mcp-probe.mjs）', false, `缺 ${mcpProbeScript}`);
+    skip('MCP 探针实跑（27 项协议断言）', '守门组件缺失，无法实跑');
+    return;
+  }
+
+  const mcp = spawnSync(
+    process.execPath,
+    // 注意：子进程是 node 本体，不是 bash —— 必须给原生 Windows 路径。
+    // toPosix() 的 /d/... 是 MSYS 风格，只有 bash 认得（【6】那边是 spawn bash 才用它）。
+    [mcpProbeScript],
+    { cwd: repoRoot, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], timeout: 120_000 }
+  );
+  const out = `${mcp.stdout || ''}\n${mcp.stderr || ''}`;
+
+  if (mcp.error) {
+    const why = `MCP 探针无法启动：${(mcp.error as Error).message}`;
+    skip('MCP 探针实跑（27 项协议断言）', why);
+    skip('MCP 探针判定全过（N 过 / 0 败）', '探针未启动，无判定可核');
+    return;
+  }
+
+  const summary = out.match(/MCP 探针：(\d+) 过 \/ (\d+) 败（共 (\d+) 项断言）/);
+  const ok = mcp.status === 0 && summary !== null && Number(summary[2]) === 0 && Number(summary[3]) >= 20;
+  check('MCP 探针实跑（27 项协议断言）', ok,
+    `退出码 ${mcp.status}${summary ? `，汇总 ${summary[1]} 过 / ${summary[2]} 败 / 共 ${summary[3]} 项` : '，汇总行缺失'}\n${out.trim().split('\n').slice(-6).join('\n')}`);
+  check('MCP 探针判定全过（N 过 / 0 败）', summary !== null && Number(summary[2]) === 0,
+    summary ? `${summary[1]} 过 / ${summary[2]} 败 / 共 ${summary[3]} 项断言` : '汇总行缺失，无判定可核');
+}

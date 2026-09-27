@@ -493,6 +493,22 @@ if (!skipAll) {
     );
   }
 
+// ── 收尾清理（finally 语义，2026-09-26 终检 P2-9）────────────────
+// 本层经探针在 tmp/scan-check 下造的 fixture（many-repo 20001 个 0 字节文件、
+// big/deep-repo、escape.zip/large.zip、link-repo 软链）与各笔回执 JSON 只在单次运行内有意义。
+// 以前跑完不删，many-repo 的一万个 0 字节文件一直挂在 .verify/tmp/ 里。
+// 挂 process.on('exit') 而不是在尾部顺序执行：正常收尾、check 抛异常、process.exit 提前退出都会清；
+// rmSync 是同步调用，exit 回调里合法；recursive+force 保证目录不存在也不抛；
+// rmSync 按 lstat 语义删除，link-repo 里的符号链接只删链接本身、不跟随到目标。
+// 清理失败不影响验证结论。runner 侧既有惯例 CODEBUDDY_SAFE_DELETE_ENABLED=0 不受影响（本文件不走它）。
+process.on('exit', () => {
+  try {
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  } catch {
+    /* 残骸清理失败不改变验证结果 */
+  }
+});
+
 console.log('');
 if (skipAll) {
   // 整层未执行：记本层声明的项数为「跳过」，**不计通过也不计失败**，退出码由 finish 判为 2。
