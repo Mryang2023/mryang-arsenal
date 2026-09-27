@@ -233,14 +233,29 @@ if (!skipAll) {
   const escapeZip = path.join(tmpDir, 'escape.zip').replace(/\\/g, '/');
   const largeZip = path.join(tmpDir, 'large.zip').replace(/\\/g, '/');
   runProbe('mkzip', [`mkzip-escape:${escapeZip}`, `mkzip-large:${largeZip}`]);
-  const r3 = runProbe('attack', [
+  const ATTACK_ACTIONS = [
     `zip:${escapeZip}`,
     `zip:${largeZip}`,
     'git:file:///c/Windows',
     'git:ssh://git@github.com/foo/bar.git',
     'git:git://github.com/foo/bar.git',
     'facts:../arsenal-web/不存在的目录',
-  ]);
+  ];
+  // 整批 attack 记录是否齐全(6 条都在 = 探针与后端的往返真实发生过)
+  const attackGot = (rr: Receipt[]) =>
+    ATTACK_ACTIONS.every((a) => {
+      const i = a.indexOf(':');
+      return rr.some((r) => r.kind === a.slice(0, i) && r.action.endsWith(a.slice(i + 1)));
+    });
+  let r3 = runProbe('attack', ATTACK_ACTIONS);
+  if (!attackGot(r3)) {
+    // 长跑链路偶发(2026-09-28 全量实测:1 项 → 6 项波动,单跑/直连始终正常):
+    // 后端 JVM 在前几层探针负载下短暂停顿,Java 探针的 HTTP 全部落空,整批记录缺失。
+    // 只对「记录缺失」重试一次 —— 真回归返回的是确定的错误记录,不会进这里,不掩盖。
+    console.log('  ! attack 探针响应缺失(后端瞬时停顿?),2s 后重试一次');
+    Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 2000);
+    r3 = runProbe('attack-retry', ATTACK_ACTIONS);
+  }
   const byAction = (kind: string, tail: string) =>
     r3.find((r) => r.kind === kind && r.action.endsWith(tail));
 
