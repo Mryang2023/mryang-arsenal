@@ -61,6 +61,8 @@
    `可交棒 == true` 且 `验证.全量跑了 == true` 且 `提交.已提交 == true`。
    缺一 → 视同未交棒 → 写 `<N>-blocked.json` 跳过本棒，如实留给终检。
    > 前棒崩了却留下一个 done.json，是无人值守下最容易发生的静默事故。
+   > 另：状态文件里的「收工」时刻字段**不可信**（棒 1 曾写下一个自己还没到的收工时刻）。
+   > 下一棒判断交接是否发生，以状态文件的 **mtime** 或文件里显式的「交接时刻」字段为准，**不要比对「收工」字段**。
 4. 等不到 → 写 blocked，**把下一棒 `scheduledAt` 设为本棒硬线时刻**（不是"现在+3分钟"，否则整链一路轮询到天亮）。
 5. 开工即建 `<N>-running.json`（含本棒砍定后的范围）。
 6. **第一棒**：`git status --porcelain` 若非空 → 先分批提交存量（`chore(baseline): ...`）再开发。
@@ -305,7 +307,9 @@ git status  = ⚠️ 20:15 实测：白天三份计划 md 与 memory 已由白�
    若有需要人拍板的决策项，**单独拎到最前面**并注明"排期前需先找用户拍板"。
 6. **清理** `*-running` / `*-blocked`，只留 `*-done.json` 与 `REVIEW.md`；
    把 `.workbuddy\night-chain\LATEST` 内容改成 `2026-09-26`。
-7. **归因核查**：`git log --name-only --format="" b927e30..HEAD | grep '/_' | sort -u` 必须为空；
+7. **归因核查**：`git log --name-only --format="" b927e30..HEAD | grep '/_' | sort -u`
+   **排除 `_lib/` 等刻意的 Next 私有目录后必须为空**（09-26 终检实测：`src/app/cases/_lib/` 四个文件命中 ——
+   那是 Next.js 约定的私有目录（路由私有模块），不是 `_*` 调试产物，直接判空会误报）；
    对最大两个提交 `git show --name-status` 逐条看域归属。
 8. 用 `present_files` 呈现 `REVIEW.md`。
 

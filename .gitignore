@@ -47,6 +47,10 @@ arsenal-demo-*.zip
 .workbuddy/night-chain/*-running.json
 .workbuddy/night-chain/*-done.json
 .workbuddy/night-chain/*-blocked.json
+#    2026-09-26 夜跑起，状态文件改写入带日期子目录（如 2026-09-26/01-done.json），
+#    上面三条只匹配顶层挂不住 —— 整目录按瞬时状态忽略（2026-09-26 终检 P2-1）。
+#    gitignore 只作用于未跟踪文件：已提交的 REVIEW.md / 归档副本 / LATEST 不受影响。
+.workbuddy/night-chain/
 
 # ── 自动化会话记忆：每次调度写一份，属会话产物不是资产 ──────────
 .workbuddy/memory/automations/

@@ -260,8 +260,11 @@ export function planToPrompt(plan: CasePlan): string {
   return lines.join('\n');
 }
 
-/** 切片代码的文件名，供下载 .java 使用 */
-export function sliceFileName(kase: CaseDef, slice: CaseSlice): string {
+/**
+ * 切片代码的文件名，供下载 .java 使用。
+ * kase 只要求 { id, name } 的最小形状（与 SliceCard 的 prop 同宽），函数体实际只读 slice。
+ */
+export function sliceFileName(kase: { id: string; name: string }, slice: CaseSlice): string {
   const cls = /public (?:final )?(?:class|interface|record) (\w+)/.exec(slice.code)?.[1];
   return `${cls ?? slice.id}.java`;
 }

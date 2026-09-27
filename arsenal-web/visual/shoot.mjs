@@ -99,7 +99,13 @@ const KNOWN_BASELINE = [
     id: 'archify-backend-down',
     reason:
       'src/lib/arsenal-api.ts:16 硬编码 DEFAULT_BASE = http://localhost:3011；静态导出站（output:export）挂载即请求 /api/archify，后端未起则必然失败。真实缺陷，见 findings.md F-06。',
-    match: (e) => /\/api\/archify$/.test(String(e.url || '')),
+    match: (e) =>
+      // 后端未起：失败事件（requestfailed / http 40x）自带完整 url
+      /\/api\/archify$/.test(String(e.url || '')) ||
+      // 后端活着但未开 CORS：3 条 CORS console.error 由 Chromium 生成，无脚本 location（url 为空），
+      // 报错原文（e.text）里带目标 URL，如 "Access to fetch at 'http://localhost:3011/api/archify' … CORS policy"。
+      // 只归入本条基线，不涉及其它 console.error。
+      /\/api\/archify/.test(String(e.text || '')),
   },
 ];
 

@@ -229,7 +229,7 @@ export function SliceCard({ kase, slice, open, onToggle }: {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = sliceFileName(kase as never, slice);
+    a.download = sliceFileName(kase, slice);
     a.click();
     URL.revokeObjectURL(url);
   };
@@ -288,7 +288,7 @@ export function SliceCard({ kase, slice, open, onToggle }: {
           <div>
             <div className="mb-1.5 flex items-center justify-between">
               <span className="text-2xs uppercase tracking-[0.14em] text-fgFaint">
-                Java · {sliceFileName(kase as never, slice)}
+                Java · {sliceFileName(kase, slice)}
               </span>
               <span className="flex gap-1">
                 <button onClick={() => setShowAll((v) => !v)}
@@ -301,7 +301,7 @@ export function SliceCard({ kase, slice, open, onToggle }: {
                 </button>
               </span>
             </div>
-            <CodeBlock code={code} lang="java" label={sliceFileName(kase as never, slice)} />
+            <CodeBlock code={code} lang="java" label={sliceFileName(kase, slice)} />
             {truncated && (
               <div className="mt-1 text-[11px] text-fgFaint">
                 已折叠显示前 28 行，共 {slice.code.split('\n').length} 行
