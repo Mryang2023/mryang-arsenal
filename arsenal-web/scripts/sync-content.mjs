@@ -36,6 +36,30 @@ function readJson(p) {
 const cbDir = path.join(root, 'arsenal-cookbook');
 const cbMeta = readJson(path.join(cbDir, 'meta.json'));
 
+// ── 判据阈值只从契约读一处（W-0）────────────────────────────────────────
+// 曾经这批「少于 N 条」的门槛在本脚本与 `tools/build-content.py` 里各内联一份，
+// 是同一套规矩的两个副本，却没有任何东西保证它们相等 —— 改了 Python 那边忘了这边，
+// 结果是「构建期放行、同步期拦截」，报错还指向一份读者根本没看过的代码。
+// 案例库要扩到 9 条主线（A-1），判据一定会被反复调整，双写的代价不是多改一处，
+// 而是「将来每一次调整都可能只改一处」。
+//
+// 所以这里**不许再写任何阈值字面量**：契约缺键就直接失败，绝不静默回落到默认值
+// （回落到默认值 = 又造了一份内联副本，只是藏得更深）。
+const CONTRACT_KEYS = [
+  'pickWhen', 'limits', 'references',
+  'when', 'signals', 'notSuitable', 'recipes',
+  'files', 'checklist', 'pitfalls', 'observe',
+];
+const C = cbMeta.contract ?? {};
+const missingKeys = CONTRACT_KEYS.filter((k) => typeof C[k] !== 'number');
+if (missingKeys.length) {
+  fail(
+    `arsenal-cookbook/meta.json 的 contract 缺键或不是数字：${missingKeys.join(' / ')}\n` +
+    `  - 判据的唯一来源是 tools/content/cookbook_contract.py，请重跑 ` +
+    `python tools/build-content.py 再同步`
+  );
+}
+
 const topics = [];
 const cbProblems = [];
 let totalFiles = 0;
@@ -51,14 +75,14 @@ for (const id of cbMeta.order ?? []) {
   if (!t) cbProblems.push(`${id}.json 缺少 topic 字段`);
 
   // L1：技术必须说清「什么时候该选它」与自身边界 —— 否则会被当成银弹
-  if ((t.pickWhen ?? []).length < 2) {
-    cbProblems.push(`${id} 的 pickWhen 少于 2 条 —— 说不出什么时候该选它`);
+  if ((t.pickWhen ?? []).length < C.pickWhen) {
+    cbProblems.push(`${id} 的 pickWhen 少于 ${C.pickWhen} 条 —— 说不出什么时候该选它`);
   }
-  if ((t.limits ?? []).length < 2) {
-    cbProblems.push(`${id} 的 limits 少于 2 条 —— 不写自身边界的技术会被当成银弹`);
+  if ((t.limits ?? []).length < C.limits) {
+    cbProblems.push(`${id} 的 limits 少于 ${C.limits} 条 —— 不写自身边界的技术会被当成银弹`);
   }
-  if ((t.references ?? []).length < 2) {
-    cbProblems.push(`${id} 的 references 少于 2 条 —— 无出处不收录`);
+  if ((t.references ?? []).length < C.references) {
+    cbProblems.push(`${id} 的 references 少于 ${C.references} 条 —— 无出处不收录`);
   }
   for (const r of t.references ?? []) {
     if (!r.title) cbProblems.push(`${id} 有参考资料缺少 title`);
@@ -77,16 +101,18 @@ for (const id of cbMeta.order ?? []) {
 
   for (const sc of t.scenarios ?? []) {
     const sw = `${id}/${sc.id}`;
-    if ((sc.when ?? '').length < 30) {
-      cbProblems.push(`${sw} 的 when 少于 30 字，说明不了什么情况下用`);
+    if ((sc.when ?? '').length < C.when) {
+      cbProblems.push(`${sw} 的 when 少于 ${C.when} 字，说明不了什么情况下用`);
     }
-    if ((sc.signals ?? []).length < 2) {
-      cbProblems.push(`${sw} 的 signals 少于 2 条 —— 没有可核对信号，「适用」只是形容词`);
+    if ((sc.signals ?? []).length < C.signals) {
+      cbProblems.push(`${sw} 的 signals 少于 ${C.signals} 条 —— 没有可核对信号，「适用」只是形容词`);
     }
-    if ((sc.notSuitable ?? []).length < 2) {
-      cbProblems.push(`${sw} 的 notSuitable 少于 2 条`);
+    if ((sc.notSuitable ?? []).length < C.notSuitable) {
+      cbProblems.push(`${sw} 的 notSuitable 少于 ${C.notSuitable} 条`);
     }
-    if (!(sc.recipes ?? []).length) cbProblems.push(`${sw} 没有任何实现方案 —— 场景不能悬空`);
+    if ((sc.recipes ?? []).length < C.recipes) {
+      cbProblems.push(`${sw} 没有任何实现方案 —— 场景不能悬空`);
+    }
     totalScenarios += 1;
 
     for (const rp of sc.recipes ?? []) {
@@ -117,11 +143,17 @@ for (const id of cbMeta.order ?? []) {
         highlights += (file.highlights ?? []).length;
       }
 
-      if (!(rp.files ?? []).length) cbProblems.push(`${at} 没有代码文件 —— 方案必须给得出代码`);
-      if ((rp.checklist ?? []).length < 3) cbProblems.push(`${at} 的 checklist 少于 3 条`);
-      if ((rp.pitfalls ?? []).length < 2) cbProblems.push(`${at} 的 pitfalls 少于 2 条`);
-      if (rp.lab?.kind === 'mock-endpoint' && (rp.lab.observe ?? []).length < 2) {
-        cbProblems.push(`${at} 的 lab.observe 少于 2 条 —— 不给预期现象，读者看不懂输出`);
+      if ((rp.files ?? []).length < C.files) {
+        cbProblems.push(`${at} 没有代码文件 —— 方案必须给得出代码`);
+      }
+      if ((rp.checklist ?? []).length < C.checklist) {
+        cbProblems.push(`${at} 的 checklist 少于 ${C.checklist} 条`);
+      }
+      if ((rp.pitfalls ?? []).length < C.pitfalls) {
+        cbProblems.push(`${at} 的 pitfalls 少于 ${C.pitfalls} 条`);
+      }
+      if (rp.lab?.kind === 'mock-endpoint' && (rp.lab.observe ?? []).length < C.observe) {
+        cbProblems.push(`${at} 的 lab.observe 少于 ${C.observe} 条 —— 不给预期现象，读者看不懂输出`);
       }
 
       // 可运行示例：入口文件必须真的在 files 里，否则后端拿不到东西编译

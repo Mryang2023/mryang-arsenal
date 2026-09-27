@@ -116,6 +116,10 @@ def build_cookbook():
     known_rules = rule_ids()
     n_scen = n_recipe = n_demo = 0
 
+    # 三层判据的阈值**只从契约读一处**（W-0）：本文件与 sync-content.mjs 曾经各内联一份，
+    # 改一处漏一处的结果是「构建放行、同步拦截」，报错还指向读者没看过的那份代码。
+    CONTRACT = load_module('cookbook_contract').contract_doc()
+
     def check_refs(where, refs, minimum):
         refs = refs or []
         if len(refs) < minimum:
@@ -147,18 +151,23 @@ def build_cookbook():
         if topic.get('family') not in COOKBOOK_FAMILIES:
             problems.append('技术 %s 的 family「%s」不在 %s 里'
                             % (tid, topic.get('family'), '/'.join(sorted(COOKBOOK_FAMILIES))))
-        if len(topic.get('intent') or '') < 30:
-            problems.append('技术 %s 的 intent 过于简略，说不清它解决什么' % tid)
-        # 「外场选择」这一层的存在意义就是比较：至少给出两条与其它技术的取舍
-        if len(topic.get('pickWhen') or []) < 2:
+        if len(topic.get('intent') or '') < CONTRACT['intent']:
             problems.append(
-                '技术 %s 的 pickWhen 少于 2 条 —— 说不出什么时候该选它，这一层就没有意义' % tid)
+                '技术 %s 的 intent 不足 %d 字，说不清它解决什么'
+                % (tid, CONTRACT['intent']))
+        # 「外场选择」这一层的存在意义就是比较：至少给出两条与其它技术的取舍
+        if len(topic.get('pickWhen') or []) < CONTRACT['pickWhen']:
+            problems.append(
+                '技术 %s 的 pickWhen 少于 %d 条 —— 说不出什么时候该选它，这一层就没有意义'
+                % (tid, CONTRACT['pickWhen']))
         for p in topic.get('pickWhen') or []:
             if not p.get('vs') or not p.get('text'):
                 problems.append('技术 %s 有 pickWhen 缺少 vs 或 text' % tid)
-        if len(topic.get('limits') or []) < 2:
-            problems.append('技术 %s 的 limits 少于 2 条 —— 不写自身边界的技术会被当成银弹' % tid)
-        check_refs('技术 %s' % tid, topic.get('references'), 2)
+        if len(topic.get('limits') or []) < CONTRACT['limits']:
+            problems.append(
+                '技术 %s 的 limits 少于 %d 条 —— 不写自身边界的技术会被当成银弹'
+                % (tid, CONTRACT['limits']))
+        check_refs('技术 %s' % tid, topic.get('references'), CONTRACT['references'])
 
         # ── L2 场景 ────────────────────────────────────────────
         scenarios = topic.get('scenarios') or []
@@ -171,19 +180,21 @@ def build_cookbook():
             if sid in seen_scen:
                 problems.append('技术 %s 的场景 id 重复：%s' % (tid, sid))
             seen_scen.add(sid)
-            if len(sc.get('when') or '') < 30:
-                problems.append('%s 的 when 过于简略，说明不了什么情况下用' % where)
-            if len(sc.get('signals') or []) < 2:
-                problems.append('%s 的 signals 少于 2 条 —— 没有可核对信号，「适用」就只是形容词'
-                                % where)
+            if len(sc.get('when') or '') < CONTRACT['when']:
+                problems.append('%s 的 when 不足 %d 字，说明不了什么情况下用'
+                                % (where, CONTRACT['when']))
+            if len(sc.get('signals') or []) < CONTRACT['signals']:
+                problems.append('%s 的 signals 少于 %d 条 —— 没有可核对信号，「适用」就只是形容词'
+                                % (where, CONTRACT['signals']))
             if not sc.get('decision'):
                 problems.append('%s 没有 decision（为什么在这个场景下用它）' % where)
-            if len(sc.get('notSuitable') or []) < 2:
-                problems.append('%s 的 notSuitable 少于 2 条' % where)
+            if len(sc.get('notSuitable') or []) < CONTRACT['notSuitable']:
+                problems.append('%s 的 notSuitable 少于 %d 条'
+                                % (where, CONTRACT['notSuitable']))
 
             # ── L3 实现方案 ────────────────────────────────────
             recipes = sc.get('recipes') or []
-            if not recipes:
+            if len(recipes) < CONTRACT['recipes']:
                 problems.append('%s 没有任何实现方案 —— 场景不能悬空' % where)
             seen_recipe = set()
             for rp in recipes:
@@ -192,19 +203,21 @@ def build_cookbook():
                 if rid in seen_recipe:
                     problems.append('%s 的方案 id 重复：%s' % (where, rid))
                 seen_recipe.add(rid)
-                if len(rp.get('approach') or '') < 20:
-                    problems.append('%s 的 approach 过于简略，说不清实现方式' % at)
-                if len(rp.get('files') or []) < 1:
+                if len(rp.get('approach') or '') < CONTRACT['approach']:
+                    problems.append('%s 的 approach 不足 %d 字，说不清实现方式'
+                                    % (at, CONTRACT['approach']))
+                if len(rp.get('files') or []) < CONTRACT['files']:
                     problems.append('%s 没有代码文件 —— 方案必须给得出代码' % at)
                 for f in rp.get('files') or []:
-                    if len(f.get('highlights') or []) < 2:
+                    if len(f.get('highlights') or []) < CONTRACT['highlights']:
                         problems.append(
-                            '%s/%s 只有 %d 条 highlights —— 少于 2 条说明这段代码没人真的读过'
-                            % (at, f.get('id'), len(f.get('highlights') or [])))
-                if len(rp.get('checklist') or []) < 3:
-                    problems.append('%s 的 checklist 少于 3 条' % at)
-                if len(rp.get('pitfalls') or []) < 2:
-                    problems.append('%s 的 pitfalls 少于 2 条' % at)
+                            '%s/%s 只有 %d 条 highlights —— 少于 %d 条说明这段代码没人真的读过'
+                            % (at, f.get('id'), len(f.get('highlights') or []),
+                               CONTRACT['highlights']))
+                if len(rp.get('checklist') or []) < CONTRACT['checklist']:
+                    problems.append('%s 的 checklist 少于 %d 条' % (at, CONTRACT['checklist']))
+                if len(rp.get('pitfalls') or []) < CONTRACT['pitfalls']:
+                    problems.append('%s 的 pitfalls 少于 %d 条' % (at, CONTRACT['pitfalls']))
                 for r in rp.get('relatedRules') or []:
                     if r not in known_rules:
                         problems.append('%s 引用了不存在的规则 id：%s' % (at, r))
@@ -219,9 +232,10 @@ def build_cookbook():
                         problems.append('%s 声明了模拟接口测试却没有可运行示例' % at)
                     if not lab.get('intro'):
                         problems.append('%s 的 lab 没有 intro（这组实验在测什么）' % at)
-                    if len(lab.get('observe') or []) < 2:
-                        problems.append('%s 的 lab.observe 少于 2 条 —— 不给预期现象，读者看不懂输出'
-                                        % at)
+                    if len(lab.get('observe') or []) < CONTRACT['observe']:
+                        problems.append(
+                            '%s 的 lab.observe 少于 %d 条 —— 不给预期现象，读者看不懂输出'
+                            % (at, CONTRACT['observe']))
                 for d in demos:
                     if not d.get('id') or not d.get('label'):
                         problems.append('%s 有示例缺少 id 或 label' % at)
@@ -280,6 +294,10 @@ def build_cookbook():
         'recipeCount': n_recipe,
         'demoCount': n_demo,
         'families': COOKBOOK_FAMILIES,
+        # 判据随产物一起落盘（W-0）：sync-content.mjs 读这一份做同步期校验，
+        # 前端 `CookbookMeta.contract` 也由【16】字段契约双向守着 ——
+        # 「判据」从此是**被校验的数据**，不再是一句谁都不查的注释。
+        'contract': CONTRACT,
     })
     print('  %d 项技术 / %d 个场景 / %d 套实现方案 / %d 个可运行模拟接口实验'
           % (len(topics), n_scen, n_recipe, n_demo))

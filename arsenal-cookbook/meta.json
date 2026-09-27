@@ -17,5 +17,21 @@
     "web": "接口与集成",
     "reliability": "稳定性",
     "quality": "质量工程"
+  },
+  "contract": {
+    "intent": 30,
+    "pickWhen": 2,
+    "limits": 2,
+    "references": 2,
+    "when": 30,
+    "signals": 2,
+    "notSuitable": 2,
+    "recipes": 1,
+    "approach": 20,
+    "files": 1,
+    "highlights": 2,
+    "checklist": 3,
+    "pitfalls": 2,
+    "observe": 2
   }
 }

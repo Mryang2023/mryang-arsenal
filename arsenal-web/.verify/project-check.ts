@@ -1553,6 +1553,27 @@ console.log('\n【16】字段契约一致性（类型 ↔ 事实源）');
       genFile: 'cookbook.json',
       genKey: 'topics',
     },
+    // 判据契约（W-0，2026-09-27）：三层判据的阈值原本在 build-content.py 与
+    // sync-content.mjs **各内联一份**，谁都不查对方。抽成产物里的 `meta.contract` 后，
+    // 它就成了被校验的数据 —— 类型漏一个键、产物少一个键，这里当场变红；
+    // 而「两边阈值不一致」这一类事故，从「不可能被发现」变成「不可能发生」。
+    {
+      label: '最佳实践库·元信息',
+      typeFile: 'lib/content-types.ts',
+      iface: 'CookbookMeta',
+      src: [
+        {
+          id: 'meta',
+          rec: readJson(path.join(repoRoot, 'arsenal-cookbook', 'meta.json')) as Record<
+            string,
+            unknown
+          >,
+        },
+      ],
+      genFile: 'cookbook.json',
+      genKey: 'meta',
+      genFlat: (doc) => [doc.meta],
+    },
     // 机理剧本五类记录（部署形态动画化 2026-09-27）：一个剧本一个形态，
     // 节点 / 边 / 场景 / 步骤逐条对类型 —— 剧本数据在播放器里是逐字段直读的，
     // 类型撒谎的后果不会是编译错，而是某一帧静默播错。
@@ -1689,6 +1710,13 @@ console.log('\n【16】字段契约一致性（类型 ↔ 事实源）');
     },
     // 参考出处挂在**技术**层（方案不重复抄一遍出处），所以从技术记录上取
     { lib: '最佳实践库·技术', iface: 'FeatureReference', pick: (r) => r.references ?? [] },
+    // 判据契约是 meta 上的一个嵌套对象，14 个键缺一个就等于那条判据**从来没生效过**
+    // （sync 读到 undefined 不会报错，只会把门槛静默当成 0 条）
+    {
+      lib: '最佳实践库·元信息',
+      iface: 'CookbookContract',
+      pick: (r) => [r.contract],
+    },
     {
       lib: '最佳实践库·技术',
       iface: 'PlaygroundDemo',
@@ -2581,6 +2609,178 @@ console.log('\n【21】README 正文里的项数口径');
       matrixStrays.map((h) => `第 ${h.line} 行 ${h.unit}写着 ${h.n}：${h.text}`).join('；') || '（无）'
     );
   }
+
+  // ── 规则集 README 的数字口径（2026-09-27 补）──────────────────────────
+  // 同一类事故换了个文件重演：`arsenal-rules/README.md` 的「规则总数」长期写着
+  // **62**（实 69）、「建议级」写着 **12**（实 18）。它不在【21】原先的扫描口径里
+  // （那是「N 项」与「N 的口径」，这里是「规则总数 / 建议级」），所以一路全绿。
+  // 规则集是这个仓库的立身之本，它自己的 README 说不清自己有多少条规则，
+  // 比验证项数写错更不该发生 —— 这里把四个数全部钉到 `rules.json` 实测值上。
+  const srcRoot = path.resolve(here, '..', 'src');
+  const readJson = (p: string): any => JSON.parse(fs.readFileSync(p, 'utf8'));
+  const rulesDoc = readJson(path.join(srcRoot, 'generated', 'rules.json'));
+  const rulesArr = (Array.isArray(rulesDoc) ? rulesDoc : rulesDoc?.rules ?? []) as {
+    severity?: string;
+  }[];
+  const sev = (s: string) => rulesArr.filter((r) => r.severity === s).length;
+  const mustN = sev('MUST');
+  const neverN = sev('NEVER');
+  const shouldN = sev('SHOULD');
+  const mayN = sev('MAY');
+
+  const rulesReadme = fs.readFileSync(path.join(repoRoot, 'arsenal-rules', 'README.md'), 'utf8');
+  const tableNum = (label: string): number | null => {
+    const m = new RegExp(`\\|\\s*${label}\\s*\\|\\s*(\\d+)`).exec(rulesReadme);
+    return m ? Number(m[1]) : null;
+  };
+  for (const [label, actual] of [
+    ['规则总数', rulesArr.length],
+    ['强制级（MUST \\+ NEVER）', mustN + neverN],
+    ['建议级（SHOULD）', shouldN],
+    ['可选级（MAY）', mayN],
+  ] as [string, number][]) {
+    const written = tableNum(label);
+    check(
+      `arsenal-rules/README.md 的「${label.replace('\\', '')}」等于实测 ${actual}`,
+      written !== null && written === actual,
+      written === null
+        ? `在 arsenal-rules/README.md 的表格里找不到「${label}」这一行 —— 行名改了要同步改这里`
+        : `表里写着 ${written}，rules.json 实测 ${actual}（MUST ${mustN} / NEVER ${neverN} / SHOULD ${shouldN} / MAY ${mayN}）`
+    );
+  }
+}
+
+// 【23】判据单一来源（W-0 · 共享判据）—— 「同一套规矩写了两份」是最难发现的那一类错
+//
+// 案例库三层判据的阈值原本在 `tools/build-content.py` 的 `build_cookbook()` 与
+// `arsenal-web/scripts/sync-content.mjs` 里**各内联一份**。它们是同一套规矩的两个副本，
+// 却没有任何东西保证它们相等 —— 改了构建期忘了同步期，结果是「构建放行、同步拦截」，
+// 报错还指向一份读者根本没看过的代码。案例库要扩到 9 条主线（A-1），判据一定会被
+// 反复调整：双写的代价不是今天多改一处，而是**将来每一次调整都可能只改一处**。
+//
+// 抽成产物里的 `meta.contract` 之后，判据成了**被校验的数据**。本组守三件事：
+//   ① 阈值真的只有一份定义处，且三处（定义 / 事实源产物 / 同步产物）逐键一致；
+//   ② 两边都真的在读它，谁都不许再内联数字；
+//   ③ 契约缺键必须失败，绝不允许静默回落到某个默认值（回落 = 又造了一份副本）。
+//
+// ⚠️ 刻意**不**去 grep 裸的 `30` / `2` / `3`（太宽泛，必然误伤无关代码）——
+//    扫的是「契约键名 + 比较运算符 + 数字字面量」落在**同一行**的形态，
+//    并且把扫描范围收窄到 cookbook 那一节 / `build_cookbook()` 那一个函数。
+console.log('\n【23】判据单一来源（W-0 · 共享判据）');
+{
+  const repoRoot = path.resolve(here, '..', '..');
+  const readJson = (p: string): any => JSON.parse(fs.readFileSync(p, 'utf8'));
+
+  // ── ① 契约的定义处：tools/content/cookbook_contract.py ──────────────
+  const pyPath = path.join(repoRoot, 'tools', 'content', 'cookbook_contract.py');
+  const pySrc = fs.existsSync(pyPath) ? fs.readFileSync(pyPath, 'utf8') : '';
+  const pyBlock = /COOKBOOK_CONTRACT\s*=\s*\{([\s\S]*?)\n\}/.exec(pySrc);
+  check(
+    '判据契约的定义处可读（tools/content/cookbook_contract.py 的 COOKBOOK_CONTRACT）',
+    pyBlock !== null,
+    '抠不出 COOKBOOK_CONTRACT —— 契约改名或换了写法，下面几条断言会全部空跑'
+  );
+
+  const pyContract: Record<string, number> = {};
+  if (pyBlock) {
+    for (const m of pyBlock[1].matchAll(/'([A-Za-z]+)'\s*:\s*(\d+)\s*,/g)) {
+      pyContract[m[1]] = Number(m[2]);
+    }
+  }
+  const KEYS = Object.keys(pyContract);
+
+  const metaContract =
+    (readJson(path.join(repoRoot, 'arsenal-cookbook', 'meta.json')).contract ?? {}) as Record<
+      string,
+      number
+    >;
+  const genContract =
+    (readJson(path.join(path.resolve(here, '..'), 'src', 'generated', 'cookbook.json'))?.meta
+      ?.contract ?? {}) as Record<string, number>;
+
+  // ── ② 三处逐键一致：定义 / 事实源产物 / 同步产物 ────────────────────
+  // 「忘了重跑 sync」在这里是可见的：产物比定义少一个键，就会当场对不上。
+  const union = Array.from(
+    new Set([...KEYS, ...Object.keys(metaContract), ...Object.keys(genContract)])
+  ).sort();
+  const drifted = union.filter(
+    (k) => pyContract[k] !== metaContract[k] || metaContract[k] !== genContract[k]
+  );
+  check(
+    `判据三处逐键一致（Python 定义 / meta.json / 同步产物，共 ${union.length} 键）`,
+    union.length >= 14 && drifted.length === 0,
+    drifted.length
+      ? drifted
+          .map((k) => `${k}: 定义=${pyContract[k]} meta=${metaContract[k]} 同步=${genContract[k]}`)
+          .join('；')
+      : `只扫到 ${union.length} 键，少于约定的 14 —— 契约漏键或没重跑 sync`
+  );
+
+  const badVals = union.filter((k) => !Number.isInteger(metaContract[k]) || metaContract[k] < 1);
+  check(
+    '判据值全为正整数（0 或负数 = 门槛形同虚设，却不会报错）',
+    badVals.length === 0,
+    badVals.map((k) => `${k}=${String(metaContract[k])}`).join('；') || '（无）'
+  );
+
+  // ── ③ 两边都不许再内联阈值 ──────────────────────────────────────────
+  const syncPath = path.join(repoRoot, 'arsenal-web', 'scripts', 'sync-content.mjs');
+  const syncSrc = fs.readFileSync(syncPath, 'utf8');
+  const secA = syncSrc.indexOf('// ── ① 最佳实践案例库');
+  const secB = syncSrc.indexOf('// ── ② 技术选型');
+  check(
+    'sync-content.mjs 的 cookbook 段可定位（① / ② 两个分节标记都在）',
+    secA >= 0 && secB > secA,
+    '找不到 ① 最佳实践案例库 … ② 技术选型 的分节标记 —— 扫描范围失效，下一条会空跑'
+  );
+  const syncSec = secA >= 0 && secB > secA ? syncSrc.slice(secA, secB) : '';
+
+  const syncInline: string[] = [];
+  syncSec.split('\n').forEach((line, i) => {
+    if (!/\.\s*length\s*<\s*\d/.test(line)) return;
+    const hit = KEYS.find((k) => new RegExp(`\\b${k}\\b`).test(line));
+    if (hit) syncInline.push(`第 ${i + 1} 行 ${hit}：${line.trim().slice(0, 60)}`);
+  });
+  check(
+    'sync-content.mjs 的 cookbook 段不再内联判据阈值（全部读 meta.contract）',
+    syncSec.length > 0 && syncInline.length === 0,
+    syncInline.join('；') || '（无）'
+  );
+
+  const pyBuild = fs.readFileSync(path.join(repoRoot, 'tools', 'build-content.py'), 'utf8');
+  const fnStart = pyBuild.indexOf('def build_cookbook():');
+  const fnEnd = pyBuild.indexOf('\ndef build_', fnStart + 1);
+  const fnBody = fnStart >= 0 ? pyBuild.slice(fnStart, fnEnd > 0 ? fnEnd : undefined) : '';
+  check(
+    'build_cookbook() 的函数体可定位（作用域收窄，避免误伤文件里其它数字）',
+    fnBody.length > 0,
+    '在 tools/build-content.py 里定位不到 build_cookbook() —— 下一条会空跑'
+  );
+
+  const pyInline: string[] = [];
+  fnBody.split('\n').forEach((line, i) => {
+    if (!/<\s*\d/.test(line)) return;
+    const hit = KEYS.find((k) => line.includes(`get('${k}')`));
+    if (hit) pyInline.push(`第 ${i + 1} 行 ${hit}：${line.trim().slice(0, 60)}`);
+  });
+  check(
+    'build_cookbook() 不再内联判据阈值（全部读 CONTRACT）',
+    fnBody.length > 0 && pyInline.length === 0,
+    pyInline.join('；') || '（无）'
+  );
+
+  // ── ④ 契约必须是「被写出来的」，不是手抄进 meta.json 的 ──────────────
+  check(
+    'build_cookbook() 把契约写进 meta.json（`contract` 来自 CONTRACT 而不是手写字面量）',
+    /'contract':\s*CONTRACT\b/.test(fnBody),
+    'meta.json 里的 contract 必须是 CONTRACT 变量落盘 —— 手抄一份就等于又双写了一次'
+  );
+
+  check(
+    'sync 对契约缺键是失败而不是静默回落（缺键 → fail，不许回落默认值）',
+    /cbMeta\.contract/.test(syncSec) && /missingKeys\.length[\s\S]{0,160}?fail\(/.test(syncSec),
+    'sync 必须先读 meta.contract，且缺键时 fail —— 回落到默认值等于藏了一份内联副本'
+  );
 }
 
 zipChecks().then(() => {

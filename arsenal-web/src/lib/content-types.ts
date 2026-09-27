@@ -235,20 +235,67 @@ export interface Topic {
   demoCount: number;
 }
 
+/**
+ * 案例库三层判据的共享阈值（W-0）。
+ *
+ * 唯一的事实源是 `tools/content/cookbook_contract.py` 的 `COOKBOOK_CONTRACT`，
+ * 由 `build-content.py` 写进 `arsenal-cookbook/meta.json` 的 `contract`，
+ * `sync-content.mjs` 再读同一份做同步期校验 —— 本类型只是它在前端的投影。
+ *
+ * 把它写成**具名接口**而不是 `Record<string, number>`，是为了让【16】字段契约
+ * 能双向守住它：键漏了、值不是数字，都会在结构与导出层当场变红，
+ * 而不是等到某条主线「莫名其妙过不了校验」才发现契约少了一个键。
+ */
+export interface CookbookContract {
+  /** intent 最少字数 */
+  intent: number;
+  /** pickWhen 最少条数 */
+  pickWhen: number;
+  /** limits 最少条数 */
+  limits: number;
+  /** references 最少条数 */
+  references: number;
+  /** when 最少字数 */
+  when: number;
+  /** signals 最少条数 */
+  signals: number;
+  /** notSuitable 最少条数 */
+  notSuitable: number;
+  /** 场景下方案最少条数 */
+  recipes: number;
+  /** approach 最少字数 */
+  approach: number;
+  /** 代码文件最少个数 */
+  files: number;
+  /** 每个文件的要点备注最少数 */
+  highlights: number;
+  /** checklist 最少条数 */
+  checklist: number;
+  /** pitfalls 最少条数 */
+  pitfalls: number;
+  /** lab.observe 最少条数（仅 mock-endpoint） */
+  observe: number;
+}
+
+/** 案例库的元信息 —— 事实源 `arsenal-cookbook/meta.json`。 */
+export interface CookbookMeta {
+  collection: string;
+  name: string;
+  version: string;
+  releasedAt: string;
+  description: string;
+  order: string[];
+  count: number;
+  scenarioCount: number;
+  recipeCount: number;
+  demoCount: number;
+  families: Record<string, string>;
+  /** 三层判据的共享阈值（W-0），键与 tools/content/cookbook_contract.py 一一对应 */
+  contract: CookbookContract;
+}
+
 export interface Cookbook {
-  meta: {
-    collection: string;
-    name: string;
-    version: string;
-    releasedAt: string;
-    description: string;
-    order: string[];
-    count: number;
-    scenarioCount: number;
-    recipeCount: number;
-    demoCount: number;
-    families: Record<string, string>;
-  };
+  meta: CookbookMeta;
   topics: Topic[];
 }
 
