@@ -1,5 +1,6 @@
 'use client';
 
+import { useRef, useState } from 'react';
 import { dimensionById } from '@/lib/stack';
 import { nodeArch } from '@/lib/arch';
 import {
@@ -7,12 +8,15 @@ import {
   estimateCapacity,
   paramIsSet,
   paramValue,
+  topologyChoices,
   topologySpecOf,
 } from '@/lib/topology';
+import { topologyFlowOf } from '@/lib/topology-flows';
 import type { StackPicksMeta } from '@/lib/topology';
 import type { StackPicks } from '@/lib/content-types';
 import { STEP_BY_ID } from '../wizard';
 import TopologyPicker from '../TopologyPicker';
+import TopologyLab from '../TopologyLab';
 import DimPicker from '../DimPicker';
 import StepShell from './StepShell';
 
@@ -27,6 +31,10 @@ import StepShell from './StepShell';
  * 页面上滑到 5，K8s 清单里就是 5，中间没有第二条路径。
  * 「应用副本数」的哨兵值（未设 = fallback 0）用 `paramIsSet()` 判，
  * 直接拿 0 当输入值会算出「0 副本」（V2-12 事故）。
+ *
+ * 机理台（2026-09-27）：形态卡上的「▷ 看机理」把 (维度, 选项, 形态) 记进
+ * `labTarget` 并展开底部折叠区。**默认收起** —— ⑤ 已有形态卡 + 五根滑杆 +
+ * 容量摘要，动画面板常开会把表单挤没；收起时只有一行入口提示。
  */
 export default function TopologyStep({
   picks,
@@ -59,6 +67,31 @@ export default function TopologyStep({
       return !!topologySpecOf(dimId, opt ?? null);
     })
     .filter((dimId) => dimId !== 'clustertopology' && dimId !== 'web');
+
+  // ── 机理台：默认收起（labOpen 初始 false），点了「▷ 看机理」才展开 ──
+  const [labTarget, setLabTarget] = useState<{ dimId: string; optId: string; modeId: string } | null>(
+    null
+  );
+  const [labOpen, setLabOpen] = useState(false);
+  const labRef = useRef<HTMLElement | null>(null);
+  const openLab = (dimId: string, modeId: string) => {
+    const dim = dimensionById.get(dimId);
+    const opt = dim?.options.find((o) => o.id === picks[dimId]) ?? null;
+    if (!dim || !opt) return;
+    setLabTarget({ dimId, optId: opt.id, modeId });
+    setLabOpen(true);
+    requestAnimationFrame(() => labRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' }));
+  };
+  const labFlow = labTarget ? topologyFlowOf(labTarget.dimId, labTarget.optId, labTarget.modeId) : null;
+  const labTitle = (() => {
+    if (!labTarget) return '';
+    const dim = dimensionById.get(labTarget.dimId);
+    const opt = dim?.options.find((o) => o.id === labTarget.optId) ?? null;
+    const modeLabel = topologyChoices(labTarget.dimId, opt, meta).find(
+      (c) => c.mode.id === labTarget.modeId
+    )?.mode.label;
+    return [dim?.name, opt?.name, modeLabel].filter(Boolean).join(' · ');
+  })();
 
   return (
     <StepShell spec={spec}>
@@ -98,6 +131,7 @@ export default function TopologyStep({
                 picks={picks}
                 meta={meta}
                 onPick={onTopology}
+                onExplain={openLab}
               />
             </div>
           )}
@@ -132,6 +166,7 @@ export default function TopologyStep({
                     picks={picks}
                     meta={meta}
                     onPick={onTopology}
+                    onExplain={openLab}
                   />
                 </section>
               );
@@ -205,6 +240,37 @@ export default function TopologyStep({
               </div>
             ))}
           </div>
+        </section>
+        {/* ── 机理台：默认收起，「▷ 看机理」点了才展开 ── */}
+        <section ref={labRef} data-topology-lab className="rounded-md border border-line">
+          <button
+            type="button"
+            data-topology-lab-toggle
+            aria-expanded={labOpen}
+            onClick={() => setLabOpen((o) => !o)}
+            className="flex w-full flex-wrap items-baseline gap-x-2.5 gap-y-1 px-4 py-3 text-left"
+          >
+            <span className="mono text-[12px] leading-none text-brass">▷</span>
+            <h3 className="text-[12px] font-semibold leading-[18px] text-fg">机理台</h3>
+            <span className="min-w-0 flex-1 text-[10px] leading-[15px] text-fgFaint">
+              {labOpen
+                ? '按步播放所选形态的机理：数据怎么查 / 怎么存 / 挂了怎么办'
+                : '在上方形态卡上点「▷ 看机理」，这里按步播放该形态的机理动画（默认收起，不占表单空间）'}
+            </span>
+            <span className="mono text-[10px] leading-[15px] text-fgFaint">{labOpen ? '收起' : '展开'}</span>
+          </button>
+          {labOpen && (
+            <div className="border-t border-line p-4">
+              {labFlow && labTarget ? (
+                <TopologyLab flow={labFlow} title={labTitle} />
+              ) : (
+                <p className="text-[10px] leading-[15px] text-fgFaint">
+                  这个形态还没有机理剧本。「▷ 看机理」按钮只会出现在已写剧本的形态上
+                  （当前已覆盖：缓存 · Redis 的单实例与主从）—— 没写的就是没有，不放空壳面板。
+                </p>
+              )}
+            </div>
+          )}
         </section>
       </div>
     </StepShell>

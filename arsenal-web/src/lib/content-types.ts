@@ -369,6 +369,86 @@ export interface Stack {
 /** 当前选择：维度 id → 选项 id */
 export type StackPicks = Record<string, string>;
 
+// ─────────────────────────────────────────────────────────────
+// 部署形态机理剧本（arsenal-stacks/topology_flows.json）
+//
+// 与《部署形态动画化计划-2026-09-26》§3.1 的字段口径一致，事实源是
+// tools/content/stack_topology_flows.py。剧本是数据不是代码：
+// 页面机理台按步播放，导出与「给 AI」两种出口共用同一份。
+// 字段契约由 .verify/project-check.ts【16】双向比对，别只改一头。
+// ─────────────────────────────────────────────────────────────
+
+/** 节点角色：决定配色与自动布局（主在上、从在下、proxy 在左、应用在最左） */
+export type TopologyFlowNodeKind =
+  | 'client' | 'primary' | 'replica' | 'proxy' | 'store' | 'cache';
+
+export interface TopologyFlowNode {
+  id: string;
+  label: string;
+  kind: TopologyFlowNodeKind;
+  /** 显式坐标（左上角）。不给则由 topology-figure.ts 按 kind 自动排 */
+  x?: number;
+  y?: number;
+}
+
+/** 边的类型：实线 = data，虚线 = repl，点线 = heartbeat / route */
+export type TopologyFlowEdgeKind = 'data' | 'repl' | 'heartbeat' | 'route';
+
+export interface TopologyFlowEdge {
+  id: string;
+  from: string;
+  to: string;
+  kind: TopologyFlowEdgeKind;
+}
+
+/** 沿边跑的数据包（分步动画的「主角」） */
+export interface TopologyFlowToken {
+  edge: string;
+  label: string;
+}
+
+export interface TopologyFlowStep {
+  /** 旁白，≤ 40 字；含数字时必须在所在场景的 refs 里给出出处 */
+  caption: string;
+  /** 本步高亮的节点 id，必须存在于 nodes */
+  highlight?: string[];
+  /** 本点点亮的边 id，必须存在于 edges */
+  active?: string[];
+  /** 沿边跑的数据包 */
+  token?: TopologyFlowToken;
+}
+
+/** 场景 id 三问：怎么查 / 怎么存 / 挂了怎么办 —— 缺一 build 失败 */
+export type TopologyFlowSceneId = 'read' | 'write' | 'failover';
+
+export interface TopologyFlowScene {
+  id: TopologyFlowSceneId;
+  title: string;
+  steps: TopologyFlowStep[];
+  /** 数字 / 事实的出处 —— 旁白含数字时必填 */
+  refs: string[];
+}
+
+export interface TopologyFlow {
+  nodes: TopologyFlowNode[];
+  edges: TopologyFlowEdge[];
+  scenes: TopologyFlowScene[];
+}
+
+/** src/generated/topology-flows.json 的顶层形状 */
+export interface TopologyFlowDoc {
+  collection: string;
+  name: string;
+  version: string;
+  releasedAt: string;
+  description: string;
+  flowCount: number;
+  sceneCount: number;
+  stepCount: number;
+  /** flows[维度id][选项id][形态id] → 剧本 */
+  flows: Record<string, Record<string, Record<string, TopologyFlow>>>;
+}
+
 /** 合成产物 */
 export interface ComposedStack {
   dependencies: Dependency[];

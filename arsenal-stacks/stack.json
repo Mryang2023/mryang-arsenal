@@ -668,7 +668,27 @@
             "@Cacheable 加在同类内部调用的方法上：代理不生效，缓存静默失效。",
             "缓存 null 值导致「查不到」被永久记住：要配 unless 或明确的空值策略。"
           ],
-          "topologyDefault": "single"
+          "topologyDefault": "single",
+          "topology": {
+            "default": "single",
+            "modes": [
+              {
+                "id": "single",
+                "label": "单实例",
+                "replicas": 1,
+                "note": "进程内本地缓存"
+              },
+              {
+                "id": "multilevel",
+                "label": "多级",
+                "replicas": 2,
+                "requires": [
+                  "cap.topo.replication"
+                ],
+                "note": "本地加分布式两级"
+              }
+            ]
+          }
         },
         {
           "id": "redis",
@@ -711,7 +731,55 @@
             "缓存与数据库双写不一致：先更新库再删缓存，不要「更新库也更新缓存」。",
             "大 key（几十万成员的 Set/Hash）：单次操作阻塞整个 Redis 实例。"
           ],
-          "topologyDefault": "single"
+          "topologyDefault": "single",
+          "topology": {
+            "default": "single",
+            "modes": [
+              {
+                "id": "single",
+                "label": "单实例",
+                "replicas": 1,
+                "note": "单机缓存"
+              },
+              {
+                "id": "masterslave",
+                "label": "主从",
+                "replicas": 2,
+                "requires": [
+                  "cap.topo.replication"
+                ],
+                "note": "读写分离"
+              },
+              {
+                "id": "sentinel",
+                "label": "哨兵",
+                "replicas": 3,
+                "requires": [
+                  "cap.topo.replication",
+                  "cap.topo.ha.failover"
+                ],
+                "note": "主从加哨兵仲裁"
+              },
+              {
+                "id": "cluster",
+                "label": "集群",
+                "replicas": 3,
+                "requires": [
+                  "cap.topo.replicaset"
+                ],
+                "note": "数据分片集群"
+              },
+              {
+                "id": "multilevel",
+                "label": "多级",
+                "replicas": 2,
+                "requires": [
+                  "cap.topo.replication"
+                ],
+                "note": "多级缓存"
+              }
+            ]
+          }
         }
       ],
       "topology": {
@@ -731,6 +799,16 @@
               "cap.topo.replication"
             ],
             "note": "读写分离"
+          },
+          {
+            "id": "sentinel",
+            "label": "哨兵",
+            "replicas": 3,
+            "requires": [
+              "cap.topo.replication",
+              "cap.topo.ha.failover"
+            ],
+            "note": "主从加哨兵仲裁"
           },
           {
             "id": "cluster",

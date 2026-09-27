@@ -2,6 +2,29 @@ import { dimensions } from './stack';
 import type { StackDimension, StackOption } from './content-types';
 import { escapeXml } from './arch-diagram';
 import { capLabel } from './arch';
+import { FONT, MONO, topologyModeSvg, topologyPalette } from './topology-figure';
+
+/**
+ * 「一种形态长什么样」的实现自 2026-09-27 起住在 `./topology-figure`：
+ * 图元模型（nodes[] / edges[] + 绘制序列）+ 渲染 + 机理剧本的自动布局。
+ * 这里按原签名 re-export —— TopologyPicker 迷你图与 buildTopologySvg 卡片
+ * 两处消费零改动，【17】视觉断言与【22】逐字符快照不被这次搬迁震到。
+ */
+export {
+  topologyModeSvg,
+  topologyPalette,
+  buildTopologyModeFigure,
+  renderTopologyFigure,
+  layoutFlowFigure,
+} from './topology-figure';
+export type {
+  TopoPalette,
+  TopoFigureModel,
+  TopoFigureNode,
+  TopoFigureEdge,
+  TopoFigureMark,
+  TopoFlowLayout,
+} from './topology-figure';
 
 /**
  * 集群形态层 —— 把「数据库是单实例还是主从」从一句展示文字，变成会算进产物的真模型。
@@ -510,42 +533,6 @@ export function topologyFigures(
   return out;
 }
 
-export interface TopoPalette {
-  bg0: string; bg1: string; grid: string;
-  card: string; cardLine: string;
-  title: string; sub: string; faint: string;
-  accent: string; accentSoft: string; line: string;
-}
-
-const TOPO_DARK: TopoPalette = {
-  bg0: '#0A0F0E', bg1: '#111A19', grid: 'rgba(255,255,255,0.035)',
-  card: '#16211F', cardLine: 'rgba(255,255,255,0.10)',
-  title: '#EAF2F0', sub: '#9BAFB0', faint: '#6A7F80',
-  accent: '#D9A441', accentSoft: 'rgba(217,164,65,0.14)', line: '#5C7C78',
-};
-const TOPO_LIGHT: TopoPalette = {
-  bg0: '#F6F8F7', bg1: '#EDF2F1', grid: 'rgba(20,40,40,0.045)',
-  card: '#FFFFFF', cardLine: 'rgba(20,50,50,0.14)',
-  title: '#12211F', sub: '#5B6F6E', faint: '#8A9C9B',
-  accent: '#8A6A1F', accentSoft: 'rgba(138,106,31,0.10)', line: '#6B8A86',
-};
-const TOPO_BLUEPRINT: TopoPalette = {
-  bg0: '#0B2447', bg1: '#061A33', grid: 'rgba(255,255,255,0.07)',
-  card: 'rgba(10,36,70,0.9)', cardLine: 'rgba(150,220,255,0.42)',
-  title: '#EAF6FF', sub: '#9FC8E8', faint: '#7BA6C9',
-  accent: '#8FD4FF', accentSoft: 'rgba(143,212,255,0.14)', line: '#8FD4FF',
-};
-
-export function topologyPalette(theme: string | undefined): TopoPalette {
-  if (theme === 'light' || theme === 'doc') return TOPO_LIGHT;
-  if (theme === 'blueprint') return TOPO_BLUEPRINT;
-  return TOPO_DARK;
-}
-
-const FONT =
-  "-apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif";
-const MONO = "'Cascadia Code','JetBrains Mono',Consolas,monospace";
-
 const CARD_W = 336;
 const CARD_H = 176;
 const CARD_GAP = 18;
@@ -553,180 +540,9 @@ const PAD = 40;
 const HEAD_H = 66;
 const FOOT_H = 46;
 
+/** 卡片级版式取整（图元几何里的同名函数在 ./topology-figure） */
 function rr(n: number): number {
   return Math.round(n * 100) / 100;
-}
-
-/** 一个方块（可带小字标签） */
-function box(
-  x: number, y: number, w: number, h: number, p: TopoPalette,
-  label: string, dashed = false, strong = false
-): string {
-  return (
-    `<rect x="${rr(x)}" y="${rr(y)}" width="${rr(w)}" height="${rr(h)}" rx="6" ` +
-    `fill="${strong ? p.accentSoft : p.card}" stroke="${strong ? p.accent : p.cardLine}" ` +
-    `stroke-width="1"${dashed ? ' stroke-dasharray="4 3"' : ''}/>` +
-    (label
-      ? `<text x="${rr(x + w / 2)}" y="${rr(y + h / 2 + 4)}" font-family="${FONT}" font-size="10" ` +
-        `text-anchor="middle" fill="${strong ? p.accent : p.sub}">${escapeXml(label)}</text>`
-      : '')
-  );
-}
-
-/** 一小截连线（可选箭头） */
-function link(
-  x1: number, y1: number, x2: number, y2: number, p: TopoPalette, dashed = false, arrow = false
-): string {
-  return (
-    `<path d="M${rr(x1)} ${rr(y1)} L${rr(x2)} ${rr(y2)}" fill="none" stroke="${p.line}" ` +
-    `stroke-width="1.3"${dashed ? ' stroke-dasharray="4 3"' : ''}` +
-    `${arrow ? ` marker-end="url(#tp-ar)"` : ''}/>`
-  );
-}
-
-/**
- * 形态图形。**每种形态一张不同的图** —— 形态选择器里那几个迷你图示
- * 就是这套画法的缩小版，两处共用同一段几何，不会出现「选的时候是三个框、
- * 形态图里画成两个」。
- */
-export function topologyModeSvg(
-  modeId: string,
-  replicas: number,
-  x: number,
-  y: number,
-  w: number,
-  h: number,
-  p: TopoPalette,
-  shardCount = 4
-): string {
-  const cx = x + w / 2;
-  const cy = y + h / 2;
-  const o: string[] = [];
-  const BW = 62;
-  const BH = 30;
-
-  const row = (ids: string[], yy: number, strongFirst = false) => {
-    const n = ids.length;
-    const total = n * BW + (n - 1) * 14;
-    let bx = cx - total / 2;
-    ids.forEach((label, i) => {
-      o.push(box(bx, yy - BH / 2, BW, BH, p, label, false, strongFirst && i === 0));
-      if (i < n - 1) o.push(link(bx + BW, yy, bx + BW + 14, yy, p));
-      bx += BW + 14;
-    });
-  };
-
-  switch (modeId) {
-    case 'single':
-      o.push(box(cx - BW / 2, cy - BH / 2, BW, BH, p, '1 实例', false, true));
-      break;
-
-    case 'masterslave':
-      o.push(box(cx - 96, cy - 30, 78, 30, p, '主', false, true));
-      o.push(box(cx + 18, cy + 4, 78, 30, p, '从', false, true));
-      o.push(link(cx - 57 + 39, cy - 15, cx + 57 + 6, cy + 19, p, false, true));
-      o.push(
-        `<text x="${rr(cx + 46)}" y="${rr(cy - 20)}" font-family="${FONT}" font-size="10" fill="${p.faint}">复制</text>`
-      );
-      break;
-
-    case 'mgr':
-    case 'cluster':
-    case 'replicaset':
-      // row() 自己往 o 里塞方块与连线，它没有返回值 —— 套一层 o.push 只会塞进一个 undefined，
-      // join 时化成空行，于是这几个形态少画方块与连线。typecheck 抓不到（row 返回 void 而
-      // o.push 收 string，是 TS2345），目前也没有自动断言守着这几种形态 —— 只有
-      // visual/shoot.mjs 的截图矩阵能间接发现（.verify/topology-check.ts 尚未创建）。
-      row(['A', 'B', 'C'], cy - 6);
-      o.push(
-        `<path d="M${rr(cx - 62)} ${rr(cy - 21)} A 62 26 0 0 1 ${rr(cx + 62)} ${rr(cy - 21)}" ` +
-        `fill="none" stroke="${p.accent}" stroke-width="1.2" stroke-dasharray="3 3"/>`
-      );
-      o.push(
-        `<text x="${rr(cx)}" y="${rr(cy + 40)}" font-family="${FONT}" font-size="10" ` +
-        `text-anchor="middle" fill="${p.faint}">${
-          modeId === 'mgr' ? '多数派写 / 自动选主' : '分片副本 / 心跳'
-        }</text>`
-      );
-      break;
-
-    case 'multiaz':
-      o.push(box(cx - 138, cy - 26, 108, 52, p, '可用区 A', false, false));
-      o.push(box(cx + 30, cy - 26, 108, 52, p, '可用区 B', false, false));
-      o.push(link(cx - 30, cy, cx + 30, cy, p, true));
-      o.push(
-        `<text x="${rr(cx)}" y="${rr(cy - 34)}" font-family="${FONT}" font-size="10" ` +
-        `text-anchor="middle" fill="${p.faint}">跨区复制</text>`
-      );
-      break;
-
-    case 'sharded': {
-      const n = Math.max(1, Math.min(shardCount, 64));
-      const cols = Math.min(4, n);
-      const rows = Math.ceil(n / cols);
-      const cw = 26, ch = 18, g = 5;
-      const gridW = cols * cw + (cols - 1) * g;
-      const gx = cx - gridW / 2 + 26;
-      o.push(box(cx - gridW / 2 - 76, cy - 16, 62, 32, p, 'Proxy', false, true));
-      for (let i = 0; i < n; i += 1) {
-        const r0 = Math.floor(i / cols);
-        const c0 = i % cols;
-        o.push(box(gx + c0 * (cw + g), cy - (rows * ch + (rows - 1) * g) / 2 + r0 * (ch + g), cw, ch, p, ''));
-      }
-      o.push(link(cx - gridW / 2 - 14, cy, cx - gridW / 2 + 14, cy, p, false, true));
-      o.push(
-        `<text x="${rr(cx + 12)}" y="${rr(cy - (rows * ch) / 2 - 8)}" font-family="${MONO}" ` +
-        `font-size="10" fill="${p.accent}">${n} 片</text>`
-      );
-      break;
-    }
-
-    case 'cloudnative':
-      row(['T', 'T', 'T'], cy - 14);
-      o.push(box(cx - 108, cy + 16, 216, 20, p, '共享存储 / 分布式事务', false, false));
-      break;
-
-    case 'multilevel':
-      o.push(box(cx - 96, cy - 38, 76, 26, p, 'L1 本地', false, true));
-      o.push(box(cx + 20, cy - 38, 76, 26, p, 'L2 分布式', false, true));
-      o.push(box(cx - 38, cy + 10, 76, 26, p, '数据库', false, false));
-      o.push(link(cx - 20, cy - 12, cx - 12, cy + 10, p, false, true));
-      o.push(link(cx + 34, cy - 12, cx + 10, cy + 10, p, false, true));
-      break;
-
-    case 'tiered': {
-      const bands = ['热数据', '温数据', '冷数据'];
-      bands.forEach((b, i) => {
-        o.push(box(cx - 108, cy - 42 + i * 28, 216, 22, p, b, i > 0, i === 0));
-      });
-      break;
-    }
-
-    case 'multi': {
-      const n = Math.max(2, Math.min(replicas, 5));
-      for (let i = n - 1; i >= 0; i -= 1) {
-        o.push(box(cx - 84 + i * 10, cy - 14 - i * 8, 96, 28, p, i === 0 ? '应用' : '', false, i === 0));
-      }
-      break;
-    }
-
-    case 'canary':
-      o.push(box(cx - 112, cy - 18, 96, 36, p, '稳定版', false, true));
-      o.push(box(cx + 16, cy - 18, 96, 36, p, '灰度版', true, false));
-      o.push(
-        `<text x="${rr(cx + 64)}" y="${rr(cy + 36)}" font-family="${FONT}" font-size="10" ` +
-        `text-anchor="middle" fill="${p.faint}">按比例导流</text>`
-      );
-      break;
-
-    default: {
-      const n = Math.max(1, Math.min(replicas, 5));
-      const ids = Array.from({ length: n }, (_, i) => `${i + 1}`);
-      row(ids, cy, true);
-      break;
-    }
-  }
-  return o.join('');
 }
 
 export interface TopologySvgOptions {

@@ -1,6 +1,7 @@
 'use client';
 
 import { topologyChoices, topologyModeSvg, topologyPalette, paramValue } from '@/lib/topology';
+import { hasTopologyFlow } from '@/lib/topology-flows';
 import type { StackOption, StackPicks } from '@/lib/content-types';
 
 /**
@@ -12,6 +13,11 @@ import type { StackOption, StackPicks } from '@/lib/content-types';
  * 迷你图与「集群形态图」预览里的画法**共用同一个函数**（`topologyModeSvg`），
  * 所以不会出现「选的时候画三个框、预览里画成两个」这种两处各画一套的经典事故。
  *
+ * 「▷ 看机理」按钮（2026-09-27）：只为**有机理剧本**的形态出现
+ * （`hasTopologyFlow()` 判据只有一份）—— 剧本没写的形态不出现按钮，如实空态，
+ * 不放一个点了会显示空白面板的假入口。按钮本身不带形态选择行为：
+ * 它回调 `onExplain(modeId)`，面板归属在 TopologyStep 的底部折叠区（默认收起）。
+ *
  * 这里的选中态只写 `meta.topology[dimId]`，产物侧一律从 `resolveTopology()` 读 ——
  * 页面上点一下，K8s 的 replicas、Helm 的 replicaCount、形态图的框数同时跟着变。
  */
@@ -21,18 +27,24 @@ export default function TopologyPicker({
   picks,
   meta,
   onPick,
+  onExplain,
 }: {
   dimId: string;
   option: StackOption | null | undefined;
   picks: StackPicks;
   meta: { topology: Record<string, string>; params: Record<string, Record<string, number>> };
   onPick: (dimId: string, modeId: string) => void;
+  /** 形态卡下方「▷ 看机理」的回调；不传 = 这一处选择器不提供机理台入口 */
+  onExplain?: (dimId: string, modeId: string) => void;
 }) {
   const choices = topologyChoices(dimId, option, meta);
   if (!choices.length || !option || option.id === 'none') return null;
 
   const p = topologyPalette('dark');
   const shardHint = paramValue(meta, 'shardCount');
+  const explainable = onExplain
+    ? choices.filter(({ mode }) => hasTopologyFlow(dimId, option.id, mode.id))
+    : [];
 
   return (
     <div className="border-t border-line px-4 py-3">
@@ -79,6 +91,22 @@ export default function TopologyPicker({
           </button>
         ))}
       </div>
+
+      {explainable.length > 0 && (
+        <div className="mt-1.5 flex flex-wrap gap-1.5">
+          {explainable.map(({ mode }) => (
+            <button
+              key={mode.id}
+              type="button"
+              data-topology-explain={mode.id}
+              onClick={() => onExplain?.(dimId, mode.id)}
+              className="rounded border border-line px-1.5 py-0.5 text-[10px] leading-[15px] text-fgMuted transition-colors hover:border-brass hover:text-brass"
+            >
+              ▷ 看机理 · {mode.label}
+            </button>
+          ))}
+        </div>
+      )}
 
       {choices.length > 0 && (
         <p className="mt-2 text-[10px] leading-[15px] text-fgFaint">
