@@ -110,6 +110,19 @@ if (snap) {
     undrawable.length === 0,
     undrawable.join('；') || '（无）'
   );
+
+  // 覆盖断言（2026-09-28 补）：快照里必须有「当前每个形态 id」的用例 ——
+  // 否则新增形态（如 sentinel）没进快照，改它的几何永远不红，护栏上有洞。
+  if (snap) {
+    const uncovered = [...allModeIds].filter((id) => !snapModeIds.has(id));
+    check(
+      `TOPOLOGY 的每个形态 id 都被快照覆盖（${allModeIds.size} 个形态 / 快照含 ${snapModeIds.size} 个 modeId）`,
+      uncovered.length === 0,
+      uncovered.length
+        ? `快照缺这些形态的用例：${uncovered.join('、')} —— 跑 .verify/topology-snapshot-gen.ts 重录（提交说明写理由）`
+        : '（全覆盖）'
+    );
+  }
 }
 
 // ═══════════════════════════════════════════════════════════════

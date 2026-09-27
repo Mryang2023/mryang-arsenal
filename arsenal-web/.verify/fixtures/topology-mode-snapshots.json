@@ -1,10 +1,11 @@
 {
   "meta": {
     "generatedAt": "2026-09-27",
-    "generator": "topologyModeSvg()（arsenal-web/src/lib/topology.ts）重构前逐字符快照",
+    "generator": "topologyModeSvg()（arsenal-web/src/lib/topology.ts → topology-figure.ts）当前实现的逐字符快照",
+    "generatorScript": ".verify/topology-snapshot-gen.ts（重录跑它，别手改 JSON）",
     "geometry": "w=304 h=94 —— TopologyPicker 迷你图与 buildTopologySvg 卡片内的同一段几何",
     "caseCount": 18,
-    "note": "【22】层逐字符比对这份 fixture；改几何必须先重生成本文件并说明理由"
+    "note": "【22】层逐字符比对这份 fixture；改几何必须先重生成本文件并说明理由。覆盖断言：TOPOLOGY 的每个形态 id 必须出现在这里"
   },
   "cases": [
     {
@@ -48,14 +49,14 @@
       "svg": "<rect x=\"45\" y=\"26\" width=\"62\" height=\"30\" rx=\"6\" fill=\"#16211F\" stroke=\"rgba(255,255,255,0.10)\" stroke-width=\"1\"/><text x=\"76\" y=\"45\" font-family=\"-apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif\" font-size=\"10\" text-anchor=\"middle\" fill=\"#9BAFB0\">A</text><path d=\"M107 41 L121 41\" fill=\"none\" stroke=\"#5C7C78\" stroke-width=\"1.3\"/><rect x=\"121\" y=\"26\" width=\"62\" height=\"30\" rx=\"6\" fill=\"#16211F\" stroke=\"rgba(255,255,255,0.10)\" stroke-width=\"1\"/><text x=\"152\" y=\"45\" font-family=\"-apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif\" font-size=\"10\" text-anchor=\"middle\" fill=\"#9BAFB0\">B</text><path d=\"M183 41 L197 41\" fill=\"none\" stroke=\"#5C7C78\" stroke-width=\"1.3\"/><rect x=\"197\" y=\"26\" width=\"62\" height=\"30\" rx=\"6\" fill=\"#16211F\" stroke=\"rgba(255,255,255,0.10)\" stroke-width=\"1\"/><text x=\"228\" y=\"45\" font-family=\"-apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif\" font-size=\"10\" text-anchor=\"middle\" fill=\"#9BAFB0\">C</text><path d=\"M90 26 A 62 26 0 0 1 214 26\" fill=\"none\" stroke=\"#D9A441\" stroke-width=\"1.2\" stroke-dasharray=\"3 3\"/><text x=\"152\" y=\"87\" font-family=\"-apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif\" font-size=\"10\" text-anchor=\"middle\" fill=\"#6A7F80\">分片副本 / 心跳</text>"
     },
     {
-      "modeId": "replicaset",
+      "modeId": "sentinel",
       "replicas": 3,
       "x": 0,
       "y": 0,
       "w": 304,
       "h": 94,
       "theme": "dark",
-      "svg": "<rect x=\"45\" y=\"26\" width=\"62\" height=\"30\" rx=\"6\" fill=\"#16211F\" stroke=\"rgba(255,255,255,0.10)\" stroke-width=\"1\"/><text x=\"76\" y=\"45\" font-family=\"-apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif\" font-size=\"10\" text-anchor=\"middle\" fill=\"#9BAFB0\">A</text><path d=\"M107 41 L121 41\" fill=\"none\" stroke=\"#5C7C78\" stroke-width=\"1.3\"/><rect x=\"121\" y=\"26\" width=\"62\" height=\"30\" rx=\"6\" fill=\"#16211F\" stroke=\"rgba(255,255,255,0.10)\" stroke-width=\"1\"/><text x=\"152\" y=\"45\" font-family=\"-apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif\" font-size=\"10\" text-anchor=\"middle\" fill=\"#9BAFB0\">B</text><path d=\"M183 41 L197 41\" fill=\"none\" stroke=\"#5C7C78\" stroke-width=\"1.3\"/><rect x=\"197\" y=\"26\" width=\"62\" height=\"30\" rx=\"6\" fill=\"#16211F\" stroke=\"rgba(255,255,255,0.10)\" stroke-width=\"1\"/><text x=\"228\" y=\"45\" font-family=\"-apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif\" font-size=\"10\" text-anchor=\"middle\" fill=\"#9BAFB0\">C</text><path d=\"M90 26 A 62 26 0 0 1 214 26\" fill=\"none\" stroke=\"#D9A441\" stroke-width=\"1.2\" stroke-dasharray=\"3 3\"/><text x=\"152\" y=\"87\" font-family=\"-apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif\" font-size=\"10\" text-anchor=\"middle\" fill=\"#6A7F80\">分片副本 / 心跳</text>"
+      "svg": "<rect x=\"34\" y=\"13\" width=\"68\" height=\"24\" rx=\"6\" fill=\"rgba(217,164,65,0.14)\" stroke=\"#D9A441\" stroke-width=\"1\"/><text x=\"68\" y=\"29\" font-family=\"-apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif\" font-size=\"10\" text-anchor=\"middle\" fill=\"#D9A441\">主</text><rect x=\"202\" y=\"13\" width=\"68\" height=\"24\" rx=\"6\" fill=\"#16211F\" stroke=\"rgba(255,255,255,0.10)\" stroke-width=\"1\" stroke-dasharray=\"4 3\"/><text x=\"236\" y=\"29\" font-family=\"-apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif\" font-size=\"10\" text-anchor=\"middle\" fill=\"#9BAFB0\">哨兵</text><rect x=\"118\" y=\"61\" width=\"68\" height=\"24\" rx=\"6\" fill=\"rgba(217,164,65,0.14)\" stroke=\"#D9A441\" stroke-width=\"1\"/><text x=\"152\" y=\"77\" font-family=\"-apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif\" font-size=\"10\" text-anchor=\"middle\" fill=\"#D9A441\">从</text><path d=\"M102 37 L142 61\" fill=\"none\" stroke=\"#5C7C78\" stroke-width=\"1.3\" marker-end=\"url(#tp-ar)\"/><path d=\"M102 25 L202 25\" fill=\"none\" stroke=\"#5C7C78\" stroke-width=\"1.3\" stroke-dasharray=\"4 3\"/><path d=\"M236 37 L172 61\" fill=\"none\" stroke=\"#5C7C78\" stroke-width=\"1.3\" stroke-dasharray=\"4 3\"/><text x=\"154\" y=\"89\" font-family=\"-apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif\" font-size=\"10\" text-anchor=\"middle\" fill=\"#6A7F80\">哨兵盯主从</text>"
     },
     {
       "modeId": "sharded",

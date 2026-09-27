@@ -471,7 +471,7 @@
       },
       {
         "name": "部署形态动画",
-        "count": 20,
+        "count": 21,
         "desc": "形态图快照（topologyModeSvg 重构几何与 13 modeId / 18 用例逐字符一致，改几何必须显式重录）/ 机理剧本（场景三问齐备 read·write·failover、引用无悬空、实例数 == replicas == K8s 副本数、caption ≤ 40 字且含数字必带 refs、每场景 ≥ 3 步）/ Caffeine 不出现主从·集群（09-27 真 bug 回归红线）/ 播放器默认收起 + prefers-reduced-motion 停自动播 / 类型 ↔ 事实源双向 + 同步产物逐字节一致"
       },
       {
