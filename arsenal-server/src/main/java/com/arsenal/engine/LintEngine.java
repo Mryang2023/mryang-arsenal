@@ -56,6 +56,18 @@ public class LintEngine {
     private record Compiled(Rule rule, Pattern body, GlobMatcher fileMatcher, boolean expectPresent) {
     }
 
+    /**
+     * AST 规则的编译结果：appliesTo.pathGlob → {@link GlobMatcher}。
+     *
+     * <p>正则层早就用 targetGlob 筛文件，AST 层却对 pathGlob 视而不见 ——
+     * 声明了 service/controller 目录的规则照样在任意 .java 上触发（README「未完成表」里的
+     * 「AST 路由收口」）。现在 AST 层与正则层共用同一套 glob 语义：
+     * 声明了 pathGlob → 仅匹配路径执行；未声明 → compile 兜底成 {@code **&#47;*}，
+     * 即全 .java 执行，行为与收口前完全一致。
+     */
+    private record AstCompiled(Rule rule, GlobMatcher pathMatcher) {
+    }
+
     public LintReport lint(LintRequest request) {
         long start = System.nanoTime();
 
@@ -68,7 +80,7 @@ public class LintEngine {
 
         List<Rule> active = index.active();
         List<Compiled> compiled = new ArrayList<>();
-        List<Rule> astRules = new ArrayList<>();
+        List<AstCompiled> astRules = new ArrayList<>();
         List<SkippedRule> skipped = new ArrayList<>();
 
         // ── 1. 编译 ─────────────────────────────────────
@@ -85,8 +97,10 @@ public class LintEngine {
                     log.warn("规则 {} 的正则无法编译：{}", r.id(), e.getDescription());
                 }
             } else if (c.hasAst() && astEngine.hasChecker(r.id())) {
-                // AST 语法层有对应检查器 —— 交给 AstEngine 在扫描阶段执行
-                astRules.add(r);
+                // AST 语法层有对应检查器 —— 交给 AstEngine 在扫描阶段执行。
+                // appliesTo 可为 null（规则没写 appliesTo 段），此时按「未声明」处理。
+                String pathGlob = r.appliesTo() == null ? null : r.appliesTo().pathGlob();
+                astRules.add(new AstCompiled(r, GlobMatcher.compile(pathGlob)));
             } else {
                 skipped.add(new SkippedRule(r.id(), r.title(), r.severity(), r.category(),
                         c.layer(), reasonFor(c)));
@@ -102,7 +116,7 @@ public class LintEngine {
 
         // AST 层的执行账本 —— 这三样过去都不存在，正是「假 100 分」的来源
         List<ParseFailure> unparsed = new ArrayList<>();
-        List<String> astRuleIds = astRules.stream().map(Rule::id).toList();
+        List<String> astRuleIds = astRules.stream().map(a -> a.rule().id()).toList();
         Set<String> astEvaluatedRuleIds = new LinkedHashSet<>();
         int javaFiles = 0;
         int nonJavaFiles = 0;
@@ -179,7 +193,19 @@ public class LintEngine {
                 } else {
                     touched = true;
                     javaFiles++;
-                    AstEngine.FileScan scan = astEngine.lintFile(astRules, name, text);
+                    // pathGlob 收口：只把声明路径内的规则交给本文件；声明外的
+                    // （file × rule）组合与正则层同口径计入 notApplicable。
+                    // 解析照旧对每个 .java 执行 —— 「这个文件没有任何适用规则」与
+                    // 「解析失败」是两回事，账本（parsedJavaFiles / 账目）不能因此变形。
+                    List<Rule> applicable = new ArrayList<>();
+                    for (AstCompiled a : astRules) {
+                        if (a.pathMatcher().matches(name)) {
+                            applicable.add(a.rule());
+                        } else {
+                            notApplicable++;
+                        }
+                    }
+                    AstEngine.FileScan scan = astEngine.lintFile(applicable, name, text);
                     if (scan.parse().ok()) {
                         parsedJavaFiles++;
                         astEvaluatedRuleIds.addAll(astRuleIds);

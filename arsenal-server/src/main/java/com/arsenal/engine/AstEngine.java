@@ -639,6 +639,18 @@ public final class AstEngine {
         public Boolean visitTry(TryTree node, Void p) {
             return Boolean.TRUE;
         }
+
+        /**
+         * 必须覆写：JDK 17 的 {@code TreeScanner.reduce} 默认实现是 {@code return r1} ——
+         * <b>不聚合</b>。后果是 {@code visitMethod} 链尾的 {@code scanAndReduce(getDefaultValue())}
+         * （普通方法恒为 null）会把 body 里传上来的 TRUE 抹掉，类扫描结果塌缩成
+         * 「最后一个成员的扫描结果」—— 检查器对方法内 try-catch <b>永远检不出</b>（实测：
+         * AstProbe 首次实跑暴露，此前从未执行过）。覆写成 OR 才是「子树里存在 try」的语义。
+         */
+        @Override
+        public Boolean reduce(Boolean r1, Boolean r2) {
+            return Boolean.TRUE.equals(r1) || Boolean.TRUE.equals(r2);
+        }
     }
 
     // ──────────────────────────────────────────────── 静态工具
