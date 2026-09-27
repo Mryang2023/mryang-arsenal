@@ -7,16 +7,27 @@
  *
  * 设计取舍：
  * - 纯 node，零运行时依赖（只用 fs / path / url 内置模块）。
- *   lint_code 的 Level-1 正则层在本地跑，与前端 engine.ts 同源同口径；
- *   AST / 语义层（F2）做成之后，这里把那 32 条从 skipped 移到可执行即可，调用方无感。
+ *   lint_code 本地只跑 Level-1 正则层（35/69 条），与前端 engine.ts 同源同口径；
+ *   AST 深度判定已由后端 AstEngine 承担（后端合计 42/69），语义层（LLM）仍为 0 ——
+ *   所以没有正则的规则在这里如实列为「需后端深度」，不假装本地能判。
  * - 仓库路径自定位：从本文件位置向上三级（scripts/ → arsenal-server/ → 仓库根），
  *   因此 arsenal-mcp.json 里不必写死绝对路径，AI 客户端的 cwd 也不影响。
  * - 工具 schema 读的是 arsenal-rules/mcp-tools.json —— 与前端/后端导出器同一份，
  *   所以「tools/list 返回什么」和「导出产物里写了什么」天然不会漂移。
  *
- * 协议：MCP 2024-11-05，stdio = 每行一条 JSON-RPC 2.0 消息。
+ * 协议（MCP stdio，每行一条 JSON-RPC 2.0 消息）：
+ * - 版本协商：initialize 时客户端带来 protocolVersion，认识的原样回它；
+ *   不认识回服务器默认（mcp-tools.json 的 server.protocolVersion，
+ *   与 McpToolCatalog.protocolVersion() 读同一份、同一口径）。
+ * - 方法面：initialize / ping / tools/list / tools/call /
+ *   resources/list / resources/read（规则 → arsenal://rules/<id>）/
+ *   prompts/list / prompts/get（severity → 规则集 promptFragment）。
+ * - 错误码：参数缺失/不合法 -32602，内部错误 -32603，未知方法 -32601；
+ *   notifications/* 按协议静默（不回包、不崩）。
  *
  * 启动：node arsenal-server/scripts/mcp-stdio.mjs
+ * 回归：node arsenal-server/scripts/mcp-probe.mjs（spawn 本文件逐条断言，exit 0/1）
+ * 接入：docs/MCP-接入指南.md
  */
 
 import { readFileSync, readdirSync, existsSync } from 'node:fs';
@@ -30,7 +41,13 @@ const RULES_DIR = process.env.ARSENAL_RULES_DIR
   : join(REPO_ROOT, 'arsenal-rules');
 const TOOLS_FILE = join(RULES_DIR, 'mcp-tools.json');
 
-const PROTOCOL_VERSION = '2024-11-05';
+// 服务器认识、可以直接原样回给客户端的协议版本。名单里必须包含默认值；
+// 若 mcp-tools.json 声明了名单外的新默认版本，loadData 会把它补进名单。
+const SUPPORTED_PROTOCOL_VERSIONS = ['2024-11-05', '2025-03-26', '2025-06-18'];
+// 协商不成时的回退值。来自 mcp-tools.json 的 server.protocolVersion，
+// 与 McpToolCatalog.protocolVersion() 读同一份数据 —— 两边不能各说各话。
+let SERVER_PROTOCOL_VERSION = '2024-11-05';
+const SEVERITIES = ['MUST', 'NEVER', 'SHOULD', 'MAY'];
 const SEVERITY_PENALTY = { MUST: 6, NEVER: 6, SHOULD: 2, MAY: 0 };
 
 // ──────────────────────────────────────────────── 数据加载
@@ -66,6 +83,12 @@ function loadData() {
     const td = JSON.parse(readFileSync(TOOLS_FILE, 'utf8'));
     TOOL_DEFS = td.tools ?? [];
     if (td.server?.name) SERVER_INFO.name = td.server.name;
+    if (typeof td.server?.protocolVersion === 'string' && td.server.protocolVersion) {
+      SERVER_PROTOCOL_VERSION = td.server.protocolVersion;
+      if (!SUPPORTED_PROTOCOL_VERSIONS.includes(SERVER_PROTOCOL_VERSION)) {
+        SUPPORTED_PROTOCOL_VERSIONS.push(SERVER_PROTOCOL_VERSION);
+      }
+    }
   }
 }
 
@@ -340,21 +363,114 @@ const HANDLERS = {
 };
 
 // ──────────────────────────────────────────────── JSON-RPC stdio 循环
-let nextId = 1;
 
 function send(msg) {
   process.stdout.write(JSON.stringify(msg) + '\n');
 }
 
+/** 带协议错误码的失败。其它异常一律按内部错误（-32603）处理。 */
+class RpcError extends Error {
+  constructor(code, message) {
+    super(message);
+    this.code = code;
+  }
+}
+
+/** 参数缺失 / 不合法。 */
+const invalidParams = (message) => new RpcError(-32602, message);
+
+// ── resources：把 69 条规则暴露成只读资源（uri = arsenal://rules/<id>）──
+function resourcesList() {
+  return {
+    resources: RULES.map((r) => ({
+      uri: `arsenal://rules/${r.id}`,
+      name: r.id,
+      description: `[${r.severity}·${r.category}] ${r.title}`,
+      mimeType: 'application/json',
+    })),
+  };
+}
+
+function resourcesRead(params) {
+  const uri = params.uri;
+  if (typeof uri !== 'string' || !uri) {
+    throw invalidParams('resources/read 需要 params.uri，如 "arsenal://rules/WEB-CTRL-002"');
+  }
+  const m = /^arsenal:\/\/rules\/(.+)$/.exec(uri);
+  if (!m) {
+    throw invalidParams(
+      `无法识别的资源 URI：${uri}（本服务器只提供 arsenal://rules/<规则ID>，用 resources/list 列出全部）`
+    );
+  }
+  const r = RULES.find((x) => x.id === m[1]);
+  if (!r) {
+    throw invalidParams(`资源不存在：${uri}（用 resources/list 查看全部 ${RULES.length} 条）`);
+  }
+  return {
+    contents: [{ uri, mimeType: 'application/json', text: JSON.stringify(r, null, 2) }],
+  };
+}
+
+// ── prompts：把 get_prompt 的语义升格为 MCP Prompt（severity → 规则集 promptFragment）──
+const PROMPT_NAME = 'arsenal-constraints';
+const PROMPT_DEF = {
+  name: PROMPT_NAME,
+  description:
+    '把「杨先生的军火库」的编码约束注入当前会话：按 severity 过滤规则集，取各规则的 promptFragment。',
+  arguments: [
+    {
+      name: 'severity',
+      description:
+        '逗号分隔的级别，取值 MUST/NEVER/SHOULD/MAY，如 "NEVER" 或 "MUST,NEVER"；缺省 "MUST,NEVER"（50 条硬约束）。',
+      required: false,
+    },
+  ],
+};
+const DEFAULT_PROMPT_SEVERITY = 'MUST,NEVER';
+
+function promptsList() {
+  return { prompts: [PROMPT_DEF] };
+}
+
+function promptsGet(params) {
+  if (params.name !== PROMPT_NAME) {
+    throw invalidParams(`未知 prompt：${String(params.name)}（用 prompts/list 查看可用项）`);
+  }
+  const raw =
+    typeof params.arguments?.severity === 'string' ? params.arguments.severity : DEFAULT_PROMPT_SEVERITY;
+  const wanted = raw
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean);
+  const bad = wanted.filter((s) => !SEVERITIES.includes(s));
+  if (!wanted.length || bad.length) {
+    throw invalidParams(
+      `severity 不合法："${raw}"（可用值 ${SEVERITIES.join('/')}，逗号分隔，如 "NEVER" 或 "MUST,NEVER"）`
+    );
+  }
+  return {
+    description: PROMPT_DEF.description,
+    messages: [
+      { role: 'user', content: { type: 'text', text: getPrompt({ severity: wanted.join(',') }) } },
+    ],
+  };
+}
+
 function handleRequest(req) {
-  const id = req.id;
   const method = req.method;
   const params = req.params || {};
 
   if (method === 'initialize') {
+    // 版本协商：认识就回客户端带来的版本，不认识回服务器默认
+    //（与 McpToolCatalog.protocolVersion() 注释里写的是同一套口径）。
+    const requested = params.protocolVersion;
+    const agreed =
+      typeof requested === 'string' && SUPPORTED_PROTOCOL_VERSIONS.includes(requested)
+        ? requested
+        : SERVER_PROTOCOL_VERSION;
     return {
-      protocolVersion: PROTOCOL_VERSION,
-      capabilities: { tools: {} },
+      protocolVersion: agreed,
+      capabilities: { tools: {}, resources: {}, prompts: {} },
       serverInfo: { name: SERVER_INFO.name, version: SERVER_INFO.version },
     };
   }
@@ -363,19 +479,30 @@ function handleRequest(req) {
     return { tools: TOOL_DEFS };
   }
   if (method === 'tools/call') {
-    const name = params.name;
-    const handler = HANDLERS[name];
+    if (typeof params.name !== 'string' || !params.name) {
+      throw invalidParams('tools/call 需要 params.name（用 tools/list 查看全部工具）');
+    }
+    if (
+      params.arguments !== undefined &&
+      (typeof params.arguments !== 'object' || params.arguments === null || Array.isArray(params.arguments))
+    ) {
+      throw invalidParams('tools/call 的 params.arguments 必须是对象');
+    }
+    const handler = HANDLERS[params.name];
     if (!handler) {
-      return { content: [{ type: 'text', text: `未知工具：${name}` }], isError: true };
+      throw invalidParams(
+        `未知工具：${params.name}（用 tools/list 查看全部 ${TOOL_DEFS.length} 个）`
+      );
     }
-    try {
-      const text = handler(params.arguments || {});
-      return { content: [{ type: 'text', text: String(text) }] };
-    } catch (e) {
-      return { content: [{ type: 'text', text: `工具执行出错：${e.message}` }], isError: true };
-    }
+    // handler 内部抛出的异常不在这里吞：交给外层按内部错误（-32603）回。
+    const text = handler(params.arguments || {});
+    return { content: [{ type: 'text', text: String(text) }] };
   }
-  throw new Error('方法不支持：' + method);
+  if (method === 'resources/list') return resourcesList();
+  if (method === 'resources/read') return resourcesRead(params);
+  if (method === 'prompts/list') return promptsList();
+  if (method === 'prompts/get') return promptsGet(params);
+  throw new RpcError(-32601, '方法不支持：' + method);
 }
 
 let buffer = '';
@@ -393,12 +520,29 @@ process.stdin.on('data', (chunk) => {
     } catch {
       continue;
     }
-    if (req.method && req.method.startsWith('notification')) continue; // 通知不回
+    // 通知（无 id，或 notifications/* 前缀）按协议静默：不回包、不报错、不崩。
+    // notifications/initialized 就走这里 —— 过去只靠 startsWith('notification') 的巧合接住。
+    if (req.id === undefined || (typeof req.method === 'string' && req.method.startsWith('notifications/'))) {
+      continue;
+    }
+    if (typeof req.method !== 'string') {
+      // 有 id 但没有 method 的畸形请求：明确回协议错误，不让客户端挂着等超时。
+      send({ jsonrpc: '2.0', id: req.id, error: { code: -32601, message: '请求缺少 method' } });
+      continue;
+    }
     try {
       const result = handleRequest(req);
       send({ jsonrpc: '2.0', id: req.id, result });
     } catch (e) {
-      send({ jsonrpc: '2.0', id: req.id, error: { code: -32601, message: e.message } });
+      const known = e instanceof RpcError;
+      send({
+        jsonrpc: '2.0',
+        id: req.id,
+        error: {
+          code: known ? e.code : -32603,
+          message: known ? e.message : '内部错误：' + e.message,
+        },
+      });
     }
   }
 });
@@ -409,4 +553,8 @@ try {
   process.stderr.write('[arsenal-mcp] 启动失败：' + e.message + '\n');
   process.exit(1);
 }
-process.stderr.write(`[arsenal-mcp] 就绪：${RULES.length} 条规则，${TOOL_DEFS.length} 个工具。\n`);
+process.stderr.write(
+  `[arsenal-mcp] 就绪：${RULES.length} 条规则，${TOOL_DEFS.length} 个工具，` +
+    `${RULES.length} 个资源（arsenal://rules/<id>），1 个 prompt（${PROMPT_NAME}）；` +
+    `协议默认 ${SERVER_PROTOCOL_VERSION}。\n`
+);

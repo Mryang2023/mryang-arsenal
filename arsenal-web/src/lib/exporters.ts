@@ -22,7 +22,7 @@ const mcpTools = mcpToolsRaw as unknown as {
 const MCP_CONFIG_COMMENT =
   'MCP Server 配置（stdio）。把 __ARSENAL_HOME__ 替换成本仓库的绝对路径后再用；' +
   '工具定义来自 arsenal-rules/mcp-tools.json，与后端导出器读的是同一份，两端产物逐字节一致。' +
-  '适配层实现在 arsenal-server/scripts/mcp-stdio.mjs（只需 node；AST 深度判定由 F2 接入），' +
+  '适配层实现在 arsenal-server/scripts/mcp-stdio.mjs（只需 node；AST 深度判定已由后端 AstEngine 执行），' +
   '规则数据源为 arsenal-rules/**/*.json，此处不重复定义任何规则内容。';
 
 export type ExportFormat = 'markdown' | 'prompt' | 'cursorrules' | 'claude' | 'mcp' | 'json';
