@@ -223,6 +223,18 @@ export function buildTopologyModeFigure(
       text('复制', cx + 46, cy - 20);
       break;
 
+    case 'sentinel':
+      // 哨兵小图：主 ↔ 从 复制，哨兵（虚线框）盯两边 —— 与机理台剧本同一语义。
+      // 2026-09-28 补：此前落 default 分支画三个匿名方块，缩略图读不出「谁盯谁」。
+      node('m', '主', cx - 118, cy - 34, 68, 24, { strong: true });
+      node('w', '哨兵', cx + 50, cy - 34, 68, 24, { dashed: true });
+      node('s', '从', cx - 34, cy + 14, 68, 24, { strong: true });
+      edge('m-s', 'm', 's', cx - 50, cy - 10, cx - 10, cy + 14, { arrow: true });
+      edge('w-m', 'w', 'm', cx - 50, cy - 22, cx + 50, cy - 22, { dashed: true });
+      edge('w-s', 'w', 's', cx + 84, cy - 10, cx + 20, cy + 14, { dashed: true });
+      text('哨兵盯主从', cx + 2, cy + 42, { anchor: 'middle' });
+      break;
+
     case 'mgr':
     case 'cluster':
     case 'replicaset':
