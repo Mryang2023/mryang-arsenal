@@ -1468,6 +1468,42 @@ console.log('\n【16】字段契约一致性（类型 ↔ 事实源）');
         });
       });
 
+  /**
+   * 机理剧本（arsenal-stacks/topology_flows.json，事实源 tools/content/stack_topology_flows.py）
+   * 是三层嵌套：维度 id → 选项 id → 形态 id → 剧本。按记录类别摊平后走同一套双向比对 ——
+   * 「加一类事实源改四处」里属于字段契约的这一处（播放行为断言在【22】层，
+   * 这里只管「类型 ↔ 数据」不许互相撒谎；ⓘ 三层 id 是 Record 索引键，不是字段名）。
+   */
+  type FlowLevel = 'flow' | 'node' | 'edge' | 'scene' | 'step';
+  const flattenFlows = (doc: any, level: FlowLevel): { id: string; rec: Record<string, unknown> }[] => {
+    const out: { id: string; rec: Record<string, unknown> }[] = [];
+    for (const [dimId, opts] of Object.entries(doc?.flows ?? {})) {
+      for (const [optId, modes] of Object.entries(opts as Record<string, any>)) {
+        for (const [modeId, flow] of Object.entries(modes as Record<string, any>)) {
+          const at = `${dimId}/${optId}/${modeId}`;
+          if (level === 'flow') {
+            out.push({ id: at, rec: flow });
+            continue;
+          }
+          const pools: Record<Exclude<FlowLevel, 'flow'>, any[]> = {
+            node: flow.nodes ?? [],
+            edge: flow.edges ?? [],
+            scene: [],
+            step: [],
+          };
+          for (const scene of flow.scenes ?? []) {
+            pools.scene.push(scene);
+            pools.step.push(...(scene.steps ?? []));
+          }
+          (pools[level] as any[]).forEach((rec, i) => out.push({ id: `${at}#${i}`, rec }));
+        }
+      }
+    }
+    return out;
+  };
+  const loadFlowFact = (level: FlowLevel) =>
+    flattenFlows(readJson(path.join(repoRoot, 'arsenal-stacks', 'topology_flows.json')), level);
+
   type LibSpec = {
     label: string;
     typeFile: string;
@@ -1516,6 +1552,54 @@ console.log('\n【16】字段契约一致性（类型 ↔ 事实源）');
       src: loadCookbook('topic'),
       genFile: 'cookbook.json',
       genKey: 'topics',
+    },
+    // 机理剧本五类记录（部署形态动画化 2026-09-27）：一个剧本一个形态，
+    // 节点 / 边 / 场景 / 步骤逐条对类型 —— 剧本数据在播放器里是逐字段直读的，
+    // 类型撒谎的后果不会是编译错，而是某一帧静默播错。
+    {
+      label: '机理剧本·形态',
+      typeFile: 'lib/content-types.ts',
+      iface: 'TopologyFlow',
+      src: loadFlowFact('flow'),
+      genFile: 'topology-flows.json',
+      genKey: 'flows',
+      genFlat: (doc) => flattenFlows(doc, 'flow').map((r) => r.rec),
+    },
+    {
+      label: '机理剧本·节点',
+      typeFile: 'lib/content-types.ts',
+      iface: 'TopologyFlowNode',
+      src: loadFlowFact('node'),
+      genFile: 'topology-flows.json',
+      genKey: 'flows',
+      genFlat: (doc) => flattenFlows(doc, 'node').map((r) => r.rec),
+    },
+    {
+      label: '机理剧本·边',
+      typeFile: 'lib/content-types.ts',
+      iface: 'TopologyFlowEdge',
+      src: loadFlowFact('edge'),
+      genFile: 'topology-flows.json',
+      genKey: 'flows',
+      genFlat: (doc) => flattenFlows(doc, 'edge').map((r) => r.rec),
+    },
+    {
+      label: '机理剧本·场景',
+      typeFile: 'lib/content-types.ts',
+      iface: 'TopologyFlowScene',
+      src: loadFlowFact('scene'),
+      genFile: 'topology-flows.json',
+      genKey: 'flows',
+      genFlat: (doc) => flattenFlows(doc, 'scene').map((r) => r.rec),
+    },
+    {
+      label: '机理剧本·步骤',
+      typeFile: 'lib/content-types.ts',
+      iface: 'TopologyFlowStep',
+      src: loadFlowFact('step'),
+      genFile: 'topology-flows.json',
+      genKey: 'flows',
+      genFlat: (doc) => flattenFlows(doc, 'step').map((r) => r.rec),
     },
   ];
 

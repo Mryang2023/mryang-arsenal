@@ -75,10 +75,11 @@ export const LAYER_NAMES: Record<string, string> = {
   parity: '前后端一致性',
   archify: 'Archify 链路',
   scan: '代码扫描',
+  topology: '部署形态动画',
   visual: '视觉断言',
   // ⚠️ `meta` **不是 `verifyChain` 的成员** —— 它是链尾的元核对层：
-  // 专门读其它九层写出的 `layer-<key>.json` 去比对声明值，所以自己既没有声明项数
-  // （`declaredCount('meta')` 会返回 null）、也不参与「九层项数合计」。
+  // 专门读其它十层写出的 `layer-<key>.json` 去比对声明值，所以自己既没有声明项数
+  // （`declaredCount('meta')` 会返回 null）、也不参与「十层项数合计」。
   meta: '元核对',
 };
 

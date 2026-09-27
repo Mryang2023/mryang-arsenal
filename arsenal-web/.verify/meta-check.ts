@@ -1,5 +1,5 @@
 /**
- * 元核对层（链尾闸门）—— **让「九层各自实际跑了多少项」由机器守门，而不是靠人手写同步。**
+ * 元核对层（链尾闸门）—— **让「十层各自实际跑了多少项」由机器守门，而不是靠人手写同步。**
  *
  * ─────────────────────────────────────────────────────────────
  * 为什么需要它（它修的是「手写数字」这种说谎方式）：
@@ -16,7 +16,7 @@
  * `verify:project` 跑在其它层**中间**，它执行时 `engine / parity / archify / scan`
  * 还没开始跑，`layer-<key>.json` 根本不存在 —— 放在那里读兄弟层的结果，
  * 只能读到半份，或者读到上一轮的陈旧文件，然后变成一条永远绿的假断言。
- * 所以这一层单列，挂在九层**全部跑完之后**。
+ * 所以这一层单列，挂在十层**全部跑完之后**。
  *
  * ─────────────────────────────────────────────────────────────
  * 比什么（每一项都能红）：
@@ -68,6 +68,7 @@ const CHAIN_ORDER = [
   'parity',
   'archify',
   'scan',
+  'topology',
   'visual',
 ];
 
@@ -165,7 +166,7 @@ check(
 );
 
 // ═══════════════════════════════════════════════════════════════
-// ③ 九层逐层比对（本层的核心）
+// ③ 十层逐层比对（本层的核心）
 // ═══════════════════════════════════════════════════════════════
 console.log('\n【3】逐层：层写出的实测项数 vs 档案声明值');
 const layers: Record<string, LayerRow> = {};
@@ -284,7 +285,7 @@ for (const key of CHAIN_ORDER) {
 console.log('\n【4】比对范围本身也要对得上');
 const missingKeys = CHAIN_ORDER.filter((k) => !declaredByName.has(LAYER_NAMES[k] ?? k));
 check(
-  '比对范围：九个层 key 都能在档案 verifyChain 里找到同名条目',
+  '比对范围：十个层 key 都能在档案 verifyChain 里找到同名条目',
   missingKeys.length === 0,
   `档案里找不到这些层：${missingKeys.join(', ')}`
 );
@@ -387,8 +388,8 @@ for (const key of CHAIN_ORDER) {
   );
 }
 console.log('─'.repeat(78));
-console.log(`${pad('九层合计', 18)}${pad(sumDeclared, 8)}${pad(sumMeasured + sumFail + sumSkipped, 8)}${pad(sumSkipped, 8)}${pad(sumFail, 8)}`);
-console.log('（「实测」列 = 通过 + 失败 + 未执行，与「声明」同量纲；元核对自身不计入九层项数）');
+console.log(`${pad('十层合计', 18)}${pad(sumDeclared, 8)}${pad(sumMeasured + sumFail + sumSkipped, 8)}${pad(sumSkipped, 8)}${pad(sumFail, 8)}`);
+console.log('（「实测」列 = 通过 + 失败 + 未执行，与「声明」同量纲；元核对自身不计入十层项数）');
 
 // 「刻意未跑」与「跳过」是两件事：前者不跑是决定，后者是环境。列出来，但不参与比对。
 if (sumKnowingly > 0) {

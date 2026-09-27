@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * verify 串行 runner —— 九层**顺序执行、不短路**，逐层记账，最后给一个总账与一个退出码。
+ * verify 串行 runner —— 十层**顺序执行、不短路**，逐层记账，最后给一个总账与一个退出码。
  *
  * ─────────────────────────────────────────────────────────────
  * 为什么必须有它（它修的是两种「说谎的绿」）：
@@ -18,11 +18,11 @@
  *
  * ─────────────────────────────────────────────────────────────
  * ─────────────────────────────────────────────────────────────
- * 执行顺序（sync → typecheck → 九层 → meta），其中**闸门层**只有两个，
- * 都不计入「九层项数合计」：
+ * 执行顺序（sync → typecheck → 十层 → meta），其中**闸门层**只有两个，
+ * 都不计入「十层项数合计」：
  *   · `typecheck` —— 两类 tsc
  *   · `verify:meta`（链尾）—— 读各层写出的 `layer-<key>.json`，
- *     逐层比「声明 X / 实测 Y」。它必须链尾：`verify:project` 跑在九层中间，
+ *     逐层比「声明 X / 实测 Y」。它必须链尾：`verify:project` 跑在十层中间，
  *     执行时 engine/parity/archify/scan 还没跑，读不到它们的状态文件。
  *
  * 退出码约定（与 README、`.verify/lib/report.ts` 同源；改口径三处一起改）：
@@ -38,7 +38,7 @@
  *       `npm run verify -- --strict` —— 把「刻意未跑」也算失败（退出码 1）。
  *       「刻意未跑」是造用例代价过大、**不跑是决定而不是意外**的那些断言
  *       （`.verify/lib/report.ts` 的 `knowinglySkipped()`，目前 2 项，都在 `verify:scan`）。
- *       它们不进项数合计（所以 674 的口径不变），但总账里永远单列一行。
+ *       它们不进项数合计（所以 1194 的口径不变），但总账里永远单列一行。
  * ─────────────────────────────────────────────────────────────
  */
 import { spawnSync } from 'node:child_process';
@@ -61,8 +61,11 @@ const LAYERS = [
   { key: 'parity', name: '前后端一致性', script: 'verify:parity' },
   { key: 'archify', name: 'Archify 链路', script: 'verify:archify' },
   { key: 'scan', name: '代码扫描', script: 'verify:scan' },
+  // 部署形态动画（2026-09-27 新增，第十层）：形态图快照逐字符 + 机理剧本契约 + 播放器契约。
+  // 纯源码 / 产物断言，不起浏览器 —— 排在 visual 之前，别让页面层等它。
+  { key: 'topology', name: '部署形态动画', script: 'verify:topology' },
   // 排在最后：它是唯一一层**要看页面**的（起 msedge 跑 45 张矩阵，约 40s）。
-  // 前面九层坏掉时人也还看得到他们的结论，不必等浏览器起完。
+  // 前面几层坏掉时人也还看得到他们的结论，不必等浏览器起完。
   { key: 'visual', name: '视觉断言', script: 'verify:visual' },
 ];
 
@@ -145,7 +148,7 @@ const allowSkip = process.argv.includes('--allow-skip');
  */
 const strict = process.argv.includes('--strict');
 console.log('═'.repeat(64));
-console.log('verify · 串行 runner（九层顺序执行，不短路；跳过是独立状态）');
+console.log('verify · 串行 runner（十层顺序执行，不短路；跳过是独立状态）');
 if (allowSkip) console.log('模式：--allow-skip（存在跳过时也退出 0 —— 跳过项仍会照常点名）');
 if (strict) console.log('模式：--strict（「刻意未跑」的项也判失败）');
 console.log('═'.repeat(64));
@@ -186,7 +189,7 @@ const tc = {
   ms: tcRootMs + tcVerifyMs,
 };
 
-// ── 步骤 2：九层 ────────────────────────────────────────────────
+// ── 步骤 2：十层 ────────────────────────────────────────────────
 const rows = [];
 for (const layer of LAYERS) {
   const declared = DECLARED.get(layer.name) ?? null;
@@ -202,15 +205,15 @@ for (const layer of LAYERS) {
   rows.push({ ...layer, declared, code, st, ms });
 }
 
-// ── 步骤 3：元核对（链尾 —— 必须在九层**全部跑完之后**）──────────────
+// ── 步骤 3：元核对（链尾 —— 必须在十层**全部跑完之后**）──────────────
 // 为什么单独一段、不塞进 `LAYERS`：
-//   · 它**不是 `verifyChain` 的成员**，没有声明项数，也不该并进「九层项数合计」
+//   · 它**不是 `verifyChain` 的成员**，没有声明项数，也不该并进「十层项数合计」
 //     （否则合计会与 README 的「共 674 项」对不上）；
-//   · 它守的是「前面九层各自报的实测项数」有没有与档案声明值跑偏 ——
-//     `verify:project` 跑在九层中间，读不到 engine/parity/archify/scan 的结果，
+//   · 它守的是「前面十层各自报的实测项数」有没有与档案声明值跑偏 ——
+//     `verify:project` 跑在十层中间，读不到 engine/parity/archify/scan 的结果，
 //     所以这个守门只能挂在链尾。
 console.log(`\n${'═'.repeat(64)}`);
-console.log('▸ verify:meta（元核对 · 逐层比「声明 / 实测」；不并入九层项数合计）');
+console.log('▸ verify:meta（元核对 · 逐层比「声明 / 实测」；不并入十层项数合计）');
 console.log('═'.repeat(64));
 const metaStartedAt = Date.now();
 const metaCode = run('npm', ['run', 'verify:meta']);
@@ -309,14 +312,14 @@ if (totalKnowingly > 0) {
   console.log(`${pad('刻意未跑', 18)}${pad('0 项', 8)}（没有声明「不跑」的断言）`);
 }
 
-// 元核对单独一行：它是闸门（像 typecheck），**不并入九层项数**
+// 元核对单独一行：它是闸门（像 typecheck），**不并入十层项数**
 const metaPass = metaSt?.pass ?? null;
 const metaSkipN = metaSt?.skip ?? null;
 const metaFailN = metaSt?.fail ?? null;
 console.log(
   `${pad('元核对（闸门）', 18)}${pad(metaPass === null ? '?' : metaPass, 8)}`
   + `${pad(metaSkipN === null ? '?' : metaSkipN, 8)}${pad(metaFailN === null ? '?' : metaFailN, 8)}`
-  + `${pad(metaCode, 8)}${pad(secs(metaMs), 10)}闸门层（不计入九层项数；守各层声明值 vs 实测）`
+  + `${pad(metaCode, 8)}${pad(secs(metaMs), 10)}闸门层（不计入十层项数；守各层声明值 vs 实测）`
 );
 if (metaCode !== 0 && metaCode !== 2) {
   // 只有 1（有失败）与其它异常码才算问题；2 = 绿但存在跳过（例如某层整层未执行
@@ -352,7 +355,7 @@ if (totalSkip > 0 && allowSkip && !hasFailure) {
 }
 const slowest = [...rows].sort((a, b) => b.ms - a.ms)[0];
 if (slowest) {
-  console.log(`最慢的一层：${slowest.name} ${secs(slowest.ms)}（九层合计 ${secs(rows.reduce((n, r) => n + r.ms, 0))}）`);
+  console.log(`最慢的一层：${slowest.name} ${secs(slowest.ms)}（十层合计 ${secs(rows.reduce((n, r) => n + r.ms, 0))}）`);
 }
 if (problems.length) {
   console.log('\n问题清单');
