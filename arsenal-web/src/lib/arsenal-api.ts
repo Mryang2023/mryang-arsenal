@@ -1,4 +1,5 @@
 import type { ProjectFacts } from './facts-arch';
+import type { CategoryKey, CheckLayer, Severity } from './types';
 
 /**
  * 军火库后端（arsenal-server）的调用层。
@@ -299,4 +300,157 @@ export async function scanUpload(file: File): Promise<ScanOutcome> {
     return { kind: 'offline', message: offlineMessage(e) };
   }
   return readScanResponse(res);
+}
+
+// ─────────────────────────────────────────────────────────────
+// 代码校验（后端 POST /api/lint）
+//
+// 校验台的「后端深检」：把用户粘贴的源码交给后端，跑正则层之外的
+// AST 层（JDK 自带 jdk.compiler，零新增依赖）。与扫描一样是三态 ——
+// 「后端不在」「输入被拒」「跑出来了」在页面上要说三句不同的话，
+// 后端不在时本地正则层结论原样保留，静态站照常活着。
+// ─────────────────────────────────────────────────────────────
+
+/** 与 engine.ts 的 SourceFile 同构，这里不 import 它，保持本文件零内部依赖 */
+export interface LintSourceFile {
+  /**
+   * 用于匹配规则的 targetGlob，路径要尽量真实（带包路径）。
+   * 填 `UserController.java` 和填完整包路径，匹配到的规则数量会差很多。
+   */
+  name: string;
+  content: string;
+}
+
+/** 一处违规（后端 Violation record 的镜像，必须带文件 / 行 / 列定位） */
+export interface RemoteViolation {
+  ruleId: string;
+  title: string;
+  severity: Severity;
+  category: CategoryKey;
+  file: string;
+  line: number;
+  column: number;
+  snippet: string;
+  message: string;
+  fix: string;
+  /** 同文件同规则被折叠掉的额外命中数 */
+  collapsed: number;
+}
+
+/** 后端检不了的规则（能力边界），与前端正则层的 skipped 同构 */
+export interface RemoteSkippedRule {
+  ruleId: string;
+  title: string;
+  severity: Severity;
+  category: CategoryKey;
+  layer: CheckLayer;
+  reason: string;
+}
+
+/** 显式的「本次没跑成」记录（解析失败 / 无编译器 / 没有 Java 文件） */
+export interface RemoteParseFailure {
+  file: string;
+  line: number;
+  column: number;
+  /** SYNTAX_ERROR | COMPILER_MISSING | NO_JAVA_FILE */
+  status: string;
+  message: string;
+  detail: string;
+  /** 因此未被评估的规则 id */
+  unevaluatedRules: string[];
+}
+
+/** AST 层本次的执行情况 */
+export interface RemoteAstLayer {
+  /** executed | partial | failed | no_java_file | compiler_missing | not_applicable */
+  status: string;
+  declaredRules: number;
+  javaFiles: number;
+  parsedFiles: number;
+  failedFiles: number;
+  unevaluatedRules: string[];
+  note: string;
+}
+
+/** 后端 LintReport record 的镜像。score 可空：存在解析失败时后端拒绝给分 */
+export interface RemoteLintReport {
+  fileCount: number;
+  totalLines: number;
+  rulePool: number;
+  executableRules: number;
+  matchedFiles: number;
+  notApplicable: number;
+  violations: RemoteViolation[];
+  skipped: RemoteSkippedRule[];
+  unparsed: RemoteParseFailure[];
+  /** 不可判定时为 null —— 不得把「没结论」读成满分 */
+  score: number | null;
+  grade: string;
+  counts: Record<Severity, number>;
+  byRule: {
+    ruleId: string;
+    title: string;
+    severity: Severity;
+    category: CategoryKey;
+    count: number;
+    files: number;
+  }[];
+  durationMs: number;
+  ast: RemoteAstLayer;
+  /** false 时不得把报告呈现成「合规」 */
+  decidable: boolean;
+  /** 不可判定的人可读原因 */
+  undecidability: string[];
+}
+
+/** 一次深检的结果。三态分开表示，与 scanFacts 同一范式 */
+export type LintRemoteOutcome =
+  | { kind: 'report'; report: RemoteLintReport }
+  /** 闸门拒了这次输入（空文件列表 / 超 200 个文件等）。code 是后端给的错误码 */
+  | { kind: 'rejected'; code: string; message: string }
+  /** 后端连不上 —— 不是故障，是静态站的正常形态 */
+  | { kind: 'offline'; message: string };
+
+/**
+ * AST 解析是毫秒级的（观测 ~30ms），但给足余量到 30 秒：
+ * 大批量文件 + 冷 JIT 也不至于被前端先掐断。
+ */
+const LINT_TIMEOUT_MS = 30_000;
+
+/** 把源码交给后端做深检（正则层之外的 AST 层在这一步出结论） */
+export async function lintRemote(files: LintSourceFile[]): Promise<LintRemoteOutcome> {
+  const base = arsenalApiBase();
+  let res: Response;
+  try {
+    res = await fetchWithTimeout(
+      `${base}/api/lint`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ files }),
+      },
+      LINT_TIMEOUT_MS
+    );
+  } catch (e) {
+    return { kind: 'offline', message: offlineMessage(e) };
+  }
+
+  let body: ApiEnvelope<RemoteLintReport>;
+  try {
+    body = (await res.json()) as ApiEnvelope<RemoteLintReport>;
+  } catch {
+    return {
+      kind: 'rejected',
+      code: `HTTP_${res.status}`,
+      message: `后端返回的不是 JSON（HTTP ${res.status}）`,
+    };
+  }
+  if (!body.success || !body.data) {
+    return {
+      kind: 'rejected',
+      code: body.code ?? `HTTP_${res.status}`,
+      message: body.message ?? `深检失败（HTTP ${res.status}）`,
+    };
+  }
+  return { kind: 'report', report: body.data };
 }
