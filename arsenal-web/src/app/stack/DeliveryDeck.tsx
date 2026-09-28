@@ -38,7 +38,7 @@ import { deliverArchify } from '@/lib/arsenal-api';
 import type { ComposedStack, StackPicks } from '@/lib/content-types';
 import { TONE } from './palette';
 import ProgressRing from './ProgressRing';
-import { STEP_BY_ID, stepOfDim } from './wizard';
+import { STEP_BY_ID, groupOfDim, stepOfDim } from './wizard';
 
 /**
  * 动态交付台 —— 装配台的右半边。
@@ -1030,18 +1030,23 @@ function Num({ label, value, accent }: { label: string; value: string; accent?: 
 // ─────────────────────────────────────────────────────────────
 
 /**
- * 补法一行文案：「▦ 主题框架 · 运行环境 → 容器运行时 · …」。
- * 槽位名前面必须带步骤 —— 槽位配在哪一步是找它的唯一入口，
- * 光说「运行环境」用户在台面上找不到（09-28 反馈）。没有补法返回空串。
+ * 补法一行文案：「▦ 主题框架 · 运行基石 / 运行环境 → 容器运行时 · …」。
+ * 槽位名前必须带步骤 + 组：步骤是去哪一步，组名是那一步分组导航里**看得见的字** ——
+ * 只说「运行环境」，用户在 ③ 的分组列表里看到的是「运行基石」，对不上号（09-28 三反馈）。
+ * 没有补法返回空串。
  */
 function remedyText(gap: ArchGap): string {
   if (!gap.remedies?.length) return '';
-  const nameOf = (dimId: string) => dimensions.find((d) => d.id === dimId)?.name ?? dimId;
   return gap.remedies
     .map((r) => {
       const spec = STEP_BY_ID.get(stepOfDim(r.dim) ?? 'layers');
-      const opt = dimensions.find((d) => d.id === r.dim)?.options.find((o) => o.id === r.option);
-      const head = spec ? `${spec.name} · ${nameOf(r.dim)}` : nameOf(r.dim);
+      const dim = dimensions.find((d) => d.id === r.dim);
+      const group = groupOfDim(r.dim);
+      const dimName = dim?.name ?? r.dim;
+      const head = spec
+        ? `${spec.name} · ${group ? `${group.name} / ` : ''}${dimName}`
+        : dimName;
+      const opt = dim?.options.find((o) => o.id === r.option);
       return opt ? `${head} → ${opt.name}` : head;
     })
     .join(' · ');

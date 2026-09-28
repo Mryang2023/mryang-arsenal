@@ -17,7 +17,7 @@ import type { StackPicks } from '@/lib/content-types';
 import { STEP_BY_ID } from '../wizard';
 import TopologyPicker from '../TopologyPicker';
 import TopologyLab from '../TopologyLab';
-import DimPicker from '../DimPicker';
+import DimPicker, { type DimFlag } from '../DimPicker';
 import StepShell from './StepShell';
 
 /**
@@ -39,6 +39,7 @@ import StepShell from './StepShell';
 export default function TopologyStep({
   picks,
   meta,
+  dimFlags,
   onTopology,
   onParam,
   onPick,
@@ -46,6 +47,8 @@ export default function TopologyStep({
 }: {
   picks: StackPicks;
   meta: StackPicksMeta;
+  /** 问题槽位标记（与 ②③ 同一形状、同一份数据） */
+  dimFlags?: Record<string, DimFlag>;
   onTopology: (dimId: string, modeId: string) => void;
   onParam: (key: string, value: number) => void;
   onPick: (dimId: string, optId: string) => void;
@@ -113,7 +116,13 @@ export default function TopologyStep({
             </p>
           </div>
           {clusterDim && (
-            <DimPicker dim={clusterDim} picks={picks} onPick={onPick} onClear={onClear} />
+            <DimPicker
+              dim={clusterDim}
+              picks={picks}
+              flag={dimFlags?.[clusterDim.id]}
+              onPick={onPick}
+              onClear={onClear}
+            />
           )}
           {webDim && (
             <div className="border-t border-line px-4 py-3">

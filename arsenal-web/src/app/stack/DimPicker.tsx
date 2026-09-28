@@ -20,23 +20,59 @@ import { TONE } from './palette';
  *   · 未选时显示空态引导（装什么 / 装了有什么用），出处同样是事实源。
  */
 
+export interface DimFlag {
+  kind: 'need' | 'remedy';
+  /** 一句话说明：要「容器运行环境」/ 可补「容器运行环境」/ 必选未装 */
+  label: string;
+  /** 补法推荐直接选哪个零件 —— 卡片里给它描绿框，问题不用第二次查找 */
+  optionId?: string;
+}
+
 export default function DimPicker({
   dim,
   picks,
   onPick,
   onClear,
+  flag,
 }: {
   dim: StackDimension;
   picks: StackPicks;
   onPick: (dimId: string, optId: string) => void;
   onClear: (dimId: string) => void;
+  /** 问题标记：need 红 / remedy 绿。三类问题都标 ——
+      要没人给的能力（need）、能补上缺口（remedy）、必选未装（need）。 */
+  flag?: DimFlag;
 }) {
   const current = picks[dim.id] ?? '';
   const node = nodeArch[dim.id];
   const order = recommendedOrder(dim);
+  const flagColor = flag?.kind === 'need' ? TONE.bad : { color: '#7FA650', border: 'rgba(127,166,80,0.6)', soft: 'rgba(127,166,80,0.10)' };
 
   return (
-    <div className="border-t border-line px-4 py-3 first:border-t-0">
+    <div className="relative border-t border-line px-4 py-3 first:border-t-0">
+      {/* 显眼的问题框（09-28 反馈：满卡打勾看不出哪张卡有问题）——
+          absolute 覆盖框不碰 divide 分隔布局；need 红 / remedy 绿，与点阵同一语言 */}
+      {flag && (
+        <>
+          <div
+            aria-hidden
+            className="pointer-events-none absolute inset-x-1.5 inset-y-1 rounded-md border-2"
+            style={{ borderColor: flagColor.color, boxShadow: `0 0 0 1px ${flagColor.color}40` }}
+          />
+          <div className="pointer-events-none absolute -top-[1px] right-2 -translate-y-1/2">
+            <span
+              className="mono rounded-sm border px-1.5 text-[10px] leading-[17px]"
+              style={{
+                color: flagColor.color,
+                borderColor: flagColor.border,
+                background: flag.kind === 'need' ? 'rgba(229,72,77,0.16)' : 'rgba(127,166,80,0.16)',
+              }}
+            >
+              {flag.label}
+            </span>
+          </div>
+        </>
+      )}
       <div className="flex flex-wrap items-baseline gap-x-2.5 gap-y-1">
         <h4 className="text-[12px] font-semibold leading-[18px] text-fg">{dim.name}</h4>
         {node?.required && (
@@ -65,6 +101,7 @@ export default function DimPicker({
         {order.map((o) => {
           const on = o.id === current;
           const isNone = o.id === 'none';
+          const isRemedyPick = flag?.optionId === o.id && !on;
           return (
             <button
               key={o.id}
@@ -73,11 +110,21 @@ export default function DimPicker({
               data-opt={o.id}
               aria-pressed={on}
               onClick={() => (on && !isNone ? onClear(dim.id) : onPick(dim.id, o.id))}
-              title={on && !isNone ? '再点一次取消（退回未定）' : o.summary}
+              title={
+                on && !isNone
+                  ? '再点一次取消（退回未定）'
+                  : isRemedyPick
+                    ? `${flag!.label} —— 建议就选「${o.name}」`
+                    : o.summary
+              }
               className="w-[208px] rounded-md border px-2.5 py-2 text-left transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-brass"
               style={{
-                borderColor: on ? 'rgba(217,164,65,0.65)' : '#243029',
-                background: on ? 'rgba(217,164,65,0.09)' : 'transparent',
+                borderColor: on ? 'rgba(217,164,65,0.65)' : isRemedyPick ? flagColor.border : '#243029',
+                background: on
+                  ? 'rgba(217,164,65,0.09)'
+                  : isRemedyPick
+                    ? 'rgba(127,166,80,0.10)'
+                    : 'transparent',
                 opacity: isNone && !on ? 0.72 : 1,
               }}
             >
@@ -85,11 +132,11 @@ export default function DimPicker({
                 <span
                   className="mono flex h-[13px] w-[13px] shrink-0 items-center justify-center rounded-full border text-[10px] leading-none"
                   style={{
-                    borderColor: on ? '#D9A441' : '#33413A',
-                    color: on ? '#D9A441' : 'transparent',
+                    borderColor: on ? '#D9A441' : isRemedyPick ? '#7FA650' : '#33413A',
+                    color: on ? '#D9A441' : isRemedyPick ? '#7FA650' : 'transparent',
                   }}
                 >
-                  ✓
+                  {on ? '✓' : isRemedyPick ? '+' : ''}
                 </span>
                 <span className="truncate text-[11px] font-medium leading-[16px] text-fg">
                   {o.name}

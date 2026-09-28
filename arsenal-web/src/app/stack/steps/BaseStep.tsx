@@ -3,7 +3,7 @@
 import { bases, dimensions } from '@/lib/stack';
 import type { StackPicks } from '@/lib/content-types';
 import { STEP_BY_ID } from '../wizard';
-import DimPicker from '../DimPicker';
+import DimPicker, { type DimFlag } from '../DimPicker';
 import StepShell from './StepShell';
 
 /**
@@ -27,12 +27,15 @@ export default function BaseStep({
   baseId,
   onBase,
   picks,
+  dimFlags,
   onPick,
   onClear,
 }: {
   baseId: string;
   onBase: (id: string) => void;
   picks: StackPicks;
+  /** 问题槽位标记（与 ③ 同一形状、同一份数据） */
+  dimFlags?: Record<string, DimFlag>;
   onPick: (dimId: string, optId: string) => void;
   onClear: (dimId: string) => void;
 }) {
@@ -106,7 +109,14 @@ export default function BaseStep({
 
         <div className="mt-4 rounded-md border border-line">
           {baseDims.map((d) => (
-            <DimPicker key={d.id} dim={d} picks={picks} onPick={onPick} onClear={onClear} />
+            <DimPicker
+              key={d.id}
+              dim={d}
+              picks={picks}
+              flag={dimFlags?.[d.id]}
+              onPick={onPick}
+              onClear={onClear}
+            />
           ))}
         </div>
       </div>

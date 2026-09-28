@@ -275,6 +275,19 @@ export function stepOfDim(dimId: string): StepId | null {
 }
 
 /**
+ * 维度 → 它挂在哪个分组下（③ 的导航单位是**组**，不是维度）。
+ *
+ * 「运行环境」在「运行基石」组里 —— 补法只说维度名，用户在 ③ 的导航上
+ * 找不到对应入口（导航列的是组名），必须把「组 / 维度」两级一起给
+ * （09-28 三次反馈：「只有运行基石，没看到运行环境」）。
+ */
+export function groupOfDim(dimId: string): StackGroup | null {
+  const dim = dimensions.find((d) => d.id === dimId);
+  if (!dim) return null;
+  return groups.find((g) => g.id === dim.groupId) ?? null;
+}
+
+/**
  * 泳道 → 归哪条流水线视图（不含「全部流水线」兜底 —— 拿不到具体流就是拿不到）。
  * 「定位到某槽位」前先切对流水线，否则格子根本不在台面上。
  */

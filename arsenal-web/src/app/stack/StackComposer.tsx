@@ -80,6 +80,7 @@ import {
   FLOW_BY_ID,
   flowFilled,
   flowOfLane,
+  groupOfDim,
   isValidProjectName,
   loadProjectMeta,
   saveProjectMeta,
@@ -459,10 +460,10 @@ export default function StackComposer() {
   /**
    * 点阵的问题标记 + 问题格索引（09-28 反馈：33 格里看不出哪格坏了、坏在哪步）。
    * need = 这一格在要一块没人给的能力（或必选未装）；remedy = 这一格能补上缺口。
-   * 两种格子都在点阵上描边、在下方列成可点的文字 —— 10px 色块承担不了全部。
+   * optionId = 补法推荐直接选的零件 —— 步骤页面上给那个选项描绿框，不用二次查找。
    */
   const issueDots = useMemo(() => {
-    const list: { dim: string; label: string; kind: 'need' | 'remedy' }[] = [];
+    const list: { dim: string; label: string; kind: 'need' | 'remedy'; optionId?: string }[] = [];
     const has = (dim: string, kind: string) =>
       list.some((x) => x.dim === dim && x.kind === kind);
     for (const b of audit.blockers) {
@@ -472,19 +473,42 @@ export default function StackComposer() {
           if (!has(n, 'need')) list.push({ dim: n, label: `要「${cap}」`, kind: 'need' });
         }
         for (const r of b.remedies ?? []) {
-          if (!has(r.dim, 'remedy')) list.push({ dim: r.dim, label: `可补「${cap}」`, kind: 'remedy' });
+          if (!has(r.dim, 'remedy')) {
+            list.push({ dim: r.dim, label: `可补「${cap}」`, kind: 'remedy', optionId: r.option });
+          }
         }
       } else if (!has(b.dim, 'need')) {
-        list.push({ dim: b.dim, label: '必选未装', kind: 'need' });
+        const recommended = recommendedOptionFor(b.dim);
+        list.push({
+          dim: b.dim,
+          label: '必选未装 —— 跑不起来',
+          kind: 'need',
+          optionId: recommended?.id,
+        });
       }
     }
     return list;
   }, [audit]);
 
-  /** 点阵格描边：need 红 / remedy 橄榄绿（补法是积极动作，不用警示色） */
+  /**
+   * 槽位级问题标记（②③⑤ 的模块卡红/绿框 + ③ 导航红点共用这一份）。
+   * 同一格 both need 与 remedy 时 need 优先 —— 先说哪儿坏了，再说去哪补。
+   */
+  const dimFlags = useMemo(() => {
+    const map: Record<string, { kind: 'need' | 'remedy'; label: string; optionId?: string }> = {};
+    for (const x of issueDots) {
+      const prev = map[x.dim];
+      if (!prev || (prev.kind === 'remedy' && x.kind === 'need')) {
+        map[x.dim] = { kind: x.kind, label: x.label, optionId: x.optionId };
+      }
+    }
+    return map;
+  }, [issueDots]);
+
+  /** 点阵格描边（need 红 / remedy 橄榄绿）—— 从同一份 issueDots 派生 */
   const dotFlags = useMemo(() => {
     const map: Record<string, 'need' | 'remedy'> = {};
-    for (const d of issueDots) if (!map[d.dim] || map[d.dim] === 'remedy') map[d.dim] = d.kind;
+    for (const x of issueDots) if (!map[x.dim] || map[x.dim] === 'remedy') map[x.dim] = x.kind;
     return map;
   }, [issueDots]);
 
@@ -740,12 +764,13 @@ export default function StackComposer() {
               setBaseId(id);
             }}
             picks={picks}
+            dimFlags={dimFlags}
             onPick={pick}
             onClear={clear}
           />
         );
       case 'theme':
-        return <ThemeStep picks={picks} onPick={pick} onClear={clear} />;
+        return <ThemeStep picks={picks} dimFlags={dimFlags} onPick={pick} onClear={clear} />;
       case 'layers':
         return renderBench();
       case 'topology':
@@ -753,6 +778,7 @@ export default function StackComposer() {
           <TopologyStep
             picks={picks}
             meta={meta}
+            dimFlags={dimFlags}
             onTopology={pickTopology}
             onParam={setParam}
             onPick={pick}
@@ -1978,6 +2004,9 @@ function SlotDotMatrix({
             const dim = dimensions.find((d) => d.id === dimId);
             const step = stepOfDim(dimId);
             const stepSpec = step ? STEP_BY_ID.get(step) : null;
+            // 导航单位是「组」，维度挂在组下 —— 组名/维度名两级都给，
+            // 否则「运行环境」在 ③ 导航上对不上号（导航列的是「运行基石」）
+            const group = groupOfDim(dimId);
             const items = issueItems.filter((x: { dim: string }) => x.dim === dimId);
             const label = items.map((x) => x.label).join('、') || FLAG_META[kind].label;
             return (
@@ -1991,9 +2020,14 @@ function SlotDotMatrix({
                   background: kind === 'need' ? TONE.bad.soft : 'rgba(127,166,80,0.10)',
                   color: kind === 'need' ? TONE.bad.color : '#7FA650',
                 }}
-                title={`${dim?.name ?? dimId}（${stepSpec ? `第 ${STEPS_ORDINAL(step!)} 步 · ${stepSpec.name} 配` : '④ 台面'}）→ 点击直达台面`}
+                title={`${group ? `${group.name} / ` : ''}${dim?.name ?? dimId}（${
+                  stepSpec ? `第 ${STEPS_ORDINAL(step!)} 步 · ${stepSpec.name} 配` : '④ 台面'
+                }）→ 点击直达台面`}
               >
-                <span className="font-medium">{dim?.name ?? dimId}</span>
+                <span className="font-medium">
+                  {group ? `${group.name} / ` : ''}
+                  {dim?.name ?? dimId}
+                </span>
                 <span className="text-fgMuted">{label}</span>
                 {stepSpec && (
                   <span className="mono text-fgFaint">

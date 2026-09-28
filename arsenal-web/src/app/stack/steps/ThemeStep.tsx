@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import type { StackPicks } from '@/lib/content-types';
 import { STEP_BY_ID, THEME_SECTIONS } from '../wizard';
-import DimPicker from '../DimPicker';
+import DimPicker, { type DimFlag } from '../DimPicker';
 import StepShell from './StepShell';
 
 /**
@@ -21,10 +21,13 @@ import StepShell from './StepShell';
  */
 export default function ThemeStep({
   picks,
+  dimFlags,
   onPick,
   onClear,
 }: {
   picks: StackPicks;
+  /** 问题槽位标记（dimId → 红/绿 + 一句话）。出处见 StackComposer 的 issueDots */
+  dimFlags?: Record<string, DimFlag>;
   onPick: (dimId: string, optId: string) => void;
   onClear: (dimId: string) => void;
 }) {
@@ -33,6 +36,11 @@ export default function ThemeStep({
   const section = THEME_SECTIONS[Math.min(gi, THEME_SECTIONS.length - 1)] ?? THEME_SECTIONS[0];
   const total = THEME_SECTIONS.reduce((n, s) => n + s.dims.length, 0);
   const filled = THEME_SECTIONS.reduce((n, s) => n + s.dims.filter((d) => picks[d.id]).length, 0);
+  // 有问题的组要提前暴露 —— 导航上一眼看到哪组红，不用一组一组点开找
+  const groupIssueCount = (groupId: string) =>
+    (THEME_SECTIONS.find((s) => s.group.id === groupId)?.dims ?? []).filter(
+      (d) => dimFlags?.[d.id]?.kind === 'need'
+    ).length;
 
   return (
     <StepShell spec={spec}>
@@ -47,6 +55,7 @@ export default function ThemeStep({
               const f = s.dims.filter((d) => picks[d.id]).length;
               const on = i === gi;
               const done = f === s.dims.length && s.dims.length > 0;
+              const issues = groupIssueCount(s.group.id);
               return (
                 <li key={s.group.id}>
                   <button
@@ -69,6 +78,15 @@ export default function ThemeStep({
                     >
                       {s.group.name}
                     </span>
+                    {issues > 0 && (
+                      <span
+                        className="mono shrink-0 rounded-sm px-1 text-[10px] leading-[15px]"
+                        style={{ color: '#E5484D', background: 'rgba(229,72,77,0.14)' }}
+                        title={`这一组有 ${issues} 个槽位卷进「跑不起来」`}
+                      >
+                        {issues}
+                      </span>
+                    )}
                     <span className="mono shrink-0 text-[10px] leading-[15px] text-fgFaint">
                       {f}/{s.dims.length}
                     </span>
@@ -117,7 +135,14 @@ export default function ThemeStep({
           </p>
           <div className="divide-y divide-line">
             {section.dims.map((d) => (
-              <DimPicker key={d.id} dim={d} picks={picks} onPick={onPick} onClear={onClear} />
+              <DimPicker
+                key={d.id}
+                dim={d}
+                picks={picks}
+                flag={dimFlags?.[d.id]}
+                onPick={onPick}
+                onClear={onClear}
+              />
             ))}
           </div>
         </section>

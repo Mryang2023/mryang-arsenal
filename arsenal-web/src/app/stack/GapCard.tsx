@@ -2,7 +2,7 @@
 
 import type { ArchGap } from '@/lib/arch';
 import { dimensions } from '@/lib/stack';
-import { STEP_BY_ID, stepOfDim } from './wizard';
+import { STEP_BY_ID, groupOfDim, stepOfDim } from './wizard';
 import { TONE } from './palette';
 
 /**
@@ -114,6 +114,7 @@ export default function GapCard({
                     const opt = d?.options.find((o) => o.id === r.option);
                     const s = stepOfDim(r.dim);
                     const spec = s ? STEP_BY_ID.get(s) : null;
+                    const g = groupOfDim(r.dim);
                     return (
                       <li
                         key={r.dim}
@@ -127,7 +128,10 @@ export default function GapCard({
                             {spec.glyph} {spec.name}
                           </span>
                         )}
-                        <span className="text-fgMuted">{d?.name ?? r.dim}</span>
+                        <span className="text-fgMuted">
+                          {g ? `${g.name} / ` : ''}
+                          {d?.name ?? r.dim}
+                        </span>
                         {opt && <span style={{ color: '#7FA650' }}>→ {opt.name}</span>}
                         {onFocus && (
                           <button
