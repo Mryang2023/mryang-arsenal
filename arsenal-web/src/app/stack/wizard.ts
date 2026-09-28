@@ -15,8 +15,8 @@ import type { StackDimension, StackGroup } from '@/lib/content-types';
  *   软件架构段 ——
  *   ① 项目定义  → 项目名 + 形态（形态给出后面每一步的推荐起点）
  *   ② 技术栈基底 → 跑在什么栈上（决定 pom parent / gradle 插件的版本）
- *   ③ 主题框架  → 数据库、缓存、鉴权这些**主题件**各选什么（纯代码架构）
- *   ④ 分层装配  → 逐层校核，把每层剩下的可选件补齐（不含交付件）
+ *   ③ 主题框架  → 数据库、缓存、消息队列、鉴权这些**代码技术框架**各选什么
+ *   ④ 分层装配  → 全量 33 格逐层校核，把可选件补齐（部署形态只在 ⑥ 定）
  *
  *   交付运行段 ——
  *   ⑤ 交付与运行 → 运行环境 / 入口 / 编排 / 制品库 / CI/CD / 监控 / 密钥 / 日志
@@ -131,14 +131,16 @@ export const SHAPES: ShapeSpec[] = presets.map((p) => ({
 // ③ 主题件判定
 //
 // 33 个槽位不可能都叫「主题框架」。判定规则全部来自事实源：
-//   · 事实源标了 required / recommended 的，就是这个组的主题件
+//   · middleware / datax 两组**整组**进 ③（THEME_GROUP_IDS）—— 维度全是
+//     代码依赖（缓存、消息队列、注册中心、搜索……），把消息队列单独留在
+//     ④ 会让「同组同类决定一半在 ③ 一半在 ④」（09-28 七反馈的病根）；
+//   · 其余组：事实源标了 required / recommended 的进 ③
 //     （数据库、连接池、鉴权、监控 —— 不装项目就不完整）；
-//   · 一个组一个 R/REC 都没有时（中间件组、数据生态组），取该组第一个
-//     defaultOption 不是「不用」的维度当主题件（缓存、搜索）——
-//     否则这些组在主题框架这一步会整组消失，而用户正是冲着「缓存选什么」来的。
+//   · 一个组一个 R/REC 都没有时，取该组第一个 defaultOption 不是「不用」
+//     的维度当主题件 —— 否则这个组在 ③ 会整组消失。
 //
-// base 组（JDK / 构建工具 / Web 运行时）归 ② 技术栈基底，
-// topology 组（全局部署形态）归 ⑤ —— 各归各位，一个维度只出现一次。
+// base 组（JDK / 构建工具 / Web 运行时）归 ② 技术栈基底，topology 组（全局
+// 部署形态）归 ⑥，交付运行组归 ⑤ —— 各归各位，一个维度只出现一次。
 // ─────────────────────────────────────────────────────────────
 
 const STEP2_GROUP = 'base';
@@ -151,6 +153,15 @@ const STEP6_GROUP = 'topology';
  * 口径与组一一对应：整组进 ⑤，不拆组 —— 拆组会出现「运行基石一半在 ③ 一半在 ⑤」。
  */
 export const RUN_GROUP_IDS = new Set(['runtime', 'delivery', 'ops']);
+
+/**
+ * 代码中间件整组进 ③ 主题框架（09-28 七反馈：中间件组的「消息队列」只能去
+ * ④ 选，同类决定分了家）。middleware / datax 两组的维度全是**代码依赖** ——
+ * 选 Kafka 还是 RocketMQ、用不用 Nacos、接不接 ES，都是写进 pom / import 的
+ * 代码决定，与部署运维无关。它与 RUN_GROUP_IDS 正好构成两段流程的分界：
+ *   代码技术框架 → ③ 一次表态完；部署运维 → ⑤ 整组表态；部署形态 → 只在 ⑥。
+ */
+export const THEME_GROUP_IDS = new Set(['middleware', 'datax']);
 
 function isKept(dim: StackDimension): boolean {
   const n = nodeArch[dim.id];
@@ -170,6 +181,12 @@ function themeDimIds(): Set<string> {
   for (const g of groups) {
     if (g.id === STEP2_GROUP || g.id === STEP6_GROUP || RUN_GROUP_IDS.has(g.id)) continue;
     const members = dimensions.filter((d) => d.groupId === g.id);
+    // 代码中间件整组进 ③：消息队列、注册中心与缓存一样是代码依赖，
+    // 拆在 ③/④ 两处是 09-28 七反馈点名的「同类决定分家」
+    if (THEME_GROUP_IDS.has(g.id)) {
+      for (const d of members) set.add(d.id);
+      continue;
+    }
     const kept = members.filter(isKept);
     if (kept.length) {
       for (const d of kept) set.add(d.id);
@@ -183,7 +200,7 @@ function themeDimIds(): Set<string> {
   return set;
 }
 
-/** ③ 的分区：组 → 该组要定的主题件。空组不出现（不渲染空分区） */
+/** ③ 的分区：组 → 该组要表态的维度（中间件/数据生态整组，其余组为主题件）。空组不出现 */
 export interface ThemeSection {
   group: StackGroup;
   dims: StackDimension[];

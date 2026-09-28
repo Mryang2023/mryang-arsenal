@@ -1701,18 +1701,10 @@ export default function StackComposer() {
             <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
               <span className="mono text-[12px] leading-none text-brass">⊙</span>
               <span className="text-fg">点任意方块</span>
-              <span>→ 右缘弹出抽屉选零件、切<span className="text-fg">集群形态</span>：</span>
-              <span className="flex flex-wrap items-center gap-1">
-                {(['单实例', '主从', '组复制', '分片', '云原生'] as const).map((m) => (
-                  <span
-                    key={m}
-                    className="rounded border border-line bg-surfaceHi px-1.5 py-0.5 text-[10px] leading-none text-fgMuted"
-                  >
-                    {m}
-                  </span>
-                ))}
-              </span>
-              <span className="text-fgFaint">图形化切换，副本数写进 ⑥ 部署形态清单</span>
+              <span>→ 右缘弹出抽屉换零件。这一步只管</span>
+              <span className="text-fg">装什么</span>
+              <span>—— 几个实例、怎么摆（单实例 / 主从 / 组复制 / 分片 / 云原生）</span>
+              <span className="text-fgFaint">在 ⑥ 部署形态一处定，副本数写进清单</span>
             </div>
             {/* S2-4：搜索 + 三档筛选。互斥单选（aria-pressed），再点一次取消；
                 与搜索词取交集。命中的卡片正常显示、未命中降噪到 0.28 ——
@@ -1878,8 +1870,6 @@ export default function StackComposer() {
                                 onClick={() => setActiveDim(dimId)}
                                 onClear={() => clear(dimId)}
                                 picks={picks}
-                                meta={meta}
-                                onTopology={pickTopology}
                                 onSwap={pick}
                                 muted={visibleDims !== null && !visibleDims.has(dimId)}
                               />
@@ -1895,17 +1885,15 @@ export default function StackComposer() {
           </div>
         </div>
 
-        {/* 选件抽屉：点中的槽位 → 右缘浮出零件库（Inspector 的 Picker 体检结论态
-            不进抽屉 —— 「这套组合能不能跑」的结论由顶部结论条常驻，不重复）。 */}
+        {/* 选件抽屉：点中的槽位 → 右缘浮出零件库（09-28 七反馈：只管装什么 ——
+            几个实例、怎么摆在 ⑥ 部署形态一处表态，两处入口必然改一处忘一处）。 */}
         {activeDim && (
           <DimDrawer>
             <Picker
               dimId={activeDim}
               picks={picks}
-              meta={meta}
               onPick={pick}
               onClear={clear}
-              onTopology={pickTopology}
               onClose={() => setActiveDim(null)}
             />
           </DimDrawer>

@@ -5,9 +5,7 @@ import { createPortal } from 'react-dom';
 import { capLabel, capsOf, needsOf, nodeArch } from '@/lib/arch';
 import type { SlotState } from '@/lib/arch';
 import type { StackOption, StackPicks } from '@/lib/content-types';
-import type { StackPicksMeta } from '@/lib/topology';
 import { dimensionById } from '@/lib/stack';
-import TopologyPicker from './TopologyPicker';
 import { OptionList } from './Inspector';
 import { TONE } from './palette';
 
@@ -70,12 +68,8 @@ export default function SlotBlock({
   hint,
   onClick,
   onClear,
-  /** 选型快照 —— 形态选择器要读 `picks[dimId]` 讲清楚「当前这一档零件」 */
+  /** 选型快照 —— 「已装什么」直接画在卡面上 */
   picks,
-  /** 与 `picks` 平行的形态/参数通道；只有带形态表态的维度才画出选择器 */
-  meta,
-  /** 点选形态时写回 `meta.topology[dimId]` */
-  onTopology,
   /** 就地换件回调（S2-1）——给了才画「换」chip */
   onSwap,
   /** 搜索 / 筛选未命中降噪（S2-4） */
@@ -93,8 +87,6 @@ export default function SlotBlock({
   onClick: () => void;
   onClear: () => void;
   picks: StackPicks;
-  meta: StackPicksMeta;
-  onTopology: (dimId: string, modeId: string) => void;
   /**
    * 就地换件（S2-1）：给了这个回调，卡片上才出「换」chip。
    * 不给（老调用方 /arch 页）就不画 —— 老页面没有 pick 语义。
@@ -361,16 +353,6 @@ export default function SlotBlock({
         </span>
       )}
     </button>
-      {/* 形态选择器：只有带形态表态的维度（database / cache / search / mq / web，
-          外加全局 clustertopology）且已选好零件时才画出来；其余维度
-          topologyChoices 返回空，TopologyPicker 自行返回 null */}
-      <TopologyPicker
-        dimId={dimId}
-        option={option}
-        picks={picks}
-        meta={meta}
-        onPick={onTopology}
-      />
 
       {/* 就地换件菜单（S2-1）：portal 到 body —— 泳道 section 带 overflow-hidden，
           卡片内绝对定位的菜单会在泳道边缘被整块裁掉。fixed 定位按卡片矩形算，

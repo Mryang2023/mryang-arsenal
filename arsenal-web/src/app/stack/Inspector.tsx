@@ -3,11 +3,9 @@
 import { capLabel, capsOf, needsOf, nodeArch, STATUS_META } from '@/lib/arch';
 import type { ArchAudit, ArchGap } from '@/lib/arch';
 import type { StackDimension, StackOption, StackPicks } from '@/lib/content-types';
-import type { StackPicksMeta } from '@/lib/topology';
 import { dimensionById } from '@/lib/stack';
 import GapCard from './GapCard';
 import RuleHits from './RuleHits';
-import TopologyPicker from './TopologyPicker';
 import { TONE } from './palette';
 
 /**
@@ -22,32 +20,27 @@ export default function Inspector({
   audit,
   activeDim,
   picks,
-  meta,
   baseId,
   onPick,
   onClear,
-  onTopology,
   onClose,
   onFocusDim,
 }: {
   audit: ArchAudit;
   activeDim: string | null;
   picks: StackPicks;
-  /** 形态与参数。形态不是「选项」的一部分，所以走单独一条通道 */
-  meta: StackPicksMeta;
   /** 技术栈基底（S3-4 规则联动按它算 Java/Spring key） */
   baseId: string;
   onPick: (dimId: string, optId: string) => void;
   onClear: (dimId: string) => void;
-  onTopology: (dimId: string, modeId: string) => void;
   onClose: () => void;
   onFocusDim: (dimId: string) => void;
 }) {
-  // 注意：`meta` 这个标识符在本文件里有两个含义 ——
-  //   ① 外层 prop `meta: StackPicksMeta`（形态与参数，要透传给 Picker）
+  // 注意：`meta` 这个标识符在本文件里曾有多个含义 ——
+  //   ① 外层 prop `meta: StackPicksMeta`（形态与参数，透传给 Picker）
   //   ② 这里的状态文案（STATUS_META[status]）
-  // 两者同名过，TS 直接 `Cannot redeclare block-scoped variable`，而且 53 行
-  // 会把状态文案当成形态数据传下去。状态文案一律叫 `statusMeta`。
+  // 两者同名过，TS 直接 `Cannot redeclare block-scoped variable`。状态文案一律叫
+  // `statusMeta`。09-28 七反馈起部署形态只在 ⑥ 表态，Picker 不再收 meta/onTopology。
   const statusMeta = STATUS_META[audit.status];
   const tone = TONE[
     statusMeta.tone === 'bad' ? 'bad' : statusMeta.tone === 'warn' ? 'warn' : 'ok'
@@ -61,10 +54,8 @@ export default function Inspector({
         <Picker
           dimId={activeDim}
           picks={picks}
-          meta={meta}
           onPick={onPick}
           onClear={onClear}
-          onTopology={onTopology}
           onClose={onClose}
         />
       ) : (
@@ -203,22 +194,22 @@ function Group({
  *
  * 头部（icon + 槽位名 + 必选标 + ×）与滚动内容区都假设父容器是
  * `flex flex-col` 的全高面板 —— 抽屉壳（DimDrawer）与旧右栏 aside 都是这种形状。
+ *
+ * 09-28 七反馈：部署形态从零件库摘除 —— ④ 只回答「装什么」，几个实例、
+ * 怎么摆在 ⑥ 部署形态一处表态（TopologyStep 会列出全部已装的带形态零件），
+ * 两处各养一份入口必然「改一处忘一处」。
  */
 export function Picker({
   dimId,
   picks,
-  meta,
   onPick,
   onClear,
-  onTopology,
   onClose,
 }: {
   dimId: string;
   picks: StackPicks;
-  meta: StackPicksMeta;
   onPick: (dimId: string, optId: string) => void;
   onClear: (dimId: string) => void;
-  onTopology: (dimId: string, modeId: string) => void;
   onClose: () => void;
 }) {
   const dim = dimensionById.get(dimId);
@@ -256,18 +247,6 @@ export function Picker({
 
       <div className="min-h-0 flex-1 overflow-y-auto">
         <OptionList dimId={dimId} current={current} onPick={onPick} />
-
-        {/* 形态选择器紧挨着零件库——选完零件，紧接着就是「几个实例、怎么摆」。
-            它是这台装配台从「选组件」变成「装配一个项目」的那一步。 */}
-        {currentOpt && (
-          <TopologyPicker
-            dimId={dimId}
-            option={currentOpt}
-            picks={picks}
-            meta={meta}
-            onPick={onTopology}
-          />
-        )}
 
         {currentOpt && <OptionDetail dimId={dimId} option={currentOpt} />}
 
