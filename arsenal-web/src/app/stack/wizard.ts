@@ -5,25 +5,32 @@ import type { StackDimension, StackGroup } from '@/lib/content-types';
 /**
  * 装配台向导的步骤模型。
  *
- * 为什么拆成六步：装配台原来把「项目叫什么 / 技术栈是什么 / 数据库缓存选什么 /
+ * 为什么拆成七步、分成两段：装配台原来把「项目叫什么 / 技术栈是什么 / 数据库缓存选什么 /
  * 每层各装什么 / 每个零件几个副本 / 最后拿走什么」全压在一屏里 —— 33 个槽位、
  * 7 条泳道、五根滑杆、九块预览同时出现在视野里，用户根本不知道从哪儿下手。
- * 拆开之后每一步只回答**一个问题**，并且**上一步的答案决定下一步的候选**：
+ * 拆开之后每一步只回答**一个问题**，并且**上一步的答案决定下一步的候选**。
+ * 09-28 反馈再进一层：**代码软件架构**与**交付运行**是两类决定，混在一起选太乱 ——
+ * 于是向导分成两段，前四步只谈代码架构，后三步专门谈怎么跑起来：
  *
+ *   软件架构段 ——
  *   ① 项目定义  → 项目名 + 形态（形态给出后面每一步的推荐起点）
  *   ② 技术栈基底 → 跑在什么栈上（决定 pom parent / gradle 插件的版本）
- *   ③ 主题框架  → 数据库、缓存、鉴权这些**主题件**各选什么
- *   ④ 分层装配  → 逐层校核，把每层剩下的可选件补齐
- *   ⑤ 部署形态  → 只对**已装上的零件**问「几个实例、怎么摆」
- *   ⑥ 交付      → 产物、图、一键导出
+ *   ③ 主题框架  → 数据库、缓存、鉴权这些**主题件**各选什么（纯代码架构）
+ *   ④ 分层装配  → 逐层校核，把每层剩下的可选件补齐（不含交付件）
+ *
+ *   交付运行段 ——
+ *   ⑤ 交付与运行 → 运行环境 / 入口 / 编排 / 制品库 / CI/CD / 监控 / 密钥 / 日志
+ *   ⑥ 部署形态  → 只对**已装上的零件**问「几个实例、怎么摆」
+ *   ⑦ 交付      → 产物、图、一键导出
  *
  * 「上层定下层」的落点是三条硬规则，不是文案：
  *   · 形态只在 ① 表态，它把 picks 预填成一套可改的起点；
- *   · ⑤ 只列出已选且不是「不用」的零件 —— 没装的零件没有形态可言；
+ *   · ⑥ 只列出已选且不是「不用」的零件 —— 没装的零件没有形态可言；
  *   · 每一步都能回退修改，改了之后下游步骤的候选立刻跟着变（不是一次性问卷）。
  */
 
-export type StepId = 'project' | 'base' | 'theme' | 'layers' | 'topology' | 'delivery';
+export type StepId =
+  | 'project' | 'base' | 'theme' | 'layers' | 'deliverRun' | 'topology' | 'delivery';
 
 export interface StepSpec {
   id: StepId;
@@ -63,7 +70,14 @@ export const STEPS: StepSpec[] = [
     glyph: '⊞',
     name: '分层装配',
     question: '逐层校核 —— 这条流水线还缺什么？',
-    feeds: '顶部按「流水线」切换：一次只看一条处理流（接入→应用→数据……），不把 7 泳道一次铺开。装上的零件进入 ⑤，逐个定副本；缺的必选件会被直接点名。',
+    feeds: '顶部按「流水线」切换：一次只看一条处理流（接入→应用→数据……），把架构侧的可选件补齐。交付类零件不在这里 —— 它们集中在下一步「交付与运行」。装上的零件进入 ⑥，逐个定副本；缺的必选件会被直接点名。',
+  },
+  {
+    id: 'deliverRun',
+    glyph: '⬢',
+    name: '交付与运行',
+    question: '这套架构怎么跑起来、怎么交付？（运行环境 / 入口 / 编排 / CI/CD / 监控 / 密钥 / 日志）',
+    feeds: '代码架构在 ②③④ 已经定了，这里专门定它的运行与交付面：跑在什么环境上、请求从哪进来、谁负责编排、镜像放哪、怎么构建发布与运维。定完进入 ⑥ 逐个定副本。',
   },
   {
     id: 'topology',
@@ -128,14 +142,22 @@ export const SHAPES: ShapeSpec[] = presets.map((p) => ({
 // ─────────────────────────────────────────────────────────────
 
 const STEP2_GROUP = 'base';
-const STEP5_GROUP = 'topology';
+const STEP6_GROUP = 'topology';
+
+/**
+ * 交付运行段（⑤ 交付与运行）吸收的事实源组 —— 09-28 反馈：架构选择就选代码
+ * 软件架构，交付相关的单独一个流程。这三个组（运行基石 / 交付与运行 / 运维安全）
+ * 回答的都是「怎么跑起来、怎么运维」，与代码架构是两类决定。
+ * 口径与组一一对应：整组进 ⑤，不拆组 —— 拆组会出现「运行基石一半在 ③ 一半在 ⑤」。
+ */
+export const RUN_GROUP_IDS = new Set(['runtime', 'delivery', 'ops']);
 
 function isKept(dim: StackDimension): boolean {
   const n = nodeArch[dim.id];
   return !!(n?.required || n?.recommended);
 }
 
-/** 该维度是否在 ③ 主题框架这一步决定 */
+/** 该维度是否在 ③ 主题框架这一步决定（交付运行组的维度**永不**进 ③） */
 export function isThemeDim(dimId: string): boolean {
   return themeDimIds().has(dimId);
 }
@@ -146,7 +168,7 @@ function themeDimIds(): Set<string> {
   if (themeCache) return themeCache;
   const set = new Set<string>();
   for (const g of groups) {
-    if (g.id === STEP2_GROUP || g.id === STEP5_GROUP) continue;
+    if (g.id === STEP2_GROUP || g.id === STEP6_GROUP || RUN_GROUP_IDS.has(g.id)) continue;
     const members = dimensions.filter((d) => d.groupId === g.id);
     const kept = members.filter(isKept);
     if (kept.length) {
@@ -168,10 +190,19 @@ export interface ThemeSection {
 }
 
 export const THEME_SECTIONS: ThemeSection[] = groups
-  .filter((g) => g.id !== STEP2_GROUP && g.id !== STEP5_GROUP)
+  .filter((g) => g.id !== STEP2_GROUP && g.id !== STEP6_GROUP && !RUN_GROUP_IDS.has(g.id))
   .map((g) => ({
     group: g,
     dims: dimensions.filter((d) => d.groupId === g.id && themeDimIds().has(d.id)),
+  }))
+  .filter((s) => s.dims.length > 0);
+
+/** ⑤ 交付与运行的分区：交付运行段的三组，组内**全量**维度（不分主题件与否） */
+export const RUN_SECTIONS: ThemeSection[] = groups
+  .filter((g) => RUN_GROUP_IDS.has(g.id))
+  .map((g) => ({
+    group: g,
+    dims: dimensions.filter((d) => d.groupId === g.id),
   }))
   .filter((s) => s.dims.length > 0);
 
@@ -188,6 +219,12 @@ export const THEME_SECTIONS: ThemeSection[] = groups
 // 那是「一条泳道里块与块怎么串」，这是「几条泳道怎么归并成流」，互不替代。
 // ─────────────────────────────────────────────────────────────
 
+/**
+ * ④ 分层装配只管**架构侧**泳道 —— delivery / base 两条泳道（交付形态、编排、
+ * 制品库、运行环境）整体归 ⑤ 交付与运行（09-28 反馈：架构选择就选代码架构，
+ * 交付单独一个流程，两处都混着选就乱了）。泳道图少两条但每条仍有内容，
+ * 「请求向下穿过」的连线在架构段内部保持完整。
+ */
 export interface FlowSpec {
   id: string;
   name: string;
@@ -218,28 +255,20 @@ const FLOW_QUALITY: FlowSpec = {
   id: 'quality',
   name: '保障观测流',
   glyph: '⛨',
-  desc: '可观测、测试、质量门禁、密钥、日志',
+  desc: '可观测、测试、质量门禁（监控 / 密钥 / 日志在 ⑤ 交付与运行）',
   laneIds: ['quality'],
 };
 
-const FLOW_DELIVER: FlowSpec = {
-  id: 'deliver',
-  name: '交付运行流',
-  glyph: '⬢',
-  desc: '部署、编排、镜像、CI/CD 与运行时基座',
-  laneIds: ['delivery', 'base'],
-};
-
-/** 「全部流水线」：保留原来的七层一屏纵览（含层间连线） */
+/** 「全部架构流水线」：架构侧五条泳道一屏纵览（含层间连线） */
 export const FLOW_ALL: FlowSpec = {
   id: 'all',
   name: '全部流水线',
   glyph: '⊞',
-  desc: '七条泳道一屏纵览',
-  laneIds: lanes.map((l) => l.id),
+  desc: '架构侧五条泳道一屏纵览（交付运行两条泳道在 ⑤）',
+  laneIds: lanes.filter((l) => l.id !== 'delivery' && l.id !== 'base').map((l) => l.id),
 };
 
-export const FLOWS: FlowSpec[] = [FLOW_REQUEST, FLOW_INFRA, FLOW_QUALITY, FLOW_DELIVER, FLOW_ALL];
+export const FLOWS: FlowSpec[] = [FLOW_REQUEST, FLOW_INFRA, FLOW_QUALITY, FLOW_ALL];
 
 export const FLOW_BY_ID = new Map(FLOWS.map((f) => [f.id, f]));
 
@@ -258,18 +287,19 @@ export function flowFilled(flow: FlowSpec, picks: Record<string, string>): { fil
 }
 
 /**
- * 维度 → 它在六步向导的哪一步表态。
+ * 维度 → 它在七步向导的哪一步表态。
  *
  * 「补法说去哪个槽位」必须连步骤一起说 —— 只说「运行环境」，
- * 用户在 ④ 的主请求流台面上找不到它（它按组配在 ③，泳道在交付运行流），
- * 就会得出「步骤里没有这个东西」的结论（09-28 真实反馈）。
- * 归属规则与 ③/⑤ 的分区判定同源，不另立一套。
+ * 用户在台面上找不到它，就会得出「步骤里没有这个东西」的结论（09-28 真实反馈）。
+ * 归属规则与 ③/⑤ 的分区判定同源，不另立一套。交付运行组（runtime/delivery/ops）
+ * 无论主题件与否一律归 ⑤ 交付与运行 —— 架构段与交付段两段流程的分界线。
  */
 export function stepOfDim(dimId: string): StepId | null {
   const dim = dimensions.find((d) => d.id === dimId);
   if (!dim) return null;
   if (dim.groupId === 'base') return 'base';
   if (dim.groupId === 'topology') return 'topology';
+  if (RUN_GROUP_IDS.has(dim.groupId)) return 'deliverRun';
   if (isThemeDim(dimId)) return 'theme';
   return 'layers';
 }
@@ -290,6 +320,8 @@ export function groupOfDim(dimId: string): StackGroup | null {
 /**
  * 泳道 → 归哪条流水线视图（不含「全部流水线」兜底 —— 拿不到具体流就是拿不到）。
  * 「定位到某槽位」前先切对流水线，否则格子根本不在台面上。
+ * 交付运行泳道（delivery / base）归 ⑤ 后不在 ④ 的任何流里 —— 返回 null，
+ * 调用方按「不需要切流」处理即可（⑤ 整屏只有交付件，不存在对不准的问题）。
  */
 export function flowOfLane(laneId: string): FlowSpec | null {
   return FLOWS.find((f) => f.id !== 'all' && f.laneIds.includes(laneId)) ?? null;
@@ -307,7 +339,7 @@ const PROJECT_KEY = 'arsenal-stack-project-v1';
 
 export interface ProjectMeta {
   name: string;
-  /** 停在哪个步骤。刷新不该把人扔回第一步 —— 六步走到一半被重置是最烦人的一种丢状态 */
+  /** 停在哪个步骤。刷新不该把人扔回第一步 —— 七步走到一半被重置是最烦人的一种丢状态 */
   step: StepId;
 }
 

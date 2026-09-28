@@ -97,14 +97,14 @@ export default function GapCard({
 
           {/* 能力缺口的补法：哪个步骤、哪个槽位、选什么。与「定位到」不同 ——
               「定位到」回的是谁在要这块能力，这里去的是能补上的那个槽位。
-              步骤必须写出来：只说槽位名，用户在台面的当前流水线里找不到它
-              （「运行环境」配在 ③、泳道在交付运行流），会以为步骤里没这个东西。 */}
+              步骤必须写出来：只说槽位名，用户在步骤的分组导航里找不到它
+              （「运行环境」配在 ⑤ 交付与运行），会以为步骤里没这个东西。 */}
           {gap.unmetCap && (
             <div className="mt-2">
               <p className="mono text-[10px] uppercase tracking-wider" style={{ color: t.color }}>
                 怎么补
                 <span className="ml-1.5 normal-case tracking-normal text-fgFaint">
-                  点「去补」直达 ④ 台面该槽位
+                  点「去补」直达该槽位所在的步骤
                 </span>
               </p>
               {gap.remedies?.length ? (
@@ -138,7 +138,7 @@ export default function GapCard({
                             type="button"
                             onClick={() => onFocus(r.dim)}
                             className="mono ml-auto rounded-sm border border-line px-1 text-[10px] leading-[15px] text-fgFaint transition-colors hover:border-lineHi hover:text-fg"
-                            title={`跳到 ④ 台面「${d?.name ?? r.dim}」槽位选零件（自动切到它所在的流水线）`}
+                            title={`跳到「${d?.name ?? r.dim}」所在的步骤去选零件`}
                           >
                             去补 ↑
                           </button>

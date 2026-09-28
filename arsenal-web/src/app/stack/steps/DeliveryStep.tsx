@@ -8,7 +8,7 @@ import DeliveryDeck from '../DeliveryDeck';
 import StepShell from './StepShell';
 
 /**
- * ⑥ 交付 —— 九块实时预览独占一屏。
+ * ⑦ 交付 —— 九块实时预览独占一屏。
  *
  * 原来它被挤在装配台右栏（一半宽度、跟着台面一起滚），九块预览挤成两列，
  * 而且必须和 33 个槽位抢注意力。交付是**这一趟的终点**，值得单独一屏：

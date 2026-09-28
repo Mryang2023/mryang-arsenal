@@ -43,6 +43,7 @@ import SlotBlock from './SlotBlock';
 import type { SlotWeight } from './SlotBlock';
 import DeliveryStep from './steps/DeliveryStep';
 import BaseStep from './steps/BaseStep';
+import DeliverRunStep from './steps/DeliverRunStep';
 import ProjectStep from './steps/ProjectStep';
 import ThemeStep from './steps/ThemeStep';
 import TopologyStep from './steps/TopologyStep';
@@ -77,6 +78,7 @@ import {
   STEPS,
   STEP_BY_ID,
   THEME_SECTIONS,
+  RUN_SECTIONS,
   FLOWS,
   FLOW_BY_ID,
   flowFilled,
@@ -90,15 +92,18 @@ import {
 } from './wizard';
 
 /**
- * 技术架构装配台 —— **六步向导**。
+ * 技术架构装配台 —— **七步向导、分成两段**。
  *
  * 为什么不再是一屏：原先 33 个槽位 / 7 条泳道 / 五根滑杆 / 九块预览 / 九组产物页签
  * 全部堆在同一屏上，用户进来看不到「从哪儿开始」。现在每一步只回答一个问题：
  *
- *   ① 项目定义 → ② 技术栈基底 → ③ 主题框架 → ④ 分层装配 → ⑤ 部署形态 → ⑥ 交付
+ *   软件架构段：① 项目定义 → ② 技术栈基底 → ③ 主题框架 → ④ 分层装配
+ *   交付运行段：⑤ 交付与运行 → ⑥ 部署形态 → ⑦ 交付
  *
- * 并且**上一步的答案决定下一步的候选**：形态给出起点（可改）；主题件定完，
- * 台面上对应的槽位就固定；只有装上的零件才进入部署形态。
+ * 09-28 反馈：代码软件架构与交付运行是两类决定，混着选太乱 ——
+ * 前四步只谈代码架构，运行环境 / 入口 / 编排 / CI/CD / 监控 / 密钥 / 日志
+ * 集中到 ⑤ 一处表态。归属规则全部在 `wizard.ts`（RUN_GROUP_IDS / stepOfDim），
+ * 本文件不另立一份。
  *
  * 仍然不变的两条老规矩：
  *   · 合成是纯函数。`composeStack(picks)` 无副作用无 IO，后端能产出同样的产物。
@@ -106,7 +111,7 @@ import {
  *     它不属于任何一步，拆成向导也不能把它藏进某一屏。
  *
  * 步骤内容分别在 `steps/` 下；本文件只管三件事：状态与历史、结论条、
- * 以及 ④ 的台面与 ⑥ 的产物区（这两块是装配台的老资产，留在原处不动）。
+ * 以及 ④ 的台面与 ⑦ 的产物区（这两块是装配台的老资产，留在原处不动）。
  */
 
 /**
@@ -345,12 +350,13 @@ export default function StackComposer() {
   }, [diffDraft, picks]);
 
   /**
-   * 点阵点击直达。**先切到 ④ 分层装配再聚焦** ——
-   * 结论条上的点阵是常驻的，在 ⑥ 交付时点一格却发现什么都没发生，
-   * 是最典型的一种「按钮看着是活的其实是死的」。
+   * 点阵点击直达。**先切到槽位所在的步骤再聚焦** ——
+   * 结论条上的点阵是常驻的，交付件配在 ⑤ 交付与运行（台面上没有交付泳道的
+   * 格子，硬切 ④ 就是「点了没反应」—— 09-28 反馈的最初形态），其余在 ④ 台面。
    */
   function focusDim(dimId: string) {
-    setStep('layers');
+    const target = stepOfDim(dimId) ?? 'layers';
+    setStep(target);
     setActiveDim(dimId);
     // 单流才切流对准（09-28 反馈）
     const flow = benchFlow === 'all' ? null : flowOfLane(nodeArch[dimId]?.lane ?? '');
@@ -388,7 +394,7 @@ export default function StackComposer() {
         dimensions.every((d) => (shared.picks[d.id] ?? '') === (p.picks[d.id] ?? ''))
       );
       setPresetId(sharedMatched ? sharedMatched.id : null);
-      // 别人发来的链接，打开就该看到结果 —— 落在 ⑥ 交付，而不是让他从 ① 重走一遍
+      // 别人发来的链接，打开就该看到结果 —— 落在 ⑦ 交付，而不是让他从 ① 重走一遍
       setStep('delivery');
       setHydrated(true);
       history.replaceState(null, '', window.location.pathname + window.location.search);
@@ -501,7 +507,7 @@ export default function StackComposer() {
   }, [audit]);
 
   /**
-   * 槽位级问题标记（②③⑤ 的模块卡红/绿框 + ③ 导航红点共用这一份）。
+   * 槽位级问题标记（②③⑤⑥ 的模块卡红/绿框 + ③ 导航红点共用这一份）。
    * 同一格 both need 与 remedy 时 need 优先 —— 先说哪儿坏了，再说去哪补。
    */
   const dimFlags = useMemo(() => {
@@ -534,7 +540,7 @@ export default function StackComposer() {
         const s = stepOfDim(n);
         if (s) push(s, b.title);
       }
-      // 补法所在步骤也标 —— 「去 ③ 补」本身就是那一步的待办
+      // 补法所在步骤也标 —— 「去 ⑤ 补」本身就是那一步的待办
       if (b.unmetCap) {
         for (const r of b.remedies ?? []) {
           const s = stepOfDim(r.dim);
@@ -585,7 +591,7 @@ export default function StackComposer() {
   const hazardCount = audit.blockers.length + audit.risks.length + audit.notes.length;
   const buildLabel = picks.build === 'gradle' ? 'build.gradle' : 'pom.xml';
 
-  // S2-7：产物区只留文件类页签。目录树 / 架构图 / 隐患单在 ⑥ 交付预览
+  // S2-7：产物区只留文件类页签。目录树 / 架构图 / 隐患单在 ⑦ 交付预览
   // 有完整得多的版本（九块实时预览 vs 一份静态渲染），两处各养一份
   // 渲染分支是双倍维护 + 「两边数据对不上」的隐患源。
   const TAB_GROUPS: { group: string; tabs: TabSpec[] }[] = [
@@ -708,7 +714,7 @@ export default function StackComposer() {
   const benchRef = useRef<HTMLDivElement | null>(null);
 
   /**
-   * 「看架构图」：跳到 ⑥ 交付并点亮交付预览的架构图页签。
+   * 「看架构图」：跳到 ⑦ 交付并点亮交付预览的架构图页签。
    *
    * 必须**先给信号再滚**，顺序反了会滚到一个还没长出图来的位置；
    * 同理必须先切步骤 —— 否则滚的是当前这一屏，图在下一屏。
@@ -739,6 +745,11 @@ export default function StackComposer() {
     (n, s) => n + s.dims.filter((d) => picks[d.id]).length,
     0
   );
+  const runTotal = RUN_SECTIONS.reduce((n, s) => n + s.dims.length, 0);
+  const runFilled = RUN_SECTIONS.reduce(
+    (n, s) => n + s.dims.filter((d) => picks[d.id]).length,
+    0
+  );
   const topologyCount = topologyFigures(picks, meta).length;
 
   const stepSummary: Record<StepId, string> = {
@@ -746,6 +757,7 @@ export default function StackComposer() {
     base: picks.build === 'gradle' ? 'Gradle' : 'Maven',
     theme: `${themeFilled}/${themeTotal}`,
     layers: `${audit.stats.filled}/${dimensions.length}`,
+    deliverRun: `${runFilled}/${runTotal}`,
     topology: topologyCount > 0 ? `${topologyCount} 项` : '未表态',
     delivery: `${plan.files.length} 文件`,
   };
@@ -783,6 +795,8 @@ export default function StackComposer() {
         return <ThemeStep picks={picks} dimFlags={dimFlags} onPick={pick} onClear={clear} />;
       case 'layers':
         return renderBench();
+      case 'deliverRun':
+        return <DeliverRunStep picks={picks} dimFlags={dimFlags} onPick={pick} onClear={clear} />;
       case 'topology':
         return (
           <TopologyStep
@@ -1212,7 +1226,7 @@ export default function StackComposer() {
         }
       />
 
-      {/* ── ⑥ 交付双版面：交付预览 / 组合产物 同一屏内分两个版面 ── */}
+      {/* ── ⑦ 交付双版面：交付预览 / 组合产物 同一屏内分两个版面 ── */}
       {step === 'delivery' && (
         <div className="panel flex flex-wrap items-center gap-1.5 px-3 py-2">
           <span className="mono mr-1 text-[10px] uppercase leading-[15px] tracking-wider text-fgFaint">
@@ -1255,7 +1269,7 @@ export default function StackComposer() {
       {/* ── 当前这一步 ── */}
       {renderStep()}
 
-      {/* ── 产物（⑥ 交付「组合产物」版面）────────────────────── */}
+      {/* ── 产物（⑦ 交付「组合产物」版面）────────────────────── */}
       {step === 'delivery' && deliveryView === 'products' && (
         <section ref={productsRef} className="panel scroll-mt-4 overflow-hidden">
           <header className="flex flex-wrap items-center gap-x-2 gap-y-2 border-b border-line px-4 py-2.5">
@@ -1698,7 +1712,7 @@ export default function StackComposer() {
                   </span>
                 ))}
               </span>
-              <span className="text-fgFaint">图形化切换，副本数写进 ⑤ 部署与交付清单</span>
+              <span className="text-fgFaint">图形化切换，副本数写进 ⑥ 部署形态清单</span>
             </div>
             {/* S2-4：搜索 + 三档筛选。互斥单选（aria-pressed），再点一次取消；
                 与搜索词取交集。命中的卡片正常显示、未命中降噪到 0.28 ——
@@ -1909,8 +1923,8 @@ export default function StackComposer() {
  * 在这里另写一套颜色语义就违反「语义色只许 TONE 五色、含义不许复用」。
  *
  * 它回答的是「三档结论说不对，那到底哪儿不对」：一格一个槽位扫一眼，
- * 点击直达该槽位（切到 ④ + 选中 + 滚到台面）。格数必须等于 dimensions.length ——
- * 点阵不是装饰，少一格就有一个槽位没被索引到（【18】断言守着）。
+ * 点击直达该槽位所在的步骤（交付件 ⑤、其余 ④ + 台面聚焦）。格数必须等于
+ * dimensions.length —— 点阵不是装饰，少一格就有一个槽位没被索引到（【18】断言守着）。
  */
 function SlotDotMatrix({
   slotStates,
@@ -1991,7 +2005,7 @@ function SlotDotMatrix({
       </div>
 
       {/* 问题格文字索引：10px 色块说不清「这是哪格、坏在哪一步」，列出来直接点名。
-          点击 = 定位到 ④ 台面该槽位（会自动切到它所在的流水线视图）。 */}
+          点击 = 定位到该槽位所在的步骤（交付件在 ⑤，其余在 ④ 台面并自动切流）。 */}
       {flagged.length > 0 && (
         <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
           {issueFlagOrder(flags).map((dimId) => {
@@ -2017,7 +2031,7 @@ function SlotDotMatrix({
                 }}
                 title={`${group ? `${group.name} / ` : ''}${dim?.name ?? dimId}（${
                   stepSpec ? `第 ${STEPS_ORDINAL(step!)} 步 · ${stepSpec.name} 配` : '④ 台面'
-                }）→ 点击直达台面`}
+                }）→ 点击直达`}
               >
                 <span className="font-medium">
                   {group ? `${group.name} / ` : ''}
