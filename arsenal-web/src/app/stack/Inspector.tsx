@@ -198,7 +198,13 @@ function Group({
 // 零件库
 // ─────────────────────────────────────────────────────────────
 
-function Picker({
+/**
+ * 零件库（④ 选件抽屉的内容体）。
+ *
+ * 头部（icon + 槽位名 + 必选标 + ×）与滚动内容区都假设父容器是
+ * `flex flex-col` 的全高面板 —— 抽屉壳（DimDrawer）与旧右栏 aside 都是这种形状。
+ */
+export function Picker({
   dimId,
   picks,
   meta,

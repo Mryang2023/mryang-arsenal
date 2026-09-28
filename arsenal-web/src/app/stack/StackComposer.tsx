@@ -37,7 +37,8 @@ import {
 } from '@/lib/project';
 import { downloadZip } from '@/lib/zip';
 import type { StackPicks } from '@/lib/content-types';
-import Inspector from './Inspector';
+import DimDrawer from './DimDrawer';
+import { Picker } from './Inspector';
 import SlotBlock from './SlotBlock';
 import type { SlotWeight } from './SlotBlock';
 import DeliveryStep from './steps/DeliveryStep';
@@ -184,8 +185,9 @@ export default function StackComposer() {
   // ── ① 的项目定义 ──
   const [step, setStep] = useState<StepId>(DEFAULT_PROJECT.step);
   const [projectName, setProjectName] = useState<string>(DEFAULT_PROJECT.name);
-  // ── ④ 流水线选择：一次只看一条流（含它下面的几层），不把 7 泳道一次铺开 ──
-  const [benchFlow, setBenchFlow] = useState<string>('request');
+  // ── ④ 流水线选择：默认「全部流水线」七泳道一屏纵览（09-28 四反馈：全部都展示，
+  //    不先选流再看）；要聚焦某条流时随时切回单流视图 ──
+  const [benchFlow, setBenchFlow] = useState<string>('all');
   // ── ⑥ 交付双版面：交付预览（九块实时预览）与组合产物（文件页签 + 导出）分屏 ──
   const [deliveryView, setDeliveryView] = useState<'preview' | 'products'>('preview');
   // ── S2-4：搜索 + 三档筛选（互斥单选，再点一次取消；与搜索词取交集） ──
@@ -350,9 +352,9 @@ export default function StackComposer() {
   function focusDim(dimId: string) {
     setStep('layers');
     setActiveDim(dimId);
-    // 该槽位可能不在当前流水线视图里 —— 先切对流水线再定位（09-28 反馈）
-    const flowOfDim = flowOfLane(nodeArch[dimId]?.lane ?? '');
-    if (flowOfDim) setBenchFlow(flowOfDim.id);
+    // 单流才切流对准（09-28 反馈）
+    const flow = benchFlow === 'all' ? null : flowOfLane(nodeArch[dimId]?.lane ?? '');
+    if (flow) setBenchFlow(flow.id);
     requestAnimationFrame(() => {
       benchRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     });
@@ -1623,9 +1625,9 @@ export default function StackComposer() {
   );
 
   /**
-   * ④ 分层装配 —— 台面（泳道图）+ 右栏零件库。
+   * ④ 分层装配 —— 台面（泳道图，全宽）+ 右缘选件抽屉。
    *
-   * 这是装配台的老资产：33 个槽位按 7 条泳道摆开，点一块在右栏换件、换形态。
+   * 这是装配台的老资产：33 个槽位按 7 条泳道摆开，点一块弹出抽屉换件、换形态。
    * 它留在这一文件里而不是抽出去，是因为「台面」与「结论条 / 点阵 / 产物区」
    * 共用同一批 ref 与回调 —— 拆开要靠 props 传五个 ref，换来的只是一点行数。
    */
@@ -1638,8 +1640,9 @@ export default function StackComposer() {
         : lanes.filter((l) => flowSpec.laneIds.includes(l.id));
     return (
       <StepShell spec={benchSpec}>
-        <div className="grid gap-4 p-4 xl:grid-cols-[minmax(0,1fr)_minmax(0,1.05fr)]">
-        <div className="space-y-2">
+        {/* 09-28 四反馈：不再左右两栏（左选槽位右选零件占版面）——
+            台面全宽铺开，选件面板移入右侧抽屉（DimDrawer，浮层不占流）。 */}
+        <div className="space-y-2 p-4">
           {/* ── ④ 流水线选择：一次只看一条流，不把 7 泳道一次铺开 ── */}
           <div className="flex flex-wrap items-center gap-1.5 rounded-md border border-line bg-surface px-4 py-2">
             <span className="mono mr-1 text-[10px] uppercase leading-[15px] tracking-wider text-fgFaint">
@@ -1676,7 +1679,7 @@ export default function StackComposer() {
             <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
               <span className="mono text-[12px] leading-none text-brass">⊙</span>
               <span className="text-fg">点任意方块</span>
-              <span>→ 右侧选零件、切<span className="text-fg">集群形态</span>：</span>
+              <span>→ 右缘弹出抽屉选零件、切<span className="text-fg">集群形态</span>：</span>
               <span className="flex flex-wrap items-center gap-1">
                 {(['单实例', '主从', '组复制', '分片', '云原生'] as const).map((m) => (
                   <span
@@ -1870,37 +1873,21 @@ export default function StackComposer() {
           </div>
         </div>
 
-        <div className="space-y-4 xl:sticky xl:top-4 xl:self-start">
-          {/* 零件库只在选中某个方块时出现；没选中时右栏给一句引导 ——
-              预览是常驻的，不能被一个空面板挤到屏幕外面去。
-              「这套组合能不能跑」的结论没有丢：它就是顶部结论条。 */}
-          {activeDim ? (
-            <Inspector
-              audit={audit}
-              activeDim={activeDim}
+        {/* 选件抽屉：点中的槽位 → 右缘浮出零件库（Inspector 的 Picker 体检结论态
+            不进抽屉 —— 「这套组合能不能跑」的结论由顶部结论条常驻，不重复）。 */}
+        {activeDim && (
+          <DimDrawer>
+            <Picker
+              dimId={activeDim}
               picks={picks}
               meta={meta}
-              baseId={baseId}
               onPick={pick}
               onClear={clear}
               onTopology={pickTopology}
               onClose={() => setActiveDim(null)}
-              onFocusDim={focusDim}
             />
-          ) : (
-            <div className="panel px-5 py-8 text-center">
-              <p className="mono text-[20px] leading-none text-fgFaint">⊞</p>
-              <p className="mt-2 text-[11px] font-medium leading-[16px] text-fg">
-                点左边的任意方块
-              </p>
-              <p className="mt-1 text-[10px] leading-[15px] text-fgMuted">
-                右栏会换成这一格的零件库：可选哪几件、每件多出什么能力、
-                要向系统要什么能力，以及能切成什么集群形态。
-              </p>
-            </div>
-          )}
-        </div>
-        </div>
+          </DimDrawer>
+        )}
       </StepShell>
     );
   }
