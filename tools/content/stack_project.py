@@ -490,7 +490,7 @@ CREATE TABLE `user`
   DEFAULT CHARSET = utf8mb4
   COLLATE = utf8mb4_general_ci COMMENT ='用户表';
 
-CREATE TABLE `example_order`
+CREATE TABLE IF NOT EXISTS `example_order`
 (
     `id`          bigint unsigned NOT NULL AUTO_INCREMENT COMMENT '主键',
     `order_no`    varchar(32)     NOT NULL COMMENT '业务单号，对外唯一标识',
@@ -1229,14 +1229,16 @@ public final class CurrentUserHolder {
 -->
 <configuration>
 
-    <springProfile name="dev">
+    <!-- 只认 dev/prod 两个 springProfile 时，不激活任何 profile 的默认启动会一个
+         appender 都没有 —— 应用全程静音，连「启动失败」都看不见。默认态必须落控制台。 -->
+    <springProfile name="!prod">
         <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
             <encoder>
                 <pattern>%d{HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n</pattern>
                 <charset>UTF-8</charset>
             </encoder>
         </appender>
-        <root level="DEBUG">
+        <root level="INFO">
             <appender-ref ref="CONSOLE"/>
         </root>
     </springProfile>
@@ -2206,12 +2208,14 @@ public class MessagePublisher {
       '不引入迁移工具时的建表脚本。至少要有它，并纳入版本控制。', [
         V(r'''-- 建表脚本（未引入迁移工具）。
 -- 新环境能不能一键起起来，全看这个文件与实际库结构是否同步。
--- 三条建表约定（与 Flyway 版一致，后面所有表照它抄）：
+-- 四条建表约定（与 Flyway 版一致，后面所有表照它抄）：
 --   1. 主键统一 bigint unsigned + 自增，不用 varchar 做主键（索引膨胀且无顺序）
 --   2. 每张表必带 create_time / update_time / deleted，且都有默认值
 --   3. 索引命名固定：唯一索引 uk_ 前缀，普通索引 idx_ 前缀
+--   4. DDL 必须幂等（IF NOT EXISTS）：本文件由 spring.sql.init 在每次启动时执行，
+--      不是幂等写法第二次启动就会撞上「表已存在」直接起不来
 
-CREATE TABLE `user`
+CREATE TABLE IF NOT EXISTS `user`
 (
     `id`          bigint unsigned NOT NULL AUTO_INCREMENT COMMENT '主键',
     `username`    varchar(64)     NOT NULL COMMENT '用户名',
@@ -2226,7 +2230,7 @@ CREATE TABLE `user`
   DEFAULT CHARSET = utf8mb4
   COLLATE = utf8mb4_general_ci COMMENT ='用户表';
 
-CREATE TABLE `example_order`
+CREATE TABLE IF NOT EXISTS `example_order`
 (
     `id`          bigint unsigned NOT NULL AUTO_INCREMENT COMMENT '主键',
     `order_no`    varchar(32)     NOT NULL COMMENT '业务单号，对外唯一标识',
@@ -2456,6 +2460,8 @@ class UserServiceTest {
       ]),
     S('src/test/java/com/example/user/controller/UserControllerTest.java', '测试',
       '接口切片测试。只加载 Web 层，验证参数校验与响应码。', [
+        # 变体按声明顺序命中：选了内置鉴权（securityjwt/satoken）才有 AuthInterceptor 可 Mock；
+        # auth=custom 的鉴权代码由用户自己实现，切片测试不引用它 —— 否则测试编译不过。
         V(r'''package com.example.user.controller;
 
 import com.example.interceptor.AuthInterceptor;
@@ -2526,7 +2532,75 @@ class UserControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(1001));
     }
-}''', when={'test': ['mockito'], 'web': ['mvc']}),
+}''', when={'test': ['mockito'], 'web': ['mvc'], 'auth': ['securityjwt', 'satoken']}),
+        V(r'''package com.example.user.controller;
+
+import com.example.interceptor.TraceIdInterceptor;
+import com.example.user.dto.CreateUserRequest;
+import com.example.user.service.UserService;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
+import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
+import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.http.MediaType;
+import org.springframework.test.web.servlet.MockMvc;
+
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.when;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+
+/**
+ * 接口切片测试。只加载 Web 层（服务是 Mock 的），验证参数校验与响应码。
+ *
+ * addFilters = false 关掉安全过滤链；TraceIdInterceptor Mock 放行 ——
+ * 切片测试只关心 Web 层自己的行为。当前鉴权选型没有内置的
+ * AuthInterceptor（custom 的鉴权代码由你自己实现），所以这里没有它可 Mock；
+ * 一旦换成 securityjwt / satoken，请参照上一变体把鉴权拦截器也 Mock 掉。
+ */
+@WebMvcTest(UserController.class)
+@AutoConfigureMockMvc(addFilters = false)
+class UserControllerTest {
+
+    @Autowired
+    private MockMvc mvc;
+
+    @MockBean
+    private UserService service;
+
+    @MockBean
+    private TraceIdInterceptor traceIdInterceptor;
+
+    @BeforeEach
+    void openInterceptors() throws Exception {
+        when(traceIdInterceptor.preHandle(any(), any(), any())).thenReturn(true);
+    }
+
+    @Test
+    void createReturnsOk() throws Exception {
+        when(service.create(any(CreateUserRequest.class))).thenReturn(1L);
+
+        mvc.perform(post("/api/users")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"username\":\"tom\",\"mobile\":\"13800138000\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(0))
+                .andExpect(jsonPath("$.data").value(1));
+    }
+
+    @Test
+    void createRejectsBadMobile() throws Exception {
+        mvc.perform(post("/api/users")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"username\":\"tom\",\"mobile\":\"123\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(1001));
+    }
+}''', when={'test': ['mockito'], 'web': ['mvc'], 'auth': ['custom']}),
       ]),
 ]
 
@@ -2578,33 +2652,34 @@ __FILES__
 README_START_MANUAL = '''## 本地启动
 
 ```bash
-# 1. 准备数据库（先建库，表结构交给迁移工具）
-#    建好之后把连接信息写进环境变量，不要写进 application.yml
-export DB_URL='jdbc:mysql://127.0.0.1:3306/arsenal_demo?useSSL=false&serverTimezone=Asia/Shanghai'
-export DB_USERNAME=root
-export DB_PASSWORD=******
+# 1. 准备数据库：连接信息已默认指向本机（127.0.0.1:3306，库名与项目同名，root/空密码）。
+#    只需要把库建出来。最快的办法：
+docker run -d --name demo-mysql -e MYSQL_ROOT_PASSWORD=root -e MYSQL_DATABASE=app -p 3306:3306 mysql:8.0.36
+#    （库名默认 app，想改名用环境变量 DB_NAME 覆盖；账号密码同理 DB_USERNAME / DB_PASSWORD）
 
-# 2. 启动
+# 2. 启动（不需要 export 任何变量；没装 docker 就用自己的 MySQL 建同名库）
 mvn spring-boot:run
 
 # 3. 验证：容器起来了不算成功，能返回数据才算
 curl -s localhost:8080/actuator/health
 ```
 
-启动类跑不起来时，先看这一条：**数据库连不上**占了启动失败的大半。'''
+启动失败三步排查（按命中率排序）：
+1. **数据库连不上**：MySQL 没起、端口不通。`docker ps` 或 `mysql -h127.0.0.1 -uroot -p` 先确认。
+2. **账号密码不对**：默认 root/空密码只对本机 root 免密成立；不是就用 DB_USERNAME / DB_PASSWORD 覆盖。
+3. **端口被占**：8080 被别的进程占了，`SERVER_PORT=9090 mvn spring-boot:run` 换端口。'''
 
 README_START_GRADLE = '''## 本地启动
 
 ```bash
-export DB_URL='jdbc:mysql://127.0.0.1:3306/arsenal_demo?useSSL=false&serverTimezone=Asia/Shanghai'
-export DB_USERNAME=root
-export DB_PASSWORD=******
+# 连接信息默认指向本机（127.0.0.1:3306，库名与项目同名，root/空密码），建库即可：
+docker run -d --name demo-mysql -e MYSQL_ROOT_PASSWORD=root -e MYSQL_DATABASE=app -p 3306:3306 mysql:8.0.36
 
 ./gradlew bootRun
 curl -s localhost:8080/actuator/health
 ```
 
-启动类跑不起来时，先看这一条：**数据库连不上**占了启动失败的大半。'''
+启动失败三步排查：数据库没起（docker ps / mysql 先探活）→ 账号密码不对（DB_USERNAME / DB_PASSWORD 覆盖）→ 端口被占（SERVER_PORT 换端口）。'''
 
 # 结构原则：写在结构图页签下方，解释「为什么这样分包」
 #

@@ -394,7 +394,7 @@
               "scope": "runtime"
             }
           ],
-          "yaml": "spring:\n  datasource:\n    url: jdbc:mysql://${DB_HOST:127.0.0.1}:${DB_PORT:3306}/${DB_NAME:app}\"\n         \"?useUnicode=true&characterEncoding=utf8mb4\"\n         \"&serverTimezone=Asia/Shanghai&useSSL=false&allowPublicKeyRetrieval=true\"\n         \"&rewriteBatchedStatements=true   # 批量插入必须开，否则一条条发，慢十倍以上\n    driver-class-name: com.mysql.cj.jdbc.Driver",
+          "yaml": "spring:\n  datasource:\n    url: jdbc:mysql://${DB_HOST:127.0.0.1}:${DB_PORT:3306}/${DB_NAME:app}?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai&useSSL=false&allowPublicKeyRetrieval=true&rewriteBatchedStatements=true\n    # rewriteBatchedStatements 必须开：否则 JDBC 的 batch 是一条条发，慢十倍以上\n    # 默认连本机 root/空密码；全部可用环境变量覆盖：DB_HOST / DB_PORT / DB_NAME / DB_USERNAME / DB_PASSWORD\n    driver-class-name: com.mysql.cj.jdbc.Driver\n    username: ${DB_USERNAME:root}\n    password: ${DB_PASSWORD:}",
           "notes": [
             "字符集必须 utf8mb4。utf8 在 MySQL 里其实是三字节的，存不下 emoji 与部分生僻字。",
             "serverTimezone 必须显式设置，否则时间字段会出现 8 小时偏移。",
@@ -418,7 +418,7 @@
               "scope": "runtime"
             }
           ],
-          "yaml": "spring:\n  datasource:\n    # reWriteBatchedInserts 让 JDBC batch 真正合并成一条多值 INSERT\n    url: jdbc:postgresql://${DB_HOST:127.0.0.1}:${DB_PORT:5432}/${DB_NAME:app}?ApplicationName=arsenal-demo&reWriteBatchedInserts=true\n    driver-class-name: org.postgresql.Driver",
+          "yaml": "spring:\n  datasource:\n    # reWriteBatchedInserts 让 JDBC batch 真正合并成一条多值 INSERT\n    url: jdbc:postgresql://${DB_HOST:127.0.0.1}:${DB_PORT:5432}/${DB_NAME:app}?ApplicationName=arsenal-demo&reWriteBatchedInserts=true\n    driver-class-name: org.postgresql.Driver\n    # 与 MySQL 一致：默认连本机，全部可用环境变量覆盖\n    username: ${DB_USERNAME:root}\n    password: ${DB_PASSWORD:}",
           "notes": [
             "PG 的表名、字段名默认折叠为小写；用双引号包裹的大写标识符不会被折叠，会变成两套命名。所以一律用小写加下划线。",
             "COUNT(*) 在大表上很慢，PG 需要顺序扫描；需要近似值可用 pg_class.reltuples。",
@@ -521,7 +521,7 @@
               "note": "Spring Boot 3 必须用 spring-boot-3-starter 版本"
             }
           ],
-          "yaml": "spring:\n  datasource:\n    druid:\n      initial-size: 5\n      min-idle: 5\n      max-active: 20\n      max-wait: 3000                 # 等价于 Hikari 的 connection-timeout\n      validation-query: SELECT 1\n      test-while-idle: true\n      # 慢 SQL 记录：这是 Druid 最实用的功能\n      filter:\n        stat:\n          enabled: true\n          slow-sql-millis: 1000\n          log-slow-sql: true\n      stat-view-servlet:\n        enabled: true\n        login-username: ${DRUID_USER}\n        login-password: ${DRUID_PWD}\n        # 生产环境必须限制来源 IP，监控页会暴露全部 SQL\n        allow: 127.0.0.1",
+          "yaml": "spring:\n  datasource:\n    druid:\n      initial-size: 5\n      min-idle: 5\n      max-active: 20\n      max-wait: 3000                 # 等价于 Hikari 的 connection-timeout\n      validation-query: SELECT 1\n      test-while-idle: true\n      # 慢 SQL 记录：这是 Druid 最实用的功能\n      filter:\n        stat:\n          enabled: true\n          slow-sql-millis: 1000\n          log-slow-sql: true\n      stat-view-servlet:\n        enabled: true\n        # 不给默认值时占位符解析失败会直接挡启动；本地默认关闭鉴权页可见性由使用者自担\n        login-username: ${DRUID_USER:}\n        login-password: ${DRUID_PWD:}\n        # 生产环境必须限制来源 IP，监控页会暴露全部 SQL\n        allow: 127.0.0.1",
           "configClasses": [
             {
               "className": "DruidMonitorConfig",
@@ -606,6 +606,7 @@
           "badge": "轻量",
           "summary": "手工维护 schema.sql，需要时人工执行。短期项目或原型阶段可以接受。",
           "dependencies": [],
+          "yaml": "spring:\n  sql:\n    init:\n      # 没有迁移工具时，由 Spring 在每次启动时执行 schema.sql（位置见 schema-locations）。\n      # schema.sql 里的 DDL 必须幂等（CREATE TABLE IF NOT EXISTS），\n      # 否则第二次启动就会撞上「表已存在」直接起不来。\n      mode: always\n      schema-locations: classpath:db/schema.sql",
           "notes": [
             "代价是：没有「当前生产库是什么版本」的确定答案，回滚靠记忆。",
             "如果一定要这样，至少把所有 DDL 集中在一个受版本控制的 sql 文件里，并记录每次执行的时间与执行人。"
@@ -711,7 +712,7 @@
               "note": "使用连接池必须引入，漏了会退回无连接池模式"
             }
           ],
-          "yaml": "spring:\n  data:\n    redis:\n      host: ${REDIS_HOST:127.0.0.1}\n      port: ${REDIS_PORT:6379}\n      password: ${REDIS_PASSWORD}\n      database: 0\n      # 两处超时都必须设 —— 见下方说明\n      connect-timeout: 2000ms\n      timeout: 3000ms\n      lettuce:\n        pool:\n          max-active: 16\n          max-idle: 8\n          min-idle: 2\n          max-wait: 2000ms",
+          "yaml": "spring:\n  data:\n    redis:\n      host: ${REDIS_HOST:127.0.0.1}\n      port: ${REDIS_PORT:6379}\n      password: ${REDIS_PASSWORD:}\n      # password 不给默认值时，占位符解析失败会直接挡启动；\n      # 本地无密码 Redis 保持空默认，生产环境用 REDIS_PASSWORD 注入\n      database: 0\n      # 两处超时都必须设 —— 见下方说明\n      connect-timeout: 2000ms\n      timeout: 3000ms\n      lettuce:\n        pool:\n          max-active: 16\n          max-idle: 8\n          min-idle: 2\n          max-wait: 2000ms",
           "configClasses": [
             {
               "className": "RedisConfig",
@@ -899,7 +900,7 @@
               "artifactId": "spring-boot-starter-amqp"
             }
           ],
-          "yaml": "spring:\n  rabbitmq:\n    host: ${RABBITMQ_HOST:127.0.0.1}\n    port: 5672\n    username: ${RABBITMQ_USER}\n    password: ${RABBITMQ_PASSWORD}\n    # 开启生产者确认，否则「发送成功」只是写进了本地缓冲区\n    publisher-confirm-type: correlated\n    publisher-returns: true\n    listener:\n      simple:\n        acknowledge-mode: manual    # 手工 ack，处理成功后才确认\n        prefetch: 10                # 每次预取条数，防止一个消费者囤积全部消息\n        retry:\n          enabled: true             # 本地重试（注意与死信队列配合）\n          max-attempts: 3",
+          "yaml": "spring:\n  rabbitmq:\n    host: ${RABBITMQ_HOST:127.0.0.1}\n    port: 5672\n    username: ${RABBITMQ_USER:guest}\n    password: ${RABBITMQ_PASSWORD:guest}\n    # 开启生产者确认，否则「发送成功」只是写进了本地缓冲区\n    publisher-confirm-type: correlated\n    publisher-returns: true\n    listener:\n      simple:\n        acknowledge-mode: manual    # 手工 ack，处理成功后才确认\n        prefetch: 10                # 每次预取条数，防止一个消费者囤积全部消息\n        retry:\n          enabled: true             # 本地重试（注意与死信队列配合）\n          max-attempts: 3",
           "notes": [
             "手工 ack + 死信队列是标配：处理失败的消费必须进死信，否则只能靠人肉重发。",
             "prefetch 要设。不设时一个消费者可能把队列全部消息预取走，其他消费者闲着。"
@@ -1004,7 +1005,7 @@
               "note": "Spring Cloud 2021+ 默认关闭 bootstrap，需要它才能在启动早期读配置"
             }
           ],
-          "yaml": "# ── bootstrap.yml（注意：配置中心的连接信息必须写在这里）──\n# 为什么不能写在 application.yml：\n# application.yml 的加载时机晚于 Spring Cloud 上下文初始化，\n# 导致「配置中心地址」本身要从配置中心读 —— 循环依赖。\nspring:\n  application:\n    name: arsenal-demo\n  profiles:\n    active: dev\n  cloud:\n    nacos:\n      server-addr: ${NACOS_ADDR:127.0.0.1:8848}\n      username: ${NACOS_USER}\n      password: ${NACOS_PASSWORD}\n      discovery:\n        namespace: ${NACOS_NS:}\n        group: DEFAULT_GROUP\n      config:\n        # 配置坐标：dataId = 应用名 + profile + 后缀\n        file-extension: yaml\n        namespace: ${NACOS_NS:}\n        group: DEFAULT_GROUP\n        refresh-enabled: true   # 开启热更新",
+          "yaml": "# ── bootstrap.yml（注意：配置中心的连接信息必须写在这里）──\n# 为什么不能写在 application.yml：\n# application.yml 的加载时机晚于 Spring Cloud 上下文初始化，\n# 导致「配置中心地址」本身要从配置中心读 —— 循环依赖。\nspring:\n  application:\n    name: arsenal-demo\n  profiles:\n    active: dev\n  cloud:\n    nacos:\n      server-addr: ${NACOS_ADDR:127.0.0.1:8848}\n      username: ${NACOS_USER:nacos}\n      password: ${NACOS_PASSWORD:nacos}\n      discovery:\n        namespace: ${NACOS_NS:}\n        group: DEFAULT_GROUP\n      config:\n        # 配置坐标：dataId = 应用名 + profile + 后缀\n        file-extension: yaml\n        namespace: ${NACOS_NS:}\n        group: DEFAULT_GROUP\n        refresh-enabled: true   # 开启热更新",
           "configClasses": [
             {
               "className": "NacosRefreshConfig",
@@ -1084,7 +1085,7 @@
               "version": "2.4.1"
             }
           ],
-          "yaml": "xxl:\n  job:\n    admin:\n      # 调度中心地址（多个用逗号分隔）\n      addresses: ${XXLJOB_ADMIN:http://127.0.0.1:8080/xxl-job-admin}\n      access-token: ${XXLJOB_TOKEN}\n    executor:\n      appname: arsenal-demo-executor\n      # 执行器注册方式：自动注册（推荐，避免手工配 IP）\n      address: ''\n      ip: ''\n      port: 9999\n      logpath: ./logs/xxl-job\n      logretentiondays: 30",
+          "yaml": "xxl:\n  job:\n    admin:\n      # 调度中心地址（多个用逗号分隔）\n      addresses: ${XXLJOB_ADMIN:http://127.0.0.1:8080/xxl-job-admin}\n      access-token: ${XXLJOB_TOKEN:}\n    executor:\n      appname: arsenal-demo-executor\n      # 执行器注册方式：自动注册（推荐，避免手工配 IP）\n      address: ''\n      ip: ''\n      port: 9999\n      logpath: ./logs/xxl-job\n      logretentiondays: 30",
           "configClasses": [
             {
               "className": "XxlJobConfig",
@@ -1371,6 +1372,11 @@
             {
               "groupId": "io.micrometer",
               "artifactId": "micrometer-registry-prometheus"
+            },
+            {
+              "groupId": "org.springframework.boot",
+              "artifactId": "spring-boot-starter-aop",
+              "note": "MetricsConfig 注册 TimedAspect 必需"
             }
           ],
           "yaml": "management:\n  endpoints:\n    web:\n      exposure:\n        include: health,info,metrics,prometheus\n  metrics:\n    tags:\n      # 打上应用名标签，多服务共用一套 Prometheus 时才能区分\n      application: ${spring.application.name}\n    distribution:\n      percentiles-histogram:\n        # 开启后才有 P95/P99 直方图，只看平均值会漏掉长尾\n        http.server.requests: true\n    export:\n      prometheus:\n        enabled: true",
@@ -2262,7 +2268,7 @@
           "name": "Elasticsearch",
           "badge": "推荐",
           "summary": "分布式倒排索引引擎，近实时全文检索与聚合分析的事实标准，REST 9200 端口，适合日志与商品搜索。",
-          "yaml": "spring:\n  elasticsearch:\n    uris: http://es:9200\n    username: elastic\n    password: ${ES_PWD}",
+          "yaml": "spring:\n  elasticsearch:\n    uris: ${ES_URIS:http://127.0.0.1:9200}\n    username: elastic\n    password: ${ES_PWD:}",
           "notes": [
             "indices.put_settings 调 refresh_interval 控制写入吞吐",
             "用 _bulk 批量写入，单批 5–15MB 最稳",
@@ -2286,7 +2292,7 @@
           "name": "OpenSearch",
           "badge": "",
           "summary": "AWS 主导的 ES 7.10 分叉，OpenSearch Dashboards 替代 Kibana，兼容 _search API，许可更宽松。",
-          "yaml": "spring:\n  elasticsearch:\n    uris: http://opensearch:9200\n    username: admin\n    password: ${OS_PWD}",
+          "yaml": "spring:\n  elasticsearch:\n    uris: ${OS_URIS:http://127.0.0.1:9200}\n    username: admin\n    password: ${OS_PWD:}",
           "notes": [
             "安全插件默认开启，需配置 admin 证书",
             "ISM 策略可做索引生命周期自动 rollover"
@@ -3077,7 +3083,7 @@
           "name": "配置文件",
           "badge": "轻量",
           "summary": "把数据库密码等写进 application.yml 或环境变量，最简单，但密钥进版本库或镜像层，泄露无感知、轮换要重启。",
-          "yaml": "spring:\n  datasource:\n    password: ${DB_PWD}",
+          "yaml": "# 密钥进配置文件的三条底线：\n#   1. 敏感值一律用 ${ENV_VAR:默认值} 占位 —— 带默认值本地可跑，生产由部署系统注入真实值\n#   2. 明文绝不进 Git，也不进镜像层（构建时不要把 .env 一起 COPY 进去）\n#   3. 默认值只给「本地开发方便」的空串或 guest 级账号，真实密钥永远来自环境",
           "notes": [
             "用 ${DB_PWD} 占位从环境变量注入，别把明文提交进 Git。",
             "镜像构建时不要把 .env 一起 COPY 进去。"

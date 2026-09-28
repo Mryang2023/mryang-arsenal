@@ -457,6 +457,10 @@ DIMENSIONS = [
                 "dependencies": [
                     {"groupId": "org.springframework.boot", "artifactId": "spring-boot-starter-actuator"},
                     {"groupId": "io.micrometer", "artifactId": "micrometer-registry-prometheus"},
+                    # TimedAspect（@Timed 注解支持）依赖 AspectJ 织入；缺这个依赖
+                    # 启动即 NoClassDefFoundError: org/aspectj/lang/ProceedingJoinPoint
+                    {"groupId": "org.springframework.boot", "artifactId": "spring-boot-starter-aop",
+                     "note": "MetricsConfig 注册 TimedAspect 必需"},
                 ],
                 "yaml": (
                     "management:\n"

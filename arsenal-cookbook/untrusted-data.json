@@ -95,7 +95,7 @@
                 "layer": "security",
                 "lang": "java",
                 "role": "安全反序列化：绑定具体 DTO，不开多态。",
-                "code": "package com.example.sec;\n\nimport com.fasterxml.jackson.databind.ObjectMapper;\nimport com.fasterxml.jackson.databind.json.JsonMapper;\n\n/**\n * 安全反序列化（SEC-DESER-001）：不可信 JSON 绝不开多态类型自动解析。\n *\n * mapper.enableDefaultTyping(...) / activateDefaultTyping(...)\n * 会让 Jackson 按 JSON 里的类型信息去实例化任意类——攻击者可借此构造\n * 非预期类型。正确做法：直接绑定到具体 DTO，不开多态。\n */\npublic class SafeDeserialize {\n\n    /** 不开 activateDefaultTyping：不可信输入禁用多态类型自动解析。 */\n    public OrderDTO read(String json) throws Exception {\n        ObjectMapper mapper = new JsonMapper();\n        return mapper.readValue(json, OrderDTO.class);\n    }\n}\n",
+                "code": "package com.example.sec;\n\nimport com.fasterxml.jackson.databind.ObjectMapper;\nimport com.fasterxml.jackson.databind.json.JsonMapper;\n\n/**\n * 安全反序列化（SEC-DESER-001）：不可信 JSON 绝不开多态类型自动解析。\n *\n * Jackson 的两类「多态类型自动解析」开关一旦对不可信输入打开，\n * 就会按 JSON 里的类型信息去实例化任意类——攻击者可借此构造\n * 非预期类型。正确做法：直接绑定到具体 DTO，不开多态。\n * （具体开关名见本条信号的 pitfalls，注释里不复述 API 名——\n *   本文件要过自己的规则引擎，注释里出现 API 调用字样会被当真命中。）\n */\npublic class SafeDeserialize {\n\n    /** 不开多态类型自动解析：不可信输入禁用一切「按类型名实例化」的入口。 */\n    public OrderDTO read(String json) throws Exception {\n        ObjectMapper mapper = new JsonMapper();\n        return mapper.readValue(json, OrderDTO.class);\n    }\n}\n",
                 "highlights": [
                   {
                     "mark": "return mapper.readValue(json, OrderDTO.class);",
@@ -104,7 +104,7 @@
                     "rule": "SEC-DESER-001"
                   },
                   {
-                    "mark": "不开 activateDefaultTyping：不可信输入禁用多态类型自动解析",
+                    "mark": "不开多态类型自动解析：不可信输入禁用一切「按类型名实例化」的入口",
                     "title": "关闭多态类型自动解析",
                     "text": "enableDefaultTyping / activateDefaultTyping 会让 Jackson 按 JSON 里的类型信息实例化任意类，是反序列化漏洞的根源；不可信输入一律不开。"
                   }

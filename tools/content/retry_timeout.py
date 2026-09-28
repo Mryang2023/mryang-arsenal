@@ -72,6 +72,22 @@ import java.util.concurrent.CompletableFuture;
 import java.util.function.Supplier;
 
 /**
+ * 下游瞬时失败：5xx 或网络异常都归为「可重试」，交给 Retry 决定退避与终止。
+ * 业务失败必须用自定义业务异常表达（SVC-EXCP-001），禁止抛裸 RuntimeException ——
+ * 否则调用方只能靠字符串区分「该重试的」和「不该重试的」。
+ */
+class TransientDownstreamException extends RuntimeException {
+
+    TransientDownstreamException(String message) {
+        super(message);
+    }
+
+    TransientDownstreamException(String message, Throwable cause) {
+        super(message, cause);
+    }
+}
+
+/**
  * 下游调用封装：单次调用必带超时，5xx 视为失败交给 Retry 在后台退避重试。
  */
 public class DownstreamClient {
@@ -91,11 +107,11 @@ public class DownstreamClient {
                     .GET().build();
             try {
                 HttpResponse<String> r = http.send(req, HttpResponse.BodyHandlers.ofString());
-                // 5xx 视为可重试的瞬时失败，抛异常触发退避重试
-                if (r.statusCode() >= 500) throw new RuntimeException("下游 5xx: " + r.statusCode());
+                // 5xx 视为可重试的瞬时失败，抛业务异常触发退避重试；4xx 是确定性失败，不在此列
+                if (r.statusCode() >= 500) throw new TransientDownstreamException("下游 5xx: " + r.statusCode());
                 return r.body();
             } catch (Exception e) {
-                throw new RuntimeException(e);
+                throw new TransientDownstreamException("下游调用失败: " + path, e);
             }
         };
         return retry.run(call);
@@ -365,7 +381,7 @@ TOPIC = {
                                  "title": "单次调用必设超时",
                                  "text": "每次请求都带读取超时，下游卡死时本服务能快速失败而不是线程挂起。所有外部调用都必须设超时。",
                                  "rule": "REL-TIME-001"},
-                                {"mark": "if (r.statusCode() >= 500) throw new RuntimeException(\"下游 5xx: \" + r.statusCode());",
+                                {"mark": 'if (r.statusCode() >= 500) throw new TransientDownstreamException("下游 5xx: " + r.statusCode());',
                                  "title": "把瞬时错误变成重试信号",
                                  "text": "5xx 视为可重试的瞬时失败，抛异常触发 Retry 的退避逻辑；4xx 不在此列（确定性失败不重试）。"},
                             ],

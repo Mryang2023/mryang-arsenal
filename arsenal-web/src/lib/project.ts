@@ -910,7 +910,8 @@ export function collectExportFiles(
   }
 
   // ── 配置文件 ──
-  files.push({ path: `${RES}/application.yml`, content: renderYaml(composed), group: '配置' });
+  // appName 必须传：主 yml 里 spring.application.name 与数据源库名默认值都跟随项目名
+  files.push({ path: `${RES}/application.yml`, content: renderYaml(composed, name), group: '配置' });
   files.push({ path: `${RES}/application-dev.yml`, content: renderDevYaml(picks), group: '配置' });
   files.push({ path: `${RES}/application-prod.yml`, content: renderProdYaml(picks), group: '配置' });
 

@@ -260,11 +260,16 @@ DIMENSIONS = [
                 "yaml": (
                     "spring:\n"
                     "  datasource:\n"
-                    "    url: jdbc:mysql://${DB_HOST:127.0.0.1}:${DB_PORT:3306}/${DB_NAME:app}\"\n"
-                    "         \"?useUnicode=true&characterEncoding=utf8mb4\"\n"
-                    "         \"&serverTimezone=Asia/Shanghai&useSSL=false&allowPublicKeyRetrieval=true\"\n"
-                    "         \"&rewriteBatchedStatements=true   # 批量插入必须开，否则一条条发，慢十倍以上\n"
-                    "    driver-class-name: com.mysql.cj.jdbc.Driver"
+                    # url 必须单行写完：YAML 普通标量不能跨行拼接，任何夹进来的
+                    # 引号或空格都会变成 JDBC URL 的一部分，直接连不上库
+                    # characterEncoding 写的是 **Java 编码名** utf8（Connector/J 8 会把它映射到
+                    # MySQL 侧的 utf8mb4）；写 utf8mb4 会被当成非法 Java 编码，建连直接炸
+                    "    url: jdbc:mysql://${DB_HOST:127.0.0.1}:${DB_PORT:3306}/${DB_NAME:app}?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai&useSSL=false&allowPublicKeyRetrieval=true&rewriteBatchedStatements=true\n"
+                    "    # rewriteBatchedStatements 必须开：否则 JDBC 的 batch 是一条条发，慢十倍以上\n"
+                    "    # 默认连本机 root/空密码；全部可用环境变量覆盖：DB_HOST / DB_PORT / DB_NAME / DB_USERNAME / DB_PASSWORD\n"
+                    "    driver-class-name: com.mysql.cj.jdbc.Driver\n"
+                    "    username: ${DB_USERNAME:root}\n"
+                    "    password: ${DB_PASSWORD:}"
                 ),
                 "notes": [
                     "字符集必须 utf8mb4。utf8 在 MySQL 里其实是三字节的，存不下 emoji 与部分生僻字。",
@@ -289,7 +294,10 @@ DIMENSIONS = [
                     "  datasource:\n"
                     "    # reWriteBatchedInserts 让 JDBC batch 真正合并成一条多值 INSERT\n"
                     "    url: jdbc:postgresql://${DB_HOST:127.0.0.1}:${DB_PORT:5432}/${DB_NAME:app}?ApplicationName=arsenal-demo&reWriteBatchedInserts=true\n"
-                    "    driver-class-name: org.postgresql.Driver"
+                    "    driver-class-name: org.postgresql.Driver\n"
+                    "    # 与 MySQL 一致：默认连本机，全部可用环境变量覆盖\n"
+                    "    username: ${DB_USERNAME:root}\n"
+                    "    password: ${DB_PASSWORD:}"
                 ),
                 "notes": [
                     "PG 的表名、字段名默认折叠为小写；用双引号包裹的大写标识符不会被折叠，会变成两套命名。所以一律用小写加下划线。",
@@ -363,8 +371,9 @@ DIMENSIONS = [
                     "          log-slow-sql: true\n"
                     "      stat-view-servlet:\n"
                     "        enabled: true\n"
-                    "        login-username: ${DRUID_USER}\n"
-                    "        login-password: ${DRUID_PWD}\n"
+                    "        # 不给默认值时占位符解析失败会直接挡启动；本地默认关闭鉴权页可见性由使用者自担\n"
+                    "        login-username: ${DRUID_USER:}\n"
+                    "        login-password: ${DRUID_PWD:}\n"
                     "        # 生产环境必须限制来源 IP，监控页会暴露全部 SQL\n"
                     "        allow: 127.0.0.1"
                 ),
@@ -501,6 +510,16 @@ DIMENSIONS = [
                 "badge": "轻量",
                 "summary": "手工维护 schema.sql，需要时人工执行。短期项目或原型阶段可以接受。",
                 "dependencies": [],
+                "yaml": (
+                    "spring:\n"
+                    "  sql:\n"
+                    "    init:\n"
+                    "      # 没有迁移工具时，由 Spring 在每次启动时执行 schema.sql（位置见 schema-locations）。\n"
+                    "      # schema.sql 里的 DDL 必须幂等（CREATE TABLE IF NOT EXISTS），\n"
+                    "      # 否则第二次启动就会撞上「表已存在」直接起不来。\n"
+                    "      mode: always\n"
+                    "      schema-locations: classpath:db/schema.sql"
+                ),
                 "notes": [
                     "代价是：没有「当前生产库是什么版本」的确定答案，回滚靠记忆。",
                     "如果一定要这样，至少把所有 DDL 集中在一个受版本控制的 sql 文件里，并记录每次执行的时间与执行人。",

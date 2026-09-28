@@ -2826,7 +2826,57 @@ console.log('\n【23】判据单一来源（W-0 · 共享判据）');
   );
 }
 
+// 【16】启动前提自检
+// 「文件都在、zip 能解」说明不了应用能起。这一层守的是 09-28 实测出的启动根因：
+// 主 yml 缺数据源、重复顶层键被 YAML 加载器拒绝、schema.sql 永不执行、
+// 无默认值的占位符挡启动。编译与真机启动由冒烟流程覆盖，这里守静态可判定的部分。
+function startupChecks() {
+  console.log('\n【16】启动前提自检');
+
+  const ymlOf = (p: StackPicks) =>
+    buildExportPlan(p, auditArchitecture(p))
+      .files.find((f) => f.path === 'src/main/resources/application.yml')!.content;
+
+  const withDb = { ...defaultPicks, persistence: 'mybatisplus', database: 'mysql',
+    pool: 'hikari', migration: 'flyway' } as StackPicks;
+  const ymlDb = ymlOf(withDb);
+  check('真库组合：主 yml 带数据源连接四件套（url/driver/username/password）',
+    ymlDb.includes('datasource:') &&
+      /url:\s*jdbc:(mysql|postgresql):/.test(ymlDb) &&
+      ymlDb.includes('driver-class-name:') &&
+      /username:\s*\$\{DB_USERNAME:/.test(ymlDb) &&
+      /password:\s*\$\{DB_PASSWORD:/.test(ymlDb),
+    '缺任何一件，Spring Boot 走到数据源装配那一步就会失败');
+  check('真库组合：主 yml 走多文档（选项块 --- 分隔，防顶层 spring: 重复键）',
+    ymlDb.includes('\n---\n'));
+  check('真库组合：主 yml 无裸占位符（${VAR} 无默认值会在启动时解析失败）',
+    !/\$\{[A-Z_0-9]+\}/.test(ymlDb),
+    ymlDb.match(/\$\{[A-Z_0-9]+\}/g)?.slice(0, 3).join(' ') ?? '');
+
+  const noMig = { ...defaultPicks, persistence: 'jpa', database: 'mysql',
+    migration: 'none', cache: 'redis' } as StackPicks;
+  const planNoMig = buildExportPlan(noMig, auditArchitecture(noMig));
+  const schemaSql = planNoMig.files.find((f) => f.path === 'src/main/resources/db/schema.sql');
+  check('无迁移工具：db/schema.sql 随包导出且建表幂等（IF NOT EXISTS）',
+    !!schemaSql && schemaSql.content.includes('CREATE TABLE IF NOT EXISTS'),
+    'sql.init 每次启动都执行，非幂等 DDL 第二次启动就撞「表已存在」');
+  const ymlNoMig = planNoMig.files.find((f) => f.path === 'src/main/resources/application.yml')!.content;
+  check('无迁移工具：主 yml 声明 sql.init 常驻执行并指向 db/schema.sql',
+    ymlNoMig.includes('mode: always') && ymlNoMig.includes('schema-locations: classpath:db/schema.sql'),
+    'schema.sql 不在 classpath 根，默认位置找不到它 —— 永不执行，user 表不存在');
+  check('无迁移工具 + Redis：密码占位符带空默认',
+    ymlNoMig.includes('password: ${REDIS_PASSWORD:}'),
+    '没设 REDIS_PASSWORD 环境变量时，无默认值占位符直接挡启动');
+
+  const planFly = buildExportPlan(withDb, auditArchitecture(withDb));
+  check('Flyway 组合：V1__init.sql 随包导出',
+    planFly.files.some((f) => f.path.endsWith('db/migration/V1__init.sql')));
+  check('Flyway 组合：sql.init 不与 Flyway 双跑（主 yml 无 mode: always）',
+    !ymlDb.includes('mode: always'));
+}
+
 zipChecks().then(() => {
   profileChecks();
+  startupChecks();
   process.exit(finish('project'));
 });

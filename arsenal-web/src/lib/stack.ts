@@ -339,6 +339,11 @@ spring:
     timeout-per-shutdown-phase: 30s
 `;
 
+  // 各选项的 yaml 块几乎都以顶层 `spring:` 开头。同一个 YAML 文档里出现重复的
+  // 顶层键会被 Spring Boot 的 YAML 加载器直接拒绝（YamlProcessor 固定
+  // allowDuplicateKeys=false），应用在解析配置那一步就起不来 —— 这正是导出包
+  // 「解压即坏」的根因之一。用 `---` 分成多个文档：每个文档独立解析，
+  // 后面的文档覆盖前面同键的配置，语义与 profile 覆盖一致，Spring 官方支持。
   const body = composed.yamlBlocks.length
     ? composed.yamlBlocks
         .map(
@@ -348,7 +353,7 @@ spring:
             `# ────────────────────────────────────────────────────────\n` +
             b.body
         )
-        .join('\n\n')
+        .join('\n---\n\n')
     : '# 当前组合没有额外需要声明的配置项。';
 
   const tail = `
@@ -363,7 +368,9 @@ logging:
     console: "%d{HH:mm:ss.SSS} [%thread] [%X{traceId:-}] %-5level %logger{36} - %msg%n"
 `;
 
-  return `${head}\n${body}\n${tail}`;
+  // 库名默认值跟随项目名：用户建一个与自己项目同名的库就能起，
+  // 不必先弄懂 DB_NAME 再去查占位符语法。仅作用于带 `:app` 默认值的占位。
+  return `${head}\n${body}\n${tail}`.split('${DB_NAME:app}').join(`\${DB_NAME:${appName}}`);
 }
 
 /** 生成给 AI 的选型约束 —— 这是「给 AI 用」出口在选型台的延伸 */
