@@ -130,17 +130,16 @@ export const SHAPES: ShapeSpec[] = presets.map((p) => ({
 // ─────────────────────────────────────────────────────────────
 // ③ 主题件判定
 //
-// 33 个槽位不可能都叫「主题框架」。判定规则全部来自事实源：
-//   · middleware / datax 两组**整组**进 ③（THEME_GROUP_IDS）—— 维度全是
-//     代码依赖（缓存、消息队列、注册中心、搜索……），把消息队列单独留在
-//     ④ 会让「同组同类决定一半在 ③ 一半在 ④」（09-28 七反馈的病根）；
-//   · 其余组：事实源标了 required / recommended 的进 ③
-//     （数据库、连接池、鉴权、监控 —— 不装项目就不完整）；
-//   · 一个组一个 R/REC 都没有时，取该组第一个 defaultOption 不是「不用」
-//     的维度当主题件 —— 否则这个组在 ③ 会整组消失。
+// 09-28 八反馈定案：③ 主题框架是**全部代码架构维度**的唯一选型处 ——
+// 一个决定只有一个入口。凡不是 ② 基底（base 组）、不是 ⑥ 部署形态
+// （topology 组）、不是 ⑤ 交付运行段（RUN_GROUP_IDS 三组）的维度，
+// 一律进 ③（共 19 维）。七步结构因此定型：
+//   代码技术框架 → ③ 一次表态完；部署运维 → ⑤ 整组表态；部署形态 → 只在 ⑥。
 //
-// base 组（JDK / 构建工具 / Web 运行时）归 ② 技术栈基底，topology 组（全局
-// 部署形态）归 ⑥，交付运行组归 ⑤ —— 各归各位，一个维度只出现一次。
+// ④ 分层装配不再是选型处（原先「④ 也能改缓存」与 ③ 重复，两处入口
+// 必然改一处忘一处）：它变成只读校核台 —— 看结构、链路、隐患、缺件，
+// 点卡片直达归属步骤。判定就是上面三行排除，不再需要事实源 R/REC
+// 标记或 fallback 兜底。
 // ─────────────────────────────────────────────────────────────
 
 const STEP2_GROUP = 'base';
@@ -154,53 +153,23 @@ const STEP6_GROUP = 'topology';
  */
 export const RUN_GROUP_IDS = new Set(['runtime', 'delivery', 'ops']);
 
-/**
- * 代码中间件整组进 ③ 主题框架（09-28 七反馈：中间件组的「消息队列」只能去
- * ④ 选，同类决定分了家）。middleware / datax 两组的维度全是**代码依赖** ——
- * 选 Kafka 还是 RocketMQ、用不用 Nacos、接不接 ES，都是写进 pom / import 的
- * 代码决定，与部署运维无关。它与 RUN_GROUP_IDS 正好构成两段流程的分界：
- *   代码技术框架 → ③ 一次表态完；部署运维 → ⑤ 整组表态；部署形态 → 只在 ⑥。
- */
-export const THEME_GROUP_IDS = new Set(['middleware', 'datax']);
-
-function isKept(dim: StackDimension): boolean {
-  const n = nodeArch[dim.id];
-  return !!(n?.required || n?.recommended);
-}
-
-/** 该维度是否在 ③ 主题框架这一步决定（交付运行组的维度**永不**进 ③） */
-export function isThemeDim(dimId: string): boolean {
-  return themeDimIds().has(dimId);
-}
-
 let themeCache: Set<string> | null = null;
 
+/** 进 ③ 表态的维度全集：排除 ②/⑥/⑤ 的组，剩下的组整组全收（19 维） */
 function themeDimIds(): Set<string> {
   if (themeCache) return themeCache;
   const set = new Set<string>();
   for (const g of groups) {
     if (g.id === STEP2_GROUP || g.id === STEP6_GROUP || RUN_GROUP_IDS.has(g.id)) continue;
-    const members = dimensions.filter((d) => d.groupId === g.id);
-    // 代码中间件整组进 ③：消息队列、注册中心与缓存一样是代码依赖，
-    // 拆在 ③/④ 两处是 09-28 七反馈点名的「同类决定分家」
-    if (THEME_GROUP_IDS.has(g.id)) {
-      for (const d of members) set.add(d.id);
-      continue;
+    for (const d of dimensions) {
+      if (d.groupId === g.id) set.add(d.id);
     }
-    const kept = members.filter(isKept);
-    if (kept.length) {
-      for (const d of kept) set.add(d.id);
-      continue;
-    }
-    // 整组都没有 R/REC：取第一个「默认装得上」的维度当主题件
-    const fallback = members.find((d) => d.defaultOption !== 'none') ?? members[0];
-    if (fallback) set.add(fallback.id);
   }
   themeCache = set;
   return set;
 }
 
-/** ③ 的分区：组 → 该组要表态的维度（中间件/数据生态整组，其余组为主题件）。空组不出现 */
+/** ③ 的分区：组 → 该组要表态的维度（②/⑥/⑤ 之外的组**全量**进 ③，共 19 维）。空组不出现 */
 export interface ThemeSection {
   group: StackGroup;
   dims: StackDimension[];
@@ -309,7 +278,8 @@ export function flowFilled(flow: FlowSpec, picks: Record<string, string>): { fil
  * 「补法说去哪个槽位」必须连步骤一起说 —— 只说「运行环境」，
  * 用户在台面上找不到它，就会得出「步骤里没有这个东西」的结论（09-28 真实反馈）。
  * 归属规则与 ③/⑤ 的分区判定同源，不另立一套。交付运行组（runtime/delivery/ops）
- * 无论主题件与否一律归 ⑤ 交付与运行 —— 架构段与交付段两段流程的分界线。
+ * 一律归 ⑤ 交付与运行；②/⑥/⑤ 之外的**全部**归 ③ —— 09-28 八反馈起 ④ 分层装配
+ * 是只读校核台，不再拥有任何维度的选型权。
  */
 export function stepOfDim(dimId: string): StepId | null {
   const dim = dimensions.find((d) => d.id === dimId);
@@ -317,8 +287,7 @@ export function stepOfDim(dimId: string): StepId | null {
   if (dim.groupId === 'base') return 'base';
   if (dim.groupId === 'topology') return 'topology';
   if (RUN_GROUP_IDS.has(dim.groupId)) return 'deliverRun';
-  if (isThemeDim(dimId)) return 'theme';
-  return 'layers';
+  return 'theme';
 }
 
 /**

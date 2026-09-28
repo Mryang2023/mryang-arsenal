@@ -37,8 +37,6 @@ import {
 } from '@/lib/project';
 import { downloadZip } from '@/lib/zip';
 import type { StackPicks } from '@/lib/content-types';
-import DimDrawer from './DimDrawer';
-import { Picker } from './Inspector';
 import SlotBlock from './SlotBlock';
 import type { SlotWeight } from './SlotBlock';
 import DeliveryStep from './steps/DeliveryStep';
@@ -256,13 +254,11 @@ export default function StackComposer() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // S2-5：Esc 关闭当前打开的层。优先级：换件菜单 > 草稿面板 > 选件面板。
-  // 换件菜单自己挂了 window keydown —— 两处监听都会跑，这里用 DOM 探测让位：
-  // 菜单还在 DOM 里（data-swap-menu）就什么都不做，只让菜单自己的 handler 关它。
+  // S2-5：Esc 关闭当前打开的层。优先级：草稿面板 > 台面聚焦。
+  // （09-28 八反馈起换件菜单已退场 —— ④ 只读，没有浮层要让它先关。）
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key !== 'Escape') return;
-      if (document.querySelector('[data-swap-menu]')) return;
       if (showDraftSave || showDraftList) {
         setShowDraftSave(false);
         setShowDraftList(false);
@@ -1647,11 +1643,12 @@ export default function StackComposer() {
   );
 
   /**
-   * ④ 分层装配 —— 台面（泳道图，全宽）+ 右缘选件抽屉。
+   * ④ 分层装配 —— 台面（泳道图，全宽），只读校核台。
    *
-   * 这是装配台的老资产：33 个槽位按 7 条泳道摆开，点一块弹出抽屉换件、换形态。
-   * 它留在这一文件里而不是抽出去，是因为「台面」与「结论条 / 点阵 / 产物区」
-   * 共用同一批 ref 与回调 —— 拆开要靠 props 传五个 ref，换来的只是一点行数。
+   * 这是装配台的老资产：33 个槽位按 7 条泳道摆开，点一块直达归属步骤改零件
+   * （09-28 八反馈：选件抽屉已退场，④ 不再是选型处）。它留在这一文件里而不是
+   * 抽出去，是因为「台面」与「结论条 / 点阵 / 产物区」共用同一批 ref 与回调 ——
+   * 拆开要靠 props 传五个 ref，换来的只是一点行数。
    */
   function renderBench() {
     const benchSpec = STEP_BY_ID.get('layers')!;
@@ -1662,8 +1659,9 @@ export default function StackComposer() {
         : lanes.filter((l) => flowSpec.laneIds.includes(l.id));
     return (
       <StepShell spec={benchSpec}>
-        {/* 09-28 四反馈：不再左右两栏（左选槽位右选零件占版面）——
-            台面全宽铺开，选件面板移入右侧抽屉（DimDrawer，浮层不占流）。 */}
+        {/* 09-28 八反馈：④ 是只读校核台 —— 看结构、链路、隐患、缺件；
+            点卡片直达该槽位归属的步骤去改（一个决定只有一个入口）。
+            台面全宽铺开（09-28 四反馈），不再有右侧选件抽屉。 */}
         <div className="space-y-2 p-4">
           {/* ── ④ 流水线选择：一次只看一条流，不把 7 泳道一次铺开 ── */}
           <div className="flex flex-wrap items-center gap-1.5 rounded-md border border-line bg-surface px-4 py-2">
@@ -1701,9 +1699,9 @@ export default function StackComposer() {
             <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
               <span className="mono text-[12px] leading-none text-brass">⊙</span>
               <span className="text-fg">点任意方块</span>
-              <span>→ 右缘弹出抽屉换零件。这一步只管</span>
-              <span className="text-fg">装什么</span>
-              <span>—— 几个实例、怎么摆（单实例 / 主从 / 组复制 / 分片 / 云原生）</span>
+              <span>→ 直达它归属的步骤改零件。这一步是</span>
+              <span className="text-fg">只读校核台</span>
+              <span>—— 看结构、链路、隐患、缺件；几处实例怎么摆（单实例 / 主从 / 组复制 / 分片 / 云原生）</span>
               <span className="text-fgFaint">在 ⑥ 部署形态一处定，副本数写进清单</span>
             </div>
             {/* S2-4：搜索 + 三档筛选。互斥单选（aria-pressed），再点一次取消；
@@ -1867,10 +1865,7 @@ export default function StackComposer() {
                                 weight={weight}
                                 dimmed={activeDim !== null && activeDim !== dimId}
                                 hint={slotHint(dimId, picks[dimId])}
-                                onClick={() => setActiveDim(dimId)}
-                                onClear={() => clear(dimId)}
-                                picks={picks}
-                                onSwap={pick}
+                                onClick={() => focusDim(dimId)}
                                 muted={visibleDims !== null && !visibleDims.has(dimId)}
                               />
                             </span>
@@ -1884,20 +1879,6 @@ export default function StackComposer() {
             })}
           </div>
         </div>
-
-        {/* 选件抽屉：点中的槽位 → 右缘浮出零件库（09-28 七反馈：只管装什么 ——
-            几个实例、怎么摆在 ⑥ 部署形态一处表态，两处入口必然改一处忘一处）。 */}
-        {activeDim && (
-          <DimDrawer>
-            <Picker
-              dimId={activeDim}
-              picks={picks}
-              onPick={pick}
-              onClear={clear}
-              onClose={() => setActiveDim(null)}
-            />
-          </DimDrawer>
-        )}
       </StepShell>
     );
   }

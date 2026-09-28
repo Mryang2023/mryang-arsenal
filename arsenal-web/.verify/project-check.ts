@@ -1866,17 +1866,16 @@ console.log('\n【17】装配台视觉契约（/stack P1 第一组）');
 
   // ── S1-3 焦点与深度 ──────────────────────────────────────────
   check(
-    'S1-3 移除按钮不再依赖 hover（触屏没有 hover，藏起来等于删不掉）',
+    'S1-3 ④ 卡片无 hover 显隐交互（触屏没有 hover；09-28 八反馈起卡片整体只读）',
     !slotSrc.includes('group-hover:flex')
   );
   check(
-    'S1-3 移除按钮触摸点击区 32×32（h-8 w-8），视觉本体 20×20（h-5 w-5）',
-    /\bh-8 w-8\b/.test(slotSrc) && /\bh-5 w-5\b/.test(slotSrc)
+    'S1-3 ④ 卡片无第二修改入口：不引用 onClear / onSwap（09-28 八反馈：改零件去归属步骤）',
+    !slotSrc.includes('onClear') && !slotSrc.includes('onSwap')
   );
   check(
-    'S1-3 移除按钮键盘可达（tabIndex 0 + Enter/Space）',
-    /role="button"\s*\n\s*tabIndex=\{0\}/.test(slotSrc) &&
-      /e\.key === 'Enter' \|\| e\.key === ' '/.test(slotSrc)
+    'S1-3 ④ 卡片无伪装按钮（role=button 的 span 已随只读化退场，卡片本体是唯一按钮形态）',
+    !slotSrc.includes('role="button"')
   );
   check(
     'S1-3 选中态 = 黄铜 ring + shadow-lift + --stack-part-hi（L4）',
@@ -2119,18 +2118,16 @@ console.log('\n【18】装配台 P1 第二组（S1-4 / S1-5 / S2-7）');
   const inspectorSrc = readRel('src/app/stack/Inspector.tsx');
   const slotSrc = readRel('src/app/stack/SlotBlock.tsx');
   check(
-    'S2-1 选项行只有一份渲染：Inspector 导出 OptionList，Picker 与卡片换件菜单都吃它',
+    'S2-1 选项行只有一份渲染：OptionList 模板全 Inspector 独一份（④ 只读后台面不再引用）',
     /export function OptionList\(/.test(inspectorSrc) &&
       /<OptionList[\s\S]{0,80}?onPick=\{onPick\}/.test(inspectorSrc) &&
-      /<OptionList[\s\S]{0,200}?onPick=/.test(slotSrc) &&
+      !/<OptionList/.test(slotSrc) &&
       (inspectorSrc.match(/divide-y divide-line/g) ?? []).length === 1,
     '选项行模板不止一份（divide-y ul 全 Inspector 应只出现一次，就在 OptionList 里）'
   );
   check(
-    'S2-1 换件菜单走 portal + fixed 定位（泳道 section 有 overflow-hidden，卡片内绝对定位会被裁）',
-    slotSrc.includes('createPortal') &&
-      slotSrc.includes('document.body') &&
-      slotSrc.includes('data-swap-menu')
+    'S2-1 ④ 无就地换件浮层（portal 菜单已随只读化退场 —— 一个决定只有一个入口）',
+    !slotSrc.includes('createPortal') && !slotSrc.includes('data-swap-menu')
   );
   check(
     'S2-1 推荐排序出自事实源：recommendedOrder 读 defaultOption，「不用 X」档垫底（退出项不是候选）',
@@ -2174,9 +2171,8 @@ console.log('\n【18】装配台 P1 第二组（S1-4 / S1-5 / S2-7）');
   // ── S2-5 键盘导航 / S2-6 方案对比（09-24 中午补） ──
   const draftsSrc = readRel('src/app/stack/drafts.ts');
   check(
-    'S2-5 Esc 分层关闭：换件菜单 > 草稿面板 > 右栏选件面板（DOM 探测 data-swap-menu 让位）',
+    'S2-5 Esc 分层关闭：草稿面板 > 台面聚焦（换件菜单已随 ④ 只读化退场，无需让位）',
     /if \(e\.key !== 'Escape'\) return;/.test(composerSrc) &&
-      /document\.querySelector\('\[data-swap-menu\]'\)/.test(composerSrc) &&
       /setShowDraftSave\(false\)/.test(composerSrc) &&
       /if \(activeDim\) setActiveDim\(null\);/.test(composerSrc)
   );
