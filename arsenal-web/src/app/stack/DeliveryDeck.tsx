@@ -11,7 +11,7 @@ import {
   type CanvasTheme,
   type TechArch,
 } from '@/lib/arch-canvas';
-import { arch, STATUS_META } from '@/lib/arch';
+import { arch, capLabel, STATUS_META } from '@/lib/arch';
 import type { ArchAudit, ArchGap } from '@/lib/arch';
 import { buildArchDiagram, archDiagramMermaid, toResponsiveSvg } from '@/lib/arch-diagram';
 import { dimensions } from '@/lib/stack';
@@ -307,7 +307,7 @@ export default function DeliveryDeck({
           />
         )}
 
-        {tab === 'flow' && <FlowBlock picks={picks} />}
+        {tab === 'flow' && <FlowBlock picks={picks} audit={audit} />}
         {tab === 'tree' && <TreeBlock picks={picks} />}
 
         {tab === 'manifest' && (
@@ -671,6 +671,11 @@ function Overview({
                   {g.title}
                 </span>
                 <span className="text-[10px] text-fgMuted">{g.detail ?? ''}</span>
+                {g.remedies && g.remedies.length > 0 && (
+                  <span className="text-[10px]" style={{ color: '#7FA650' }}>
+                    怎么补：{remedyText(g)}
+                  </span>
+                )}
               </li>
             ))}
             {missing.length > 6 && (
@@ -688,12 +693,23 @@ function Overview({
   );
 }
 
-function FlowBlock({ picks }: { picks: StackPicks }) {
+function FlowBlock({ picks, audit }: { picks: StackPicks; audit: ArchAudit }) {
   const nameOf = (dimId: string) => {
     if (!picks[dimId]) return '—';
     const dim = dimensions.find((d) => d.id === dimId);
     return dim?.options.find((o) => o.id === picks[dimId])?.name ?? picks[dimId];
   };
+
+  /** 链路上哪个环在「要一块没人提供的能力」。环上标红就是它 ——
+      光说「跑不起来」不点名到环，用户就得拿结论自己对台面（09-28 反馈的痛点）。 */
+  const unmetBy = (() => {
+    const m = new Map<string, string>();
+    for (const b of audit.blockers) {
+      if (!b.unmetCap) continue;
+      for (const n of b.nodes) if (!m.has(n)) m.set(n, capLabel(b.unmetCap));
+    }
+    return m;
+  })();
 
   return (
     <div className="space-y-3">
@@ -709,14 +725,30 @@ function FlowBlock({ picks }: { picks: StackPicks }) {
               <p className="text-[10px] text-fgFaint">这条链路上没有任何已装配的零件。</p>
             ) : (
               <div className="flex flex-wrap items-center gap-x-1 gap-y-1">
-                {steps.map((d, i) => (
-                  <span key={d} className="flex items-center gap-1">
-                    {i > 0 && <span className="mono text-[11px] text-fgFaint">→</span>}
-                    <span className="rounded-sm border border-line bg-surfaceHi px-1.5 py-0.5 text-[10px] text-fgMuted">
-                      {nameOf(d)}
+                {steps.map((d, i) => {
+                  const miss = unmetBy.get(d);
+                  return (
+                    <span key={d} className="flex items-center gap-1">
+                      {i > 0 && <span className="mono text-[11px] text-fgFaint">→</span>}
+                      <span
+                        className="rounded-sm border bg-surfaceHi px-1.5 py-0.5 text-[10px]"
+                        style={
+                          miss
+                            ? { borderColor: TONE.bad.border, color: TONE.bad.color }
+                            : { borderColor: '#243029', color: '#93A39C' }
+                        }
+                        title={miss ? `这一环需要「${miss}」，当前无人提供` : undefined}
+                      >
+                        {nameOf(d)}
+                      </span>
+                      {miss && (
+                        <span className="text-[10px]" style={{ color: TONE.bad.color }}>
+                          缺「{miss}」
+                        </span>
+                      )}
                     </span>
-                  </span>
-                ))}
+                  );
+                })}
               </div>
             )}
             <p className="mt-1 text-[10px] leading-[15px] text-fgFaint">{v.note}</p>
@@ -893,6 +925,12 @@ function RiskBlock({ audit }: { audit: ArchAudit }) {
                   {gap.detail && (
                     <p className="mt-0.5 text-[10px] leading-[15px] text-fgMuted">{gap.detail}</p>
                   )}
+                  {gap.remedies && gap.remedies.length > 0 && (
+                    <p className="mt-0.5 text-[10px] leading-[15px]" style={{ color: '#7FA650' }}>
+                      <span className="mono mr-1 text-fgFaint">怎么补</span>
+                      {remedyText(gap)}
+                    </p>
+                  )}
                   {gap.symptoms && gap.symptoms.length > 0 && (
                     <ul className="mt-0.5">
                       {gap.symptoms.slice(0, 2).map((sym, j) => (
@@ -985,6 +1023,18 @@ function Num({ label, value, accent }: { label: string; value: string; accent?: 
 // ─────────────────────────────────────────────────────────────
 // 小工具
 // ─────────────────────────────────────────────────────────────
+
+/** 补法一行文案：「容器运行时 → Docker 运行时 · 镜像构建 → Jib」。没有补法返回空串 */
+function remedyText(gap: ArchGap): string {
+  if (!gap.remedies?.length) return '';
+  const nameOf = (dimId: string) => dimensions.find((d) => d.id === dimId)?.name ?? dimId;
+  return gap.remedies
+    .map((r) => {
+      const opt = dimensions.find((d) => d.id === r.dim)?.options.find((o) => o.id === r.option);
+      return opt ? `${nameOf(r.dim)} → ${opt.name}` : nameOf(r.dim);
+    })
+    .join(' · ');
+}
 
 function readSvgSize(svg: string): { w: number; h: number } | null {
   const m = /<svg[^>]*\bwidth="([\d.]+)"[^>]*\bheight="([\d.]+)"/.exec(svg);

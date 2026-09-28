@@ -94,6 +94,52 @@ export default function GapCard({
             </ul>
           ) : null}
 
+          {/* 能力缺口的补法：去哪个槽位、选什么。与「定位到」不同 ——
+              「定位到」回的是谁在要这块能力，这里去的是能补上的那个槽位。 */}
+          {gap.unmetCap && (
+            <div className="mt-2">
+              <p className="mono text-[10px] uppercase tracking-wider" style={{ color: t.color }}>
+                怎么补
+              </p>
+              {gap.remedies?.length ? (
+                <ul className="mt-1 space-y-1">
+                  {gap.remedies.slice(0, 3).map((r) => {
+                    const d = dimensions.find((x) => x.id === r.dim);
+                    const opt = d?.options.find((o) => o.id === r.option);
+                    return (
+                      <li
+                        key={r.dim}
+                        className="flex flex-wrap items-baseline gap-x-1.5 text-[10px] leading-[16px]"
+                      >
+                        <span className="text-fgMuted">{d?.name ?? r.dim}</span>
+                        {opt && <span style={{ color: '#7FA650' }}>→ {opt.name}</span>}
+                        {onFocus && (
+                          <button
+                            type="button"
+                            onClick={() => onFocus(r.dim)}
+                            className="mono ml-auto rounded-sm border border-line px-1 text-[10px] leading-[15px] text-fgFaint transition-colors hover:border-lineHi hover:text-fg"
+                            title={`跳到「${d?.name ?? r.dim}」选零件`}
+                          >
+                            去补 ↑
+                          </button>
+                        )}
+                      </li>
+                    );
+                  })}
+                  {gap.remedies.length > 3 && (
+                    <li className="text-[10px] leading-[16px] text-fgFaint">
+                      另外 {gap.remedies.length - 3} 个槽位也能补上这项能力
+                    </li>
+                  )}
+                </ul>
+              ) : (
+                <p className="mt-1 text-[10px] leading-[16px] text-fgMuted">
+                  事实源里还没有零件声明能提供这项能力 —— 没法靠换零件修，得先扩事实源。
+                </p>
+              )}
+            </div>
+          )}
+
           {gap.fix && (
             <p className="mt-2 rounded-md border border-line bg-canvas px-2 py-1.5 text-[10px] leading-[16px] text-olive">
               <span className="mono mr-1 text-fgFaint">对策</span>

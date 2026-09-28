@@ -138,6 +138,33 @@ export function capLabel(cap: string): string {
   return capNames[cap] ?? cap.replace(/^cap\./, '');
 }
 
+/**
+ * 一项能力可以由哪些零件补上 —— 「无人提供」结论的补法。
+ *
+ * 每个能提供该能力的槽位出一条：推荐零件取事实源 defaultOption（且不是「不用」，
+ * 与右栏零件库 recommendedOrder 的排序规则一致），default 不提供时取事实源原序
+ * 第一个能提供的。每个槽位只出一条 —— 补法要回答的是「去哪、选什么」，
+ * 不是一份候选清单；多候选交给点进去之后的零件库。
+ *
+ * @param excludeDims 排除的槽位（通常是「正在要这块能力」的那几个 —— 它们自己都缺）
+ */
+export function capRemedies(
+  cap: string,
+  excludeDims: ReadonlySet<string> = new Set()
+): GapRemedy[] {
+  const out: GapRemedy[] = [];
+  for (const dim of dimensions) {
+    if (excludeDims.has(dim.id)) continue;
+    const cands = dim.options.filter(
+      (o) => o.id !== 'none' && (arch.options[dim.id]?.[o.id]?.provides ?? []).includes(cap)
+    );
+    if (!cands.length) continue;
+    const preferred = cands.find((o) => o.id === dim.defaultOption);
+    out.push({ dim: dim.id, option: (preferred ?? cands[0]).id });
+  }
+  return out;
+}
+
 // ─────────────────────────────────────────────────────────────
 // 校验结果
 // ─────────────────────────────────────────────────────────────
@@ -149,6 +176,14 @@ export type SlotState =
   | 'empty'                // 可选未选
   | 'conflict';            // 已选，但参与某个组合隐患
 
+/** 一条补法：去哪个槽位、推荐选哪个零件。能力缺口 blocker 专享 */
+export interface GapRemedy {
+  /** 去哪个槽位补 */
+  dim: string;
+  /** 推荐选哪个零件（事实源推荐档优先）。缺省 = 该槽位进了补法但没算出具体零件 */
+  option?: string;
+}
+
 export interface ArchGap {
   /** 归因到哪个槽位（用于点击定位） */
   dim: string;
@@ -157,6 +192,10 @@ export interface ArchGap {
   fix?: string;
   /** 需要高亮的槽位 */
   nodes: string[];
+  /** 能力缺口 id（cap.*）—— 仅「无人提供」类 blocker 有，UI 据此渲染补法 */
+  unmetCap?: string;
+  /** 怎么补：哪些槽位能提供这块能力、各推荐选什么。与 unmetCap 成对出现 */
+  remedies?: GapRemedy[];
   /** 被同一条结论顺带解释掉的能力缺口，避免重复报同一件事 */
   consequences?: string[];
   /** 触发条件（来自隐患详情） */
@@ -288,6 +327,18 @@ export function auditArchitecture(picks: StackPicks): ArchAudit {
   const blockerByDim = new Map(blockers.map((b) => [b.dim, b]));
   const unmetCaps: string[] = [];
 
+  /** 同一个 blocker 被多条能力归并时，补法取并集（按槽位去重，先到先得） */
+  const mergeRemedies = (target: ArchGap, add: GapRemedy[]) => {
+    if (!add.length) return;
+    const seen = new Set((target.remedies ?? []).map((r) => r.dim));
+    target.remedies = [...(target.remedies ?? [])];
+    for (const r of add) {
+      if (seen.has(r.dim)) continue;
+      target.remedies.push(r);
+      seen.add(r.dim);
+    }
+  };
+
   for (const [cap, needers] of unmet) {
     const providers = capProviders.get(cap) ?? new Set<string>();
     const explained =
@@ -303,18 +354,27 @@ export function auditArchitecture(picks: StackPicks): ArchAudit {
         target.consequences.push(
           `${needers.map(dimName).join('、')} 因此拿不到「${capLabel(cap)}」`
         );
+        // 归并不等于没有补法：把 owner 装上它就能提供这块能力 ——
+        // 补法跟着归并进同一条结论，别让用户修完缺件又被第二句话问住。
+        mergeRemedies(target, capRemedies(cap));
         continue;
       }
     }
 
     unmetCaps.push(cap);
+    const remedies = capRemedies(cap, new Set(needers));
+    const first = remedies[0];
     blockers.push({
       dim: needers[0],
       title: `「${capLabel(cap)}」无人提供`,
       detail:
         `${needers.map(dimName).join('、')} 需要「${capLabel(cap)}」才能工作，` +
-        '但当前选择里没有任何零件能提供它。',
+        (first
+          ? `但当前选择里没有任何零件能提供它 —— 到「${dimName(first.dim)}」补上即可。`
+          : '但事实源里没有任何零件声明能提供它（要补得先给某个选项加 provides 声明）。'),
       nodes: needers,
+      unmetCap: cap,
+      remedies,
     });
   }
 

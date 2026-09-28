@@ -1,5 +1,5 @@
 import projRaw from '@/generated/project.json';
-import { capLabel, STATUS_META, type ArchAudit, type ArchGap } from './arch';
+import { capLabel, STATUS_META, type ArchAudit, type ArchGap, type GapRemedy } from './arch';
 import type { ComposedStack, StackPicks } from './content-types';
 import { bootVersionOf, composeStack, dimensionById, dimensions, renderPom, renderYaml } from './stack';
 import { buildArchDiagram, archDiagramD2, archDiagramMermaid } from './arch-diagram';
@@ -496,6 +496,17 @@ function gapMarkdown(gap: ArchGap): string {
   if (gap.consequences?.length) {
     for (const c of gap.consequences) out.push(`- 连带影响：${c}`);
   }
+  if (gap.remedies?.length) {
+    out.push('- 怎么补：');
+    for (const r of gap.remedies.slice(0, 3)) {
+      const d = dimensions.find((x) => x.id === r.dim);
+      const opt = d?.options.find((o) => o.id === r.option);
+      out.push(`  - ${d?.name ?? r.dim}${opt ? ` → ${opt.name}` : ''}`);
+    }
+    if (gap.remedies.length > 3) {
+      out.push(`  - 另外 ${gap.remedies.length - 3} 个槽位也能补上这项能力`);
+    }
+  }
   if (gap.fix) out.push(`- 对策：${gap.fix}`);
   out.push('');
   return out.join('\n');
@@ -610,7 +621,24 @@ export function architectureDocMarkdown(picks: StackPicks, audit: ArchAudit, nam
   );
   if (audit.unmetCaps.length) {
     out.push('以下能力被索要、但当前无人提供：', '');
-    for (const cap of audit.unmetCaps) out.push(`- \`${cap}\` ${capLabel(cap)}`);
+    const remedyByCap = new Map<string, GapRemedy[]>();
+    for (const b of audit.blockers) {
+      if (b.unmetCap) remedyByCap.set(b.unmetCap, b.remedies ?? []);
+    }
+    for (const cap of audit.unmetCaps) {
+      const remedies = remedyByCap.get(cap) ?? [];
+      if (remedies.length) {
+        const first = remedies[0];
+        const d = dimensions.find((x) => x.id === first.dim);
+        const opt = d?.options.find((o) => o.id === first.option);
+        out.push(
+          `- \`${cap}\` ${capLabel(cap)} —— 怎么补：到「${d?.name ?? first.dim}」` +
+            `${opt ? `选「${opt.name}」` : '补齐'}`
+        );
+      } else {
+        out.push(`- \`${cap}\` ${capLabel(cap)} —— 事实源里暂无零件能提供，需先扩事实源`);
+      }
+    }
   } else {
     out.push('没有「被索要却无人提供」的能力 —— 供需是闭环的。');
   }
