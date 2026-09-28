@@ -38,6 +38,7 @@ import { deliverArchify } from '@/lib/arsenal-api';
 import type { ComposedStack, StackPicks } from '@/lib/content-types';
 import { TONE } from './palette';
 import ProgressRing from './ProgressRing';
+import { STEP_BY_ID, stepOfDim } from './wizard';
 
 /**
  * 动态交付台 —— 装配台的右半边。
@@ -737,7 +738,11 @@ function FlowBlock({ picks, audit }: { picks: StackPicks; audit: ArchAudit }) {
                             ? { borderColor: TONE.bad.border, color: TONE.bad.color }
                             : { borderColor: '#243029', color: '#93A39C' }
                         }
-                        title={miss ? `这一环需要「${miss}」，当前无人提供` : undefined}
+                        title={
+                          miss
+                            ? `这一环需要「${miss}」，当前无人提供 —— 在配它的步骤里换零件即可（点槽位卡可见补法）`
+                            : undefined
+                        }
                       >
                         {nameOf(d)}
                       </span>
@@ -1024,14 +1029,20 @@ function Num({ label, value, accent }: { label: string; value: string; accent?: 
 // 小工具
 // ─────────────────────────────────────────────────────────────
 
-/** 补法一行文案：「容器运行时 → Docker 运行时 · 镜像构建 → Jib」。没有补法返回空串 */
+/**
+ * 补法一行文案：「▦ 主题框架 · 运行环境 → 容器运行时 · …」。
+ * 槽位名前面必须带步骤 —— 槽位配在哪一步是找它的唯一入口，
+ * 光说「运行环境」用户在台面上找不到（09-28 反馈）。没有补法返回空串。
+ */
 function remedyText(gap: ArchGap): string {
   if (!gap.remedies?.length) return '';
   const nameOf = (dimId: string) => dimensions.find((d) => d.id === dimId)?.name ?? dimId;
   return gap.remedies
     .map((r) => {
+      const spec = STEP_BY_ID.get(stepOfDim(r.dim) ?? 'layers');
       const opt = dimensions.find((d) => d.id === r.dim)?.options.find((o) => o.id === r.option);
-      return opt ? `${nameOf(r.dim)} → ${opt.name}` : nameOf(r.dim);
+      const head = spec ? `${spec.name} · ${nameOf(r.dim)}` : nameOf(r.dim);
+      return opt ? `${head} → ${opt.name}` : head;
     })
     .join(' · ');
 }

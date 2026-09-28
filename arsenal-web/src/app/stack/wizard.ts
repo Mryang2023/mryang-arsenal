@@ -257,6 +257,31 @@ export function flowFilled(flow: FlowSpec, picks: Record<string, string>): { fil
   return { filled, total };
 }
 
+/**
+ * 维度 → 它在六步向导的哪一步表态。
+ *
+ * 「补法说去哪个槽位」必须连步骤一起说 —— 只说「运行环境」，
+ * 用户在 ④ 的主请求流台面上找不到它（它按组配在 ③，泳道在交付运行流），
+ * 就会得出「步骤里没有这个东西」的结论（09-28 真实反馈）。
+ * 归属规则与 ③/⑤ 的分区判定同源，不另立一套。
+ */
+export function stepOfDim(dimId: string): StepId | null {
+  const dim = dimensions.find((d) => d.id === dimId);
+  if (!dim) return null;
+  if (dim.groupId === 'base') return 'base';
+  if (dim.groupId === 'topology') return 'topology';
+  if (isThemeDim(dimId)) return 'theme';
+  return 'layers';
+}
+
+/**
+ * 泳道 → 归哪条流水线视图（不含「全部流水线」兜底 —— 拿不到具体流就是拿不到）。
+ * 「定位到某槽位」前先切对流水线，否则格子根本不在台面上。
+ */
+export function flowOfLane(laneId: string): FlowSpec | null {
+  return FLOWS.find((f) => f.id !== 'all' && f.laneIds.includes(laneId)) ?? null;
+}
+
 // ─────────────────────────────────────────────────────────────
 // 项目名与形态的持久化
 //

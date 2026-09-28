@@ -2,6 +2,7 @@
 
 import type { ArchGap } from '@/lib/arch';
 import { dimensions } from '@/lib/stack';
+import { STEP_BY_ID, stepOfDim } from './wizard';
 import { TONE } from './palette';
 
 /**
@@ -94,23 +95,38 @@ export default function GapCard({
             </ul>
           ) : null}
 
-          {/* 能力缺口的补法：去哪个槽位、选什么。与「定位到」不同 ——
-              「定位到」回的是谁在要这块能力，这里去的是能补上的那个槽位。 */}
+          {/* 能力缺口的补法：哪个步骤、哪个槽位、选什么。与「定位到」不同 ——
+              「定位到」回的是谁在要这块能力，这里去的是能补上的那个槽位。
+              步骤必须写出来：只说槽位名，用户在台面的当前流水线里找不到它
+              （「运行环境」配在 ③、泳道在交付运行流），会以为步骤里没这个东西。 */}
           {gap.unmetCap && (
             <div className="mt-2">
               <p className="mono text-[10px] uppercase tracking-wider" style={{ color: t.color }}>
                 怎么补
+                <span className="ml-1.5 normal-case tracking-normal text-fgFaint">
+                  点「去补」直达 ④ 台面该槽位
+                </span>
               </p>
               {gap.remedies?.length ? (
                 <ul className="mt-1 space-y-1">
                   {gap.remedies.slice(0, 3).map((r) => {
                     const d = dimensions.find((x) => x.id === r.dim);
                     const opt = d?.options.find((o) => o.id === r.option);
+                    const s = stepOfDim(r.dim);
+                    const spec = s ? STEP_BY_ID.get(s) : null;
                     return (
                       <li
                         key={r.dim}
                         className="flex flex-wrap items-baseline gap-x-1.5 text-[10px] leading-[16px]"
                       >
+                        {spec && (
+                          <span
+                            className="mono rounded-sm border border-line px-1 text-[10px] leading-[15px] text-fgFaint"
+                            title={`「${d?.name ?? r.dim}」这一槽位配在「${spec.name}」这一步`}
+                          >
+                            {spec.glyph} {spec.name}
+                          </span>
+                        )}
                         <span className="text-fgMuted">{d?.name ?? r.dim}</span>
                         {opt && <span style={{ color: '#7FA650' }}>→ {opt.name}</span>}
                         {onFocus && (
@@ -118,7 +134,7 @@ export default function GapCard({
                             type="button"
                             onClick={() => onFocus(r.dim)}
                             className="mono ml-auto rounded-sm border border-line px-1 text-[10px] leading-[15px] text-fgFaint transition-colors hover:border-lineHi hover:text-fg"
-                            title={`跳到「${d?.name ?? r.dim}」选零件`}
+                            title={`跳到 ④ 台面「${d?.name ?? r.dim}」槽位选零件（自动切到它所在的流水线）`}
                           >
                             去补 ↑
                           </button>

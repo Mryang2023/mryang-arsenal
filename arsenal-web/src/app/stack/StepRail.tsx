@@ -16,6 +16,7 @@ export default function StepRail({
   step,
   onStep,
   summary,
+  issues,
   canAdvance,
   blockedHint,
 }: {
@@ -23,6 +24,12 @@ export default function StepRail({
   onStep: (id: StepId) => void;
   /** 每格的进度短标签；空串表示这一步没有可数的进度 */
   summary: Record<StepId, string>;
+  /**
+   * 每步卷进「跑不起来」的问题清单（标题列表）—— 步骤名旁标红数。
+   * 「跑不起来」发生在哪一步配置的槽位上，步骤条就得先说出来；
+   * 让用户点进 ⑥ 交付才第一次见到结论，是导航失职（09-28 反馈）。
+   */
+  issues?: Partial<Record<StepId, string[]>>;
   /** 为 false 时「下一步」禁用，并在下方写明为什么 —— 静默禁用等于按钮坏了 */
   canAdvance: boolean;
   blockedHint?: string;
@@ -36,6 +43,7 @@ export default function StepRail({
       <ol className="flex flex-wrap items-stretch gap-x-1 gap-y-1.5 px-3 py-2.5">
         {STEPS.map((s, i) => {
           const on = s.id === step;
+          const stepIssues = issues?.[s.id] ?? [];
           return (
             <li key={s.id} className="flex items-center">
               {i > 0 && (
@@ -51,7 +59,7 @@ export default function StepRail({
                 data-step={s.id}
                 aria-current={on ? 'step' : undefined}
                 onClick={() => onStep(s.id)}
-                title={s.question}
+                title={stepIssues.length ? `${s.question}\n\n这一步有问题：\n· ${stepIssues.join('\n· ')}` : s.question}
                 className="flex items-center gap-1.5 rounded-md border px-2 py-1 text-[11px] transition-colors"
                 style={{
                   borderColor: on ? 'rgba(217,164,65,0.6)' : '#243029',
@@ -65,6 +73,15 @@ export default function StepRail({
                 {summary[s.id] && (
                   <span className="mono text-[10px] leading-none text-fgFaint">
                     {summary[s.id]}
+                  </span>
+                )}
+                {stepIssues.length > 0 && (
+                  <span
+                    className="mono rounded-sm px-1 text-[10px] leading-[15px]"
+                    style={{ color: '#E5484D', background: 'rgba(229,72,77,0.14)' }}
+                    title={stepIssues.join('；')}
+                  >
+                    {stepIssues.length}
                   </span>
                 )}
               </button>

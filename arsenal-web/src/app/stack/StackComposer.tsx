@@ -7,6 +7,7 @@ import CopyButton from '@/components/CopyButton';
 import {
   arch,
   auditArchitecture,
+  capLabel,
   nodeArch,
   skeletonPicks,
   slotsOfLane,
@@ -72,14 +73,17 @@ import { TONE } from './palette';
 import StepRail from './StepRail';
 import {
   DEFAULT_PROJECT,
+  STEPS,
   STEP_BY_ID,
   THEME_SECTIONS,
   FLOWS,
   FLOW_BY_ID,
   flowFilled,
+  flowOfLane,
   isValidProjectName,
   loadProjectMeta,
   saveProjectMeta,
+  stepOfDim,
   type StepId,
 } from './wizard';
 
@@ -345,6 +349,9 @@ export default function StackComposer() {
   function focusDim(dimId: string) {
     setStep('layers');
     setActiveDim(dimId);
+    // 该槽位可能不在当前流水线视图里 —— 先切对流水线再定位（09-28 反馈）
+    const flowOfDim = flowOfLane(nodeArch[dimId]?.lane ?? '');
+    if (flowOfDim) setBenchFlow(flowOfDim.id);
     requestAnimationFrame(() => {
       benchRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     });
@@ -444,6 +451,64 @@ export default function StackComposer() {
       for (const n of g.nodes) {
         if (!map[n]) map[n] = [];
         if (!map[n].includes(g.title)) map[n].push(g.title);
+      }
+    }
+    return map;
+  }, [audit]);
+
+  /**
+   * 点阵的问题标记 + 问题格索引（09-28 反馈：33 格里看不出哪格坏了、坏在哪步）。
+   * need = 这一格在要一块没人给的能力（或必选未装）；remedy = 这一格能补上缺口。
+   * 两种格子都在点阵上描边、在下方列成可点的文字 —— 10px 色块承担不了全部。
+   */
+  const issueDots = useMemo(() => {
+    const list: { dim: string; label: string; kind: 'need' | 'remedy' }[] = [];
+    const has = (dim: string, kind: string) =>
+      list.some((x) => x.dim === dim && x.kind === kind);
+    for (const b of audit.blockers) {
+      if (b.unmetCap) {
+        const cap = capLabel(b.unmetCap);
+        for (const n of b.nodes) {
+          if (!has(n, 'need')) list.push({ dim: n, label: `要「${cap}」`, kind: 'need' });
+        }
+        for (const r of b.remedies ?? []) {
+          if (!has(r.dim, 'remedy')) list.push({ dim: r.dim, label: `可补「${cap}」`, kind: 'remedy' });
+        }
+      } else if (!has(b.dim, 'need')) {
+        list.push({ dim: b.dim, label: '必选未装', kind: 'need' });
+      }
+    }
+    return list;
+  }, [audit]);
+
+  /** 点阵格描边：need 红 / remedy 橄榄绿（补法是积极动作，不用警示色） */
+  const dotFlags = useMemo(() => {
+    const map: Record<string, 'need' | 'remedy'> = {};
+    for (const d of issueDots) if (!map[d.dim] || map[d.dim] === 'remedy') map[d.dim] = d.kind;
+    return map;
+  }, [issueDots]);
+
+  /** 步骤条的问题角标：这一步要表态的槽位里，有几个卷进了「跑不起来」 */
+  const stepIssues = useMemo(() => {
+    const map: Partial<Record<StepId, string[]>> = {};
+    const push = (s: StepId, t: string) => {
+      const list = map[s] ?? (map[s] = []);
+      if (!list.includes(t)) list.push(t);
+    };
+    for (const b of audit.blockers) {
+      for (const n of b.nodes) {
+        const s = stepOfDim(n);
+        if (s) push(s, b.title);
+      }
+      // 补法所在步骤也标 —— 「去 ③ 补」本身就是那一步的待办
+      if (b.unmetCap) {
+        for (const r of b.remedies ?? []) {
+          const s = stepOfDim(r.dim);
+          if (s) {
+            const dimName = dimensions.find((d) => d.id === r.dim)?.name ?? r.dim;
+            push(s, `补「${capLabel(b.unmetCap)}」→ ${dimName}`);
+          }
+        }
       }
     }
     return map;
@@ -799,6 +864,8 @@ export default function StackComposer() {
         <SlotDotMatrix
           slotStates={audit.slotStates}
           activeDim={activeDim}
+          flags={dotFlags}
+          issueItems={issueDots}
           onSelect={focusDim}
         />
 
@@ -1100,6 +1167,7 @@ export default function StackComposer() {
         step={step}
         onStep={setStep}
         summary={stepSummary}
+        issues={stepIssues}
         canAdvance={nameOk}
         blockedHint={
           nameOk
@@ -1826,10 +1894,16 @@ export default function StackComposer() {
 function SlotDotMatrix({
   slotStates,
   activeDim,
+  flags,
+  issueItems,
   onSelect,
 }: {
   slotStates: Record<string, SlotState>;
   activeDim: string | null;
+  /** 问题格：need = 在要没人给的能力 / 必选未装；remedy = 能补上缺口 */
+  flags: Record<string, 'need' | 'remedy'>;
+  /** 问题格的点名清单（与 flags 同源）：谁、什么问题 */
+  issueItems: { dim: string; label: string; kind: 'need' | 'remedy' }[];
   onSelect: (dimId: string) => void;
 }) {
   const STATE_LABEL: Record<SlotState, string> = {
@@ -1839,44 +1913,113 @@ function SlotDotMatrix({
     'missing-recommended': '建议件未装',
     empty: '可选未装',
   };
+  const FLAG_META = {
+    need: { color: TONE.bad.color, label: '有问题' },
+    remedy: { color: '#7FA650', label: '可补' },
+  } as const;
+  const flagged = (Object.keys(flags) as string[]).filter((d) => flags[d]);
   return (
-    <div className="flex items-center gap-2">
-      <span className="mono shrink-0 text-[10px] uppercase leading-[15px] tracking-wider text-fgFaint">
-        {dimensions.length} 格
-      </span>
-      <div className="flex max-w-[272px] flex-wrap items-center gap-[3px]">
-        {dimensions.map((d) => {
-          const st = slotStates[d.id] ?? 'empty';
-          const t =
-            st === 'missing-required' ? TONE.bad
-              : st === 'conflict' ? TONE.warn
-                : st === 'filled' ? TONE.ok
-                  : TONE.idle;
-          const dashed = st !== 'filled' && st !== 'conflict';
-          return (
-            <button
-              key={d.id}
-              type="button"
-              data-dim={d.id}
-              data-state={st}
-              onClick={() => onSelect(d.id)}
-              title={`${d.name} · ${STATE_LABEL[st]}（点击直达该槽位）`}
-              aria-label={`${d.name}：${STATE_LABEL[st]}`}
-              className={
-                'h-[10px] w-[10px] rounded-sm border transition-transform hover:scale-125 ' +
-                (activeDim === d.id ? 'ring-1 ring-brass ring-offset-1 ring-offset-transparent' : '')
-              }
-              style={{
-                borderColor: t.border,
-                borderStyle: dashed ? 'dashed' : 'solid',
-                background: t.soft,
-              }}
-            />
-          );
-        })}
+    <div className="flex min-w-0 flex-col gap-1.5">
+      <div className="flex items-center gap-2">
+        <span className="mono shrink-0 text-[10px] uppercase leading-[15px] tracking-wider text-fgFaint">
+          {dimensions.length} 格
+        </span>
+        <div className="flex max-w-[272px] flex-wrap items-center gap-[3px]">
+          {dimensions.map((d) => {
+            const st = slotStates[d.id] ?? 'empty';
+            const t =
+              st === 'missing-required' ? TONE.bad
+                : st === 'conflict' ? TONE.warn
+                  : st === 'filled' ? TONE.ok
+                    : TONE.idle;
+            const dashed = st !== 'filled' && st !== 'conflict';
+            const flag = flags[d.id];
+            return (
+              <button
+                key={d.id}
+                type="button"
+                data-dim={d.id}
+                data-state={st}
+                onClick={() => onSelect(d.id)}
+                title={
+                  flag
+                    ? `${d.name} · ${FLAG_META[flag].label}（点击直达该槽位）`
+                    : `${d.name} · ${STATE_LABEL[st]}（点击直达该槽位）`
+                }
+                aria-label={`${d.name}：${flag ? FLAG_META[flag].label : STATE_LABEL[st]}`}
+                className={
+                  'h-[10px] w-[10px] rounded-sm border transition-transform hover:scale-125 ' +
+                  (activeDim === d.id ? 'ring-1 ring-brass ring-offset-1 ring-offset-transparent' : '')
+                }
+                style={{
+                  borderColor: flag ? FLAG_META[flag].color : t.border,
+                  borderStyle: flag || !dashed ? 'solid' : 'dashed',
+                  borderWidth: flag ? 2 : 1,
+                  background: t.soft,
+                  boxShadow: flag ? `0 0 0 1px ${FLAG_META[flag].color}55` : undefined,
+                }}
+              />
+            );
+          })}
+        </div>
+        {flagged.length > 0 && (
+          <span className="mono shrink-0 text-[10px] leading-[15px] text-fgFaint">
+            描边 = 有问题
+          </span>
+        )}
       </div>
+
+      {/* 问题格文字索引：10px 色块说不清「这是哪格、坏在哪一步」，列出来直接点名。
+          点击 = 定位到 ④ 台面该槽位（会自动切到它所在的流水线视图）。 */}
+      {flagged.length > 0 && (
+        <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+          {issueFlagOrder(flags).map((dimId) => {
+            const kind = flags[dimId];
+            const dim = dimensions.find((d) => d.id === dimId);
+            const step = stepOfDim(dimId);
+            const stepSpec = step ? STEP_BY_ID.get(step) : null;
+            const items = issueItems.filter((x: { dim: string }) => x.dim === dimId);
+            const label = items.map((x) => x.label).join('、') || FLAG_META[kind].label;
+            return (
+              <button
+                key={dimId}
+                type="button"
+                onClick={() => onSelect(dimId)}
+                className="flex items-baseline gap-1 rounded-sm border px-1.5 py-0.5 text-[10px] leading-[15px] transition-colors hover:brightness-125"
+                style={{
+                  borderColor: kind === 'need' ? TONE.bad.border : 'rgba(127,166,80,0.5)',
+                  background: kind === 'need' ? TONE.bad.soft : 'rgba(127,166,80,0.10)',
+                  color: kind === 'need' ? TONE.bad.color : '#7FA650',
+                }}
+                title={`${dim?.name ?? dimId}（${stepSpec ? `第 ${STEPS_ORDINAL(step!)} 步 · ${stepSpec.name} 配` : '④ 台面'}）→ 点击直达台面`}
+              >
+                <span className="font-medium">{dim?.name ?? dimId}</span>
+                <span className="text-fgMuted">{label}</span>
+                {stepSpec && (
+                  <span className="mono text-fgFaint">
+                    {stepSpec.glyph} {stepSpec.name}
+                  </span>
+                )}
+              </button>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
+}
+
+/** 问题格在索引里的展示顺序：need（红）在前，remedy（绿）在后；同色按维度序 */
+function issueFlagOrder(flags: Record<string, 'need' | 'remedy'>): string[] {
+  return Object.keys(flags).sort((a, b) => {
+    if (flags[a] !== flags[b]) return flags[a] === 'need' ? -1 : 1;
+    return a.localeCompare(b);
+  });
+}
+
+function STEPS_ORDINAL(stepId: StepId): number {
+  // 序号出处是 wizard.STEPS，不在这里另抄一份顺序
+  return STEPS.findIndex((s) => s.id === stepId) + 1;
 }
 
 function findOption(dimId: string, optId: string) {
