@@ -21,6 +21,7 @@ export default function DeliveryStep({
   audit,
   composed,
   baseId,
+  projectName,
   onParam,
   focusTab,
   onFocusConsumed,
@@ -30,6 +31,7 @@ export default function DeliveryStep({
   audit: ArchAudit;
   composed: ComposedStack;
   baseId: string;
+  projectName?: string;
   onParam: (key: string, value: number) => void;
   focusTab: 'arch' | null;
   onFocusConsumed: () => void;
@@ -44,6 +46,7 @@ export default function DeliveryStep({
           audit={audit}
           composed={composed}
           baseId={baseId}
+          projectName={projectName}
           onParam={onParam}
           focusTab={focusTab}
           onFocusConsumed={onFocusConsumed}

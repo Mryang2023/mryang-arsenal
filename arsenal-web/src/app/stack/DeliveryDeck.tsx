@@ -17,10 +17,11 @@ import { buildArchDiagram, archDiagramMermaid, toResponsiveSvg } from '@/lib/arc
 import { dimensions } from '@/lib/stack';
 import {
   buildExportPlan,
-  filterTree,
+  exportTreeNodes,
   formatBytes,
   projectDoc,
   treeStats,
+  type ExportPlan,
   type TreeNode,
 } from '@/lib/project';
 import { buildDeployPlan } from '@/lib/deploy';
@@ -77,6 +78,7 @@ export default function DeliveryDeck({
   audit,
   composed,
   baseId,
+  projectName,
   onParam,
   focusTab,
   onFocusConsumed,
@@ -87,6 +89,8 @@ export default function DeliveryDeck({
   composed: ComposedStack;
   /** 技术栈基底 id —— 决定这里导出的 pom parent / gradle 插件版本 */
   baseId: string;
+  /** 项目名 —— 目录树根与产物里的 artifactId 都跟着它（缺省回落事实源 artifactId） */
+  projectName?: string;
   onParam: (key: string, value: number) => void;
   /**
    * 外部请求切到的页签（S2-7：产物区的架构图/隐患页签砍掉后，
@@ -115,7 +119,10 @@ export default function DeliveryDeck({
     () => buildTechArch(picks, emptyEdits(), { controlPlane, topology: topo }),
     [picks, controlPlane, topo]
   );
-  const exportPlan = useMemo(() => buildExportPlan(picks, audit, baseId), [picks, audit, baseId]);
+  const exportPlan = useMemo(
+    () => buildExportPlan(picks, audit, baseId, projectName),
+    [picks, audit, baseId, projectName]
+  );
   const deployFiles = useMemo(
     () => buildDeployPlan(picks, composed, { appName: projectDoc.artifactId, meta }),
     [picks, composed, meta]
@@ -309,7 +316,7 @@ export default function DeliveryDeck({
         )}
 
         {tab === 'flow' && <FlowBlock picks={picks} audit={audit} />}
-        {tab === 'tree' && <TreeBlock picks={picks} />}
+        {tab === 'tree' && <TreeBlock plan={exportPlan} rootName={projectName ?? projectDoc.artifactId} />}
 
         {tab === 'manifest' && (
           <ManifestBlock files={deployFiles} onNote={setNote} />
@@ -784,25 +791,25 @@ function FlowBlock({ picks, audit }: { picks: StackPicks; audit: ArchAudit }) {
   );
 }
 
-function TreeBlock({ picks }: { picks: StackPicks }) {
-  // `projectDoc.tree` 是**一个**根节点；`filterTree()` 收的是节点数组。
-  // 写 `filterTree(projectDoc.tree as TreeNode[], picks)` 编译期能过，
-  // 运行期会按字符串遍历对象的属性 —— 那是一条只在页面上表现为「目录树空着」的错。
-  const tree = useMemo(() => filterTree(projectDoc.tree.children ?? [], picks), [picks]);
-  const stats = useMemo(() => treeStats(tree, projectDoc.tree.name), [tree]);
+function TreeBlock({ plan, rootName }: { plan: ExportPlan; rootName: string }) {
+  // 09-28 十反馈（货不对版）：树从导出清单合成 —— zip 里有什么，这里画什么。
+  // 过去吃静态满配树按 when 过滤，业务示例文件（common/user/job…）永远不会
+  // 被生成却一直画在树上，解包一对就穿帮。
+  const tree = useMemo(() => exportTreeNodes(plan.files, rootName), [plan, rootName]);
+  const stats = useMemo(() => treeStats(tree.children ?? [], tree.name), [tree]);
 
   return (
     <div>
       <p className="mb-1.5 text-[10px] leading-[15px] text-fgFaint">
-        这套组合会落地 {stats.files} 个文件（Java {stats.java} / 资源 {stats.resources} / 测试{' '}
-        {stats.test}），分布在 {stats.dirs} 个目录里。带条件的目录只在你真的装了对应零件时才出现 ——
-        它不是一份固定模板。
+        这套组合会导出 {stats.files} 个文件（Java {stats.java} / 资源 {stats.resources} / 测试{' '}
+        {stats.test}），分布在 {stats.dirs} 个目录里。这棵树与交付包**逐文件一致** ——
+        图上有的包里就有，包里有的图上才画。
       </p>
       <p className="mono mb-1 text-[10px] text-fg">
-        {projectDoc.tree.name}
-        <span className="ml-2 text-fgFaint">{projectDoc.tree.desc}</span>
+        {tree.name}
+        <span className="ml-2 text-fgFaint">目录树 = 导出包实际内容</span>
       </p>
-      <ul className="space-y-0.5">{renderTree(tree, 0)}</ul>
+      <ul className="space-y-0.5">{renderTree(tree.children ?? [], 0)}</ul>
     </div>
   );
 }

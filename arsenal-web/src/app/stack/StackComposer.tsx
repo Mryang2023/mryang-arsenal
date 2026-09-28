@@ -814,6 +814,7 @@ export default function StackComposer() {
               audit={audit}
               composed={composed}
               baseId={baseId}
+              projectName={projectName}
               onParam={setParam}
               focusTab={deckFocus}
               onFocusConsumed={() => setDeckFocus(null)}

@@ -1,5 +1,5 @@
 import projRaw from '@/generated/project.json';
-import { capLabel, STATUS_META, type ArchAudit, type ArchGap, type GapRemedy } from './arch';
+import { auditArchitecture, capLabel, STATUS_META, type ArchAudit, type ArchGap, type GapRemedy } from './arch';
 import type { ComposedStack, StackPicks } from './content-types';
 import { bootVersionOf, composeStack, dimensionById, dimensions, renderPom, renderYaml } from './stack';
 import { buildArchDiagram, archDiagramD2, archDiagramMermaid } from './arch-diagram';
@@ -173,35 +173,161 @@ export function treeStats(nodes: TreeNode[], prefix = ''): TreeStats {
   return stats;
 }
 
+// ─────────────────────────────────────────────────────────────
+// 目录树：从导出清单合成 —— zip 里有什么，树里画什么
+// ─────────────────────────────────────────────────────────────
+
+/**
+ * 09-28 十反馈（货不对版）之后的新口径：
+ *
+ * 事实源 project.json 的 tree 是一份**静态满配蓝图**（common/user/job/security
+ * 等业务示例文件永远画在上面）。过去 README 的目录树按 when 过滤这份蓝图 ——
+ * 但过滤条件再准，也过滤不掉「永远不会被生成的文件」：业务六件套从来不在
+ * buildExportPlan 的产出里，树里却一直画着，用户解包一对就穿帮。
+ *
+ * 现在树只有一个来源：**导出清单本身**。清单里的路径逐个拆进层级，说明文字
+ * 优先复用事实源里同路径节点的 desc（那些文案是资产，不浪费）；清单里没有
+ * 的路径，一步都不会出现在树里 —— 树与 zip 不可能再分叉。
+ */
+
+/** 收集事实源静态树的「相对路径 → 说明」映射（跳过根节点本身）。
+ *  静态树的目录名带尾斜杠（'src/'），拼路径前先去掉，否则键是 src//main 这种。 */
+function collectTreeDescs(node: TreeNode, prefix = '', map = new Map<string, string>()): Map<string, string> {
+  for (const c of node.children ?? []) {
+    const clean = c.name.replace(/\/$/, '');
+    const here = prefix ? `${prefix}/${clean}` : clean;
+    if (c.kind === 'file' && c.desc) map.set(here, c.desc);
+    if (c.kind === 'dir') collectTreeDescs(c, here, map);
+  }
+  return map;
+}
+
+type PathTree = Map<string, PathTree | { desc?: string }>;
+
+/**
+ * 从文件路径清单合成目录树。
+ *
+ * 排序确定性：同层先目录后文件，各自按名排序 —— 同一份清单永远渲染出
+ * 同一棵树。空目录不可能出现：目录只在有文件落进来时才存在。
+ */
+export function treeFromFiles(
+  files: { path: string; desc?: string }[],
+  rootName: string
+): TreeNode {
+  const descs = collectTreeDescs(projectDoc.tree);
+
+  const rootMap: PathTree = new Map();
+  for (const f of [...files].sort((a, b) => a.path.localeCompare(b.path))) {
+    const parts = f.path.split('/');
+    let cur: PathTree = rootMap;
+    for (let i = 0; i < parts.length - 1; i++) {
+      const seg = parts[i];
+      const next = cur.get(seg);
+      if (!next) {
+        const dir: PathTree = new Map();
+        cur.set(seg, dir);
+        cur = dir;
+      } else if (next instanceof Map) {
+        cur = next;
+      } else {
+        throw new Error(`路径冲突：${f.path} 既是文件又是目录`);
+      }
+    }
+    const leaf = parts[parts.length - 1];
+    if (cur.has(leaf)) throw new Error(`路径冲突：${f.path} 重复`);
+    cur.set(leaf, { desc: f.desc });
+  }
+
+  const toNodes = (map: PathTree, prefix: string): TreeNode[] => {
+    const dirs: TreeNode[] = [];
+    const fileNodes: TreeNode[] = [];
+    for (const [name, val] of map) {
+      const here = prefix ? `${prefix}/${name}` : name;
+      if (val instanceof Map) {
+        // 结构树约定：目录名以 / 结尾（渲染与断言都按这个口径拼路径）
+        dirs.push({ name: `${name}/`, desc: '', kind: 'dir', children: toNodes(val, here) });
+      } else {
+        fileNodes.push({
+          name,
+          desc: val.desc ?? descs.get(here) ?? '',
+          kind: 'file',
+        });
+      }
+    }
+    const byName = (a: TreeNode, b: TreeNode) => a.name.localeCompare(b.name);
+    dirs.sort(byName);
+    fileNodes.sort(byName);
+    return [...dirs, ...fileNodes];
+  };
+
+  return { name: rootName, desc: '', kind: 'dir', children: toNodes(rootMap, '') };
+}
+
 /**
  * 渲染成等宽文本树，供 README 使用。
  *
  * 同一层的说明文字按最长名字对齐 —— 不对齐的树在等宽字体里看着像一团麻，
  * 而这份树是要被贴进 README、发给别人看的。
  */
-export function renderTreeText(picks: StackPicks, maxDesc = 58): string {
-  const root = projectDoc.tree;
+export function renderTreeNodesText(root: TreeNode, maxDesc = 58): string {
   const lines: string[] = [root.name];
 
   const clip = (s: string) => (s.length > maxDesc ? `${s.slice(0, maxDesc - 1)}…` : s);
 
   const walk = (nodes: TreeNode[], prefix: string) => {
-    const visible = nodes;
-    const width = visible.reduce((w, n) => Math.max(w, displayWidth(n.name)), 0);
-    visible.forEach((n, i) => {
-      const last = i === visible.length - 1;
+    const width = nodes.reduce((w, n) => Math.max(w, displayWidth(n.name)), 0);
+    nodes.forEach((n, i) => {
+      const last = i === nodes.length - 1;
       const branch = last ? '└── ' : '├── ';
       const gap = ' '.repeat(Math.max(1, width - displayWidth(n.name) + 2));
       const desc = n.desc ? `${gap}${clip(n.desc)}` : '';
       lines.push(`${prefix}${branch}${n.name}${desc}`);
       if (n.kind === 'dir') {
-        walk(filterTree(n.children ?? [], picks), `${prefix}${last ? '    ' : '│   '}`);
+        walk(n.children ?? [], `${prefix}${last ? '    ' : '│   '}`);
       }
     });
   };
 
-  walk(filterTree(root.children ?? [], picks), '');
+  walk(root.children ?? [], '');
   return lines.join('\n');
+}
+
+/** 导出清单 → 树条目：空内容的文件标「占位文件」，README 固定一句自述。
+ *  清单里已有 README（plan.files）就不重复补 —— 两种调用形态都成立。 */
+function treeEntriesOf(files: { path: string; content?: string }[], readmeDesc: string) {
+  const entries = files.map((f) => ({
+    path: f.path,
+    desc: f.path === 'README.md' ? readmeDesc : f.content ? undefined : '占位文件',
+  }));
+  if (!entries.some((e) => e.path === 'README.md')) {
+    entries.unshift({ path: 'README.md', desc: readmeDesc });
+  }
+  return entries;
+}
+
+/**
+ * 导出包的目录树 —— README 与 ⑦ 交付台面**共用这一个函数**。
+ * zip 里有什么，树里就画什么；两边要分叉只能是一起分叉。
+ */
+export function exportTreeNodes(
+  files: { path: string; content?: string }[],
+  projectName?: string
+): TreeNode {
+  const name = (projectName ?? '').trim() || projectDoc.artifactId;
+  return treeFromFiles(
+    treeEntriesOf(files, '这份 README 由装配台生成：选型表 + 目录结构 + 启动步骤 + 隐患清单'),
+    `${name}/`
+  );
+}
+
+/**
+ * 兼容壳（verify 的【2】层按 picks 断言树内容用）：
+ * 内部走与 buildExportPlan 完全相同的清单合成 —— 树 = zip，不是第二套口径。
+ */
+export function renderTreeText(picks: StackPicks, maxDesc = 58): string {
+  const files = collectExportFiles(picks, auditArchitecture(picks));
+  const root = exportTreeNodes(files);
+  return renderTreeNodesText(root, maxDesc);
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -700,12 +826,17 @@ function archSummaryMarkdown(audit: ArchAudit): string {
  * arsenal-demo」的工程 —— 两边都不报错，但那是两套名字在打架。
  * 不传就回落事实源的默认 artifactId（内部调用与后端导出都还走这条）。
  */
-export function buildExportPlan(
+/**
+ * 导出包的文件全集（不含 README 自身）—— 树、交付清单、zip 三方共同的事实源。
+ * 09-28 十反馈起 README 目录树也从这份清单合成：清单里没有的文件，树里就不会出现。
+ * audit 只影响文档类文件的**内容**，不影响「有哪些文件」。
+ */
+export function collectExportFiles(
   picks: StackPicks,
   audit: ArchAudit,
   baseId?: string,
   projectName?: string
-): ExportPlan {
+): ExportFile[] {
   const composed = composeStack(picks);
   const files: ExportFile[] = [];
   const isGradle = picks.build === 'gradle';
@@ -830,17 +961,41 @@ export function buildExportPlan(
     group: '文档',
   });
 
-  const treeText = renderTreeText(picks);
+  return files;
+}
+
+export function buildExportPlan(
+  picks: StackPicks,
+  audit: ArchAudit,
+  baseId?: string,
+  projectName?: string
+): ExportPlan {
+  const isGradle = picks.build === 'gradle';
+  const name = (projectName ?? '').trim() || projectDoc.artifactId;
+
+  // 路径唯一性：重名文件在 zip 里会互相覆盖，而且不会有任何报错。
+  // 去重必须发生在 README 渲染之前 —— 目录树吃的就是这份去重后的清单。
+  const files = collectExportFiles(picks, audit, baseId, projectName);
+  const seen = new Set<string>();
+  const unique = files.filter((f) => {
+    if (seen.has(f.path)) return false;
+    seen.add(f.path);
+    return true;
+  });
+
+  // 目录树从导出清单合成（09-28 十反馈「货不对版」）：
+  // README 里画的 = zip 里装的，两边要分叉只能一起分叉。
+  const treeText = renderTreeNodesText(exportTreeNodes(unique, projectName));
   const startBlock = isGradle
     ? projectDoc.files.readmeStartGradle
     : projectDoc.files.readmeStartMaven;
-  const dangling = findDanglingRefs(files);
+  const dangling = findDanglingRefs(unique);
 
   // 交付清单里必须包含 README 自己 —— 清单是在 README 生成之前算出来的，
   // 不显式插进去就会出现「清单里没有 README」这种低级但一眼可见的漏洞。
   const fileList = [
     { path: 'README.md', lines: 0, self: true },
-    ...files.map((f) => ({
+    ...unique.map((f) => ({
       path: f.path,
       lines: f.content ? f.content.split('\n').length : 0,
       self: false,
@@ -874,15 +1029,7 @@ export function buildExportPlan(
     .replace('__DANGLING__', danglingBlock)
     .replace('__FILES__', fileList);
 
-  files.unshift({ path: 'README.md', content: readme, group: '文档' });
-
-  // 路径唯一性：重名文件在 zip 里会互相覆盖，而且不会有任何报错
-  const seen = new Set<string>();
-  const unique = files.filter((f) => {
-    if (seen.has(f.path)) return false;
-    seen.add(f.path);
-    return true;
-  });
+  unique.unshift({ path: 'README.md', content: readme, group: '文档' });
 
   return {
     files: unique,

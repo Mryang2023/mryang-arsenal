@@ -18,7 +18,7 @@ import path from 'node:path';
 import url from 'node:url';
 import { auditArchitecture, arch } from '@/lib/arch';
 import { defaultPicks, dimensions, presetPicks, presets } from '@/lib/stack';
-import { filterTree, buildExportPlan, projectDoc, renderAppClass, renderTreeText } from '@/lib/project';
+import { buildExportPlan, projectDoc, renderAppClass, renderTreeText, treeFromFiles, type TreeNode } from '@/lib/project';
 import { buildArchDiagram, archDiagramD2, archDiagramMermaid } from '@/lib/arch-diagram';
 import type { StackPicks } from '@/lib/content-types';
 import { buildZip } from '@/lib/zip';
@@ -149,7 +149,8 @@ check(
   pathsOf(mybatis).includes('src/main/resources/db/migration/V1__init.sql')
 );
 
-check('migration=none → 出现 schema.sql', treeOf(jdbcNoMig).includes('schema.sql'));
+check('migration=none → 树里没有迁移痕迹（不画不会生成的东西）',
+  !treeOf(jdbcNoMig).includes('migration/') && !treeOf(jdbcNoMig).includes('schema.sql'));
 check('migration=none → 没有 db/migration/', !treeOf(jdbcNoMig).includes('migration/'));
 check(
   'migration=none → 导出里没有迁移脚本',
@@ -177,10 +178,14 @@ check('scheduler=xxljob → XxlJobConfig 落位', treeOf({ ...defaultPicks, sche
 check('scheduler=xxljob → 没有 SchedulerConfig', !treeOf({ ...defaultPicks, scheduler: 'xxljob' }).includes('SchedulerConfig'));
 check('apidoc=none → 没有 OpenApiConfig', !treeOf({ ...defaultPicks, apidoc: 'none' }).includes('OpenApiConfig'));
 
-// 空目录不能出现在图里
+// 空目录不能出现在树里。树已改为**从导出清单合成**（09-28 十反馈「货不对版」）：
+// 目录只在有文件落进来时才存在，按构造不可能为空 —— 这条断言留作防御。
 const cacheOnlyNone: StackPicks = { ...defaultPicks, cache: 'none', apidoc: 'none' };
-const visible = filterTree(projectDoc.tree.children ?? [], cacheOnlyNone);
-function hasEmptyDir(nodes: typeof visible): boolean {
+const visible = treeFromFiles(
+  [{ path: 'docs/risk-report.md' }, { path: 'deploy/Dockerfile' }, { path: 'pom.xml' }],
+  'x/'
+).children ?? [];
+function hasEmptyDir(nodes: TreeNode[]): boolean {
   for (const n of nodes) {
     if (n.kind === 'dir') {
       if (!n.children?.length) return true;
@@ -189,7 +194,7 @@ function hasEmptyDir(nodes: typeof visible): boolean {
   }
   return false;
 }
-check('过滤后的树里没有空目录', !hasEmptyDir(visible));
+check('合成树里没有空目录', !hasEmptyDir(visible));
 check('过滤后 config/ 仍在（基础配置类还在）', treeOf(cacheOnlyNone).includes('config/'));
 
 // ═══════════════════════════════════════════════════════════════
@@ -754,7 +759,7 @@ console.log('\n【12】交付与运行清单');
 {
   // 目录名以 / 结尾（这是结构树的约定），拼路径时要先把斜杠去掉 ——
   // 否则会得到 deploy//Dockerfile，看起来像两边不一致，其实是我自己拼错了
-  const flat = (nodes: ReturnType<typeof filterTree>, prefix: string, out: string[]) => {
+  const flat = (nodes: TreeNode[], prefix: string, out: string[]) => {
     for (const n of nodes) {
       const here = prefix ? `${prefix}/${n.name}` : n.name;
       if (n.kind === 'dir') flat(n.children ?? [], here.replace(/\/$/, ''), out);
@@ -771,18 +776,22 @@ console.log('\n【12】交付与运行清单');
     const audit = auditArchitecture(picks);
     const plan = buildExportPlan(picks, audit);
 
-    const inTree = flat(filterTree(projectDoc.tree.children ?? [], picks), '', [])
-      .filter((p) => p.startsWith('deploy/'))
-      .sort();
-    const inPack = plan.files.map((f) => f.path).filter((p) => p.startsWith('deploy/')).sort();
+    // 09-28 十反馈（货不对版）：树改为从导出清单合成，对照升级到**全量** ——
+    // 过去只对齐 deploy/ 前缀，src 下「树画了但包里没有」的业务示例文件漏网
+    const inTree = flat(
+      treeFromFiles(plan.files.map((f) => ({ path: f.path })), 'x/').children ?? [],
+      '',
+      []
+    ).sort();
+    const inPack = plan.files.map((f) => f.path).sort();
 
     check(
-      `${opt}：结构树画了 ${inTree.length} 个部署文件`,
+      `${opt}：结构树画出 ${inTree.length} 个文件`,
       inTree.length > 0,
-      '结构树里没有 deploy/ —— 交付形态没落进结构层'
+      '结构树里什么都没有 —— 导出清单没落进树'
     );
     check(
-      `${opt}：导出包与结构树逐一对齐`,
+      `${opt}：导出包与结构树逐一对齐（全量）`,
       inTree.join('|') === inPack.join('|'),
       `树有包没有: ${inTree.filter((p) => !inPack.includes(p)).join('、') || '无'}；` +
       `包有树没有: ${inPack.filter((p) => !inTree.includes(p)).join('、') || '无'}`
