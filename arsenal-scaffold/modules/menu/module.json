@@ -1,0 +1,32 @@
+{
+  "id": "menu",
+  "name": "菜单管理",
+  "description": "sys_menu 菜单树：全量树查询、新增、编辑、删除。树构建在 service 层（防环、排序），有子菜单时拒绝删除。",
+  "requires": [],
+  "tables": [
+    "sys_menu"
+  ],
+  "endpoints": 4,
+  "menus": [
+    {
+      "title": "菜单管理",
+      "path": "/system/menus",
+      "permission": "sys:menu:list",
+      "icon": "menu"
+    }
+  ],
+  "backendFiles": [
+    "src/main/java/{{basePackagePath}}/system/menu/domain/SysMenu.java.tpl",
+    "src/main/java/{{basePackagePath}}/system/menu/repository/SysMenuRepository.java.tpl",
+    "src/main/java/{{basePackagePath}}/system/menu/repository/jpa/SysMenuRepositoryJpaImpl.java.tpl",
+    "src/main/java/{{basePackagePath}}/system/menu/repository/mp/mapper/SysMenuMapper.java.tpl",
+    "src/main/java/{{basePackagePath}}/system/menu/repository/mp/SysMenuRepositoryMpImpl.java.tpl",
+    "src/main/java/{{basePackagePath}}/system/menu/service/SysMenuService.java.tpl",
+    "src/main/java/{{basePackagePath}}/system/menu/service/impl/SysMenuServiceImpl.java.tpl",
+    "src/main/java/{{basePackagePath}}/system/menu/controller/SysMenuController.java.tpl",
+    "src/main/java/{{basePackagePath}}/system/menu/dto/MenuSaveRequest.java.tpl",
+    "src/main/java/{{basePackagePath}}/system/menu/dto/MenuUpdateRequest.java.tpl",
+    "src/main/java/{{basePackagePath}}/system/menu/dto/MenuTreeNode.java.tpl"
+  ],
+  "说明": "无模块依赖；生成器裁掉菜单模块时，[SECTION:menu] 种子段一并裁剪，sys_menu 表仍由 V1 建出（role 模块的权限树把查不到的菜单归入未分组）；登录侧菜单树由 auth 模块独立实现（防环口径一致，代码各自持有）。"
+}

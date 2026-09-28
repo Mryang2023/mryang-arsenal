@@ -1,0 +1,47 @@
+{
+  "id": "role",
+  "name": "角色管理",
+  "description": "sys_role 角色与 sys_permission 权限码：分页检索、增改删、角色-权限分配、权限树。内置 ADMIN 角色禁删禁改编码。",
+  "requires": [],
+  "tables": [
+    "sys_role",
+    "sys_permission",
+    "sys_role_permission"
+  ],
+  "endpoints": 7,
+  "menus": [
+    {
+      "title": "角色管理",
+      "path": "/system/roles",
+      "permission": "sys:role:list",
+      "icon": "team"
+    }
+  ],
+  "backendFiles": [
+    "src/main/java/{{basePackagePath}}/system/role/domain/SysRole.java.tpl",
+    "src/main/java/{{basePackagePath}}/system/role/domain/SysPermission.java.tpl",
+    "src/main/java/{{basePackagePath}}/system/role/domain/RolePermissionBinding.java.tpl",
+    "src/main/java/{{basePackagePath}}/system/role/repository/SysRoleRepository.java.tpl",
+    "src/main/java/{{basePackagePath}}/system/role/repository/SysPermissionRepository.java.tpl",
+    "src/main/java/{{basePackagePath}}/system/role/repository/view/MenuLabelView.java.tpl",
+    "src/main/java/{{basePackagePath}}/system/role/repository/jpa/SysRoleRepositoryJpaImpl.java.tpl",
+    "src/main/java/{{basePackagePath}}/system/role/repository/jpa/SysPermissionRepositoryJpaImpl.java.tpl",
+    "src/main/java/{{basePackagePath}}/system/role/repository/mp/mapper/SysRoleMapper.java.tpl",
+    "src/main/java/{{basePackagePath}}/system/role/repository/mp/mapper/SysPermissionMapper.java.tpl",
+    "src/main/java/{{basePackagePath}}/system/role/repository/mp/mapper/RolePermissionBindingMapper.java.tpl",
+    "src/main/java/{{basePackagePath}}/system/role/repository/mp/SysRoleRepositoryMpImpl.java.tpl",
+    "src/main/java/{{basePackagePath}}/system/role/repository/mp/SysPermissionRepositoryMpImpl.java.tpl",
+    "src/main/resources/mapper/SysPermissionMapper.xml.tpl",
+    "src/main/java/{{basePackagePath}}/system/role/service/SysRoleService.java.tpl",
+    "src/main/java/{{basePackagePath}}/system/role/service/impl/SysRoleServiceImpl.java.tpl",
+    "src/main/java/{{basePackagePath}}/system/role/controller/SysRoleController.java.tpl",
+    "src/main/java/{{basePackagePath}}/system/role/controller/SysPermissionController.java.tpl",
+    "src/main/java/{{basePackagePath}}/system/role/dto/RoleCreateRequest.java.tpl",
+    "src/main/java/{{basePackagePath}}/system/role/dto/RoleUpdateRequest.java.tpl",
+    "src/main/java/{{basePackagePath}}/system/role/dto/RoleQuery.java.tpl",
+    "src/main/java/{{basePackagePath}}/system/role/dto/RoleResponse.java.tpl",
+    "src/main/java/{{basePackagePath}}/system/role/dto/RolePermissionAssignRequest.java.tpl",
+    "src/main/java/{{basePackagePath}}/system/role/dto/PermissionTreeNode.java.tpl"
+  ],
+  "说明": "无模块依赖（requires 为空）；权限树按 menu_id 分组（跨 sys_menu 只读连接，菜单写路径仍在 menu 模块）；repository/jpa 与 repository/mp 二选一装配。"
+}

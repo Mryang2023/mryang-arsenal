@@ -1,0 +1,40 @@
+{
+  "id": "user",
+  "name": "用户管理",
+  "description": "sys_user 用户档案：分页检索、新建、编辑、删除、密码重置、角色分配、启停用。内置 admin 账号禁删禁停用。",
+  "requires": [
+    "role"
+  ],
+  "tables": [
+    "sys_user",
+    "sys_user_role"
+  ],
+  "endpoints": 6,
+  "menus": [
+    {
+      "title": "用户管理",
+      "path": "/system/users",
+      "permission": "sys:user:list",
+      "icon": "user"
+    }
+  ],
+  "backendFiles": [
+    "src/main/java/{{basePackagePath}}/system/user/domain/SysUser.java.tpl",
+    "src/main/java/{{basePackagePath}}/system/user/domain/UserRoleBinding.java.tpl",
+    "src/main/java/{{basePackagePath}}/system/user/repository/SysUserRepository.java.tpl",
+    "src/main/java/{{basePackagePath}}/system/user/repository/jpa/SysUserRepositoryJpaImpl.java.tpl",
+    "src/main/java/{{basePackagePath}}/system/user/repository/mp/mapper/SysUserMapper.java.tpl",
+    "src/main/java/{{basePackagePath}}/system/user/repository/mp/mapper/UserRoleBindingMapper.java.tpl",
+    "src/main/java/{{basePackagePath}}/system/user/repository/mp/SysUserRepositoryMpImpl.java.tpl",
+    "src/main/java/{{basePackagePath}}/system/user/service/SysUserService.java.tpl",
+    "src/main/java/{{basePackagePath}}/system/user/service/impl/SysUserServiceImpl.java.tpl",
+    "src/main/java/{{basePackagePath}}/system/user/controller/SysUserController.java.tpl",
+    "src/main/java/{{basePackagePath}}/system/user/dto/UserCreateRequest.java.tpl",
+    "src/main/java/{{basePackagePath}}/system/user/dto/UserUpdateRequest.java.tpl",
+    "src/main/java/{{basePackagePath}}/system/user/dto/UserPasswordResetRequest.java.tpl",
+    "src/main/java/{{basePackagePath}}/system/user/dto/UserRoleAssignRequest.java.tpl",
+    "src/main/java/{{basePackagePath}}/system/user/dto/UserQuery.java.tpl",
+    "src/main/java/{{basePackagePath}}/system/user/dto/UserResponse.java.tpl"
+  ],
+  "说明": "依赖 auth 基础设施（恒装配）与 role 模块（requires 声明）；repository/jpa 与 repository/mp 二选一装配；删除为物理删除，admin 保护在 service 层。"
+}
