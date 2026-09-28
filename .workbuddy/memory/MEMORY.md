@@ -1,17 +1,20 @@
 # 军火库（arsenal）· 长期约定
 
+**宗旨（mryang 2026-09-28 定调）：软件脚手架装配台 —— 用户完成选择后，直接得到切实可用的脚手架项目。** 这是评判装配台一切改动的标尺：交互、断言、口径都服务于「选完 → 下载即跑」；产物必须能跑（对应硬约定 2：不引用包外文件、端口算出来、zip 用 `testzip()` 验）。**导出「所见即所得」**：README/台面目录树从导出清单**合成**（`project.ts` 的 `collectExportFiles` → `exportTreeNodes`），树 = zip 逐文件一致，project-check【12】全量对照守着 —— 往静态蓝图树加「画了但不生成」的节点已无法再骗过 README（09-28 十反馈货不对版，e5c07b2）。
+
 个人代码规范字典 + AI 合规校验平台。三原则：①一份数据三种出口 ②Rule as Data ③写不出 bad/good 示例的不收录。不做：auto-fix、绑某家 AI、规则市场/多租户。上限单人 + 小团队（≤10）。
 > 只留**仍在生效**的约定；过程见 `.workbuddy/memory/YYYY-MM-DD.md`；体检见 `docs/现状体检与开发计划-2026-09-22.md`、`docs/功能缺口清单-2026-09-22.md`；计划见 `docs/开发计划-*/`。
 
 ## 口径
 
 - 后端 `arsenal-server` Spring Boot 3.2.5 + Java 17 : **3011**；前端 `arsenal-web` Next.js 14 + TS + Tailwind : **3010**（`output:'export'` 纯静态）。
-- 事实源全 Git 化：`arsenal-rules/**`（69 条：MUST37/NEVER13/SHOULD18/MAY1）、`arsenal-cookbook/`（1 主线 virtual-thread）、`arsenal-cases/`（8 场景 / 61 切片 / 32 症状 / 175 锚点）、`arsenal-stacks/*.json`、`arsenal-profiles/`、`arsenal-icons/icons.json`。
+- 事实源全 Git 化：`arsenal-rules/**`（69 条：MUST37/NEVER13/SHOULD18/MAY1）、`arsenal-cookbook/`（1 主线 virtual-thread）、`arsenal-cases/`（9 场景 / 67 切片 / 37 症状 / 52 驱动 / 193 锚点）、`arsenal-stacks/*.json`、`arsenal-profiles/`、`arsenal-icons/icons.json`。
 - **案例库三层**：**技术**（`TOPIC`：`intent≥30` / `pickWhen≥2` / `limits≥2` / `references≥2` / `family` / `glyph`）→ **场景**（`when≥30` + `signals≥2` + `notSuitable≥2` + `decision`）→ **方案**（`approach` / `flow` / `files`(highlights≥2) / `checklist≥3` / `pitfalls≥2` / `lab` / `playground`）。路由 `/blueprints` → `/blueprints/[topic]` → `/blueprints/[topic]/[scenario]`（**动态路由，加主线不用改前端**）；`BlueprintView` 只认扁平 `Feature`，由 `cookbook.ts` 的 `toFeature()` 合成。
+- **场景库 L1 是目录页**（09-28 改版）：9 场景按核心挑战分 3 组，唯一维护点 `CASE_GROUPS`（`L1CaseIndex.tsx` 顶部常量），**未归组的新场景自动落「其它场景」，绝不静默消失**；症状检索先搜后显（`SymptomFinder`，默认不铺 37 卡墙）。L2 结果区顶部有 `SliceIndex`（按 `layer` 分层锚点跳 `#slice-<id>`）。注意：L2 静态 HTML 是空壳（`Suspense fallback={null}` + `useSearchParams` 让 CaseBench 推迟到水合后渲染，既有设计非回归）。
 - **L3 实测必须是真的**：`lab.kind=mock-endpoint` → 入口必须有 `HttpServer` + `main`；`kind=thread-local` → 必须有 `ThreadLocal`。⚠️ **pinning 不能做在线实验**（synchronized 里阻塞真 IO 会饿死 carrier，实测挂死），只做代码对照。⚠️ `playground[]` 必须**纯 JDK**：后端 `CaseRunnerService` 直接 javac、**无 classpath**；`files[]` 可以是 Spring 版。
 - `playground[]` = 自包含可运行 main（`{id,label,mainClass,files:[{path,code}],note?}`）。加字段链路安全：`build_cookbook` 无字段白名单、`sync-content.mjs` 透传未知字段。
 - 规则字段名（勿臆造）：`title` / `rationale`（无 `description`）/`bad`/`good`/`check.{regex,ast,llm,manual}`；`check.llm` 是字符串，`check.ast` 是 `{engine,query}`。
-- 选型台 **33 维 / 127 选项 / 6 预设 / 100 能力 / 21 策略 / 7 泳道**；`pipelines` 只有 `data` 一条 3 环。**装配台六步向导**：项目定义 → 技术栈基底 → 主题框架 → 分层装配 → 部署形态 → 交付；模型 `src/app/stack/wizard.ts`、面板 `src/app/stack/steps/`。⚠️ 形态**只预填不约束**（`applyShape` 只有 `presetPicks`，全仓无过滤逻辑）。
+- 选型台 **33 维 / 127 选项 / 6 预设 / 100 能力 / 21 策略 / 7 泳道**；`pipelines` 只有 `data` 一条 3 环。**装配台七步两段向导**（09-28）：软件架构段 ①项目定义 → ②技术栈基底 → ③主题框架 → ④分层装配；交付运行段 ⑤交付与运行 → ⑥部署形态 → ⑦交付。归属三口径（09-28 八反馈定案）：**`RUN_GROUP_IDS={runtime,delivery,ops}` 整组进 ⑤**、**base 组进 ②、topology 组进 ⑥、其余组全量进 ③（19 维，themeDimIds=整组排除法，THEME_GROUP_IDS/isKept/fallback 已删）**；**③ 是全部代码架构维度的唯一选型处，④ 是只读校核台（零归属维度）** —— 卡片无换件/移除入口（SlotBlock 的 chip/×/portal 菜单与 DimDrawer.tsx 已删），点卡片走 `focusDim` 直达归属步骤。`stepOfDim` 是归属唯一出处；**部署形态唯一入口 = ⑥**（TopologyStep 的 `shapeable` 列已装带形态零件）。模型 `src/app/stack/wizard.ts`、面板 `src/app/stack/steps/`。⚠️ 形态**只预填不约束**（`applyShape` 只有 `presetPicks`，全仓无过滤逻辑）。⚠️ project-check 对 SlotBlock 有反向断言（`!onClear && !onSwap`、`!role="button"`、`!createPortal`）—— 往卡片加回任何修改入口都会红，这是故意的。
 - 引擎真实覆盖：**前端 35/69**（正则）、**后端 42/69**（35 正则 + 7 AST）、**LLM 0/43**。非正则层一律 skipped，绝不伪造。入口 `src/lib/engine.ts` 的 `lint(files, rules)`。
 - 设计 token（tailwind.config.ts）：canvas #0B0F0E / surface #131917 / surfaceHi #1A2220 / surfaceMax #212B28 / line #243029 / lineHi #33413A / treeLine #3C4D45；fg #E8F0EC / fgMuted #93A39C / fgFaint #80918A / brass #D9A441 / olive #7FA650。组件类 `.panel` `.mono` `.grid-bg`(34px) `.stack-bench` `.stat-num`。装配台语义色只许 `src/app/stack/palette.ts` 的 TONE 五色。
 
@@ -19,16 +22,18 @@
 
 1. 改内容改 `tools/content/*.py`，**不改 JSON**：`python tools/build-content.py` → 产物 JSON（必须 `newline='\n'`）→ `node arsenal-web/scripts/sync-content.mjs`。规则 `arsenal-rules/**` 手写、不进管道。**加 cookbook 主线**：`COOKBOOK_MODULES`（build-content.py:79）加一行 + 新 `tools/content/<id>.py` + README（漏了静默不生成）。**加 case 场景**：`CASES_MODULES`(:40) 加一行，同。
 2. `composeStack(picks)` 纯函数；空槽位跳过不回退。隐患必须可核对：`trigger` / `symptoms`(≥2) / `impact`；架构结论三档不合并。产物必须能跑：不引用包外文件、端口算出来、zip 用 `testzip()` 验。
+2b. **导出包是开箱即跑的脚手架**（09-28 十反馈定调，mryang 原话「不是正常启动的 springboot 框架」）：`stack_project.py` 的 `SCAFFOLD`（30 条目）产 common 五件 / config 四件 / 认证三件 / user 六件套（按持久层三路分叉）/ logback / schema.sql 等，由 `collectExportFiles` 按 when 过滤并入 files。**树 when 与 SCAFFOLD 变体 when 必须同进同退**（build_project ⑥ 守着：路径双向对齐 + 变体互斥「所有共有维度都相交才算二义」+ 悬空 import + 覆盖对齐）；`projectDoc.scaffold` 若静默丢失，20 个 minimal 锚点断言会红。给 `V()` 写变体时 **when 参数别漏传**（09-28 踩过：漏了恒出，混进不该有的组合）。
 3. **断言写完反着验一次**（注入 → 确认真打中 → 必须红 → 还原 → 必须绿）。**注入前先把文件 `cp` 到 `.verify/tmp/`**，还原用 cp 回来；`git checkout --` 回的是 HEAD，会抹掉本棒未提交的改动（09-26 真丢过）。
 4. 页面契约两处：页签 id ↔ 渲染分支；导航项 ↔ 路由。源码当数据断言（`project-check.ts`，解析前先 `stripComments()`）。加一类文件型事实源要同时改四处：`sync-content.mjs` + 前端 resolver + `project-check.ts` + README 目录树。
 5. **同一文件多处改动必须串行**（并行 Edit 静默丢改、tsc 仍 0 错）。加 prop/state 前 grep 同名声明；状态文案局部变量叫 `statusMeta`。
-6. **改装配台前先 grep `.verify/project-check.ts` 对 `StackComposer.tsx` 的字符串断言**（`stack-bench` / TabId 三处一致 / `onSelect={focusDim}` / `loadSnapshot(` / `loadDrafts` / 目录树字面量 / `hist.record(`≥6）—— 对**源码文本**断言，抽新文件会让断言变红。
+6. **改装配台前先 grep `.verify/project-check.ts` 对 `StackComposer.tsx` 的字符串断言**（`stack-bench` / TabId 三处一致 / `onSelect={focusDim}` / `loadSnapshot(` / `loadDrafts` / 目录树字面量 / `hist.record(`≥6）—— 对**源码文本**断言，抽新文件会让断言变红。⚠️ focusDim 有 **200×2 正则窗口**（`setActiveDim` → `benchRef.scrollIntoView`），函数体内**加注释都可能爆窗**（09-28 实测 191→205 变红，压回短注释才绿）—— 动过函数体先 node 预检正则再跑层。
 7. **加/改一层 verify 改五处**：`package.json` + `verify-all.mjs`(LAYERS:55) + `.verify/lib/report.ts`(LAYER_NAMES:69) + `meta-check.ts`(CHAIN_ORDER:62) + `arsenal-profiles/arsenal.json` 的 `project.verifyChain`；另加 README 两处。
 8. **加/删断言同步四处数字**：上述 `verifyChain[*].count`、README 总数句、README 分项表、跑 sync。漏了不静默：`finish()` 打「声明 X / 实测 Y」退出 1。⚠️ README 正文散文里的口径由 `project-check`【21】守着（`\d{3,4}\s*项(?!选)` 与 `\d{3,4}\s*的口径`，跳过代码块、排除「选项」）。
 9. **分批提交两条 git 纪律**：① 一律 `git add <路径>` + `git commit -- <路径>`（仓库常有别会话预暂存的删除/重命名会被连坐），提交前核对 `git diff --cached --stat`；误提交就 `git reset --soft HEAD~1` + `git reset HEAD -- <路径>`。② 目录级 pathspec 会夹带 `_*` 调试产物 → 逐文件 add，或 add 后 `git diff --cached --name-only | grep '/_'` 复核。
 10. **`recipes[].files[].code` 只放 good 版**（bad 写进 `pitfalls` / 规则自身对照）。理由：正则引擎分不出「演示错写法」与「这就是错的」，files 混 bad 就误报。三处登记：`src/lib/cookbook-lint.ts` + `build_cookbook()` + 本条；【19】⑪ 守着。
 11. **子串包含型判据会静默失效**（出过两次）。`src.includes('stack-bench')` 对 `stack-benchBROKEN` 全绿 → 切成 token 后要求**恰好相等**，并跑两种反例。
 12. 案例代码自证：`cookbook-lint.ts` 把 `files[]` 喂 `engine.lint()`（**必须用 `file.path` 作 `SourceFile.name`**，否则 `targetGlob` 规则静默不适用），产三档：违规 / 可执行 35 / 未判 34（如实披露）。徽标 `src/components/BlueprintSelfCheck.tsx`，数字一律算出来。
+13. **App Router 动态路由（`output:'export'`）绝不许写 `export const dynamicParams = false`**。Next.js 14 dev 的 `buildAppStaticPaths`（`build/utils.js:1044`）把「任一分段 `dynamicParams===false`」算成 `fallback=false`，使 `fallbackMode` 非 `"static"`，`base-server.js:1078` 在 `next dev` 下直接抛「missing exported function generateStaticParams()」—— 函数明明在，dev 却报缺（09-28 真踩：`/cases/[caseId]` 因此 500）。rules / blueprints 两条动态路由都不设它，dev、build 都正常。**未知参数的 404 由页面内 `getXxx()` → `notFound()` 兜住**，静态导出本来也没有对应 HTML。
 
 ## 校验与运行
 
@@ -55,6 +60,6 @@
 - **场景案例库（09-25 两条线）**：CONTENT 线 P1=补 6 个 Java 日常场景（幂等/慢SQL/导出超时/分布式事务/文件上传/越权脱敏）+ 参数虚胖治理 ✅ + 症状墙筛选兜底；P2=可运行切片（可复用 `DemoRunner`）/ benchmark / 规则反查 / deep link。⚠️ 实测别重算：47 driver 中 **11 inert**（10 个在 `conflicts`、1 个 `vt/lifespan` 在 `notSuitableFor`）；benchmark 切片 **0**、`/rules` 对场景零反查、切片代码不可运行。UI 线见同目录 UI 分层计划。
 - **场景案例库 UI 分层改版（09-26 制定，**20:15 终裁进当晚第 2 棒**）** → `docs/开发计划-2026-09-26/场景案例库UI分层改版计划-2026-09-26.md`。三层路由 `/cases` → `/cases/[caseId]` → `/cases/[caseId]/[sliceId]`，纯 UI、不动 `tools/content/cases/*.py`。**已拍板**：D-1 = L3 用真静态路由（61 页）、D-2 = 不加「首屏字数」自动断言。⚠️ **当晚只做 L1+L2**（全做净工作量 190 min → 准入 305 > 单棒预算 225），**L3 与 P1 图形化（G1 星群 / G3 参数谱 / G5 轨道图）排次夜**。⚠️ `generateStaticParams()` 必须数据驱动 —— 第 1 棒把场景数 8→9，写死 8 会让第 9 页静默不生成而【11】照旧绿（本仓最典型的假绿形态）。
 - **CaseLab ≠ DemoRunner**（09-26 已改名）：`app/cases/CaseLab.tsx`(909) = 症状分诊台；`components/DemoRunner.tsx`(265) = 蓝图页跑 `playground`。**两库合并仍未做**（C-7），别抢。
-- **装配台**：UI 升级 P1/P2 全 ✅ + S3-3/S3-4 ✅（三批未提交），剩 S3-1 画布 / S3-2 评分卡（须改 `tools/content/stack*.py`）；向导升级计划见 `docs/开发计划-2026-09-25/装配台向导升级计划-2026-09-25.md`（P0-2 与 P2-1 待 mryang 拍板）。⚠️ 层级约束**只能灰显不能隐藏**，否则【17】分布断言会静默失效。
+- **装配台**：UI 升级 P1/P2 全 ✅ + S3-3/S3-4 ✅（已提交）；09-28 六反馈七步两段重组 ✅（bdf6225）+ 七反馈中间件归 ③/形态归 ⑥ ✅（6c59dba）+ 八反馈 ③ 唯一选型处/④ 只读校核台 ✅；剩 S3-1 画布 / S3-2 评分卡（须改 `tools/content/stack*.py`）；向导升级计划见 `docs/开发计划-2026-09-25/装配台向导升级计划-2026-09-25.md`（P0-2 与 P2-1 待 mryang 拍板）。⚠️ 层级约束**只能灰显不能隐藏**，否则【17】分布断言会静默失效。
 - B0-3：4 个场景无 benchmark（`async-pipeline` / `high-throughput-io` / `hotspot-cache` / `wide-table-search`）。findings.md 剩 ~14 条：P1 三条（archify 硬编码 localhost:3011、export PREVIEW 原始 Markdown + `<sub>` 泄漏、icons 89 vs 81）；63/81 位图图标缺失。
 - 待人工决策：69 条规则逐条过目；5 条无检查器 AST 规则补/降级；`SVC-LAYR-003`；「性能与 JVM」「日志监控」两类未覆盖。
