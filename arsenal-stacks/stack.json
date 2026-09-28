@@ -181,6 +181,11 @@
               "groupId": "org.springframework.boot",
               "artifactId": "spring-boot-starter-web",
               "note": "已内嵌 Tomcat，无需单独引入"
+            },
+            {
+              "groupId": "org.springframework.boot",
+              "artifactId": "spring-boot-starter-validation",
+              "note": "Boot 3 起 validation 不再随 web 传递；DTO 的 jakarta.validation 注解全靠它"
             }
           ],
           "notes": [
@@ -1280,6 +1285,13 @@
             }
           ],
           "yaml": "knife4j:\n  enable: true\n  setting:\n    language: zh_cn\n  # 生产环境建议关闭（enable: false）",
+          "configClasses": [
+            {
+              "className": "OpenApiConfig",
+              "path": "src/main/java/com/example/config/OpenApiConfig.java",
+              "code": "package com.example.config;\n\nimport io.swagger.v3.oas.models.OpenAPI;\nimport io.swagger.v3.oas.models.info.Info;\nimport io.swagger.v3.oas.models.security.SecurityRequirement;\nimport io.swagger.v3.oas.models.security.SecurityScheme;\nimport org.springframework.context.annotation.Bean;\nimport org.springframework.context.annotation.Configuration;\n\n/**\n * OpenAPI 元信息（Knife4j 版）。\n *\n * Knife4j 是 SpringDoc 之上的 UI 层，底层注解完全一致，\n * 文档入口是 /doc.html（swagger-ui.html 也能用）。\n * 注册 SecurityScheme 后，右上角会出现「Authorize」按钮，\n * 可以直接填 JWT 调试受保护接口。\n */\n@Configuration\npublic class OpenApiConfig {\n\n    private static final String SCHEME = \"bearerAuth\";\n\n    @Bean\n    public OpenAPI openAPI() {\n        return new OpenAPI()\n                .info(new Info()\n                        .title(\"军火库示例服务\")\n                        .version(\"1.0.0\")\n                        .description(\"所有接口统一返回 ApiResponse；\"\n                                + \"业务错误码见错误码表\"))\n                .addSecurityItem(new SecurityRequirement().addList(SCHEME))\n                .components(new io.swagger.v3.oas.models.Components()\n                        .addSecuritySchemes(SCHEME, new SecurityScheme()\n                                .type(SecurityScheme.Type.HTTP)\n                                .scheme(\"bearer\")\n                                .bearerFormat(\"JWT\")));\n    }\n}"
+            }
+          ],
           "notes": [
             "它是在 SpringDoc 之上的 UI 层，注解用法与 SpringDoc 完全一致（@Schema、@Operation）。",
             "离线文档导出对交付给外部对接方很实用，省掉手写接口文档的时间。"

@@ -140,6 +140,8 @@ DIMENSIONS = [
                 "dependencies": [
                     {"groupId": "org.springframework.boot", "artifactId": "spring-boot-starter-web",
                      "note": "已内嵌 Tomcat，无需单独引入"},
+                    {"groupId": "org.springframework.boot", "artifactId": "spring-boot-starter-validation",
+                     "note": "Boot 3 起 validation 不再随 web 传递；DTO 的 jakarta.validation 注解全靠它"},
                 ],
                 "notes": [
                     "同步阻塞意味着一次慢查询会占住一个线程 —— 所以要设超时、要限连接数。",

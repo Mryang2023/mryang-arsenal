@@ -149,11 +149,15 @@ check(
   pathsOf(mybatis).includes('src/main/resources/db/migration/V1__init.sql')
 );
 
-check('migration=none → 树里没有迁移痕迹（不画不会生成的东西）',
-  !treeOf(jdbcNoMig).includes('migration/') && !treeOf(jdbcNoMig).includes('schema.sql'));
-check('migration=none → 没有 db/migration/', !treeOf(jdbcNoMig).includes('migration/'));
+// 09-28 十反馈第二轮：schema.sql 真实生成了（无迁移工具时它是唯一的建表脚本），
+// 口径从「不画不会生成的东西」反转为「画了就必须真生成」。
+check('migration=none → 树里画 schema.sql 且包里真有（开箱即跑的建表脚本）',
+  treeOf(jdbcNoMig).includes('schema.sql') &&
+    pathsOf(jdbcNoMig).includes('src/main/resources/db/schema.sql'));
+check('migration=none → 树里有 schema.sql、没有 db/migration/',
+  treeOf(jdbcNoMig).includes('schema.sql') && !treeOf(jdbcNoMig).includes('migration/'));
 check(
-  'migration=none → 导出里没有迁移脚本',
+  'migration=none → 导出里没有迁移目录',
   !pathsOf(jdbcNoMig).some((p) => p.includes('migration/') || p.includes('changelog/'))
 );
 
@@ -280,7 +284,8 @@ check('README 含选型表', readme.includes('| 模块 | 当前选择 | 说明 |
 check('README 含目录树', readme.includes('├──') || readme.includes('└──'));
 check('README 含启动步骤', readme.includes('mvn spring-boot:run'));
 check('README 含隐患章节', readme.includes('## 这套组合的隐患'));
-check('README 含悬空引用章节', readme.includes('## 上手前必须补齐的类'));
+check('README 含开箱即跑章节（十反馈第二轮口径）', readme.includes('## 开箱即跑'));
+check('README 不再写「只含结构与配置」的旧口径', !readme.includes('不含业务代码'));
 check('README 列出了导出文件清单', readme.includes('## 交付清单') && readme.includes('`README.md`'));
 check('README 按实际选型写（含 Redis）', readme.includes('Redis'));
 
@@ -291,21 +296,54 @@ check('隐患单写了触发条件', riskDoc.includes('触发条件'));
 check('隐患单写了后果', riskDoc.includes('后果：'));
 check('隐患单写了对策', riskDoc.includes('对策：'));
 
-// 悬空引用：标准配置用了 Spring Security，必然引用了包外类
+// 悬空引用：09-28 十反馈第二轮起导出包含真实脚手架代码（SCAFFOLD），
+// 配置类引用的类全部在包内 —— 悬空引用必须归零，归零才是「开箱即跑」的证明。
+// 若这里非零，说明 SCAFFOLD / configClasses 的 when 或代码路径出了分叉。
+check('悬空引用归零（脚手架补齐了全部被引用的类）', stdPlan.dangling.length === 0,
+  `${stdPlan.dangling.length} 个` +
+  (stdPlan.dangling.length ? ' → ' + stdPlan.dangling.map((d) => d.fqn).join(', ') : ''));
 check(
-  '标准配置能算出需要自行补的类',
-  stdPlan.dangling.length > 0,
-  `${stdPlan.dangling.length} 个`
-);
-check(
-  '算出的类确实不在包里',
+  '算出的悬空类确实不在包里（守卫逻辑本身仍然有效）',
   stdPlan.dangling.every((d) => !stdPlan.files.some((f) => f.path === d.path))
 );
-check(
-  'jdbc 且无鉴权时，悬空引用显著更少',
-  planOf({ ...defaultPicks, persistence: 'jdbc', auth: 'securityjwt' }).dangling.length <
-    stdPlan.dangling.length + 6
-);
+// 脚手架锚点：SCAFFOLD 数据若在构建/同步链路里静默丢失（假绿典型形态，
+// projectDoc.scaffold 变 undefined 后循环空转、其余断言照样绿），这些锚点会缺失。
+const minimalPlan = plans.get('minimal')!;
+const minPaths = new Set(minimalPlan.files.map((f) => f.path));
+for (const anchor of [
+  'src/main/java/com/example/common/ApiResponse.java',
+  'src/main/java/com/example/common/PageResult.java',
+  'src/main/java/com/example/common/ErrorCode.java',
+  'src/main/java/com/example/common/exception/BizException.java',
+  'src/main/java/com/example/common/web/GlobalExceptionHandler.java',
+  'src/main/java/com/example/config/WebMvcConfig.java',
+  'src/main/java/com/example/config/JacksonConfig.java',
+  'src/main/java/com/example/config/AsyncConfig.java',
+  'src/main/java/com/example/config/RetryConfig.java',
+  'src/main/java/com/example/interceptor/TraceIdInterceptor.java',
+  'src/main/java/com/example/filter/RequestLogFilter.java',
+  'src/main/java/com/example/security/JwtAuthenticationFilter.java',
+  'src/main/java/com/example/security/CurrentUserHolder.java',
+  'src/main/java/com/example/interceptor/AuthInterceptor.java',
+  'src/main/java/com/example/user/controller/UserController.java',
+  'src/main/java/com/example/user/service/UserService.java',
+  'src/main/java/com/example/user/domain/User.java',
+  'src/main/java/com/example/user/repository/UserDao.java',
+  'src/main/java/com/example/user/exception/UserNotFoundException.java',
+  'src/main/resources/logback-spring.xml',
+]) {
+  check(`minimal 脚手架锚点在包内 ${anchor.split('/').slice(-2).join('/')}`, minPaths.has(anchor));
+}
+// minimal（jdbc + flyway）不该有 mybatisplus / 无迁移工具的文件
+check('minimal（jdbc）不含 UserMapper.xml', !minPaths.has('src/main/resources/mapper/UserMapper.xml'));
+check('minimal（flyway）不含 schema.sql', !minPaths.has('src/main/resources/db/schema.sql'));
+const v1File = minimalPlan.files.find((f) => f.path === 'src/main/resources/db/migration/V1__init.sql');
+check('V1__init.sql 含 user 表（user 六件套才能跑）',
+  !!v1File && v1File.content.includes('CREATE TABLE `user`'));
+const minPom = minimalPlan.files.find((f) => f.path === 'pom.xml');
+check('pom 含 jjwt（JWT 过滤器的真实依赖）', !!minPom && minPom.content.includes('jjwt-api'));
+check('pom 含 starter-validation（DTO 校验注解的依赖）',
+  !!minPom && minPom.content.includes('spring-boot-starter-validation'));
 
 // ═══════════════════════════════════════════════════════════════
 // 【6】zip 真的能被标准工具解开

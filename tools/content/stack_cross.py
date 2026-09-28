@@ -330,6 +330,52 @@ DIMENSIONS = [
                     "    language: zh_cn\n"
                     "  # 生产环境建议关闭（enable: false）"
                 ),
+                "configClasses": [
+                    {
+                        "className": "OpenApiConfig",
+                        "path": "src/main/java/com/example/config/OpenApiConfig.java",
+                        "code": (
+                            "package com.example.config;\n"
+                            "\n"
+                            "import io.swagger.v3.oas.models.OpenAPI;\n"
+                            "import io.swagger.v3.oas.models.info.Info;\n"
+                            "import io.swagger.v3.oas.models.security.SecurityRequirement;\n"
+                            "import io.swagger.v3.oas.models.security.SecurityScheme;\n"
+                            "import org.springframework.context.annotation.Bean;\n"
+                            "import org.springframework.context.annotation.Configuration;\n"
+                            "\n"
+                            "/**\n"
+                            " * OpenAPI 元信息（Knife4j 版）。\n"
+                            " *\n"
+                            " * Knife4j 是 SpringDoc 之上的 UI 层，底层注解完全一致，\n"
+                            " * 文档入口是 /doc.html（swagger-ui.html 也能用）。\n"
+                            " * 注册 SecurityScheme 后，右上角会出现「Authorize」按钮，\n"
+                            " * 可以直接填 JWT 调试受保护接口。\n"
+                            " */\n"
+                            "@Configuration\n"
+                            "public class OpenApiConfig {\n"
+                            "\n"
+                            "    private static final String SCHEME = \"bearerAuth\";\n"
+                            "\n"
+                            "    @Bean\n"
+                            "    public OpenAPI openAPI() {\n"
+                            "        return new OpenAPI()\n"
+                            "                .info(new Info()\n"
+                            "                        .title(\"军火库示例服务\")\n"
+                            "                        .version(\"1.0.0\")\n"
+                            "                        .description(\"所有接口统一返回 ApiResponse；\"\n"
+                            "                                + \"业务错误码见错误码表\"))\n"
+                            "                .addSecurityItem(new SecurityRequirement().addList(SCHEME))\n"
+                            "                .components(new io.swagger.v3.oas.models.Components()\n"
+                            "                        .addSecuritySchemes(SCHEME, new SecurityScheme()\n"
+                            "                                .type(SecurityScheme.Type.HTTP)\n"
+                            "                                .scheme(\"bearer\")\n"
+                            "                                .bearerFormat(\"JWT\")));\n"
+                            "    }\n"
+                            "}"
+                        ),
+                    }
+                ],
                 "notes": [
                     "它是在 SpringDoc 之上的 UI 层，注解用法与 SpringDoc 完全一致（@Schema、@Operation）。",
                     "离线文档导出对交付给外部对接方很实用，省掉手写接口文档的时间。",

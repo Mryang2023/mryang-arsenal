@@ -77,7 +77,7 @@ def write_json(rel_path, doc):
 
 # 案例库三层结构：技术（L1）→ 场景（L2）→ 实现方案（L3）。
 # 加一项技术就在这里加一行 —— 与 CASES_MODULES 同一套写法，漏了等于没写。
-COOKBOOK_MODULES = ('virtual_thread',)
+COOKBOOK_MODULES = ('virtual_thread', 'connection_pool', 'retry_timeout', 'local_cache', 'web_layer', 'untrusted_data')
 
 # 技术族：只用于列表页筛选，不单独占一级页面 —— 层级就三层，不加第四层。
 COOKBOOK_FAMILIES = {
@@ -86,6 +86,7 @@ COOKBOOK_FAMILIES = {
     'web': '接口与集成',
     'reliability': '稳定性',
     'quality': '质量工程',
+    'security': '安全',
 }
 
 
@@ -1005,6 +1006,145 @@ def build_project():
             problems.append('结构原则「%s」引用了不存在的规则 %s'
                             % (note['title'], note['rule']))
 
+    # ── ⑥ 脚手架代码与结构树双向对齐 ─────────────────────────
+    # 「树上画出来的每个文件，包里就真的有」的构建期化身。
+    # 09-28 十反馈第二轮起，导出包包含真实脚手架代码（SCAFFOLD）：
+    # 树、脚手架、配置类三方对不上号的问题，必须在这里炸掉，
+    # 不能等用户解压后看见 README 画了 40 个文件、包里只有 3 个 Java。
+    scaffold_paths = set()
+    for entry in proj.SCAFFOLD:
+        p = entry.get('path', '')
+        if not p:
+            problems.append('SCAFFOLD 有条目缺 path')
+            continue
+        if p in scaffold_paths:
+            problems.append('SCAFFOLD 路径重复：%s' % p)
+        scaffold_paths.add(p)
+        variants = entry.get('variants') or []
+        if not variants:
+            problems.append('SCAFFOLD %s 没有任何变体' % p)
+            continue
+        for i, v in enumerate(variants):
+            check_when(v.get('when'), 'SCAFFOLD %s 变体 %d' % (p, i))
+            if not (v.get('code') or '').strip():
+                problems.append('SCAFFOLD %s 变体 %d 的 code 是空的' % (p, i))
+        free = [v for v in variants if not v.get('when')]
+        if free and (len(free) > 1 or free[0] is not variants[-1]):
+            problems.append('SCAFFOLD %s：兜底变体（无 when）至多一个，且必须排在最后' % p)
+        cond = [v for v in variants if v.get('when')]
+        for i in range(len(cond)):
+            for j in range(i + 1, len(cond)):
+                a, b = cond[i]['when'], cond[j]['when']
+                # 二义 = 存在同一组 picks 同时满足两个变体 ⇔
+                # 每个共有维度上的选项集都相交（when 是「与」语义，缺维度 = 不约束）
+                common_dims = set(a) & set(b)
+                if common_dims and all(set(a[d]) & set(b[d]) for d in common_dims):
+                    problems.append(
+                        'SCAFFOLD %s：两个变体的 when 能被同一组选型同时命中，取值会二义'
+                        % p)
+
+    def tree_file_paths(nodes, prefix):
+        out = set()
+        for n in nodes:
+            here = (prefix + '/' + n['name']) if prefix else n['name']
+            if n['kind'] == 'dir':
+                out |= tree_file_paths(n['children'], here.rstrip('/'))
+            else:
+                out.add(here)
+        return out
+
+    # 树根名与 artifactId 一致，剥掉根前缀后与导出包内的相对路径同口径
+    tree_files = {f[len(proj.ARTIFACT_ID) + 1:]
+                  for f in tree_file_paths(proj.TREE['children'], proj.TREE['name'].rstrip('/'))}
+    # 由导出链路其他段产出的文件（构建文件 / 配置三件套 / 迁移 / 冒烟测试 / 文档）；
+    # deploy/** 整棵由部署计划生成，按前缀豁免
+    source_whitelist = {
+        'pom.xml', 'build.gradle', 'settings.gradle', 'README.md', '.gitignore',
+        'docs/risk-report.md',
+        'src/main/java/com/example/Application.java',
+        'src/main/resources/application.yml',
+        'src/main/resources/application-dev.yml',
+        'src/main/resources/application-prod.yml',
+        'src/main/resources/db/migration/V1__init.sql',
+        'src/main/resources/db/changelog/db.changelog-master.xml',
+        'src/test/java/com/example/ApplicationTests.java',
+    }
+    tree_files -= {f for f in tree_files if f.startswith('deploy/')}
+
+    config_paths = {c['path'] for d in dimensions for o in d['options']
+                    for c in (o.get('configClasses') or [])
+                    if c.get('path', '').endswith(('.java', '.xml'))}
+
+    for f in sorted(tree_files):
+        if f in scaffold_paths or f in config_paths or f in source_whitelist:
+            continue
+        problems.append('结构树画出了文件 %s，但没有任何文件源能产出它 —— 导出包里会是幽灵文件' % f)
+    for p in sorted(scaffold_paths - tree_files):
+        problems.append('SCAFFOLD 里的 %s 没有画在结构树上 —— 先画树，再写代码' % p)
+
+    # 悬空 import：SCAFFOLD 的 Java 代码 import 了 com.example.* 的类，
+    # 该类必须有出处（SCAFFOLD 或 configClasses）。第三方依赖的 import 不在此列。
+    java_paths = {p for p in scaffold_paths | config_paths if p.endswith('.java')}
+    for entry in proj.SCAFFOLD:
+        for v in entry.get('variants') or []:
+            for m in re.finditer(r'^\s*import\s+(com\.example\.[\w.]+);', v.get('code') or '', re.M):
+                rel = 'src/main/java/' + m.group(1).replace('.', '/') + '.java'
+                if rel not in java_paths:
+                    problems.append('SCAFFOLD %s import 了 %s，但包里没有这个类'
+                                    % (entry['path'], m.group(1)))
+
+    # 树 when 与 SCAFFOLD 变体 when 必须同进同退：结构图页签（静态树按选型过滤）
+    # 与导出包（SCAFFOLD 按 when 过滤）若口径不一，用户会看到图上有、包里没有的文件。
+    # 有效条件 = 自身 when 与祖先目录 when 的合取（同维度取交集）。
+    def collect_tree_whens(nodes, prefix, inherited):
+        out = {}
+        for n in nodes:
+            here = (prefix + '/' + n['name']) if prefix else n['name']
+            merged = dict(inherited or {})
+            conflict = False
+            for dim, opts in (n.get('when') or {}).items():
+                if dim in merged:
+                    inter = sorted(set(merged[dim]) & set(opts))
+                    if not inter:
+                        conflict = True  # 条件冲突：这个子树在任何选型下都不出现
+                        break
+                    merged[dim] = inter
+                else:
+                    merged[dim] = list(opts)
+            if conflict:
+                continue
+            if n['kind'] == 'dir':
+                out.update(collect_tree_whens(n['children'], here.rstrip('/'), merged))
+            else:
+                out[here[len(proj.ARTIFACT_ID) + 1:]] = merged or None
+        return out
+
+    tree_whens = collect_tree_whens(proj.TREE['children'], proj.TREE['name'].rstrip('/'), None)
+    for entry in proj.SCAFFOLD:
+        p = entry['path']
+        eff = tree_whens.get(p)
+        vs = [v for v in (entry.get('variants') or []) if (v.get('code') or '').strip()]
+        if not vs:
+            continue
+        has_free = any(not v.get('when') for v in vs)
+        all_free = all(not v.get('when') for v in vs)
+        if eff and all_free:
+            problems.append('SCAFFOLD %s 恒出，但结构树里它有出现条件 %s —— 结构图与包会分叉'
+                            % (p, eff))
+        if eff and not all_free and not has_free:
+            for dim in eff:
+                covered = set()
+                for v in vs:
+                    if v.get('when') and dim in v['when']:
+                        covered |= set(v['when'][dim])
+                if not set(eff[dim]) <= covered:
+                    problems.append(
+                        'SCAFFOLD %s 的变体在维度 %s 上覆盖不了结构树的条件 %s '
+                        '—— 某些组合下图上有、包里没有' % (p, dim, eff[dim]))
+        if not eff and not all_free and not has_free:
+            problems.append('SCAFFOLD %s 变体全带条件，但结构树恒画它 —— 某些组合下包里有、图上没有'
+                            % p)
+
     if problems:
         print('\n[arsenal] 项目结构数据校验失败：')
         for p in problems:
@@ -1027,6 +1167,7 @@ def build_project():
         'appTemplate': proj.APP_TEMPLATE,
         'appAnnotations': proj.APP_ANNOTATIONS,
         'switchOwners': proj.SWITCH_OWNERS,
+        'scaffold': proj.SCAFFOLD,
         'files': {
             'gitignore': proj.GITIGNORE,
             'flywayV1': proj.FLYWAY_V1,
@@ -1041,8 +1182,9 @@ def build_project():
         'structureLegend': proj.STRUCTURE_LEGEND,
     }
     write_json('arsenal-stacks/project.json', doc)
-    print('  %d 个目录 / %d 个文件节点 / %d 条结构原则 / %d 条开关归属'
-          % (stats['dir'], stats['file'], len(proj.STRUCTURE_NOTES), len(proj.SWITCH_OWNERS)))
+    print('  %d 个目录 / %d 个文件节点 / %d 条结构原则 / %d 条开关归属 / %d 份脚手架'
+          % (stats['dir'], stats['file'], len(proj.STRUCTURE_NOTES), len(proj.SWITCH_OWNERS),
+             len(proj.SCAFFOLD)))
 
 
 def build_icons():

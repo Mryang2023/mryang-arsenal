@@ -55,6 +55,23 @@ export interface StructureNote {
   rule?: string | null;
 }
 
+/**
+ * 脚手架代码条目。variants 按声明顺序匹配，第一个 when 命中的胜出；
+ * 不带 when 的是兜底变体（构建期校验：至多一个，且必须在最后）。
+ */
+export interface ScaffoldVariant {
+  when?: Record<string, string[]> | null;
+  code: string;
+}
+
+export interface ScaffoldFile {
+  path: string;
+  group: '构建' | '源码' | '配置' | '数据' | '文档' | '测试' | '部署';
+  from: string;
+  desc: string;
+  variants: ScaffoldVariant[];
+}
+
 export interface ProjectDoc {
   groupId: string;
   artifactId: string;
@@ -63,6 +80,7 @@ export interface ProjectDoc {
   appTemplate: string;
   appAnnotations: AppAnnotation[];
   switchOwners: SwitchOwner[];
+  scaffold: ScaffoldFile[];
   files: {
     gitignore: string;
     flywayV1: string;
@@ -881,6 +899,16 @@ export function collectExportFiles(
     });
   }
 
+  // ── 脚手架代码：common 全家桶 / 认证实现 / user 领域六件套 / 日志与建表 ──
+  // 「能够正常运行的脚手架」的本体：树上画出来的每个 Java 文件，这里都有真实代码。
+  // 同一文件可能有多个变体（按持久层 / 鉴权 / 消息队列分叉），
+  // 按声明顺序取第一个 when 命中的；不带 when 的是兜底变体，必须排在最后。
+  for (const s of projectDoc.scaffold ?? []) {
+    const hit = s.variants.find((v) => condMet(v.when ?? null, picks));
+    if (!hit) continue;
+    files.push({ path: s.path, content: hit.code, group: s.group, from: s.from });
+  }
+
   // ── 配置文件 ──
   files.push({ path: `${RES}/application.yml`, content: renderYaml(composed), group: '配置' });
   files.push({ path: `${RES}/application-dev.yml`, content: renderDevYaml(picks), group: '配置' });
@@ -1043,10 +1071,11 @@ export function buildExportPlan(
  * 找出「被引用、但不在包里」的类。
  *
  * 为什么值得专门算一遍：
- *   导出包只含结构与配置，不含业务代码（业务代码每个项目都不一样）。
- *   于是必然有一些配置类会引用到包外的类（例如 SecurityConfig 引用 JwtAuthenticationFilter）。
- *   与其在 README 里含糊地说「部分类需自行实现」，不如**算出来具体是哪些** ——
- *   用户拿到包才知道自己还差几件事，而不是编译报错时一个一个撞。
+ *   脚手架代码（SCAFFOLD）与配置类（configClasses）是两批来源，
+ *   前者按选型分叉、后者挂在具体选项上 —— 只要有一边 when 写错，
+ *   就会出现「SecurityConfig 引用了包里不存在的 JwtAuthenticationFilter」。
+ *   与其在 README 里含糊地说「部分类需自行实现」，不如**算出来具体是哪些**：
+ *   正常组合下这里必须是 0 —— 归零才是「开箱即跑」的证明。
  *
  * 只扫 import 行。同包内不加 import 的引用扫不到，这是已知的边界 ——
  * 宁可少报（漏掉几条需要人工补），不要多报（把已有文件也列成缺失，会消耗掉信任）。
