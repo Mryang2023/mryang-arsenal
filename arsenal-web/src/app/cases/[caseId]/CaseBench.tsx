@@ -3,7 +3,7 @@
 import { useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
-import type { CaseParams } from '@/lib/case-types';
+import type { CaseParams, CaseSlice } from '@/lib/case-types';
 import { cases, defaultParams, getCase, symptomParams } from '@/lib/case-cases';
 import { planToPrompt, synthCase, whenHits } from '@/lib/case-synth';
 import { buildZip } from '@/lib/zip-lite';
@@ -21,6 +21,43 @@ import StepRail from '../_lib/step-rail';
  * ⚠️ 调这个组件的地方必须用 `<Suspense>` 包一层：`output:'export'` 下
  * `useSearchParams()` 只有在 Suspense 边界内才允许在静态页里读。
  */
+
+/**
+ * 切片目录：把当前参数下命中的切片按 `layer` 分层列成锚点清单，
+ * 点一下跳到对应切片卡。单场景 2~6 片、2~6 个分层，不会失控。
+ * 没有它，一屏切片卡滚下去没有落脚处，和「所有内容挤一页」是同一种病。
+ */
+function SliceIndex({ items }: { items: { slice: CaseSlice }[] }) {
+  if (!items.length) return null;
+  const byLayer = new Map<string, CaseSlice[]>();
+  for (const { slice } of items) {
+    if (!byLayer.has(slice.layer)) byLayer.set(slice.layer, []);
+    byLayer.get(slice.layer)!.push(slice);
+  }
+  return (
+    <div className="rounded-lg border border-line bg-surface p-4">
+      <div className="mb-2 flex items-center justify-between">
+        <span className="text-2xs uppercase tracking-[0.14em] text-fgFaint">本场景切片目录（按分层）</span>
+        <span className="mono text-[11px] text-fgFaint">{items.length} 片</span>
+      </div>
+      <div className="space-y-2.5">
+        {[...byLayer.entries()].map(([layer, slices]) => (
+          <div key={layer}>
+            <div className="mb-1 text-[11px] text-fgFaint">{layer}</div>
+            <div className="flex flex-wrap gap-1.5">
+              {slices.map((s) => (
+                <a key={s.id} href={`#slice-${s.id}`}
+                  className="mono rounded border border-line bg-canvas px-2 py-0.5 text-[11px] text-fgMuted transition-colors hover:border-brass/50 hover:text-fg">
+                  #{s.order} {s.goal}
+                </a>
+              ))}
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
 
 export default function CaseBench({ caseId }: { caseId: string }) {
   const sp = useSearchParams();
@@ -379,16 +416,18 @@ export default function CaseBench({ caseId }: { caseId: string }) {
             </div>
           )}
 
-          {/* 切片 */}
+          {/* 切片目录（按分层）+ 切片本体 */}
+          <SliceIndex items={plan.activeSlices} />
           <div className="space-y-3">
             {plan.activeSlices.map(({ slice }) => (
-              <SliceCard
-                key={slice.id}
-                kase={kase}
-                slice={slice}
-                open={openSlices[slice.id] !== false}
-                onToggle={() => setOpenSlices((m) => ({ ...m, [slice.id]: m[slice.id] === false }))}
-              />
+              <div key={slice.id} id={`slice-${slice.id}`} className="scroll-mt-4">
+                <SliceCard
+                  kase={kase}
+                  slice={slice}
+                  open={openSlices[slice.id] !== false}
+                  onToggle={() => setOpenSlices((m) => ({ ...m, [slice.id]: m[slice.id] === false }))}
+                />
+              </div>
             ))}
             {plan.activeSlices.length === 0 && (
               <div className="rounded-lg border border-line bg-surface px-4 py-8 text-center text-[13px] text-fgMuted">

@@ -15,8 +15,12 @@ export function generateStaticParams() {
   return cases.map((c) => ({ caseId: c.id }));
 }
 
-/** 静态导出下不许对未知 caseId 做运行时生成 —— 一律 404 */
-export const dynamicParams = false;
+// ⚠️ 不要在这里写 `export const dynamicParams = false`：
+// Next.js 14 的 dev 服务器（buildAppStaticPaths, utils.js:1044）会把
+// "任一分段 dynamicParams===false" 算成 fallback=false，进而 fallbackMode 不是 "static"，
+// 在 `output:'export'` 下直接抛 "missing exported function generateStaticParams()" ——
+// 明明函数就在，dev 却报缺。rules / blueprints 两条动态路由都不设它，dev、build 都正常。
+// 未知 caseId 的 404 由下方 `getCase()` 返回 undefined → notFound() 兜住，静态导出也没有对应 HTML。
 
 export function generateMetadata({ params }: { params: { caseId: string } }): Metadata {
   const kase = getCase(params.caseId);
