@@ -24,6 +24,8 @@ export interface DimFlag {
   kind: 'need' | 'remedy';
   /** 一句话说明：要「容器运行环境」/ 可补「容器运行环境」/ 必选未装 */
   label: string;
+  /** 更完整的关联说明（悬停 title 用）：谁在要、为什么推荐 —— 标签要短，解释放这里 */
+  detail?: string;
   /** 补法推荐直接选哪个零件 —— 卡片里给它描绿框，问题不用第二次查找 */
   optionId?: string;
 }
@@ -114,7 +116,7 @@ export default function DimPicker({
                 on && !isNone
                   ? '再点一次取消（退回未定）'
                   : isRemedyPick
-                    ? `${flag!.label} —— 建议就选「${o.name}」`
+                    ? `${flag!.detail ?? flag!.label} —— 选它即可补上`
                     : o.summary
               }
               className="w-[208px] rounded-md border px-2.5 py-2 text-left transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-brass"

@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import type { StackPicks } from '@/lib/content-types';
+import { dimensions } from '@/lib/stack';
 import { STEP_BY_ID, THEME_SECTIONS } from '../wizard';
 import DimPicker, { type DimFlag } from '../DimPicker';
 import StepShell from './StepShell';
@@ -36,11 +37,22 @@ export default function ThemeStep({
   const section = THEME_SECTIONS[Math.min(gi, THEME_SECTIONS.length - 1)] ?? THEME_SECTIONS[0];
   const total = THEME_SECTIONS.reduce((n, s) => n + s.dims.length, 0);
   const filled = THEME_SECTIONS.reduce((n, s) => n + s.dims.filter((d) => picks[d.id]).length, 0);
-  // 有问题的组要提前暴露 —— 导航上一眼看到哪组红，不用一组一组点开找
-  const groupIssueCount = (groupId: string) =>
-    (THEME_SECTIONS.find((s) => s.group.id === groupId)?.dims ?? []).filter(
-      (d) => dimFlags?.[d.id]?.kind === 'need'
-    ).length;
+  // 有问题的组要提前暴露 —— 导航上一眼看到哪组红。按**事实源组**统计该组
+  // 全部维度（不只 ③ 的主题件）：问题常出在配在 ④ 的维度（如编排要「容器
+  // 运行环境」），只数主题件会漏 —— 那正是「卡红了导航却不知道哪组」的根因。
+  const groupIssueDims = (groupId: string) =>
+    dimensions
+      .filter((d) => d.groupId === groupId && dimFlags?.[d.id]?.kind === 'need')
+      .map((d) => `${d.name}：${dimFlags![d.id].label}`);
+  const groupIssueCount = (groupId: string) => groupIssueDims(groupId).length;
+  // 展开组的「非主题件问题槽位」：组内全部维度 - 主题件，只留有标记的 ——
+  // 正常（无问题）时为空，不渲染，不破坏「一个维度只在一条路径出现一次」
+  const offThemeIssues = dimensions.filter(
+    (d) =>
+      d.groupId === section.group.id &&
+      dimFlags?.[d.id] &&
+      !section.dims.some((t) => t.id === d.id)
+  );
 
   return (
     <StepShell spec={spec}>
@@ -82,7 +94,7 @@ export default function ThemeStep({
                       <span
                         className="mono shrink-0 rounded-sm px-1 text-[10px] leading-[15px]"
                         style={{ color: '#E5484D', background: 'rgba(229,72,77,0.14)' }}
-                        title={`这一组有 ${issues} 个槽位卷进「跑不起来」`}
+                        title={`这一组有 ${issues} 个槽位卷进「跑不起来」：${groupIssueDims(s.group.id).join('；')}`}
                       >
                         {issues}
                       </span>
@@ -145,6 +157,28 @@ export default function ThemeStep({
               />
             ))}
           </div>
+          {/* 本组里没进主题件清单、但正卷进问题的槽位（配在 ④ 分层装配）。
+              只在出问题时才出现：红卡当场可见可修，不用让人拿着一个红标记
+              跳去 ④ 翻找 —— 导航角标、组内卡片、问题现场三点连成一线。 */}
+          {offThemeIssues.length > 0 && (
+            <div className="border-t border-line bg-canvas px-4 py-3">
+              <p className="mono mb-2 text-[10px] uppercase tracking-wider text-fgFaint">
+                本组其他槽位（配在 ④ 分层装配）· 也卷进了问题
+              </p>
+              <div className="divide-y divide-line rounded-md border border-line bg-surface">
+                {offThemeIssues.map((d) => (
+                  <DimPicker
+                    key={d.id}
+                    dim={d}
+                    picks={picks}
+                    flag={dimFlags?.[d.id]}
+                    onPick={onPick}
+                    onClear={onClear}
+                  />
+                ))}
+              </div>
+            </div>
+          )}
         </section>
       </div>
     </StepShell>

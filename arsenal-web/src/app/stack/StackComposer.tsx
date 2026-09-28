@@ -465,7 +465,7 @@ export default function StackComposer() {
    * optionId = 补法推荐直接选的零件 —— 步骤页面上给那个选项描绿框，不用二次查找。
    */
   const issueDots = useMemo(() => {
-    const list: { dim: string; label: string; kind: 'need' | 'remedy'; optionId?: string }[] = [];
+    const list: { dim: string; label: string; detail?: string; kind: 'need' | 'remedy'; optionId?: string }[] = [];
     const has = (dim: string, kind: string) =>
       list.some((x) => x.dim === dim && x.kind === kind);
     for (const b of audit.blockers) {
@@ -476,7 +476,15 @@ export default function StackComposer() {
         }
         for (const r of b.remedies ?? []) {
           if (!has(r.dim, 'remedy')) {
-            list.push({ dim: r.dim, label: `可补「${cap}」`, kind: 'remedy', optionId: r.option });
+            // 关联要说破（09-28 五反馈）：绿框推荐不是凭空来的 —— 是谁在要这块能力
+            const needers = b.nodes.map((n) => dimensionById.get(n)?.name ?? n).join('、');
+            list.push({
+              dim: r.dim,
+              label: `可补「${cap}」`,
+              detail: `${needers} 在要「${cap}」，这里选对零件即可补上`,
+              kind: 'remedy',
+              optionId: r.option,
+            });
           }
         }
       } else if (!has(b.dim, 'need')) {
@@ -497,11 +505,11 @@ export default function StackComposer() {
    * 同一格 both need 与 remedy 时 need 优先 —— 先说哪儿坏了，再说去哪补。
    */
   const dimFlags = useMemo(() => {
-    const map: Record<string, { kind: 'need' | 'remedy'; label: string; optionId?: string }> = {};
+    const map: Record<string, { kind: 'need' | 'remedy'; label: string; detail?: string; optionId?: string }> = {};
     for (const x of issueDots) {
       const prev = map[x.dim];
       if (!prev || (prev.kind === 'remedy' && x.kind === 'need')) {
-        map[x.dim] = { kind: x.kind, label: x.label, optionId: x.optionId };
+        map[x.dim] = { kind: x.kind, label: x.label, detail: x.detail, optionId: x.optionId };
       }
     }
     return map;
