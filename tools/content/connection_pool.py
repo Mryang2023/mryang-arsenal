@@ -1,0 +1,477 @@
+# -*- coding: utf-8 -*-
+"""技术主题 · 数据库连接池（JDBC / HikariCP）。
+
+案例库三层结构的第二个主题：
+
+    L1 技术（本文件）      连接池解决什么、什么时候该用、自身边界
+    L2 场景                什么情况下用（带可核对信号）
+    L3 实现方案            有界池 + 超时 / 连接必须归还，附模拟接口实测
+
+「模拟接口测试」刻意不靠 sleep 假装：playground 自带一个 HttpServer 当假数据库，
+用有界 BlockingQueue 当连接池，真并发去打它 —— 池子等不到连接就超时的行为是真的。
+"""
+
+CONFIG = r"""package com.example.db.config;
+
+import com.zaxxer.hikari.HikariConfig;
+import com.zaxxer.hikari.HikariDataSource;
+import javax.sql.DataSource;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+
+/**
+ * 数据源配置：把数据库连接交给一个有界、可等待、会报警的连接池。
+ *
+ * 核心认知：数据库连接是**昂贵且有限**的资源——建立一次连接要三次握手 + 认证，
+ * 数据库侧还会给单实例设最大连接数。每次调用都新建连接既慢又把数据库打爆，
+ * 所以连接必须复用，且复用的数量必须有上限。
+ */
+@Configuration
+public class DataSourceConfig {
+
+    @Bean
+    public DataSource dataSource() {
+        HikariConfig cfg = new HikariConfig();
+        cfg.setJdbcUrl("jdbc:mysql://localhost:3306/demo?useSSL=false&serverTimezone=UTC");
+        cfg.setUsername("app");
+        // 凭据走环境变量，绝不硬编码进仓库（SKEL-CONF-001 / SEC-DATA-002）。
+        cfg.setPassword(System.getenv("DB_PASSWORD"));
+        // 有界：连接上限来自数据库承载能力评估，不是拍脑袋。
+        cfg.setMaximumPoolSize(20);
+        // 拿不到连接最多等 3 秒就失败，而不是让业务线程无限挂起。
+        cfg.setConnectionTimeout(3_000);
+        // 借出超过 10 秒仍未归还就打印告警堆栈——这是连接泄漏的探针。
+        cfg.setLeakDetectionThreshold(10_000);
+        return new HikariDataSource(cfg);
+    }
+}
+"""
+
+REPO = r"""package com.example.db.repo;
+
+import java.sql.Connection;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import javax.sql.DataSource;
+import org.springframework.stereotype.Repository;
+
+/**
+ * 仓储：从池借连接、用完即还。
+ *
+ * 关键点：连接通过 try-with-resources 借出，无论正常返回还是异常，
+ * 退出作用域时连接都会被自动归还到池里——这是防泄漏的唯一可靠写法。
+ */
+@Repository
+public class OrderRepository {
+
+    private final DataSource ds;
+
+    public OrderRepository(DataSource ds) {
+        this.ds = ds;
+    }
+
+    public String findUserName(long orderId) throws SQLException {
+        // 显式列出字段，禁止 SELECT *（DATA-SQL-002）；参数用占位符，禁止拼接（DATA-SQL-001）。
+        String sql = "select u.name from orders o join users u on u.id=o.user_id where o.id = ?";
+        try (Connection c = ds.getConnection();
+             PreparedStatement ps = c.prepareStatement(sql)) {
+            ps.setLong(1, orderId);
+            try (ResultSet rs = ps.executeQuery()) {
+                return rs.next() ? rs.getString(1) : null;
+            }
+        }
+    }
+}
+"""
+
+LEASE = r"""package com.example.db;
+
+import java.sql.Connection;
+import javax.sql.DataSource;
+
+/**
+ * 把「从池借连接」封装成 AutoCloseable，让任何代码路径都能在结束时归还连接。
+ *
+ * 为什么要自己包一层：有些非 SQL 流程（先借连接、中途做点别的、再回来用）不适合直接
+ * try-with-resources 嵌套；包成 AutoCloseable 后既能用 try-with-resources，
+ * 又能在自定义作用域里保持「借出必有归还」。
+ */
+public class ConnectionLease implements AutoCloseable {
+
+    private final DataSource ds;
+    private Connection conn;
+
+    public ConnectionLease(DataSource ds) {
+        this.ds = ds;
+    }
+
+    /** 借出：首次访问时从池取一条连接，之后复用同一条。 */
+    public Connection get() throws Exception {
+        if (conn == null) {
+            conn = ds.getConnection();
+        }
+        return conn;
+    }
+
+    /** 归还：try-with-resources 退出时自动调用，连接回到池中供他人复用。 */
+    @Override
+    public void close() throws Exception {
+        if (conn != null) {
+            conn.close();
+            conn = null;
+        }
+    }
+}
+"""
+
+# ── L3 模拟接口测试：有界池 vs 无限新建 ────────────────────────────
+# 用一个 HttpServer 当假数据库（每条请求 sleep 50ms 模拟查询耗时），
+# 用 ArrayBlockingQueue 当容量为 POOL 的连接池。并发 N 远大于 POOL 时，
+# 有界池会有一部分任务在 ACQUIRE_MS 内拿不到连接而超时；无限新建则全部成功，
+# 但代价是瞬间建立了 N 条到「数据库」的连接——生产里这会拖垮真实数据库。
+LAB_POOL = r"""import com.sun.net.httpserver.HttpServer;
+import java.net.InetSocketAddress;
+import java.net.URI;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
+import java.time.Duration;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.concurrent.ArrayBlockingQueue;
+import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
+
+/**
+ * 模拟连接池：ArrayBlockingQueue 当容量为 POOL 的连接池，HttpServer 当慢数据库。
+ * 有界组拿不到连接就超时；无限组每次新建一条「连接」，全部成功但连接数炸到 N。
+ */
+public class Main {
+
+    static final int POOL = 5;
+    static final int N = 60;
+    static final int ACQUIRE_MS = 800;
+    static String url;
+
+    public static void main(String[] args) throws Exception {
+        HttpServer server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
+        server.createContext("/db", ex -> {
+            sleep(50);
+            byte[] body = "row".getBytes();
+            ex.sendResponseHeaders(200, body.length);
+            ex.getResponseBody().write(body);
+            ex.close();
+        });
+        server.setExecutor(Executors.newVirtualThreadPerTaskExecutor());
+        server.start();
+        url = "http://127.0.0.1:" + server.getAddress().getPort() + "/db";
+
+        try {
+            run("有界池(5)", true);
+            run("无限新建", false);
+        } finally {
+            server.stop(0);
+        }
+        System.out.println("java.version=" + System.getProperty("java.version"));
+    }
+
+    static void run(String label, boolean bounded) throws Exception {
+        BlockingQueue<Token> pool = new ArrayBlockingQueue<>(POOL);
+        for (int i = 0; i < POOL; i++) pool.add(new Token());
+        AtomicInteger timeouts = new AtomicInteger();
+        var client = HttpClient.newHttpClient();
+        long t0 = System.nanoTime();
+        int ok = 0;
+        try (ExecutorService ex = Executors.newVirtualThreadPerTaskExecutor()) {
+            List<Future<Integer>> fs = new ArrayList<>();
+            for (int i = 0; i < N; i++) {
+                fs.add(ex.submit(() -> {
+                    Token t = bounded ? pool.poll(ACQUIRE_MS, TimeUnit.MILLISECONDS) : new Token();
+                    if (t == null) { timeouts.incrementAndGet(); return 0; }
+                    try { return call(client); } finally { if (bounded) pool.offer(t); }
+                }));
+            }
+            for (Future<Integer> f : fs) ok += f.get();
+        }
+        long ms = (System.nanoTime() - t0) / 1_000_000;
+        System.out.printf("%-14s %d 次调用 -> %4dms（成功 %d，获取超时 %d）%n",
+                label, N, ms, ok, timeouts.get());
+    }
+
+    static int call(HttpClient client) {
+        try {
+            var req = HttpRequest.newBuilder(URI.create(url))
+                    .timeout(Duration.ofSeconds(10)).GET().build();
+            return client.send(req, HttpResponse.BodyHandlers.ofString()).statusCode() == 200 ? 1 : 0;
+        } catch (Exception e) { return 0; }
+    }
+
+    static void sleep(long ms) {
+        try { Thread.sleep(ms); } catch (InterruptedException e) { Thread.currentThread().interrupt(); }
+    }
+
+    static final class Token {}
+}
+"""
+
+
+TOPIC = {
+    "id": "connection-pool",
+    "order": 2,
+    "name": "数据库连接池",
+    "subtitle": "把昂贵的数据库连接管起来：有界、可等待、必须归还",
+    "glyph": "⛁",
+    "family": "data",
+    "runtime": "JDBC / HikariCP",
+    "level": "基础",
+    "intent": (
+        "连接池解决的是「数据库连接太贵、数据库能扛的连接数太少」：每次调用都新建连接，"
+        "握手与认证成本会拖垮吞吐，而无上限地新建会把数据库侧连接数打爆。"
+        "连接池把连接复用起来，并给复用数量加上限——既快又不压垮依赖方。"
+    ),
+    "pickWhen": [
+        {"vs": "每次调用新建连接",
+         "text": "任何会反复访问数据库的服务 → 必须池化；只有一次性脚本、启动期只连一次的配置加载才适合直连"},
+        {"vs": "无限大连接池",
+         "text": "数据库有单实例最大连接数，无限池会把压力转嫁成「数据库拒绝连接」→ 必须有界且上限来自容量评估"},
+        {"vs": "单连接串行访问",
+         "text": "只读单连接、靠串行化避免竞争 → 吞吐极低；需要并发就用有界池，而非把连接数压到 1"},
+    ],
+    "limits": [
+        "连接不是线程安全的：一条连接同一时刻只能被一个线程使用，不能多线程共享。",
+        "池化解决「复用」，不解决「慢 SQL」——一条 5 秒的查询照样占满连接。",
+        "池上限必须来自数据库承载评估，不是拍脑袋；上限过高照样拖垮数据库。",
+        "凭据必须外部注入（环境变量 / 配置中心），不能硬编码进代码或仓库。",
+    ],
+    "references": [
+        {"title": "HikariCP · GitHub Wiki（配置项与调优说明）",
+         "url": "https://github.com/brettwooldridge/HikariCP/wiki",
+         "note": "maximumPoolSize / connectionTimeout / leakDetectionThreshold 的官方释义"},
+        {"title": "JDBC · DataSource 接口规范",
+         "url": "https://docs.oracle.com/en/java/javase/21/docs/api/java.sql/javax/sql/DataSource.html",
+         "note": "DataSource 是连接池的标准抽象，应用只依赖它而不依赖具体驱动"},
+        {"title": "军火库规则集 · DATA / REL 类",
+         "note": "SQL 占位符与显式字段、外部调用超时、资源关闭用 try-with-resources 的强制级条目出处"},
+    ],
+    "scenarios": [
+        {
+            "id": "bounded-and-timeout",
+            "order": 1,
+            "name": "有界池与获取超时",
+            "when": (
+                "服务并发访问数据库，且峰值并发远大于数据库愿意给的连接数。"
+                "此时必须让连接复用，并给「拿不到连接」设一个明确的失败边界，"
+                "否则业务线程会无限挂起，最终整服务失去响应。"
+            ),
+            "signals": [
+                "数据库侧出现「Too many connections」或连接数被打到上限",
+                "高峰期接口 RT 陡增，线程 dump 里大量线程卡在获取连接",
+                "慢查询期间连接长时间被占，后续请求拿不到连接而排队",
+            ],
+            "decision": "连接必须复用且有上限；同时给获取连接设超时，让「拿不到」变成一个可观测、可快速失败的异常，而不是无限等待。",
+            "notSuitable": [
+                "只连一次的配置加载（启动期）—不需要池",
+                "纯内存计算、完全不碰数据库的代码路径",
+                "数据库是嵌入式、单进程且只在测试里跑",
+            ],
+            "recipes": [
+                {
+                    "id": "bounded-pool",
+                    "order": 1,
+                    "name": "有界连接池 + 获取超时 + 泄漏探针",
+                    "approach": (
+                        "用 HikariCP 暴露一个 DataSource：设最大连接数（来自容量评估）、"
+                        "连接获取超时（拿不到就失败）、泄漏检测阈值（借出过久告警）；"
+                        "业务侧一律通过 DataSource 拿连接，不自己 new。"
+                    ),
+                    "flow": [
+                        {"layer": "config", "step": "声明有界 DataSource",
+                         "detail": "HikariConfig 设 maximumPoolSize 与 connectionTimeout，@Bean 暴露 DataSource。"},
+                        {"layer": "data", "step": "业务借连接",
+                         "detail": "Repository 通过注入的 DataSource 取连接，不关心池的细节。"},
+                        {"layer": "data", "step": "try-with-resources 归还",
+                         "detail": "连接 / 语句 / 结果集都在 try-with-resources 里，退出即归还。"},
+                        {"layer": "reliability", "step": "超时与泄漏可观测",
+                         "detail": "获取超时被统计为失败，泄漏阈值触发告警堆栈——两者都进监控。"},
+                    ],
+                    "packages": [
+                        "com.example.db.config   有界 DataSource 配置（@Bean 暴露）",
+                        "com.example.db.repo     通过 DataSource 取连接并归还",
+                    ],
+                    "files": [
+                        {
+                            "id": "config",
+                            "path": "src/main/java/com/example/db/config/DataSourceConfig.java",
+                            "layer": "config",
+                            "lang": "java",
+                            "role": "有界 DataSource：最大连接数 + 获取超时 + 泄漏探针。",
+                            "code": CONFIG,
+                            "highlights": [
+                                {"mark": "cfg.setMaximumPoolSize(20);",
+                                 "title": "有界，上限来自容量评估",
+                                 "text": "连接上限必须有，且来自数据库能扛的连接数，不是越大越好。无限池会把压力转成「数据库拒绝连接」。",
+                                 "rule": "CONC-POOL-004"},
+                                {"mark": "cfg.setConnectionTimeout(3_000);",
+                                 "title": "获取超时，快速失败",
+                                 "text": "拿不到连接的等待必须有上限：超时即失败，把「拿不到连接」变成一个可观测异常，而不是让业务线程无限挂起。对应所有外部调用都要设超时。",
+                                 "rule": "REL-TIME-001"},
+                                {"mark": "cfg.setLeakDetectionThreshold(10_000);",
+                                 "title": "泄漏探针",
+                                 "text": "借出超过该时长未归还就打印持有线程的堆栈——连接泄漏最早的告警信号，比「连接耗尽后全盘超时」早发现得多。"},
+                                {"mark": "cfg.setPassword(System.getenv(\"DB_PASSWORD\"));",
+                                 "title": "凭据外部注入",
+                                 "text": "密码走环境变量 / 配置中心，绝不硬编码进仓库。硬编码会被扫出来，也是泄密源头。",
+                                 "rule": "SKEL-CONF-001"},
+                            ],
+                        },
+                        {
+                            "id": "repo",
+                            "path": "src/main/java/com/example/db/repo/OrderRepository.java",
+                            "layer": "data",
+                            "lang": "java",
+                            "role": "借连接 + 参数化查询 + 自动归还。",
+                            "code": REPO,
+                            "highlights": [
+                                {"mark": "try (Connection c = ds.getConnection();",
+                                 "title": "借出即用，退出即还",
+                                 "text": "连接进入 try-with-resources，无论正常返回还是抛异常都会被自动归还——这是防泄漏唯一可靠的写法。",
+                                 "rule": "REL-EXCP-004"},
+                                {"mark": "String sql = \"select u.name from orders o join users u on u.id=o.user_id where o.id = ?\";",
+                                 "title": "显式字段 + 占位符",
+                                 "text": "列出具体字段（禁 SELECT *），条件用 ? 占位符绑定（禁字符串拼接）——两者都是 SQL 安全与可维护的硬要求。",
+                                 "rule": "DATA-SQL-001"},
+                                {"mark": "ps.setLong(1, orderId);",
+                                 "title": "参数绑定而非拼接",
+                                 "text": "参数走 setXxx 绑定，驱动负责转义。任何 \"... where id=\" + id 的拼接都是注入入口，必须禁止。",
+                                 "rule": "DATA-SQL-001"},
+                            ],
+                        },
+                    ],
+                    "checklist": [
+                        "确认最大连接数来自数据库承载评估，而不是默认值或拍脑袋。",
+                        "确认连接获取超时已设置，且超时会被统计 / 告警，而不是静默挂起。",
+                        "确认泄漏检测阈值已开，且告警能进日志 / 监控。",
+                        "确认所有 SQL 用占位符、显式列名，没有字符串拼接与 SELECT *。",
+                        "确认凭据来自环境变量 / 配置中心，仓库里没有明文密码。",
+                    ],
+                    "pitfalls": [
+                        "把连接池上限调得很大「以防不够用」：本质是没解决慢查询，只是把压力推给数据库，最终触发 Too many connections。",
+                        "忘记设获取超时：连接耗尽时业务线程无限等待，整服务雪崩且无任何异常可查。",
+                        "在文件里硬编码密码：被扫到是合规事故，泄露是安全事故。",
+                        "一条连接被多线程共用：连接非线程安全，并发访问会返回错乱数据甚至报错。",
+                    ],
+                    "performance": {
+                        "title": "有界池(5) vs 无限新建（60 次 50ms 的模拟数据库调用）",
+                        "columns": ["维度", "有界池(5)", "无限新建"],
+                        "rows": [
+                            ["到「数据库」的连接数", "固定 5", "瞬时 60（峰值压垮）"],
+                            ["N≫池时的行为", "多余请求获取超时失败", "全部成功，但连接数爆炸"],
+                            ["对依赖方的影响", "在容量内", "可能触发数据库拒绝连接"],
+                            ["可观测性", "超时数可上报", "无（直到数据库崩）"],
+                        ],
+                        "conclusion": "有界池换来的不是更快，是「数据库还在容量内」。超时被当作正常的失败信号上报，而不是让线程永久挂起。页面下方实验能在你机器上把这两组数字跑出来。",
+                    },
+                    "relatedRules": ["REL-TIME-001", "REL-EXCP-004", "CONC-POOL-004", "DATA-SQL-001", "DATA-SQL-002", "SKEL-CONF-001"],
+                    "lab": {
+                        "kind": "mock-endpoint",
+                        "intro": "起一个 50ms 延迟的假数据库（HttpServer），用容量为 5 的 ArrayBlockingQueue 当连接池，60 个并发各打一次，对比有界池（部分获取超时）与无限新建（全部成功但建 60 条连接）。",
+                        "observe": [
+                            "有界池组：成功数 < 60，剩余任务在 800ms 获取超时内拿不到连接而失败",
+                            "无限新建组：60 次全部成功，但瞬时向「数据库」建立了 60 条连接",
+                        ],
+                    },
+                    "playground": [
+                        {"id": "cp-bounded",
+                         "label": "模拟连接池：有界 vs 无限新建",
+                         "mainClass": "Main",
+                         "note": "容量 5 的池 + 50ms 假数据库，60 并发对比获取超时与连接数爆炸。",
+                         "files": [{"path": "Main.java", "code": LAB_POOL}]},
+                    ],
+                },
+            ],
+        },
+        {
+            "id": "must-return",
+            "order": 2,
+            "name": "连接必须归还：防泄漏",
+            "when": (
+                "代码里会借连接、且借出后可能走多条分支（正常 / 异常 / 提前 return），"
+                "或连接要在自定义作用域里复用——只要「借」与「还」不是同一行配对，"
+                "就存在某条路径忘了还、连接永久泄漏的风险。"
+            ),
+            "signals": [
+                "运行一段时间后「Too many connections」，重启才恢复",
+                "连接数随时间单调上涨，与请求量不成比例",
+                "代码里 Connection 在 try 外创建、或 finally 之外才 close",
+            ],
+            "decision": "「借出必有归还」必须靠语言机制保证（AutoCloseable / try-with-resources），而不是靠开发者记得在每条分支写 close——后者必然漏。",
+            "notSuitable": [
+                "连接只在单一 try 块内使用且立即关闭——直接用 try-with-resources 即可，无需额外封装",
+                "非数据库资源（如普通对象）本就不占连接",
+                "纯计算、完全不碰连接的逻辑",
+            ],
+            "recipes": [
+                {
+                    "id": "lease-and-return",
+                    "order": 1,
+                    "name": "把借连接封装成 AutoCloseable",
+                    "approach": (
+                        "自定义一个实现 AutoCloseable 的 ConnectionLease：get() 从池借出，"
+                        "close() 归还；业务用 try-with-resources 包住它，任何路径退出都会归还，"
+                        "不依赖开发者在每条分支手动 close。"
+                    ),
+                    "flow": [
+                        {"layer": "data", "step": "借出封装",
+                         "detail": "ConnectionLease 首次 get() 时从 DataSource 取连接并缓存。"},
+                        {"layer": "data", "step": "作用域内复用",
+                         "detail": "同一 lease 多次 get() 返回同一条连接，避免重复借还。"},
+                        {"layer": "reliability", "step": "退出即归还",
+                         "detail": "try-with-resources 在退出时调用 close()，连接回到池中。"},
+                    ],
+                    "packages": [
+                        "com.example.db   连接借用封装（AutoCloseable，借出必有归还）",
+                    ],
+                    "files": [
+                        {
+                            "id": "lease",
+                            "path": "src/main/java/com/example/db/ConnectionLease.java",
+                            "layer": "data",
+                            "lang": "java",
+                            "role": "连接借用封装：借出 + 自动归还。",
+                            "code": LEASE,
+                            "highlights": [
+                                {"mark": "public class ConnectionLease implements AutoCloseable {",
+                                 "title": "用语言机制兜底归还",
+                                 "text": "实现 AutoCloseable 后，try-with-resources 保证 close() 一定被调用——比「记得在每条分支写 close」可靠得多，从机制上消灭泄漏。"},
+                                {"mark": "conn = ds.getConnection();",
+                                 "title": "借出",
+                                 "text": "首次访问才真正从池取连接，之后复用同一条，避免重复借还带来的开销与竞态。"},
+                                {"mark": "public void close() throws Exception {",
+                                 "title": "归还",
+                                 "text": "try-with-resources 退出时自动调用，连接 close() 回到池中。即便中间抛异常，也不会泄漏。"},
+                            ],
+                        },
+                    ],
+                    "checklist": [
+                        "确认连接借出后总有对应的归还机制（try-with-resources 或 AutoCloseable）。",
+                        "确认异常路径也会归还，而不是只在正常 return 前 close。",
+                        "确认没有把一条连接跨线程传递或长期缓存为字段。",
+                        "确认泄漏检测阈值已开，泄漏能较早告警。",
+                    ],
+                    "pitfalls": [
+                        "在 try 外创建连接、finally 之外才 close：某条提前 return 或抛异常的路径会跳过 close，连接永久泄漏。",
+                        "把连接存成字段长期持有：对象生命周期超过请求，连接数随实例数线性增长直至耗尽。",
+                        "靠「约定」让调用方记得还：只要归还靠人记，就一定有人忘——必须靠 AutoCloseable 兜底。",
+                        "捕获关闭异常后吞掉：close 失败可能意味着连接没真回到池，需要至少记录。",
+                    ],
+                    "relatedRules": ["REL-EXCP-004", "REL-EXCP-001", "REL-EXCP-003"],
+                },
+            ],
+        },
+    ],
+}

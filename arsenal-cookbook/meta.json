@@ -5,18 +5,24 @@
   "releasedAt": "2026-09-24",
   "description": "三层结构的照抄代码库：**技术**（这个技术解决什么、什么时候该选它）→ **场景**（在什么情况下用，带可核对信号）→ **实现方案**（结构 / 代码 / 陷坑 / 模拟接口实测）。每一层都写清「什么时候不要这么写」，并标注对应军火库的哪几条规则。",
   "order": [
-    "virtual-thread"
+    "virtual-thread",
+    "connection-pool",
+    "retry-timeout",
+    "local-cache",
+    "web-layer",
+    "untrusted-data"
   ],
-  "count": 1,
-  "scenarioCount": 3,
-  "recipeCount": 3,
-  "demoCount": 3,
+  "count": 6,
+  "scenarioCount": 13,
+  "recipeCount": 13,
+  "demoCount": 10,
   "families": {
     "concurrency": "并发",
     "data": "数据访问",
     "web": "接口与集成",
     "reliability": "稳定性",
-    "quality": "质量工程"
+    "quality": "质量工程",
+    "security": "安全"
   },
   "contract": {
     "intent": 30,
