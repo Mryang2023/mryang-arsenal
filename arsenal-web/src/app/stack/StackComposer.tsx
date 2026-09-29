@@ -36,6 +36,7 @@ import {
   renderAppClass,
 } from '@/lib/project';
 import { downloadZip } from '@/lib/zip';
+import type { LintViolation } from '@/lib/export-lint';
 import type { StackPicks } from '@/lib/content-types';
 import SlotBlock from './SlotBlock';
 import type { SlotWeight } from './SlotBlock';
@@ -195,7 +196,13 @@ export default function StackComposer() {
   /** 外部请求交付预览切到的页签（S2-7：「看架构图」入口）；消费后回 null */
   const [deckFocus, setDeckFocus] = useState<'arch' | null>(null);
   const [showArtifacts, setShowArtifacts] = useState(true);
-  const [exported, setExported] = useState<{ name: string; bytes: number; files: number } | null>(
+  const [exported, setExported] = useState<{
+    name: string;
+    bytes: number;
+    files: number;
+    /** 导出预检闸的拦截清单：非空 = 本次导出被拒绝，包没有落地 */
+    blocked?: LintViolation[];
+  } | null>(
     null
   );
   // ── ① 的项目定义 ──
@@ -810,6 +817,12 @@ export default function StackComposer() {
   }
 
   function handleExport() {
+    // 导出预检闸：包自洽性检查不过就不出货 —— 与其让用户解包后对着
+    // 启动日志猜（09-29 三轮事故），不如当场把问题清单亮在台面上。
+    if (plan.violations.length > 0) {
+      setExported({ name: '', bytes: 0, files: 0, blocked: plan.violations });
+      return;
+    }
     const name = `${projectName || projectDoc.artifactId}-${plan.kind}.zip`;
     const bytes = downloadZip(
       plan.files.map((f) => ({ path: f.path, content: f.content })),
@@ -1458,8 +1471,32 @@ export default function StackComposer() {
             </div>
           </header>
 
-          {/* 导出反馈：告诉用户包里到底装了什么，以及下一步怎么跑 */}
-          {exported && (
+          {/* 导出反馈：成功绿条告诉用户包里装了什么、怎么跑；被预检闸拦截时换红色清单 */}
+          {exported?.blocked && (
+            <div
+              className="border-b border-rose-500/30 bg-rose-500/5 px-4 py-2.5"
+              data-export-blocked=""
+            >
+              <p className="text-2xs font-semibold text-rose-400">
+                导出被预检闸拦截 —— 这份包打出来也跑不起来，已拒绝打包
+              </p>
+              <ul className="mt-1 space-y-1">
+                {exported.blocked.map((v, i) => (
+                  <li key={`${v.check}-${i}`} className="text-2xs leading-relaxed text-fgMuted">
+                    <span className="mono text-rose-400">[{v.check}]</span> {v.message}
+                  </li>
+                ))}
+              </ul>
+              <button
+                type="button"
+                onClick={() => setExported(null)}
+                className="mono mt-1 text-[10px] text-fgFaint hover:text-fg"
+              >
+                知道了
+              </button>
+            </div>
+          )}
+          {exported && !exported.blocked && (
             <div
               className="flex flex-wrap items-center gap-x-3 gap-y-1.5 border-b border-line px-4 py-2.5"
               style={{ background: 'rgba(127,166,80,0.07)' }}

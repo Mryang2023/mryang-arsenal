@@ -800,6 +800,20 @@ function TreeBlock({ plan, rootName }: { plan: ExportPlan; rootName: string }) {
 
   return (
     <div>
+      {plan.violations.length > 0 && (
+        <div className="mb-2 rounded-md border border-rose-500/30 bg-rose-500/5 px-2.5 py-2" data-export-blocked="">
+          <p className="text-2xs font-semibold text-rose-400">
+            预检闸拦截 {plan.violations.length} 项 —— 这份包现在导出去也跑不起来
+          </p>
+          <ul className="mt-1 space-y-0.5">
+            {plan.violations.map((v, i) => (
+              <li key={`${v.check}-${i}`} className="text-2xs leading-relaxed text-fgMuted">
+                <span className="mono text-rose-400">[{v.check}]</span> {v.message}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
       <p className="mb-1.5 text-[10px] leading-[15px] text-fgFaint">
         这套组合会导出 {stats.files} 个文件（Java {stats.java} / 资源 {stats.resources} / 测试{' '}
         {stats.test}），分布在 {stats.dirs} 个目录里。这棵树与交付包**逐文件一致** ——

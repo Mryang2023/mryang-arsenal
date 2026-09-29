@@ -3,6 +3,7 @@
  * verify:scaffold 都从这里 import —— 字段名与 module.json/DTO 实测对齐。
  */
 import type { ExportFile } from '@/lib/project';
+import type { LintViolation } from '@/lib/export-lint';
 
 /** 环境表单的一个字段（schema 来自 stack.json 顶层 envForms） */
 export interface EnvFieldSpec {
@@ -75,6 +76,11 @@ export interface ExportArtifacts {
   backend: ExportArtifact;
   frontend?: ExportArtifact;
   all: ExportArtifact;
+  /**
+   * 导出预检闸（export-lint）对后端包清单的终检结果。
+   * 非空 = 这份包打出来也跑不起来 —— 交付面板据此禁用下载并在台面亮出问题清单。
+   */
+  violations: LintViolation[];
 }
 
 /** 占位符白名单 —— 渲染器只替换这些名字，其余 {{...}} 一律原样保留 */

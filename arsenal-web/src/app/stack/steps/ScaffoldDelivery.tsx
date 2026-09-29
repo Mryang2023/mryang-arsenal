@@ -1,6 +1,7 @@
 'use client';
 
 import { downloadZip } from '@/lib/zip';
+import type { LintViolation } from '@/lib/export-lint';
 import type { EnvFormSpec, EnvValues, ExportArtifacts, ModuleDef } from '@/lib/scaffold/contracts';
 import type { StepSpec } from '../wizard';
 import StepShell from './StepShell';
@@ -10,6 +11,10 @@ import StepShell from './StepShell';
  *
  * 三张下载卡（后端 / 前端 / 全家桶）+ 环境清单（密码打码）+ 模块清单 + 三档启动指南。
  * 这是「选完就拿走」的终点面板 —— 九页签回答「长什么样」，这里回答「怎么拿、怎么跑」。
+ *
+ * 导出预检闸：violations 非空 = 这份包打出来也跑不起来（同名 bean / 悬空
+ * import / 无版本依赖…）。此时下载全部禁用、问题清单直接亮在台面 ——
+ * 宁可不交付，不发一份用户解包才发现起不来的包（09-29 三轮事故的教训）。
  */
 export default function ScaffoldDelivery({
   artifacts,
@@ -26,9 +31,11 @@ export default function ScaffoldDelivery({
 }) {
   const secretKeys = new Set(forms.flatMap((f) => f.fields.filter((x) => x.secret).map((x) => x.key)));
   const envRows = Object.entries(values).filter(([, v]) => v !== '');
+  const violations = artifacts.violations;
+  const blocked = violations.length > 0;
 
   const download = (art: { name: string; files: { path: string; content: string }[] } | undefined) => {
-    if (!art) return;
+    if (!art || blocked) return;
     downloadZip(
       art.files.map((f) => ({ path: f.path, content: f.content })),
       art.name,
@@ -48,12 +55,33 @@ export default function ScaffoldDelivery({
         </p>
       </header>
 
+      {blocked && (
+        <div className="border-b border-rose-500/30 bg-rose-500/5 px-4 py-3" data-export-blocked="">
+          <p className="text-[12px] font-semibold leading-[17px] text-rose-400">
+            导出被预检闸拦截 —— 当前组合打出的包跑不起来，已禁止下载
+          </p>
+          <ul className="mt-1.5 space-y-1">
+            {violations.map((v, i) => (
+              <li key={`${v.check}-${i}`} className="text-2xs leading-relaxed text-fgMuted">
+                <span className="mono text-rose-400">[{v.check}]</span> {v.message}
+              </li>
+            ))}
+          </ul>
+          <p className="mt-1.5 text-2xs text-fgFaint">
+            修好上面的问题（通常是调整选型组合，或内容源缺一条修复）后，这里会自动恢复下载。
+          </p>
+        </div>
+      )}
+
       <div className="grid gap-2.5 p-4 md:grid-cols-3">
         <button
           type="button"
           data-download="backend"
+          disabled={blocked}
           onClick={() => download(artifacts.backend)}
-          className="rounded-lg border border-line p-3 text-left transition-colors hover:border-brass"
+          className={`rounded-lg border border-line p-3 text-left transition-colors ${
+            blocked ? 'cursor-not-allowed opacity-40' : 'hover:border-brass'
+          }`}
         >
           <p className="text-[13px] font-semibold text-fg">后端包</p>
           <p className="mono mt-1 text-[10px] text-fgFaint">
@@ -68,8 +96,11 @@ export default function ScaffoldDelivery({
           <button
             type="button"
             data-download="frontend"
+            disabled={blocked}
             onClick={() => download(artifacts.frontend)}
-            className="rounded-lg border border-line p-3 text-left transition-colors hover:border-brass"
+            className={`rounded-lg border border-line p-3 text-left transition-colors ${
+              blocked ? 'cursor-not-allowed opacity-40' : 'hover:border-brass'
+            }`}
           >
             <p className="text-[13px] font-semibold text-fg">前端包</p>
             <p className="mono mt-1 text-[10px] text-fgFaint">
@@ -89,8 +120,11 @@ export default function ScaffoldDelivery({
         <button
           type="button"
           data-download="all"
+          disabled={blocked}
           onClick={() => download(artifacts.all)}
-          className="rounded-lg border border-line p-3 text-left transition-colors hover:border-brass"
+          className={`rounded-lg border border-line p-3 text-left transition-colors ${
+            blocked ? 'cursor-not-allowed opacity-40' : 'hover:border-brass'
+          }`}
         >
           <p className="text-[13px] font-semibold text-fg">全家桶</p>
           <p className="mono mt-1 text-[10px] text-fgFaint">

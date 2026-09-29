@@ -147,6 +147,19 @@ export function buildBackendFiles(
       webMvc.content = TAKEOVER_WEBMVC_CONFIG;
       webMvc.from = '认证基础设施 · 模块接管版';
     }
+    // 测试侧引用跟着接管走：骨架 interceptor/AuthInterceptor 被剔除后，
+    // 切片测试（UserControllerTest）的 @MockBean 目标换成模块版 ——
+    // 同类型同方法签名，测试逻辑不变，只是 import 指到接管方。
+    // export-lint 冒烟抓出的漏网：main 侧修了，test 侧悬空 import 编译即红。
+    for (const f of files) {
+      if (f.path.startsWith('src/test/java/')
+        && f.content.includes('import com.example.interceptor.AuthInterceptor;')) {
+        f.content = f.content.replace(
+          'import com.example.interceptor.AuthInterceptor;',
+          'import com.example.auth.web.AuthInterceptor;',
+        );
+      }
+    }
   }
 
   // ── MyBatis-Plus 分页插件配置 ─────────────────────────────────
