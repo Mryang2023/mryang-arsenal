@@ -218,6 +218,10 @@ DIMENSIONS = [
                     {"groupId": "io.jsonwebtoken", "artifactId": "jjwt-api", "version": "0.12.5"},
                     {"groupId": "io.jsonwebtoken", "artifactId": "jjwt-impl", "version": "0.12.5", "scope": "runtime"},
                     {"groupId": "io.jsonwebtoken", "artifactId": "jjwt-jackson", "version": "0.12.5", "scope": "runtime"},
+                    # 脚手架功能模块的密码校验用 BCryptPasswordEncoder（spring-security-crypto
+                    # 单包，不是整个 Spring Security）；缺它，custom 组合导出即编译不过
+                    {"groupId": "org.springframework.security", "artifactId": "spring-security-crypto",
+                     "version": "6.2.4", "note": "PasswordConfig/AuthService 的 BCrypt 依赖"},
                 ],
                 "notes": [
                     "选择它就意味着你要自己实现：token 解析、过期处理、时钟偏移容忍、签名算法白名单（防 alg=none 攻击）、"

@@ -13,7 +13,7 @@
   "menus": [
     {
       "title": "用户管理",
-      "path": "/system/users",
+      "path": "/system/user",
       "permission": "sys:user:list",
       "icon": "user"
     }

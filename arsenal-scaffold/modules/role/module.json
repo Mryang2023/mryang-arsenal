@@ -12,7 +12,7 @@
   "menus": [
     {
       "title": "角色管理",
-      "path": "/system/roles",
+      "path": "/system/role",
       "permission": "sys:role:list",
       "icon": "team"
     }

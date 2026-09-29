@@ -66,7 +66,7 @@ export interface ScaffoldVariant {
 
 export interface ScaffoldFile {
   path: string;
-  group: '构建' | '源码' | '配置' | '数据' | '文档' | '测试' | '部署';
+  group: '构建' | '源码' | '配置' | '数据' | '文档' | '测试' | '部署' | '前端源码' | '前端配置';
   from: string;
   desc: string;
   variants: ScaffoldVariant[];
@@ -591,7 +591,7 @@ export interface ExportFile {
   path: string;
   content: string;
   /** 界面分组用 */
-  group: '构建' | '源码' | '配置' | '数据' | '文档' | '测试' | '部署';
+  group: '构建' | '源码' | '配置' | '数据' | '文档' | '测试' | '部署' | '前端源码' | '前端配置';
   /** 这一份是哪个模块带来的（空 = 基础文件） */
   from?: string;
 }

@@ -78,7 +78,7 @@ ON DUPLICATE KEY UPDATE `id` = `id`;
 -- menus 字段一一对应（title/path/permission/icon 四元组一字不差）。
 INSERT INTO `sys_menu` (`id`, `parent_id`, `label`, `path`, `icon`, `sort_no`, `permission`, `status`)
 VALUES (1, NULL, '系统管理', '/system', 'setting', 1, NULL, 0),
-       (2, 1, '用户管理', '/system/users', 'user', 1, 'sys:user:list', 0),
-       (3, 1, '角色管理', '/system/roles', 'team', 2, 'sys:role:list', 0),
-       (4, 1, '菜单管理', '/system/menus', 'menu', 3, 'sys:menu:list', 0)
+       (2, 1, '用户管理', '/system/user', 'user', 1, 'sys:user:list', 0),
+       (3, 1, '角色管理', '/system/role', 'team', 2, 'sys:role:list', 0),
+       (4, 1, '菜单管理', '/system/menu', 'menu', 3, 'sys:menu:list', 0)
 ON DUPLICATE KEY UPDATE `id` = `id`;

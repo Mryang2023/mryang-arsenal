@@ -412,6 +412,10 @@ def build_stacks():
         'bases': bases,
         'defaultBase': default_base,
         'presets': presets,
+        # 前端选型与环境表单：顶层键，**刻意不走 dimensions** ——
+        # 维度数/宽度分布被视觉契约钉死，塞前端维度会连环炸断言（见 stack_frontend.py 头注）
+        'frontend': load_module('stack_frontend').FRONTEND,
+        'envForms': load_module('stack_frontend').ENV_FORMS,
     }
     write_json('arsenal-stacks/stack.json', stack)
 

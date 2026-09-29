@@ -61,6 +61,9 @@ const LAYERS = [
   { key: 'parity', name: '前后端一致性', script: 'verify:parity' },
   { key: 'archify', name: 'Archify 链路', script: 'verify:archify' },
   { key: 'scan', name: '代码扫描', script: 'verify:scan' },
+  // 脚手架生成链路（2026-09-29 新增）：模板↔bundle 一致、生成代码 import↔pom GAV、
+  // 占位符白名单、三包组装。纯源码/产物断言，不起浏览器。
+  { key: 'scaffold', name: '脚手架生成链路', script: 'verify:scaffold' },
   // 部署形态动画（2026-09-27 新增，第十层）：形态图快照逐字符 + 机理剧本契约 + 播放器契约。
   // 纯源码 / 产物断言，不起浏览器 —— 排在 visual 之前，别让页面层等它。
   { key: 'topology', name: '部署形态动画', script: 'verify:topology' },

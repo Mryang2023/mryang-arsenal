@@ -75,6 +75,7 @@ export const LAYER_NAMES: Record<string, string> = {
   parity: '前后端一致性',
   archify: 'Archify 链路',
   scan: '代码扫描',
+  scaffold: '脚手架生成链路',
   topology: '部署形态动画',
   visual: '视觉断言',
   // ⚠️ `meta` **不是 `verifyChain` 的成员** —— 它是链尾的元核对层：

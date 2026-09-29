@@ -10,7 +10,7 @@
   "menus": [
     {
       "title": "菜单管理",
-      "path": "/system/menus",
+      "path": "/system/menu",
       "permission": "sys:menu:list",
       "icon": "menu"
     }

@@ -338,3 +338,75 @@ export function parseShareHash(hash: string): SharePayload | null {
     return null;
   }
 }
+
+// ── 脚手架装配台通道（双包导出用） ─────────────────────────────
+//
+// 环境值 / 模块勾选 / 前端选型是第四条平行通道，与选型分离的理由同上：
+// 它们的消费方是脚手架生成器，不是架构图谱，塞进 picks 会污染快照形状。
+//
+// 密码默认**不落盘**：包含真实密码的配置一旦持久化，扩散面（导出、同步、
+// 换机器）都不受控。用户勾选 rememberSecrets 才存，界面要明示这一点。
+
+const SCAFFOLD_KEY = 'arsenal-stack-scaffold-v1';
+
+export interface ScaffoldDraft {
+  envValues: Record<string, string>;
+  demoMode: boolean;
+  feBase: string;
+  moduleIds: string[];
+}
+
+interface ScaffoldStored extends ScaffoldDraft {
+  /** secret 字段的持久化开关；false 时 storedSecrets 不应存在 */
+  rememberSecrets?: boolean;
+  storedSecrets?: Record<string, string>;
+}
+
+export function saveScaffoldDraft(draft: ScaffoldDraft, secrets: Record<string, string>, remember: boolean): void {
+  if (!canStore()) return;
+  try {
+    const payload: ScaffoldStored = {
+      envValues: draft.envValues,
+      demoMode: draft.demoMode,
+      feBase: draft.feBase,
+      moduleIds: draft.moduleIds,
+      rememberSecrets: remember,
+      storedSecrets: remember ? secrets : undefined,
+    };
+    window.localStorage.setItem(SCAFFOLD_KEY, JSON.stringify(payload));
+  } catch {
+    // 静默降级：草稿丢了不阻塞导出
+  }
+}
+
+export function loadScaffoldDraft(): { draft: ScaffoldDraft; secrets: Record<string, string> } | null {
+  if (!canStore()) return null;
+  try {
+    const raw = window.localStorage.getItem(SCAFFOLD_KEY);
+    if (!raw) return null;
+    const p = JSON.parse(raw) as ScaffoldStored;
+    if (typeof p !== 'object' || p === null || typeof p.envValues !== 'object') return null;
+    const secrets: Record<string, string> = {};
+    if (p.rememberSecrets && p.storedSecrets) {
+      for (const [k, v] of Object.entries(p.storedSecrets)) {
+        if (typeof v === 'string') secrets[k] = v;
+      }
+    }
+    return {
+      draft: {
+        envValues: p.envValues,
+        demoMode: !!p.demoMode,
+        feBase: typeof p.feBase === 'string' ? p.feBase : 'vue3-vite',
+        moduleIds: Array.isArray(p.moduleIds) ? p.moduleIds.filter((x) => typeof x === 'string') : [],
+      },
+      secrets,
+    };
+  } catch {
+    return null;
+  }
+}
+
+export function clearScaffoldDraft(): void {
+  if (!canStore()) return;
+  window.localStorage.removeItem(SCAFFOLD_KEY);
+}

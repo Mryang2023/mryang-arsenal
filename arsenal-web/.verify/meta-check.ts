@@ -68,6 +68,7 @@ const CHAIN_ORDER = [
   'parity',
   'archify',
   'scan',
+  'scaffold',
   'topology',
   'visual',
 ];
