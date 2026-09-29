@@ -1,6 +1,6 @@
 import { useAuthStore } from '@/stores/auth';
 import { ADMIN_CHILDREN } from './routes';
-import type { SideMenuItem } from './menus';
+import type { SideMenuItem } from '@/types/api';
 
 /**
  * 动态菜单：登录后由守卫把 /api/auth/menus 的结果放进 auth store，

@@ -330,16 +330,11 @@ TREE = D('arsenal-demo/', '项目根目录，名字与 artifactId 一致', child
 # 用户看一眼就知道：为什么我的启动类这么干净。
 # ─────────────────────────────────────────────────────────────
 
-APP_ANNOTATIONS = [
-    {
-        'code': '@MapperScan("com.example.**.repository")',
-        'import': 'org.mybatis.spring.annotation.MapperScan',
-        'comment': '扫描 Mapper 接口。也可以给每个接口加 @Mapper，但那样每新增一个都要记得加 ——'
-                   '漏掉的表现是启动报 NoSuchBeanDefinitionException，且找不出是哪个接口漏了。',
-        'source': '持久层 · MyBatis-Plus',
-        'when': {'persistence': ['mybatisplus']},
-    },
-]
+# MapperScan 已移除（2026-09-29 E2E 实测）：宽模式 `com.example.**.repository`
+# 会把普通仓储接口（auth/模块体系的 repository/*）误注册成 MyBatis Mapper Bean，
+# 启动即因 Bean 二义性失败。所有 Mapper 接口都带 @Mapper，交给 MyBatis-Plus
+# 的自动扫描即可 —— 代价只是每个 Mapper 记得写 @Mapper（模板已写）。
+APP_ANNOTATIONS = []
 
 SWITCH_OWNERS = [
     {

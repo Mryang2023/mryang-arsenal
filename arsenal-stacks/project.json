@@ -1061,19 +1061,7 @@
     ]
   },
   "appTemplate": "package com.example;\n\n__IMPORTS__\n\n/**\n * 应用启动类。\n *\n * 三条硬约束（军火库 SKEL-STRC-002）：\n *   1. 必须放在根包 com.example。@SpringBootApplication 隐式带 @ComponentScan，\n *      扫描范围是「本类所在包及其子包」。放到子包里的结果是部分 Bean 扫不到，\n *      而报出来的错误与真实原因毫无关系。\n *   2. 根包里只放这一个类。其他类一律进子包 —— 否则分包边界会从根包开始糊掉。\n *   3. 启动类不做业务初始化。需要预热数据就写 ApplicationRunner，\n *      否则启动失败的原因会被埋进业务异常里。\n *\n * 为什么这个类看起来这么空：\n * 全局开关全部放在各自负责的配置类里，启动类只保留「包扫描锚点」这一个职责。\n *\n * 当前组合的开关归属表（删掉哪个配置类，等于关掉对应的开关）：\n *\n__SWITCHES__\n *\n * 这不是洁癖。启动类一旦开始堆注解，它就会变成「谁都想往里加一行」的地方，\n * 半年后没人说得清哪一行是干什么的、能不能删。\n */\n@SpringBootApplication\n__ANNOTATIONS__\npublic class Application {\n\n    public static void main(String[] args) {\n        SpringApplication.run(Application.class, args);\n    }\n}\n",
-  "appAnnotations": [
-    {
-      "code": "@MapperScan(\"com.example.**.repository\")",
-      "import": "org.mybatis.spring.annotation.MapperScan",
-      "comment": "扫描 Mapper 接口。也可以给每个接口加 @Mapper，但那样每新增一个都要记得加 ——漏掉的表现是启动报 NoSuchBeanDefinitionException，且找不出是哪个接口漏了。",
-      "source": "持久层 · MyBatis-Plus",
-      "when": {
-        "persistence": [
-          "mybatisplus"
-        ]
-      }
-    }
-  ],
+  "appAnnotations": [],
   "switchOwners": [
     {
       "switch": "@EnableScheduling",

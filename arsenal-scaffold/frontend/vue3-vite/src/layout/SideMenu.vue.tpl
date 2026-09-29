@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 import { useRoute } from 'vue-router';
-import type { SideMenuItem } from '@/router/menus';
+import type { SideMenuItem } from '@/types/api';
 
 /**
  * 侧边菜单。递归渲染 SideMenuItem 树：有 children 渲染子菜单，否则渲染可点项。

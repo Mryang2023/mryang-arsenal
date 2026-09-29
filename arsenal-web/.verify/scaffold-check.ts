@@ -73,7 +73,7 @@ const scaffoldDir = path.resolve(here, '..', '..', 'arsenal-scaffold');
     ['io.jsonwebtoken', ['jjwt-api']],
     ['org.springframework.security.crypto', ['spring-security-crypto', 'spring-boot-starter-security']],
     ['org.springframework.data.jpa', ['spring-boot-starter-data-jpa']],
-    ['jakarta.persistence', ['spring-boot-starter-data-jpa']],
+    ['jakarta.persistence', ['spring-boot-starter-data-jpa', 'jakarta.persistence-api']],
     ['jakarta.validation', ['spring-boot-starter-validation']],
     ['org.springframework.data.redis', ['spring-boot-starter-data-redis']],
     ['org.aspectj', ['spring-boot-starter-aop']],

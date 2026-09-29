@@ -3,7 +3,8 @@ import { computed } from 'vue';
 import { useRoute } from 'vue-router';
 import HeaderBar from './HeaderBar.vue';
 import SideMenu from './SideMenu.vue';
-import { sideMenus, type SideMenuItem } from '@/router/menus';
+import { sideMenus } from '@/router/menus';
+import type { SideMenuItem } from '@/types/api';
 
 /**
  * 管理端布局：左侧菜单 + 顶栏 + 内容区。

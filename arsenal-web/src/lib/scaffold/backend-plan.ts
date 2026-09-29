@@ -103,9 +103,11 @@ export function buildBackendFiles(
   const persistence = picks.persistence;
 
   // ── 认证基础设施（自研 JWT，custom / securityjwt 两选型共用）────
+  // 前缀切到「模块根」而不是它的 src/ 之后 —— 模板 key 里的 src/main/... 必须保留，
+  // 否则文件落到工程根外面，mvn 根本编不到（E2E 实测抓过这个坑）
   if (picks.auth === 'custom' || picks.auth === 'securityjwt') {
     collectTemplates(
-      'backend/auth/src/',
+      'backend/auth/',
       SCAFFOLD_FILES,
       vars,
       persistence,
@@ -118,7 +120,7 @@ export function buildBackendFiles(
   // ── MyBatis-Plus 分页插件配置 ─────────────────────────────────
   if (persistence === 'mybatisplus') {
     collectTemplates(
-      'backend/mybatis/src/',
+      'backend/mybatis/',
       SCAFFOLD_FILES,
       vars,
       persistence,
@@ -131,7 +133,7 @@ export function buildBackendFiles(
   // ── 功能模块（module-registry 已做过依赖闭包与冲突警告）────────
   for (const mod of modules) {
     collectTemplates(
-      `modules/${mod.id}/src/`,
+      `modules/${mod.id}/`,
       SCAFFOLD_FILES,
       vars,
       persistence,
@@ -139,6 +141,22 @@ export function buildBackendFiles(
       `功能模块 · ${mod.name}`,
       files,
     );
+  }
+
+  // ── 勾了 mod-user 时剔除旧示例 user 领域：两者都在 com.example 顶层
+  // 声明 GET /api/users，Spring 启动即因 ambiguous mapping 拒绝 —— 模块版
+  // （system.user，sys_user 表）是全量替代品，示例的「照它抄」职责由它接手。
+  if (modules.some((m) => m.id === 'user')) {
+    for (let i = files.length - 1; i >= 0; i -= 1) {
+      const p = files[i].path;
+      if (p.startsWith('src/main/java/com/example/user/')
+        || p.startsWith('src/test/java/com/example/user/')
+        || p === 'src/main/resources/mapper/UserMapper.xml'
+        // 示例定时任务依赖被剔除的示例 UserService —— 跟着一起剔除
+        || p.endsWith('job/UserSyncJob.java')) {
+        files.splice(i, 1);
+      }
+    }
   }
 
   // ── SQL 合并：模块建表/种子并入选型带来的迁移文件 ─────────────
@@ -175,6 +193,20 @@ export function buildBackendFiles(
         '</dependencies>',
         `        <!-- 演示档数据源（--spring.profiles.active=demo 时生效） -->\n`
         + `        <dependency>\n            <groupId>com.h2database</groupId>\n            <artifactId>h2</artifactId>\n            <scope>runtime</scope>\n        </dependency>\n    </dependencies>`,
+      );
+    }
+  }
+
+  // ── mybatisplus + 模块：实体模板同时带 JPA 注解（单实体双叉共用），
+  // 编译期需要 jakarta.persistence-api；纯 MP 路径下这些注解运行时是惰性的
+  if (modules.length > 0 && persistence === 'mybatisplus') {
+    const pom = files.find((f) => f.path === 'pom.xml');
+    if (pom && !pom.content.includes('jakarta.persistence-api')) {
+      pom.content = pom.content.replace(
+        '</dependencies>',
+        `        <!-- 模块实体同时标注 JPA 注解（单实体双叉共用），编译期需要它；\n`
+        + `             纯 MyBatis-Plus 运行时路径不触碰这些注解 -->\n`
+        + `        <dependency>\n            <groupId>jakarta.persistence</groupId>\n            <artifactId>jakarta.persistence-api</artifactId>\n            <version>3.1.0</version>\n        </dependency>\n    </dependencies>`,
       );
     }
   }

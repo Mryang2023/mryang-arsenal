@@ -14,6 +14,14 @@ DIMENSIONS = [
                 "name": "Spring Security + JWT",
                 "badge": "推荐",
                 "summary": "官方方案，过滤器链清晰，方法级注解（@PreAuthorize）成熟。学习曲线较陡但一次学透。",
+                "yaml": (
+                    "app:\n"
+                    "  jwt:\n"
+                    "    # 生产环境必须换默认密钥（APP_JWT_SECRET 注入；compose 按此变量名注入）\n"
+                    "    secret: ${APP_JWT_SECRET:change-me-in-production-0123456789abcdef}\n"
+                    "    # token 有效期（分钟），签发与校验共用\n"
+                    "    ttl-minutes: 720"
+                ),
                 "dependencies": [
                     {"groupId": "org.springframework.boot", "artifactId": "spring-boot-starter-security"},
                     {"groupId": "io.jsonwebtoken", "artifactId": "jjwt-api", "version": "0.12.5"},
@@ -214,6 +222,14 @@ DIMENSIONS = [
                 "name": "自研拦截器 + JWT",
                 "badge": "不推荐",
                 "summary": "自己写过滤器解析 JWT 并塞进 ThreadLocal。看起来简单，但鉴权细节极易漏。",
+                "yaml": (
+                    "app:\n"
+                    "  jwt:\n"
+                    "    # 生产环境必须换默认密钥（APP_JWT_SECRET 注入；compose 按此变量名注入）\n"
+                    "    secret: ${APP_JWT_SECRET:change-me-in-production-0123456789abcdef}\n"
+                    "    # token 有效期（分钟），签发与校验共用\n"
+                    "    ttl-minutes: 720"
+                ),
                 "dependencies": [
                     {"groupId": "io.jsonwebtoken", "artifactId": "jjwt-api", "version": "0.12.5"},
                     {"groupId": "io.jsonwebtoken", "artifactId": "jjwt-impl", "version": "0.12.5", "scope": "runtime"},

@@ -81,3 +81,11 @@ export interface MenuTreeNode {
   status: number;
   children: MenuTreeNode[];
 }
+
+/** 侧边栏条目。与后端 MenuNode 解耦：菜单来源可静态可动态，布局层不关心 */
+export interface SideMenuItem {
+  label: string;
+  icon?: string;
+  path?: string;
+  children?: SideMenuItem[];
+}

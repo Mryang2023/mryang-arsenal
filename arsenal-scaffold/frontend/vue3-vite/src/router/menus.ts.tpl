@@ -1,12 +1,7 @@
 import { ADMIN_CHILDREN } from './routes';
+import type { SideMenuItem } from '@/types/api';
 
-/** 侧边栏条目。与后端 MenuNode 解耦：菜单来源可静态可动态，布局层不关心 */
-export interface SideMenuItem {
-  label: string;
-  icon?: string;
-  path?: string;
-  children?: SideMenuItem[];
-}
+export type { SideMenuItem };
 
 /**
  * 静态菜单：直接从路由表推导。没有菜单模块的后端，界面照样完整可用 ——

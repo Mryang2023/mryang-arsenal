@@ -213,8 +213,11 @@ check('包名是根包', appMy.startsWith('package com.example;'));
 check('带 @SpringBootApplication', appMy.includes('@SpringBootApplication'));
 check('类名 Application，main 方法在', appMy.includes('public class Application') && appMy.includes('SpringApplication.run'));
 check('没有残留占位符', !PLACEHOLDER.test(appMy));
-check('mybatisplus → 有 @MapperScan 及其 import',
-  appMy.includes('@MapperScan(') && appMy.includes('import org.mybatis.spring.annotation.MapperScan;'));
+// 2026-09-29 E2E 实测：@MapperScan("com.example.**.repository") 宽模式会把 auth/模块体系的
+// 普通仓储接口误注册成 MyBatis Mapper，启动即 Bean 二义性失败 —— 已从启动类移除，
+// 所有 Mapper 接口自带 @Mapper，交给 MyBatis-Plus 自动扫描。断言反转为「不许回来」。
+check('mybatisplus → 启动类不再携带 @MapperScan（自动扫描 @Mapper 取代）',
+  !appMy.includes('@MapperScan('));
 check('jdbc → 没有 @MapperScan', !renderAppClass(defaultPicks).includes('@MapperScan'));
 
 check('scheduler=spring → 开关表出现 @EnableScheduling', appMy.includes('@EnableScheduling'));
