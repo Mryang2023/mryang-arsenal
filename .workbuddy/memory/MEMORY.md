@@ -7,7 +7,7 @@
 - 后端 arsenal-server Boot 3.2.5 : **3011**；前端 arsenal-web Next.js 14 : **3010**（`output:'export'`）。
 - 事实源：`arsenal-rules/**`（69 条）、`arsenal-cookbook/`、`arsenal-cases/`（9 场景/67 切片/193 锚点）、`arsenal-stacks/*.json`、`arsenal-icons/`。
 - 蓝图三层：技术→场景→方案；路由 `/blueprints/[topic]/[scenario]` 动态。案例 L1 目录页（`CASE_GROUPS` 唯一维护点，未归组落「其它」）；L2 空壳 HTML 是既有设计；L3 实测必须真（`lab.kind` 与代码互证）；`playground[]` 纯 JDK（后端 javac 无 classpath）。
-- 选型台 **33 维/127 选项/6 预设**；装配台七步两段向导：①定义②基底③主题框架(19 维唯一选型处)④只读校核台⑤交付运行⑥部署形态⑦交付；`stepOfDim` 唯一归属出处。SlotBlock 无修改入口是故意的（project-check 反向断言）。形态只预填不约束。
+- 选型台 **33 维/127 选项/6 预设**；装配台三段十步向导（09-29 核实，原记「七步两段」已过期）：software ①定义②基底③主题框架(19 维唯一选型处)④只读校核台 / frontend-env ⑤前端⑥环境⑦模块 / delivery-run ⑧交付运行⑨部署形态⑩交付；`stepOfDim` 唯一归属出处。SlotBlock 无修改入口是故意的（project-check 反向断言）。形态只预填不约束。
 - 引擎覆盖：前端 35/69、后端 42/69、LLM 0/43，非正则层 skipped 不伪造。
 - 设计 token：canvas #0B0F0E / surface #131917 / brass #D9A441 / olive #7FA650 等（tailwind.config.ts）；装配台语义色只许 `stack/palette.ts` TONE 五色。
 
@@ -51,4 +51,5 @@
 - 案例库升级 09-25（C-1 AI 出口/C-2 自证/C-3 互链 P1；C-4 thread-pool 保留）；场景 CONTENT 线 P1 补 6 日常场景；UI 分层 L1+L2 已做，L3 与图形化排次夜（`generateStaticParams` 必须数据驱动，写死数字=假绿）。
 - CaseLab(分诊台)≠DemoRunner(跑 playground)，两库合并 C-7 未做。
 - 装配台剩 S3-1 画布/S3-2 评分卡；P0-2/P2-1 待 mryang 拍板。B0-3 四场景无 benchmark；63/81 位图缺。
+- **装配台重设计已定案并排期（09-29 晚，见 `docs/开发计划-2026-09-29-装配台重设计/`）**：拆法 A 四页（`/stack`选型台 / `/stack/env`环境与模块 / `/stack/run`运行与部署 / `/stack/delivery`交付中心），交付中心含预检闸首屏+导出历史；JourneyBar 随 P0；数据层（picks-store/drafts/history/wizard.ts）零改动；P0 连动 project-check ≥8 组断言改写 + EXPECTED 20/60。**已排三夜定时任务（7 棒）**：夜1=P0、夜2=P1 两页、夜3=P2；规程与棒次表见同目录 NIGHT-RUN.md / 00-index.md；状态目录按夜 .workbuddy/night-chain/。
 - 待人工决策：69 规则逐条过目；5 条无检查器 AST 规则补/降级。
