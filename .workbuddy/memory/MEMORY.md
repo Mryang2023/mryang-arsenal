@@ -8,6 +8,7 @@
 - 事实源：`arsenal-rules/**`（69 条）、`arsenal-cookbook/`、`arsenal-cases/`（9 场景/67 切片/193 锚点）、`arsenal-stacks/*.json`、`arsenal-icons/`。
 - 蓝图三层：技术→场景→方案；路由 `/blueprints/[topic]/[scenario]` 动态。案例 L1 目录页（`CASE_GROUPS` 唯一维护点，未归组落「其它」）；L2 空壳 HTML 是既有设计；L3 实测必须真（`lab.kind` 与代码互证）；`playground[]` 纯 JDK（后端 javac 无 classpath）。
 - 选型台 **33 维/127 选项/6 预设**；装配台三段十步向导（09-29 核实，原记「七步两段」已过期）：software ①定义②基底③主题框架(19 维唯一选型处)④只读校核台 / frontend-env ⑤前端⑥环境⑦模块 / delivery-run ⑧交付运行⑨部署形态⑩交付；`stepOfDim` 唯一归属出处。SlotBlock 无修改入口是故意的（project-check 反向断言）。形态只预填不约束。
+- **四页路由已落地（09-29 夜 P0，拆法 A）**：`/stack` 选型台（software 四步）/ `/stack/env` 环境与模块（⑤⑥⑦）/ `/stack/run` 运行与部署（⑧⑨）/ `/stack/delivery` 交付中心（⑩ + 产物页签）；`StackComposer.tsx`(2399 行) 已删，拆成 `useStackChannel.ts`(状态通道) + `StackDeck.tsx`(常驻结论条) + 四个容器 + `JourneyBar.tsx`(跨页导航)；`wizard.ts` 的 `STACK_PAGES`/`PAGE_OF_STEP`/`PAGE_ID_OF_STEP` 是页面归属唯一出处（`stepOfDim` 等引擎口径未动）。**页面归属裁决只在 `useStackChannel` 挂载时做一次，`step` 绝不能进那条 effect 的依赖数组** —— 放进去会让 URL 被 `router.replace` 拽回 `/stack/`，四页渲染成同一页（project-check 三条源码文本断言守着）。侧边栏「装配台」分组 4 项（`Shell.tsx` NAV_ROWS，`nav-active.ts` 的 `LEAF_PARENTS` 让父项精确匹配）。
 - 引擎覆盖：前端 35/69、后端 42/69、LLM 0/43，非正则层 skipped 不伪造。
 - 设计 token：canvas #0B0F0E / surface #131917 / brass #D9A441 / olive #7FA650 等（tailwind.config.ts）；装配台语义色只许 `stack/palette.ts` TONE 五色。
 
@@ -18,7 +19,7 @@
 3. **断言反着验**：注入→红→还原→绿；还原用 `cp` 不用 `git checkout --`。
 4. 源码当数据断言（project-check，先 stripComments）。加事实源改四处：sync + resolver + project-check + README 树。
 5. **同文件多改动必须串行**（并行 Edit 静默丢改）。
-6. 改装配台前 grep project-check 对 StackComposer 的**源码文本**断言；focusDim 有 200×2 正则窗口，加注释都可能爆。
+6. 改装配台前 grep project-check 对该文件的**源码文本**断言；StackComposer 已不存在（拆成六文件，断言读「文件合集」，新增容器要同步 `STACK_SPLIT`/`STACK_9PX`/`PAGE_OWNERS` 三张清单）；focusDim 有 200×2 正则窗口，加注释都可能爆。
 7. 加/改 verify 层改五处（package.json / verify-all LAYERS / report LAYER_NAMES / meta CHAIN_ORDER / arsenal.json verifyChain）+ README 两处。
 8. 加/删断言同步四处数字；`finish()` 打「声明 X/实测 Y」退出 1。
 9. git 纪律：逐文件 `add` + `commit -- <路径>`，核对 `diff --cached --stat`；目录 pathspec 会夹带 `_*`。
@@ -51,5 +52,5 @@
 - 案例库升级 09-25（C-1 AI 出口/C-2 自证/C-3 互链 P1；C-4 thread-pool 保留）；场景 CONTENT 线 P1 补 6 日常场景；UI 分层 L1+L2 已做，L3 与图形化排次夜（`generateStaticParams` 必须数据驱动，写死数字=假绿）。
 - CaseLab(分诊台)≠DemoRunner(跑 playground)，两库合并 C-7 未做。
 - 装配台剩 S3-1 画布/S3-2 评分卡；P0-2/P2-1 待 mryang 拍板。B0-3 四场景无 benchmark；63/81 位图缺。
-- **装配台重设计已定案并排期（09-29 晚，见 `docs/开发计划-2026-09-29-装配台重设计/`）**：拆法 A 四页（`/stack`选型台 / `/stack/env`环境与模块 / `/stack/run`运行与部署 / `/stack/delivery`交付中心），交付中心含预检闸首屏+导出历史；JourneyBar 随 P0；数据层（picks-store/drafts/history/wizard.ts）零改动；P0 连动 project-check ≥8 组断言改写 + EXPECTED 20/60。**已排三夜定时任务（7 棒）**：夜1=P0、夜2=P1 两页、夜3=P2；规程与棒次表见同目录 NIGHT-RUN.md / 00-index.md；状态目录按夜 .workbuddy/night-chain/。
+- **装配台重设计已定案并排期（09-29 晚，见 `docs/开发计划-2026-09-29-装配台重设计/`）**：拆法 A 四页（`/stack`选型台 / `/stack/env`环境与模块 / `/stack/run`运行与部署 / `/stack/delivery`交付中心）**已落地**，交付中心含预检闸首屏+导出历史；JourneyBar 随 P0 **已落地**；数据层（picks-store/drafts/history/wizard.ts）**确实零改动**。视觉矩阵随之 **21 URL / 63 张**（装配台 +3 页 +9 张、同一夜发现蓝图主题已回到 6 个而旧声明仍按 1 个抽 +3 张）。**已排三夜定时任务（7 棒）**：夜1=P0、夜2=P1 两页、夜3=P2；规程与棒次表见同目录 NIGHT-RUN.md / 00-index.md；状态目录按夜 .workbuddy/night-chain/。
 - 待人工决策：69 规则逐条过目；5 条无检查器 AST 规则补/降级。
