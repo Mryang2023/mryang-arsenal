@@ -220,11 +220,13 @@ BASES = [
         "java": "17+",
         "status": "supported",
         "supportedUntil": "2027-06-30",
-        "covered": True,
-        "recommended": True,
+        "covered": False,
         "summary": "当前 OSS 支持线。要长期维护的新项目应从这一线起步。",
-        "note": "骨架模板按 3.x 编写；4.x 是大版本跃迁（Spring Framework 7），"
-                "依赖坐标与配置项需按官方迁移指引复核后再用。",
+        "note": "⚠️ 09-29 起标记为未覆盖：骨架模板（依赖坐标、自动配置类、springdoc/"
+                "mybatis-plus 版本）全部按 3.x 编写，parent 直接换成 4.x 导出即坏"
+                "（真实事故：导出包 pom 用 4.1.1，mybatis-plus-spring-boot3-starter "
+                "在 Boot 4 下不兼容）。4.x 迁移复核完成前，选它只会得到 3.x 骨架 + "
+                "4.x parent 的缝合产物。",
     },
     {
         "id": "boot40",
@@ -235,9 +237,9 @@ BASES = [
         "java": "17+",
         "status": "supported",
         "supportedUntil": "2026-12-31",
-        "covered": True,
-        "summary": "仍在 OSS 支持窗口内，但支持期只剩数月；新项目建议直接上 4.1。",
-        "note": "同 4.1，属大版本跃迁；骨架需按官方迁移指引复核。",
+        "covered": False,
+        "summary": "仍在 OSS 支持窗口内，但支持期只剩数月。",
+        "note": "同 4.1：骨架未按 4.x 复核，标记为未覆盖。",
     },
     {
         "id": "boot35",

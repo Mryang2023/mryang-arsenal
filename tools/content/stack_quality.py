@@ -119,7 +119,9 @@ DIMENSIONS = [
                 "notes": ["check 配 minimum 0.80 拦低覆盖",
                           "excludes 排除 DTO/配置类"],
                 "pitfalls": ["盲目追 100% 覆盖催生无效 getter 测试", "增量行未覆盖却整体达标会漏检", "与 PITest 同跑需错开 agent"],
-                "dependencies": [{"groupId": "org.jacoco", "artifactId": "jacoco-maven-plugin"}],
+                "dependencies": [{"groupId": "org.jacoco", "artifactId": "jacoco-maven-plugin",
+                                  "version": "0.8.11", "mavenPlugin": True,
+                                  "note": "JaCoCo 是构建插件不是依赖：作为 <dependency> 声明且无版本时 Maven 解析直接失败，渲染端按 mavenPlugin 输出到 <build><plugins>"}],
             },
             {
                 "id": "sonar",

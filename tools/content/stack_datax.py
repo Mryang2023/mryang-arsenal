@@ -66,6 +66,7 @@ DIMENSIONS = [
             },
             {
                 "id": "meili",
+                "yamlNote": True,
                 "name": "Meilisearch",
                 "badge": "",
                 "summary": "Rust 写的轻量即时搜索，毫秒级前缀搜索，内置中文分词，部署极简，适合中小站点与前端直搜。",
@@ -124,6 +125,7 @@ DIMENSIONS = [
             },
             {
                 "id": "doris",
+                "yamlNote": True,
                 "name": "Apache Doris",
                 "badge": "高阶",
                 "summary": "百度开源 MPP 分析库，兼容 MySQL 协议 9030 端口，FE/BE 分离架构，亚秒级多维分析。",
@@ -137,6 +139,7 @@ DIMENSIONS = [
             },
             {
                 "id": "starrocks",
+                "yamlNote": True,
                 "name": "StarRocks",
                 "badge": "高阶",
                 "summary": "原 Doris 分支，向量化执行引擎与强 CBO，单表宽表与大宽表星型模型分析都快。",
@@ -163,6 +166,7 @@ DIMENSIONS = [
             },
             {
                 "id": "lakehouse",
+                "yamlNote": True,
                 "name": "湖仓 Hudi/Iceberg",
                 "badge": "高阶",
                 "summary": "Iceberg/Hudi 表格式叠加对象存储，ACID + 时间旅行，流批一体，适合数据湖与数仓统一。",
@@ -210,6 +214,7 @@ DIMENSIONS = [
             },
             {
                 "id": "s3",
+                "yamlNote": True,
                 "name": "亚马逊 S3",
                 "badge": "",
                 "summary": "AWS S3 对象存储，11 个 9 耐久性，标准/低频/归档多层级，全球可用，适合公有云生产。",
@@ -223,6 +228,7 @@ DIMENSIONS = [
             },
             {
                 "id": "oss",
+                "yamlNote": True,
                 "name": "阿里云 OSS",
                 "badge": "",
                 "summary": "阿里云对象存储，S3 风格 API，国内合规与 CDN 联动好，适合国内业务与静态资源加速。",

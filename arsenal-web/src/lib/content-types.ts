@@ -310,6 +310,9 @@ export interface Dependency {
   scope?: string;
   /** 非 Maven 依赖（如 Gradle 插件）用这个标记 */
   kind?: string;
+  /** Maven 构建插件（如 jacoco-maven-plugin）：渲染进 <build><plugins>，不进 <dependencies>。
+   *  以 <dependency> 形式写进 pom 且无版本时 Maven 解析直接失败 */
+  mavenPlugin?: boolean;
   note?: string;
 }
 
@@ -333,6 +336,12 @@ export interface StackOption {
   dependencies?: Dependency[];
   pomProperties?: Record<string, string>;
   yaml?: string;
+  /**
+   * 该 yaml 只是台面展示用的配置示例（Dockerfile / K8s 清单 / CI 脚本等非
+   * Spring 配置），composeStack 收集 yamlBlocks 时跳过，不拼进导出包的
+   * application.yml —— 拼进去轻则污染配置，重则非法 YAML 让应用解析配置即崩。
+   */
+  yamlNote?: boolean;
   configClasses?: ConfigClass[];
   sample?: Sample;
   /** 运维动作：要装什么、要建什么 */
@@ -499,6 +508,8 @@ export interface TopologyFlowDoc {
 /** 合成产物 */
 export interface ComposedStack {
   dependencies: Dependency[];
+  /** Maven 构建插件（mavenPlugin 标记的依赖）：渲染 pom 时进 <build><plugins> */
+  buildPlugins: Dependency[];
   properties: Record<string, string>;
   yamlBlocks: { dimName: string; optName: string; body: string }[];
   configClasses: (ConfigClass & { dimName: string; optName: string })[];

@@ -37,6 +37,7 @@ DIMENSIONS = [
             },
             {
                 "id": "cluster",
+                "yamlNote": True,
                 "name": "多副本集群",
                 "badge": "推荐",
                 "summary": "N 副本对等/分片集群，自愈与滚动升级，配 PDB 与反亲和，云原生常态的高可用形态。",

@@ -308,7 +308,7 @@
               "note": "注意是 spring-boot3 版本，普通版不兼容 Spring Boot 3"
             }
           ],
-          "yaml": "mybatis-plus:\n  global-config:\n    db-config:\n      logic-delete-field: isDeleted   # 逻辑删除字段，配好后 deleteById 自动变成 update\n      logic-delete-value: 1\n      logic-not-delete-value: 0\n  configuration:\n    # 驼峰与下划线自动映射，省掉大量 resultMap\n    map-underscore-to-camel-case: true\n    # 生产环境关掉 SQL 打印，否则日志量会失控\n    log-impl: org.apache.ibatis.logging.nologging.NoLoggingImpl\nmapper-locations: classpath*:/mapper/**/*.xml",
+          "yaml": "mybatis-plus:\n  global-config:\n    db-config:\n      logic-delete-field: isDeleted   # 逻辑删除字段，配好后 deleteById 自动变成 update\n      logic-delete-value: 1\n      logic-not-delete-value: 0\n  configuration:\n    # 驼峰与下划线自动映射，省掉大量 resultMap\n    map-underscore-to-camel-case: true\n    # 生产环境关掉 SQL 打印，否则日志量会失控\n    log-impl: org.apache.ibatis.logging.nologging.NoLoggingImpl\n  # mapper XML 位置必须挂在 mybatis-plus 键下，顶格写会被当成未知顶层键静默丢弃\n  mapper-locations: classpath*:/mapper/**/*.xml",
           "configClasses": [
             {
               "className": "MybatisPlusConfig",
@@ -993,19 +993,23 @@
           "dependencies": [
             {
               "groupId": "com.alibaba.cloud",
-              "artifactId": "spring-cloud-starter-alibaba-nacos-discovery"
+              "artifactId": "spring-cloud-starter-alibaba-nacos-discovery",
+              "version": "2023.0.1.3",
+              "note": "com.alibaba.cloud 不在 Boot BOM 管辖内，必须显式给版本"
             },
             {
               "groupId": "com.alibaba.cloud",
-              "artifactId": "spring-cloud-starter-alibaba-nacos-config"
+              "artifactId": "spring-cloud-starter-alibaba-nacos-config",
+              "version": "2023.0.1.3"
             },
             {
               "groupId": "org.springframework.cloud",
               "artifactId": "spring-cloud-starter-bootstrap",
+              "version": "4.1.2",
               "note": "Spring Cloud 2021+ 默认关闭 bootstrap，需要它才能在启动早期读配置"
             }
           ],
-          "yaml": "# ── bootstrap.yml（注意：配置中心的连接信息必须写在这里）──\n# 为什么不能写在 application.yml：\n# application.yml 的加载时机晚于 Spring Cloud 上下文初始化，\n# 导致「配置中心地址」本身要从配置中心读 —— 循环依赖。\nspring:\n  application:\n    name: arsenal-demo\n  profiles:\n    active: dev\n  cloud:\n    nacos:\n      server-addr: ${NACOS_ADDR:127.0.0.1:8848}\n      username: ${NACOS_USER:nacos}\n      password: ${NACOS_PASSWORD:nacos}\n      discovery:\n        namespace: ${NACOS_NS:}\n        group: DEFAULT_GROUP\n      config:\n        # 配置坐标：dataId = 应用名 + profile + 后缀\n        file-extension: yaml\n        namespace: ${NACOS_NS:}\n        group: DEFAULT_GROUP\n        refresh-enabled: true   # 开启热更新",
+          "yaml": "# 应用名与 profiles 由骨架 application.yml 头部统一给出，此处不重复 ——\n# 多文档拼接时后文档会覆盖前文档，写死会把用户的项目名改回 arsenal-demo\nspring:\n  cloud:\n    nacos:\n      server-addr: ${NACOS_ADDR:127.0.0.1:8848}\n      username: ${NACOS_USER:nacos}\n      password: ${NACOS_PASSWORD:nacos}\n      discovery:\n        namespace: ${NACOS_NS:}\n        group: DEFAULT_GROUP\n      config:\n        # 配置坐标：dataId = 应用名 + profile + 后缀\n        file-extension: yaml\n        namespace: ${NACOS_NS:}\n        group: DEFAULT_GROUP\n        refresh-enabled: true   # 开启热更新",
           "configClasses": [
             {
               "className": "NacosRefreshConfig",
@@ -1804,6 +1808,7 @@
       "options": [
         {
           "id": "bare",
+          "yamlNote": true,
           "name": "裸机进程",
           "badge": "通用",
           "summary": "直接在宿主操作系统上以进程方式跑 jar，最省资源、零额外依赖，但扩容和配置下发全靠手工，环境一致性无法保证。",
@@ -1818,6 +1823,7 @@
         },
         {
           "id": "vm",
+          "yamlNote": true,
           "name": "虚拟机",
           "badge": "通用",
           "summary": "在虚拟机里跑进程，环境隔离比裸机好、可克隆镜像，但每个 VM 带完整操作系统，资源开销大、启动慢。",
@@ -1832,6 +1838,7 @@
         },
         {
           "id": "container",
+          "yamlNote": true,
           "name": "容器",
           "badge": "推荐",
           "summary": "用 Docker 把应用与依赖打包成镜像，环境一致、秒级启停，是绝大多数微服务的默认落点，但需维护构建与仓库。",
@@ -1846,6 +1853,7 @@
         },
         {
           "id": "k8s",
+          "yamlNote": true,
           "name": "Kubernetes",
           "badge": "高阶",
           "summary": "Kubernetes 提供声明式编排、自愈与水平扩容，适合多服务多环境，但控制面与运维心智成本明显更高。",
@@ -1861,6 +1869,7 @@
         },
         {
           "id": "serverless",
+          "yamlNote": true,
           "name": "Serverless 函数",
           "badge": "灵活",
           "summary": "以 Spring Cloud Function 打包成函数，按请求计费、免运维，但冷启动、超时与有状态限制让大部分业务跑不进去。",
@@ -1875,6 +1884,7 @@
         },
         {
           "id": "hybrid",
+          "yamlNote": true,
           "name": "混合异构",
           "badge": "灵活",
           "summary": "核心服务跑 K8s、边缘推理跑裸机 GPU、批处理跑虚拟机，按负载选最合适的基座，但跨环境网络与运维规范要自己打通。",
@@ -1912,6 +1922,7 @@
         },
         {
           "id": "nginx",
+          "yamlNote": true,
           "name": "Nginx 反向代理",
           "badge": "推荐",
           "summary": "用 Nginx 做七层反向代理与负载均衡，配置成熟、性能稳，单机可扛万级并发，是绝大多数项目的默认入口。",
@@ -1926,6 +1937,7 @@
         },
         {
           "id": "haproxy",
+          "yamlNote": true,
           "name": "HAProxy",
           "badge": "稳妥",
           "summary": "HAProxy 专注四/七层负载均衡，连接数与健康检查能力比 Nginx 更强，适合长连接和极高性能入口场景。",
@@ -1940,6 +1952,7 @@
         },
         {
           "id": "slb",
+          "yamlNote": true,
           "name": "云负载均衡",
           "badge": "通用",
           "summary": "直接用云厂商负载均衡（如 ALB/CLB），免运维、自带证书与可用区容灾，但流量与规则被绑定在单一云，跨云迁移成本高。",
@@ -1954,6 +1967,7 @@
         },
         {
           "id": "lvs",
+          "yamlNote": true,
           "name": "LVS+Keepalived",
           "badge": "高阶",
           "summary": "LVS+Keepalived 做四层 DR 模式转发，性能接近线速、支撑百万并发，但需要内核参数调优与双机 VIP 漂移，运维门槛高。",
@@ -1969,6 +1983,7 @@
         },
         {
           "id": "envoy",
+          "yamlNote": true,
           "name": "Envoy+Istio",
           "badge": "高阶",
           "summary": "Envoy 作为边车代理配合 Istio 提供精细流量治理、mTLS 与可观测，是 Service Mesh 标配，但引入控制面后复杂度陡增。",
@@ -1984,6 +1999,7 @@
         },
         {
           "id": "f5",
+          "yamlNote": true,
           "name": "F5 硬件",
           "badge": "高阶",
           "summary": "F5 硬件负载均衡提供金融级吞吐、SSL 卸载与策略引擎，稳定性极强，但设备昂贵、配置依赖专有控制台、弹性差。",
@@ -2042,6 +2058,7 @@
         },
         {
           "id": "apisix",
+          "yamlNote": true,
           "name": "Apache APISIX",
           "badge": "高阶",
           "summary": "Apache APISIX 基于 Nginx+Lua/etcd，动态路由热更新、插件丰富，性能高于 Java 网关，适合高并发与多云统一网关。",
@@ -2057,6 +2074,7 @@
         },
         {
           "id": "kong",
+          "yamlNote": true,
           "name": "Kong",
           "badge": "高阶",
           "summary": "Kong 以 OpenResty 为底座、插件生态庞大，企业集成成熟，但 Lua 插件开发与调试门槛高于配置式网关。",
@@ -2071,6 +2089,7 @@
         },
         {
           "id": "envoygw",
+          "yamlNote": true,
           "name": "Envoy Gateway",
           "badge": "高阶",
           "summary": "Envoy Gateway 用 Kubernetes Gateway API 标准驱动 Envoy，声明式、和 K8s 原生融合，是 mesh 与网关统一的方向，但落地资料仍少。",
@@ -2095,6 +2114,7 @@
       "options": [
         {
           "id": "single",
+          "yamlNote": true,
           "name": "单进程",
           "badge": "轻量",
           "summary": "单进程 jar 自己跑，最简单、零编排，但只能纵向扩容，挂了靠外部守护进程拉起，不适合多实例协同。",
@@ -2109,6 +2129,7 @@
         },
         {
           "id": "compose",
+          "yamlNote": true,
           "name": "Docker Compose",
           "badge": "通用",
           "summary": "Docker Compose 用一份 yaml 拉起多容器，本地与单机部署极方便，但缺乏跨主机调度与生产级自愈，不适合真正集群。",
@@ -2124,6 +2145,7 @@
         },
         {
           "id": "swarm",
+          "yamlNote": true,
           "name": "Docker Swarm",
           "badge": "稳妥",
           "summary": "Docker Swarm 在 Compose 基础上加集群调度与多副本，学习成本低，但生态与功能已被 Kubernetes 全面压制，新项目少选。",
@@ -2138,6 +2160,7 @@
         },
         {
           "id": "k8s",
+          "yamlNote": true,
           "name": "Kubernetes",
           "badge": "高阶",
           "summary": "Kubernetes 声明式管理多副本、滚动发布与自愈，是生产集群事实标准，但 yaml 多、概念重，小项目会觉得杀鸡用牛刀。",
@@ -2153,6 +2176,7 @@
         },
         {
           "id": "k3s",
+          "yamlNote": true,
           "name": "K3s 轻量",
           "badge": "高阶",
           "summary": "K3s 是砍掉非核心组件的轻量 K8s，单二进制、512M 即可跑，适合边缘和小型集群，但少数上游特性被精简。",
@@ -2167,6 +2191,7 @@
         },
         {
           "id": "nomad",
+          "yamlNote": true,
           "name": "Nomad",
           "badge": "高阶",
           "summary": "HashiCorp Nomad 调度容器/二进制/Java 任务，比 K8s 轻、跨数据中心简单，但生态与社区规模远小于 Kubernetes。",
@@ -2190,6 +2215,7 @@
       "options": [
         {
           "id": "public",
+          "yamlNote": true,
           "name": "公有云仓库",
           "badge": "轻量",
           "summary": "直接用 Docker Hub 或云厂商镜像仓库，零搭建、拉取即用，但镜像公开或受速率限制，私有关键镜像有泄露与合规风险。",
@@ -2205,6 +2231,7 @@
         },
         {
           "id": "harbor",
+          "yamlNote": true,
           "name": "Harbor",
           "badge": "推荐",
           "summary": "Harbor 是带权限、漏洞扫描和镜像签名的私有仓库，满足企业合规，但需要单独部署维护一套存储与证书。",
@@ -2220,6 +2247,7 @@
         },
         {
           "id": "nexus",
+          "yamlNote": true,
           "name": "Nexus",
           "badge": "通用",
           "summary": "Sonatype Nexus 同时托管镜像与 Maven/npm 制品，一套管理多类依赖，但对纯镜像场景配置偏重。",
@@ -2234,6 +2262,7 @@
         },
         {
           "id": "artifactory",
+          "yamlNote": true,
           "name": "JFrog Artifactory",
           "badge": "高阶",
           "summary": "JFrog Artifactory 统一管理镜像、包与构建元数据，企业级合规与溯源强，但授权费用高、资源占用大。",
@@ -2343,6 +2372,7 @@
         },
         {
           "id": "meili",
+          "yamlNote": true,
           "name": "Meilisearch",
           "badge": "",
           "summary": "Rust 写的轻量即时搜索，毫秒级前缀搜索，内置中文分词，部署极简，适合中小站点与前端直搜。",
@@ -2465,6 +2495,7 @@
         },
         {
           "id": "doris",
+          "yamlNote": true,
           "name": "Apache Doris",
           "badge": "高阶",
           "summary": "百度开源 MPP 分析库，兼容 MySQL 协议 9030 端口，FE/BE 分离架构，亚秒级多维分析。",
@@ -2487,6 +2518,7 @@
         },
         {
           "id": "starrocks",
+          "yamlNote": true,
           "name": "StarRocks",
           "badge": "高阶",
           "summary": "原 Doris 分支，向量化执行引擎与强 CBO，单表宽表与大宽表星型模型分析都快。",
@@ -2531,6 +2563,7 @@
         },
         {
           "id": "lakehouse",
+          "yamlNote": true,
           "name": "湖仓 Hudi/Iceberg",
           "badge": "高阶",
           "summary": "Iceberg/Hudi 表格式叠加对象存储，ACID + 时间旅行，流批一体，适合数据湖与数仓统一。",
@@ -2600,6 +2633,7 @@
         },
         {
           "id": "s3",
+          "yamlNote": true,
           "name": "亚马逊 S3",
           "badge": "",
           "summary": "AWS S3 对象存储，11 个 9 耐久性，标准/低频/归档多层级，全球可用，适合公有云生产。",
@@ -2622,6 +2656,7 @@
         },
         {
           "id": "oss",
+          "yamlNote": true,
           "name": "阿里云 OSS",
           "badge": "",
           "summary": "阿里云对象存储，S3 风格 API，国内合规与 CDN 联动好，适合国内业务与静态资源加速。",
@@ -2863,7 +2898,10 @@
           "dependencies": [
             {
               "groupId": "org.jacoco",
-              "artifactId": "jacoco-maven-plugin"
+              "artifactId": "jacoco-maven-plugin",
+              "version": "0.8.11",
+              "mavenPlugin": true,
+              "note": "JaCoCo 是构建插件不是依赖：作为 <dependency> 声明且无版本时 Maven 解析直接失败，渲染端按 mavenPlugin 输出到 <build><plugins>"
             }
           ]
         },
@@ -2917,6 +2955,7 @@
       "options": [
         {
           "id": "manual",
+          "yamlNote": true,
           "name": "手工",
           "badge": "轻量",
           "summary": "手工打 jar、scp 到服务器、java -jar 启停，零工具成本，但发布靠人、易出错、无法回滚，规模一大就失控。",
@@ -2931,6 +2970,7 @@
         },
         {
           "id": "jenkins",
+          "yamlNote": true,
           "name": "Jenkins",
           "badge": "通用",
           "summary": "Jenkins 用自由风格或 Pipeline 串起构建到部署，插件极多、可控性强，但 Master 要自己维护，配置易腐化。",
@@ -2946,6 +2986,7 @@
         },
         {
           "id": "gitlabci",
+          "yamlNote": true,
           "name": "GitLab CI",
           "badge": "推荐",
           "summary": "GitLab CI 用仓库内 .gitlab-ci.yml 定义流水线，与代码同仓、体验顺滑，但需要 Runner 资源且强绑定 GitLab。",
@@ -2961,6 +3002,7 @@
         },
         {
           "id": "argocd",
+          "yamlNote": true,
           "name": "ArgoCD GitOps",
           "badge": "高阶",
           "summary": "ArgoCD 以 Git 仓库为唯一事实源，自动同步 K8s 期望态、可视化差异，是 GitOps 标准做法，但前提是已经上 K8s。",
@@ -2976,6 +3018,7 @@
         },
         {
           "id": "githubactions",
+          "yamlNote": true,
           "name": "GitHub Actions",
           "badge": "通用",
           "summary": "GitHub Actions 用 YAML 在工作流里构建发布，与 GitHub 深度集成、生态丰富，但私有仓库分钟数受限、数据在境外。",
@@ -3020,6 +3063,7 @@
         },
         {
           "id": "promgrafana",
+          "yamlNote": true,
           "name": "Prometheus+Grafana",
           "badge": "推荐",
           "summary": "Prometheus 拉取指标、Grafana 画图告警，云原生监控事实标准，开源免费、生态全，但需自建存储与保留策略。",
@@ -3035,6 +3079,7 @@
         },
         {
           "id": "zabbix",
+          "yamlNote": true,
           "name": "Zabbix",
           "badge": "稳妥",
           "summary": "Zabbix 监控主机、网络与数据库等基础设施，Agent 成熟、告警灵活，但界面老旧、对容器动态实例发现较弱。",
@@ -3049,6 +3094,7 @@
         },
         {
           "id": "skywalking",
+          "yamlNote": true,
           "name": "SkyWalking APM",
           "badge": "高阶",
           "summary": "SkyWalking 无侵入采集链路、拓扑与 JVM 指标，国产 APM 标杆，适合定位跨服务慢调用，但 OAP 集群运维不轻。",
@@ -3105,11 +3151,13 @@
           "name": "配置中心加密",
           "badge": "推荐",
           "summary": "把配置与密钥放进 Nacos/Apollo 并加密存储，支持热更新与权限，但多一套中间件、密钥仍可能落本地缓存。",
-          "yaml": "spring:\n  cloud:\n    nacos:\n      config:\n        extension-configs[0]:\n          data-id: secret.yml\n          refresh: true",
+          "yaml": "# optional: 前缀 —— Nacos 没部署/连不上时跳过，不阻断本地启动；\n# 没有它，nacos-config 在 classpath 时启动即因 import 检查失败退出\nspring:\n  config:\n    import: optional:nacos:secret.yml\n  cloud:\n    nacos:\n      config:\n        server-addr: ${NACOS_ADDR:127.0.0.1:8848}\n        username: ${NACOS_USER:nacos}\n        password: ${NACOS_PASSWORD:nacos}\n        extension-configs[0]:\n          data-id: secret.yml\n          refresh: true",
           "dependencies": [
             {
               "groupId": "com.alibaba.cloud",
-              "artifactId": "spring-cloud-starter-alibaba-nacos-config"
+              "artifactId": "spring-cloud-starter-alibaba-nacos-config",
+              "version": "2023.0.1.3",
+              "note": "com.alibaba.cloud 不在 Boot BOM 管辖内，必须显式给版本；2023.0.1.x 配 Boot 3.2/3.3"
             }
           ],
           "notes": [
@@ -3123,6 +3171,7 @@
         },
         {
           "id": "k8ssecret",
+          "yamlNote": true,
           "name": "Kubernetes Secret",
           "badge": "通用",
           "summary": "用 Kubernetes Secret 以 Base64 存密钥并挂进 Pod，和集群原生融合，但默认不加密落盘、需开 KMS 加密才安全。",
@@ -3138,6 +3187,7 @@
         },
         {
           "id": "vault",
+          "yamlNote": true,
           "name": "HashiCorp Vault",
           "badge": "高阶",
           "summary": "HashiCorp Vault 提供动态密钥、自动轮换与短时令牌，安全等级最高，但部署复杂、需管理密封/解封与备份。",
@@ -3154,6 +3204,7 @@
         },
         {
           "id": "cloudkms",
+          "yamlNote": true,
           "name": "云 KMS",
           "badge": "高阶",
           "summary": "用云 KMS 托管主密钥、应用运行时解密，密钥不落本地、合规省心，但解密调用依赖该云、离线环境不可用。",
@@ -3178,6 +3229,7 @@
       "options": [
         {
           "id": "logback",
+          "yamlNote": true,
           "name": "Logback 落盘",
           "badge": "轻量",
           "summary": "Spring Boot 默认 Logback 把日志落本地文件，零配置可用，但分散在各实例磁盘，查问题要登录多台机器翻文件。",
@@ -3198,6 +3250,7 @@
         },
         {
           "id": "elk",
+          "yamlNote": true,
           "name": "ELK",
           "badge": "推荐",
           "summary": "Filebeat 把日志送 Elasticsearch、Kibana 检索，集中查询与可视化强，但 ES 吃内存、集群运维成本不低。",
@@ -3213,6 +3266,7 @@
         },
         {
           "id": "loki",
+          "yamlNote": true,
           "name": "Loki+Promtail",
           "badge": "高阶",
           "summary": "Loki+Promtail 以标签索引日志、和 Grafana 一体，资源比 ELK 轻、查询便宜，但全文检索能力弱于 ES。",
@@ -3228,6 +3282,7 @@
         },
         {
           "id": "clickhouse",
+          "yamlNote": true,
           "name": "ClickHouse 日志",
           "badge": "高阶",
           "summary": "用 ClickHouse 存日志，列存压缩高、亿级日志聚合秒回，适合做审计与离线分析，但需单独维护数据库与写入管道。",
@@ -3299,6 +3354,7 @@
         },
         {
           "id": "cluster",
+          "yamlNote": true,
           "name": "多副本集群",
           "badge": "推荐",
           "summary": "N 副本对等/分片集群，自愈与滚动升级，配 PDB 与反亲和，云原生常态的高可用形态。",
@@ -3361,10 +3417,9 @@
       "java": "17+",
       "status": "supported",
       "supportedUntil": "2027-06-30",
-      "covered": true,
-      "recommended": true,
+      "covered": false,
       "summary": "当前 OSS 支持线。要长期维护的新项目应从这一线起步。",
-      "note": "骨架模板按 3.x 编写；4.x 是大版本跃迁（Spring Framework 7），依赖坐标与配置项需按官方迁移指引复核后再用。"
+      "note": "⚠️ 09-29 起标记为未覆盖：骨架模板（依赖坐标、自动配置类、springdoc/mybatis-plus 版本）全部按 3.x 编写，parent 直接换成 4.x 导出即坏（真实事故：导出包 pom 用 4.1.1，mybatis-plus-spring-boot3-starter 在 Boot 4 下不兼容）。4.x 迁移复核完成前，选它只会得到 3.x 骨架 + 4.x parent 的缝合产物。"
     },
     {
       "id": "boot40",
@@ -3375,9 +3430,9 @@
       "java": "17+",
       "status": "supported",
       "supportedUntil": "2026-12-31",
-      "covered": true,
-      "summary": "仍在 OSS 支持窗口内，但支持期只剩数月；新项目建议直接上 4.1。",
-      "note": "同 4.1，属大版本跃迁；骨架需按官方迁移指引复核。"
+      "covered": false,
+      "summary": "仍在 OSS 支持窗口内，但支持期只剩数月。",
+      "note": "同 4.1：骨架未按 4.x 复核，标记为未覆盖。"
     },
     {
       "id": "boot35",
