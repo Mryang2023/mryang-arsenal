@@ -52,6 +52,19 @@ import ProgressRing from './ProgressRing';
 import { useStackHistory, type StackSnapshot } from './history';
 import { DRAFTS_LIMIT, loadDrafts, saveDrafts, type StackDraft } from './drafts';
 import {
+  clearScaffoldDraft,
+  loadScaffoldDraft,
+  saveScaffoldDraft,
+} from '@/lib/picks-store';
+import { buildExportArtifacts } from '@/lib/scaffold/artifacts';
+import type { EnvValues, TemplateVars } from '@/lib/scaffold/contracts';
+import { dbImageOf, defaultValues, formsFor, validateEnv } from '@/lib/scaffold/env-form';
+import { resolveModules } from '@/lib/scaffold/module-registry';
+import EnvStep from './steps/EnvStep';
+import FrontendStep from './steps/FrontendStep';
+import ModulesStep from './steps/ModulesStep';
+import ScaffoldDelivery from './steps/ScaffoldDelivery';
+import {
   clearProvenance,
   encodeSharePayload,
   loadBaseSnapshot,
@@ -433,12 +446,84 @@ export default function StackComposer() {
     saveProjectMeta({ name: projectName, step });
   }, [projectName, step, hydrated]);
 
+  // ── 脚手架装配台通道（⑤⑥⑦ + 双包交付）─────────────────────
+  // envValues 存非敏感字段；密码类字段单独放 secrets —— 是否落盘由 rememberSecrets 决定，
+  // 默认不落盘（刷新即忘），见 picks-store 顶部的扩散面说明。
+  const [scaffoldEnv, setScaffoldEnv] = useState<EnvValues>({});
+  const [scaffoldSecrets, setScaffoldSecrets] = useState<EnvValues>({});
+  const [rememberSecrets, setRememberSecrets] = useState(false);
+  const [demoMode, setDemoMode] = useState(false);
+  const [feBase, setFeBase] = useState('vue3-vite');
+  const [moduleIds, setModuleIds] = useState<string[]>([]);
+
+  // 脚手架草稿水合：一次，读第四通道（环境值/模块/前端基底/演示模式 + 可选的密码）
+  useEffect(() => {
+    const saved = loadScaffoldDraft();
+    if (saved) {
+      setScaffoldEnv(saved.draft.envValues);
+      setScaffoldSecrets(saved.secrets);
+      setDemoMode(saved.draft.demoMode);
+      setFeBase(saved.draft.feBase);
+      setModuleIds(saved.draft.moduleIds);
+      setRememberSecrets(Object.keys(saved.secrets).length > 0);
+    }
+  }, []);
+
+  // 脚手架草稿写回：与选型快照同一节奏（变更即写，写失败静默）
+  useEffect(() => {
+    if (!hydrated) return;
+    saveScaffoldDraft(
+      { envValues: scaffoldEnv, demoMode, feBase, moduleIds },
+      scaffoldSecrets,
+      rememberSecrets
+    );
+  }, [scaffoldEnv, scaffoldSecrets, rememberSecrets, demoMode, feBase, moduleIds, hydrated]);
+
   const audit = useMemo(() => auditArchitecture(picks), [picks]);
   const composed = useMemo(() => composeStack(picks), [picks]);
   const scale = useMemo(() => stackScale(composed), [composed]);
   const plan = useMemo(
     () => buildExportPlan(picks, audit, baseId, projectName),
     [picks, audit, baseId, projectName]
+  );
+
+  // ── 脚手架派生量 ─────────────────────────────────────────────
+  const scaffoldForms = useMemo(() => formsFor(picks), [picks]);
+  const appName = projectName.trim() || projectDoc.artifactId;
+  const allEnvValues = useMemo(
+    () => ({ ...defaultValues(scaffoldForms, picks, appName), ...scaffoldEnv, ...scaffoldSecrets }),
+    [scaffoldForms, picks, scaffoldEnv, scaffoldSecrets, appName]
+  );
+  const envMissing = useMemo(
+    () => validateEnv(scaffoldForms, allEnvValues),
+    [scaffoldForms, allEnvValues]
+  );
+  const moduleResolution = useMemo(
+    () => resolveModules(moduleIds, picks, feBase),
+    [moduleIds, picks, feBase]
+  );
+  const scaffoldVars = useMemo<TemplateVars>(
+    () => ({
+      basePackage: 'com.example',
+      basePackagePath: 'com/example',
+      artifactId: appName,
+      appName,
+      backendBaseUrl: 'http://127.0.0.1:8080',
+      dbImage: dbImageOf(picks.database),
+    }),
+    [appName, picks.database]
+  );
+  const artifacts = useMemo(
+    () =>
+      buildExportArtifacts(picks, {
+        projectName: appName,
+        baseId,
+        env: { values: allEnvValues, demoMode },
+        modules: moduleResolution.selected,
+        feBase,
+        vars: scaffoldVars,
+      }),
+    [picks, appName, baseId, allEnvValues, demoMode, moduleResolution.selected, feBase, scaffoldVars]
   );
 
   const yamlText = useMemo(() => renderYaml(composed, projectName), [composed, projectName]);
@@ -748,14 +833,18 @@ export default function StackComposer() {
   );
   const topologyCount = topologyFigures(picks, meta).length;
 
+  const feLabel = feBase === 'none' ? '无前端' : feBase === 'vue3-vite' ? 'Vue3' : feBase;
   const stepSummary: Record<StepId, string> = {
     project: projectName || '未命名',
     base: picks.build === 'gradle' ? 'Gradle' : 'Maven',
     theme: `${themeFilled}/${themeTotal}`,
     layers: `${audit.stats.filled}/${dimensions.length}`,
+    frontend: feLabel,
+    env: envMissing.length === 0 ? (demoMode ? '演示' : `${allEnvValues['db.host'] ?? ''}` || '默认') : `${envMissing.length} 项缺`,
+    modules: moduleResolution.selected.length > 0 ? `${moduleResolution.selected.length} 模块` : '未选',
     deliverRun: `${runFilled}/${runTotal}`,
     topology: topologyCount > 0 ? `${topologyCount} 项` : '未表态',
-    delivery: `${plan.files.length} 文件`,
+    delivery: `后${artifacts.backend.files.length}${artifacts.frontend ? ` / 前${artifacts.frontend.files.length}` : ''}`,
   };
 
   const nameOk = isValidProjectName(projectName.trim());
@@ -791,6 +880,64 @@ export default function StackComposer() {
         return <ThemeStep picks={picks} dimFlags={dimFlags} onPick={pick} onClear={clear} />;
       case 'layers':
         return renderBench();
+      case 'frontend':
+        return (
+          <FrontendStep
+            feBase={feBase}
+            onFeBase={(id) => {
+              if (id === 'none' && moduleIds.length > 0) {
+                // 切到无前端时模块保留勾选（后端接口照出），⑦ 的警告条会说明后果 ——
+                // 这里绝不静默清掉用户的选择
+              }
+              setFeBase(id);
+            }}
+          />
+        );
+      case 'env':
+        return (
+          <EnvStep
+            forms={scaffoldForms}
+            values={allEnvValues}
+            demoMode={demoMode}
+            rememberSecrets={rememberSecrets}
+            missing={envMissing}
+            onChange={(key, value) => {
+              const secret = scaffoldForms
+                .flatMap((f) => f.fields)
+                .find((x) => x.key === key)?.secret;
+              hist.record(snapRef.current);
+              if (secret) setScaffoldSecrets((m) => ({ ...m, [key]: value }));
+              else setScaffoldEnv((m) => ({ ...m, [key]: value }));
+              // 改了密码且未勾记住 → 旧落盘密码立即失效（避免「以为改了其实没存」）
+              if (secret && !rememberSecrets) clearScaffoldDraft();
+            }}
+            onDemoMode={(on) => {
+              hist.record(snapRef.current);
+              setDemoMode(on);
+            }}
+            onRememberSecrets={(on) => {
+              hist.record(snapRef.current);
+              setRememberSecrets(on);
+              if (!on) setScaffoldSecrets({});
+            }}
+          />
+        );
+      case 'modules':
+        return (
+          <ModulesStep
+            selectedIds={moduleResolution.selected.map((m) => m.id)}
+            warnings={moduleResolution.warnings}
+            onToggle={(id) => {
+              hist.record(snapRef.current);
+              setModuleIds((ids) => {
+                const has = ids.includes(id);
+                const next = has ? ids.filter((x) => x !== id) : [...ids, id];
+                // 依赖闭包在 resolveModules 里补；这里只补「取消时」的直观性 —— 不静默加选项
+                return next;
+              });
+            }}
+          />
+        );
       case 'deliverRun':
         return <DeliverRunStep picks={picks} dimFlags={dimFlags} onPick={pick} onClear={clear} />;
       case 'topology':
@@ -808,6 +955,13 @@ export default function StackComposer() {
       case 'delivery':
         return deliveryView === 'preview' ? (
           <div ref={deckRef} className="space-y-4">
+            <ScaffoldDelivery
+              artifacts={artifacts}
+              demoMode={demoMode}
+              modules={moduleResolution.selected}
+              forms={scaffoldForms}
+              values={allEnvValues}
+            />
             <DeliveryStep
               picks={picks}
               meta={meta}

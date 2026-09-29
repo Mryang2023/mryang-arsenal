@@ -1,0 +1,162 @@
+'use client';
+
+import { downloadZip } from '@/lib/zip';
+import type { EnvFormSpec, EnvValues, ExportArtifacts, ModuleDef } from '@/lib/scaffold/contracts';
+import type { StepSpec } from '../wizard';
+import StepShell from './StepShell';
+
+/**
+ * ⑩ 交付 · 双包面板（放在既有九页签预览之前）：
+ *
+ * 三张下载卡（后端 / 前端 / 全家桶）+ 环境清单（密码打码）+ 模块清单 + 三档启动指南。
+ * 这是「选完就拿走」的终点面板 —— 九页签回答「长什么样」，这里回答「怎么拿、怎么跑」。
+ */
+export default function ScaffoldDelivery({
+  artifacts,
+  demoMode,
+  modules,
+  forms,
+  values,
+}: {
+  artifacts: ExportArtifacts;
+  demoMode: boolean;
+  modules: ModuleDef[];
+  forms: EnvFormSpec[];
+  values: EnvValues;
+}) {
+  const secretKeys = new Set(forms.flatMap((f) => f.fields.filter((x) => x.secret).map((x) => x.key)));
+  const envRows = Object.entries(values).filter(([, v]) => v !== '');
+
+  const download = (art: { name: string; files: { path: string; content: string }[] } | undefined) => {
+    if (!art) return;
+    downloadZip(
+      art.files.map((f) => ({ path: f.path, content: f.content })),
+      art.name,
+    );
+  };
+
+  const appName = artifacts.backend.name.replace(/-backend\.zip$/, '');
+
+  return (
+    <section className="panel overflow-hidden" data-scaffold-delivery="">
+      <header className="border-b border-line px-4 py-3">
+        <h2 className="text-[13px] font-semibold leading-[18px] text-fg">
+          双包交付 —— 三个包都能直接跑
+        </h2>
+        <p className="mt-1 text-[10px] leading-[15px] text-fgMuted">
+          后端包填好了连接信息（见下），前端包两步起步，全家桶一条 <span className="mono">docker compose up</span> 起全套。
+        </p>
+      </header>
+
+      <div className="grid gap-2.5 p-4 md:grid-cols-3">
+        <button
+          type="button"
+          data-download="backend"
+          onClick={() => download(artifacts.backend)}
+          className="rounded-lg border border-line p-3 text-left transition-colors hover:border-brass"
+        >
+          <p className="text-[13px] font-semibold text-fg">后端包</p>
+          <p className="mono mt-1 text-[10px] text-fgFaint">
+            {artifacts.backend.name} · {artifacts.backend.files.length} 文件
+          </p>
+          <p className="mt-1.5 text-2xs leading-relaxed text-fgMuted">
+            mvn spring-boot:run 直接起（连接信息已烘入；演示档另附 H2 profile）
+          </p>
+        </button>
+
+        {artifacts.frontend ? (
+          <button
+            type="button"
+            data-download="frontend"
+            onClick={() => download(artifacts.frontend)}
+            className="rounded-lg border border-line p-3 text-left transition-colors hover:border-brass"
+          >
+            <p className="text-[13px] font-semibold text-fg">前端包</p>
+            <p className="mono mt-1 text-[10px] text-fgFaint">
+              {artifacts.frontend.name} · {artifacts.frontend.files.length} 文件
+            </p>
+            <p className="mt-1.5 text-2xs leading-relaxed text-fgMuted">
+              npm install && npm run dev → admin / admin123 登录
+            </p>
+          </button>
+        ) : (
+          <div className="rounded-lg border border-line p-3 opacity-60">
+            <p className="text-[13px] font-semibold text-fg">前端包</p>
+            <p className="mt-1.5 text-2xs leading-relaxed text-fgMuted">未选前端基底 —— 只有后端包。</p>
+          </div>
+        )}
+
+        <button
+          type="button"
+          data-download="all"
+          onClick={() => download(artifacts.all)}
+          className="rounded-lg border border-line p-3 text-left transition-colors hover:border-brass"
+        >
+          <p className="text-[13px] font-semibold text-fg">全家桶</p>
+          <p className="mono mt-1 text-[10px] text-fgFaint">
+            {artifacts.all.name} · {artifacts.all.files.length} 文件
+          </p>
+          <p className="mt-1.5 text-2xs leading-relaxed text-fgMuted">
+            backend/ + frontend/ + compose + 建表种子 —— docker compose up 起全套
+          </p>
+        </button>
+      </div>
+
+      <div className="grid gap-x-6 gap-y-3 border-t border-line px-4 py-3.5 md:grid-cols-2">
+        <div>
+          <p className="mono text-[11px] text-brass">环境清单（密码已打码）</p>
+          {envRows.length === 0 ? (
+            <p className="mt-1.5 text-2xs text-fgMuted">
+              未填写 —— 占位符保持本机默认{demoMode ? '；演示模式已勾选，后端不连外部库' : ''}。
+            </p>
+          ) : (
+            <ul className="mono mt-1.5 space-y-0.5 text-[10px] leading-relaxed text-fgMuted">
+              {envRows.map(([k, v]) => (
+                <li key={k}>
+                  {k} = {secretKeys.has(k) ? '••••••' : v}
+                </li>
+              ))}
+              {demoMode && <li className="text-brass">演示模式：导出包含 application-demo.yml（H2）</li>}
+            </ul>
+          )}
+          <p className="mono mt-2 text-[11px] text-brass">
+            功能模块（{modules.length}）
+          </p>
+          {modules.length === 0 ? (
+            <p className="mt-1 text-2xs text-fgMuted">未勾选 —— 导出包含基础脚手架与示例 user 领域。</p>
+          ) : (
+            <ul className="mt-1 space-y-0.5 text-2xs leading-relaxed text-fgMuted">
+              {modules.map((m) => (
+                <li key={m.id}>
+                  ✓ {m.name}（{m.endpoints} 接口 · {m.tables.join('/')}）
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+
+        <div>
+          <p className="mono text-[11px] text-brass">三档启动指南（导出包 README 里有完整版）</p>
+          <ol className="mt-1.5 space-y-2 text-2xs leading-relaxed text-fgMuted">
+            <li>
+              <span className="mono text-fg">本机直跑</span>：解压后端包 →{' '}
+              <span className="mono">mvn spring-boot:run</span> →{' '}
+              <span className="mono">curl localhost:8080/actuator/health</span> 应为 UP；前端包{' '}
+              <span className="mono">npm install && npm run dev</span>。
+            </li>
+            <li>
+              <span className="mono text-fg">演示模式</span>：后端包{' '}
+              <span className="mono">java -jar *.jar --spring.profiles.active=demo</span>（H2 内存库，零配置）。
+            </li>
+            <li>
+              <span className="mono text-fg">全家容器</span>：解压全家桶 →{' '}
+              <span className="mono">docker compose -f compose/docker-compose.yml up -d --build</span>，
+              前端 :80、后端 :8080。初始账号 <span className="mono text-brass">admin / admin123</span>。
+            </li>
+          </ol>
+          <p className="mt-2 text-2xs text-fgFaint">项目名 {appName} —— 与 pom artifactId、库名默认值同源。</p>
+        </div>
+      </div>
+    </section>
+  );
+}

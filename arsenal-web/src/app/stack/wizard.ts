@@ -30,13 +30,19 @@ import type { StackDimension, StackGroup } from '@/lib/content-types';
  */
 
 export type StepId =
-  | 'project' | 'base' | 'theme' | 'layers' | 'deliverRun' | 'topology' | 'delivery';
+  | 'project' | 'base' | 'theme' | 'layers'
+  | 'frontend' | 'env' | 'modules'
+  | 'deliverRun' | 'topology' | 'delivery';
+
+/** 三段十步的段落归属 —— StepRail 按它插分段标签 */
+export type StepSection = 'software' | 'frontend-env' | 'delivery-run';
 
 export interface StepSpec {
   id: StepId;
   glyph: string;
   /** 步骤条上的短名 */
   name: string;
+  section: StepSection;
   /** 本步要回答的唯一问题 —— 显示在面板顶部 */
   question: string;
   /** 这一步的答案会怎么影响下一步 —— 写清了「为什么现在要选它」 */
@@ -46,6 +52,7 @@ export interface StepSpec {
 export const STEPS: StepSpec[] = [
   {
     id: 'project',
+    section: 'software',
     glyph: '◈',
     name: '项目定义',
     question: '这个项目叫什么，长成什么形态？',
@@ -53,6 +60,7 @@ export const STEPS: StepSpec[] = [
   },
   {
     id: 'base',
+    section: 'software',
     glyph: '◇',
     name: '技术栈基底',
     question: '整个项目跑在哪条技术栈上？',
@@ -60,6 +68,7 @@ export const STEPS: StepSpec[] = [
   },
   {
     id: 'theme',
+    section: 'software',
     glyph: '▦',
     name: '主题框架',
     question: '数据库、缓存、鉴权这些主题件各选什么？',
@@ -67,13 +76,39 @@ export const STEPS: StepSpec[] = [
   },
   {
     id: 'layers',
+    section: 'software',
     glyph: '⊞',
     name: '分层装配',
     question: '逐层校核 —— 这条流水线还缺什么？',
     feeds: '顶部按「流水线」切换：一次只看一条处理流（接入→应用→数据……），把架构侧的可选件补齐。交付类零件不在这里 —— 它们集中在下一步「交付与运行」。装上的零件进入 ⑥，逐个定副本；缺的必选件会被直接点名。',
   },
   {
+    id: 'frontend',
+    section: 'frontend-env',
+    glyph: '❖',
+    name: '前端技术栈',
+    question: '前端要吗？要的话用什么搭？',
+    feeds: '决定 frontend.zip 产不产出、长什么样。Vue3 + Element Plus 是当前唯一完备基底；选「无前端」只导出后端包。勾选功能模块但没有前端时，模块卡会提示管理页没有落点。',
+  },
+  {
+    id: 'env',
+    section: 'frontend-env',
+    glyph: '⌁',
+    name: '环境与连接',
+    question: '数据库 / Redis / Nacos 连哪里？连接信息烘进导出包，环境变量仍可覆盖。',
+    feeds: '填了 → 导出包零配置直连你给的库；什么都不填 → 占位符保持本机默认；勾「演示模式」用 H2 内存库零依赖启动。密码默认不写入本机存储。',
+  },
+  {
+    id: 'modules',
+    section: 'frontend-env',
+    glyph: '⛁',
+    name: '功能模块',
+    question: '要把哪些现成功能模块搭进去？',
+    feeds: '每个模块 = 后端接口 + 前端管理页 + 建表种子 SQL（admin/admin123）。勾「角色权限 / 菜单管理」自动带上「用户管理」；与选型冲突的组合会标黄并给修复建议。',
+  },
+  {
     id: 'deliverRun',
+    section: 'delivery-run',
     glyph: '⬢',
     name: '交付与运行',
     question: '这套架构怎么跑起来、怎么交付？（运行环境 / 入口 / 编排 / CI/CD / 监控 / 密钥 / 日志）',
@@ -81,6 +116,7 @@ export const STEPS: StepSpec[] = [
   },
   {
     id: 'topology',
+    section: 'delivery-run',
     glyph: '⋮',
     name: '部署形态',
     question: '每个零件几个实例、怎么摆？',
@@ -88,6 +124,7 @@ export const STEPS: StepSpec[] = [
   },
   {
     id: 'delivery',
+    section: 'delivery-run',
     glyph: '⇩',
     name: '交付',
     question: '这套组合最后长什么样、怎么拿走？',

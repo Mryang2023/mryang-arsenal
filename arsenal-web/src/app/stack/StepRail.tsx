@@ -1,6 +1,13 @@
 'use client';
 
-import { STEPS, stepIndex, type StepId } from './wizard';
+import { STEPS, stepIndex, type StepId, type StepSection } from './wizard';
+
+/** 三段十步的分段标签 */
+const SECTION_LABELS: Record<StepSection, string> = {
+  software: '软件架构',
+  'frontend-env': '前端与环境',
+  'delivery-run': '交付运行',
+};
 
 /**
  * 步骤条 + 上一步 / 下一步。
@@ -44,15 +51,30 @@ export default function StepRail({
         {STEPS.map((s, i) => {
           const on = s.id === step;
           const stepIssues = issues?.[s.id] ?? [];
+          // 段落切换处插一段分段标签 —— 三段十步后步骤条变长，
+          // 没有分段标签用户分不清「选零件」和「填环境」是两个世界
+          const sectionLabel =
+            SECTION_LABELS[s.section] && (i === 0 || STEPS[i - 1].section !== s.section)
+              ? SECTION_LABELS[s.section]
+              : null;
           return (
             <li key={s.id} className="flex items-center">
-              {i > 0 && (
+              {sectionLabel ? (
                 <span
                   aria-hidden
-                  className="mono mx-1 text-[11px] leading-none text-fgFaint"
+                  className="mono mx-1.5 border-l border-line pl-2 text-[10px] uppercase leading-none tracking-wider text-fgFaint"
                 >
-                  ›
+                  {sectionLabel}
                 </span>
+              ) : (
+                i > 0 && (
+                  <span
+                    aria-hidden
+                    className="mono mx-1 text-[11px] leading-none text-fgFaint"
+                  >
+                    ›
+                  </span>
+                )
               )}
               <button
                 type="button"
