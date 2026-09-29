@@ -481,8 +481,8 @@
       },
       {
         "name": "脚手架生成链路",
-        "count": 13,
-        "desc": "模板目录↔bundle 逐文件一致、生成 Java import↔pom GAV 零悬空、前端 import↔package.json 零悬空、module.json 九字段、占位符白名单（非 .vue）、三包组装冒烟（全家桶四类文件/演示档/双变体/feBase=none/环境烘焙）"
+        "count": 17,
+        "desc": "模板目录↔bundle 逐文件一致、生成 Java import↔pom GAV 零悬空、前端 import↔package.json 零悬空、module.json 九字段、占位符白名单（非 .vue）、三包组装冒烟（全家桶四类文件/演示档/双变体/feBase=none/环境烘焙）、导出预检闸（事故同款组合 securityjwt+configcenter+jacoco 零违规 / 接管回归：切片测试 AuthInterceptor 指向模块版 / nacos·jacoco 显式版本 / 五类毒物注入全被拦：同名 bean·悬空 import·无版本依赖·yml 异类键·重复 path）"
       }
     ],
     "roadmap": [
