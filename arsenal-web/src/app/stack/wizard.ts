@@ -134,7 +134,15 @@ export const STEPS: StepSpec[] = [
 
 export const STEP_BY_ID = new Map(STEPS.map((s) => [s.id, s]));
 
-/** 步骤序号（1 起）。越界返回 0 —— 调用方必须自己处理，不在这里兜底成第一步。 */
+/**
+ * 步骤在 `STEPS` 里的下标（**0 起**，就是 `findIndex` 的返回值；找不到返回 -1）。
+ *
+ * 这里的注释曾写成「1 起」，2026-09-29 P0 拆页时调用方照着它写成
+ * `STEPS[stepIndex(id) - 1]` —— 首页第一步落成 `STEPS[-1]`，
+ * `/stack` 预渲染当场 Cannot read properties of undefined。
+ * 按数组下标用即可；只想「按 id 取步骤对象」的话直接用 `STEP_BY_ID`，
+ * 绕开这个 off-by-one 的可能。
+ */
 export function stepIndex(id: StepId): number {
   return STEPS.findIndex((s) => s.id === id);
 }
@@ -413,3 +421,84 @@ export function saveProjectMeta(meta: ProjectMeta): void {
     // 存储满 / 隐私模式：项目名本轮不落盘，不阻塞装配
   }
 }
+
+// ─────────────────────────────────────────────────────────────
+// P0 四页（2026-09-29 拍板）：十步在四页上的分布
+//
+// 装配台原先是 `/stack` 单路由塞三段十步 —— 选型 / 环境 / 运行 / 交付
+// 四种心智挤在一屏，所以按**心智**拆成四页（拆法 A）；三段十步的 StepId
+// 顺序**一个都没动**，变的只是它们落在哪一页。
+//
+// 「哪一步在哪一页」只许在这里说一次。四个页面容器、JourneyBar、StepRail
+// 的跨页跳转、以及刷新时「step → 路由」的恢复映射，全是这张表的消费方。
+// 另立一张就会出现「页面说第 ⑧ 步在这页、步骤条说它在那页」的对不上。
+// ─────────────────────────────────────────────────────────────
+
+export type StackPageId = 'software' | 'env' | 'run' | 'delivery';
+
+export interface StackPageSpec {
+  id: StackPageId;
+  route: string;
+  name: string;
+  glyph: string;
+  /** 本页承载的步骤（顺序即页内步骤条顺序） */
+  steps: StepId[];
+}
+
+export const STACK_PAGES: StackPageSpec[] = [
+  {
+    id: 'software',
+    route: '/stack',
+    name: '选型台',
+    glyph: '◈',
+    steps: ['project', 'base', 'theme', 'layers'],
+  },
+  {
+    id: 'env',
+    route: '/stack/env',
+    name: '环境与模块',
+    glyph: '❖',
+    steps: ['frontend', 'env', 'modules'],
+  },
+  {
+    id: 'run',
+    route: '/stack/run',
+    name: '运行与部署',
+    glyph: '⬢',
+    steps: ['deliverRun', 'topology'],
+  },
+  {
+    id: 'delivery',
+    route: '/stack/delivery',
+    name: '交付中心',
+    glyph: '⇩',
+    steps: ['delivery'],
+  },
+];
+
+/** 步骤 → 它所属的页（刷新恢复用） */
+export const PAGE_ID_OF_STEP: Record<StepId, StackPageId> = Object.fromEntries(
+  STACK_PAGES.flatMap((p) => p.steps.map((s) => [s, p.id] as const))
+) as Record<StepId, StackPageId>;
+
+export const PAGE_OF_STEP: Record<StepId, string> = Object.fromEntries(
+  STACK_PAGES.flatMap((p) => p.steps.map((s) => [s, p.route] as const))
+) as Record<StepId, string>;
+
+export function pageOfStep(step: StepId): StackPageSpec | null {
+  return STACK_PAGES.find((p) => p.id === PAGE_ID_OF_STEP[step]) ?? null;
+}
+
+/**
+ * 段 → 该段**首页**的路由。
+ *
+ * 注意 delivery-run 段跨了两页（⑧⑨ 在「运行与部署」、⑩ 在「交付中心」）——
+ * 所以这里是「段的首页」而不是「段唯一页」；精确的归属一律用 `PAGE_OF_STEP`。
+ */
+export const SECTION_ROUTE: Record<StepSection, string> = Object.fromEntries(
+  (['software', 'frontend-env', 'delivery-run'] as StepSection[]).map((s) => [
+    s,
+    (STACK_PAGES.find((p) => (STEPS.find((x) => x.id === p.steps[0])?.section ?? '') === s) ??
+      STACK_PAGES[0]).route,
+  ])
+) as Record<StepSection, string>;
