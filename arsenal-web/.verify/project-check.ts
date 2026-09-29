@@ -1152,7 +1152,10 @@ console.log('\n【13】导航与页签契约');
   );
 
   // ④ 装配台页签三处必须同时成立：TabId 类型、页签条数组、渲染分支
-  const composer = code('app/stack/StackComposer.tsx');
+  //
+  // P0 四页（2026-09-29）：StackComposer.tsx 已拆成四页容器，产物区（页签的家）
+  // 整体搬进 StackDelivery.tsx —— 三处仍在同一文件，判据一条没动。
+  const composer = code('app/stack/StackDelivery.tsx');
   const idUnion = [
     ...(
       /type TabId\s*=([\s\S]*?);/.exec(composer)?.[1] ?? ''
@@ -1215,7 +1218,8 @@ console.log('\n【13】导航与页签契约');
   // effect 还会拿 standard 把 localStorage 里 /arch 正要读的那份一起抹掉。
   // 实测（2026-09-23）：塞 `{database:'postgres'}` 进快照，打开 /stack 再刷新，读到的是 mysql。
   // 旧断言只问「有没有人读」，所以它一直是绿的。
-  const stackComposer = code('app/stack/StackComposer.tsx');
+  // 同上，装配台自己的恢复逻辑随拆页搬进了 useStackChannel.ts（四页共用的状态通道）
+  const stackComposer = code('app/stack/useStackChannel.ts');
   check(
     '装配台自己读快照（属主必须恢复自己的数据）',
     stackComposer.includes('loadSnapshot('),
@@ -1816,7 +1820,24 @@ console.log('\n【17】装配台视觉契约（/stack P1 第一组）');
   const readRel = (rel: string) => fs.readFileSync(path.join(webRoot, rel), 'utf8');
   const stackCss = readRel('src/app/globals.css');
   const slotSrc = readRel('src/app/stack/SlotBlock.tsx');
-  const composerSrc = readRel('src/app/stack/StackComposer.tsx');
+
+  // P0 四页（2026-09-29）：StackComposer.tsx 已拆成 `useStackChannel`（状态通道）+
+  // `StackDeck`（常驻结论条）+ `StackSoftware`（台面）+ `StackDelivery`（产物区）。
+  // 原来「对着一个源码文件」的断言改为读**这一组文件的合集** ——
+  // 判据一条没放松，只是被搜索的文件从 1 个变成 4 个：拆页不该让断言静默变空跑。
+  const STACK_SPLIT = [
+    'src/app/stack/useStackChannel.ts',
+    'src/app/stack/StackDeck.tsx',
+    'src/app/stack/StackSoftware.tsx',
+    'src/app/stack/StackDelivery.tsx',
+  ];
+  const missingSplit = STACK_SPLIT.filter((f) => !fs.existsSync(path.join(webRoot, f)));
+  check(
+    `装配台拆页：${STACK_SPLIT.length} 个承载文件都在（P0 四页后断言读它们的合集）`,
+    missingSplit.length === 0,
+    `缺失：${missingSplit.join(' ') || '无'}`
+  );
+  const composerSrc = STACK_SPLIT.map(readRel).join('\n');
 
   // ── S1-1 台面化 ──────────────────────────────────────────────
   const STACK_VARS = ['--stack-bench', '--stack-bench-grid', '--stack-part', '--stack-part-hi'];
@@ -1846,7 +1867,7 @@ console.log('\n【17】装配台视觉契约（/stack P1 第一组）');
   check(
     `S1-1 装配区容器套上台面（stack-bench 是完整类名，实测 ${benchTokens.length} 处）`,
     benchTokens.length > 0,
-    'StackComposer 的 className 里没有独立的 stack-bench 类名（只比子串会让拼错的变形也判过）'
+    '装配台承载文件（P0 拆页后是四个容器而非 StackComposer）的 className 里没有独立的 stack-bench 类名（只比子串会让拼错的变形也判过）'
   );
   check(
     'S1-1 泳道表头是左侧固定标签列（writing-mode vertical-rl）',
@@ -1856,7 +1877,7 @@ console.log('\n【17】装配台视觉契约（/stack P1 第一组）');
     'S1-1 泳道之间的连线是 SVG（WireLayer，S1-4 迁出），不再用 ↓ 字符',
     /export function WireLayer\(/.test(readRel('src/app/stack/WireLayer.tsx')) &&
       !composerSrc.includes('↓'),
-    composerSrc.includes('↓') ? 'StackComposer 源码里还有 ↓ 字符' : ''
+    composerSrc.includes('↓') ? '装配台承载文件源码里还有 ↓ 字符' : ''
   );
 
   // ── S1-2 权重分级 ────────────────────────────────────────────
@@ -1976,8 +1997,8 @@ console.log('\n【17】装配台视觉契约（/stack P1 第一组）');
 
   // ── 配色守卫：语义色仍然只有 TONE 五色 + 既有文本 token ──────
   // 只扫本棒新写/重写的两处：SlotBlock 全文件 + WireLayer 全文件
-  // （S1-4 起连线职责从 StackComposer 的 LaneWire 迁到独立文件 WireLayer.tsx）。
-  // 不扫整个 StackComposer（54KB，历史色值不归本棒管，扫了只会报一堆无法归因的红）。
+  // （S1-4 起连线职责从 StackComposer 的 LaneWire 迁到独立文件 WireLayer.tsx；
+  //   2026-09-29 P0 拆页后原 StackComposer 已不存在，这里说的「不扫」变成了天然成立）。
   const wireSrc = readRel('src/app/stack/WireLayer.tsx');
   check(
     '配色守卫：WireLayer.tsx 已读到且含连线（定位不到的话下面的色值扫描就是空跑）',
@@ -2013,7 +2034,21 @@ console.log('\n【18】装配台 P1 第二组（S1-4 / S1-5 / S2-7）');
   const wireSrc = readRel('src/app/stack/WireLayer.tsx');
   const ringSrc = readRel('src/app/stack/ProgressRing.tsx');
   const deckSrc = readRel('src/app/stack/DeliveryDeck.tsx');
-  const composerSrc = readRel('src/app/stack/StackComposer.tsx');
+
+  // 同【17】：P0 四页后被搜索的是四个承载文件的合集（判据不变，只是换了承载文件）
+  const STACK_SPLIT_18 = [
+    'src/app/stack/useStackChannel.ts',
+    'src/app/stack/StackDeck.tsx',
+    'src/app/stack/StackSoftware.tsx',
+    'src/app/stack/StackDelivery.tsx',
+  ];
+  const missingSplit18 = STACK_SPLIT_18.filter((f) => !fs.existsSync(path.join(webRoot, f)));
+  check(
+    `装配台拆页：${STACK_SPLIT_18.length} 个承载文件都在（【18】断点阵 / 连线 / 草稿 / 分享）`,
+    missingSplit18.length === 0,
+    `缺失：${missingSplit18.join(' ') || '无'}`
+  );
+  const composerSrc = STACK_SPLIT_18.map(readRel).join('\n');
   const globalsCss = readRel('src/app/globals.css');
 
   // ── S1-4 连线可视化 ──────────────────────────────────────────
@@ -2128,21 +2163,84 @@ console.log('\n【18】装配台 P1 第二组（S1-4 / S1-5 / S2-7）');
   );
 
   // ── S1-6 收尾 / S2-8 V2-12 / S2-3 撤销重做（09-24 白天补） ────
-  const stackFiles = [
-    'src/app/stack/SlotBlock.tsx',
-    'src/app/stack/Inspector.tsx',
-    'src/app/stack/DeliveryDeck.tsx',
-    'src/app/stack/GapCard.tsx',
-    'src/app/stack/TopologyPicker.tsx',
-    'src/app/stack/StackComposer.tsx',
-  ].map(readRel);
-  const with9px = ['SlotBlock', 'Inspector', 'DeliveryDeck', 'GapCard', 'TopologyPicker', 'StackComposer'].filter(
-    (_, i) => stackFiles[i].includes('text-[9px]')
+  // P0 四页：StackComposer 拆成 useStackChannel / StackDeck / StackSoftware /
+  // StackEnv / StackRun / StackDelivery，加上新拆出的 StepRail / JourneyBar。
+  // 清单跟着一起换 —— 留着旧文件名等于「扫一个不存在的文件」，断言会变空跑。
+  const STACK_9PX = [
+    'SlotBlock',
+    'Inspector',
+    'DeliveryDeck',
+    'GapCard',
+    'TopologyPicker',
+    'useStackChannel',
+    'StackDeck',
+    'StackSoftware',
+    'StackEnv',
+    'StackRun',
+    'StackDelivery',
+    'StepRail',
+    'JourneyBar',
+  ];
+  const stackFiles = STACK_9PX.map((n) =>
+    readRel(`src/app/stack/${n === 'useStackChannel' ? 'useStackChannel.ts' : `${n}.tsx`}`)
   );
+  const with9px = STACK_9PX.filter((_, i) => stackFiles[i].includes('text-[9px]'));
   check(
-    'S1-6 装配台六个活跃组件全部无 9px 字号（9px 连排清零；孤儿文件 ProjectTree 不在扫描内）',
+    `S1-6 装配台 ${STACK_9PX.length} 个活跃组件全部无 9px 字号（9px 连排清零；孤儿文件 ProjectTree 不在扫描内）`,
     with9px.length === 0,
     `仍有 9px：${with9px.join(' ')}`
+  );
+
+  // ── P0 拆页防回归：四个容器必须各渲染**自己那一段** ──────────
+  //
+  // 2026-09-29 P0 实测事故的指纹：四张装配台截图**字节完全相同**。
+  // 根因是 useStackChannel 里那条「恢复出来的 step 不在本页 → replace 回属主页」
+  // 的 effect 把 `step` 写进了依赖数组 —— 于是进入任意装配台页都会先被一条
+  // `router.replace` 拽回 `/stack/`，四页渲染成同一个页面。
+  //
+  // 这层把关只能靠源码文本（渲染结果要浏览器，那是 visual 层的事），判据是两条：
+  //   ① 四个容器各自只用自己那几步的步骤组件（不能都挂同一批）；
+  //   ② 每个容器都写死了自己的页面 id（useStackChannel('env') 这类）。
+  // 判据刻意不碰 wizard / 步骤组件本身 —— 拆页是信息架构改动，引擎该零改动。
+  const PAGE_OWNERS: { page: string; file: string; steps: string[] }[] = [
+    // ④ 分层装配不做成独立步骤组件 —— 它就是「台面」本身（StackSoftware 里的 renderBench），
+    // 所以 Software 页只认前三个 imports，第四个槽位留给台面渲染函数。
+    { page: 'software', file: 'StackSoftware.tsx', steps: ['ProjectStep', 'BaseStep', 'ThemeStep', 'renderBench'] },
+    { page: 'env', file: 'StackEnv.tsx', steps: ['FrontendStep', 'EnvStep', 'ModulesStep'] },
+    { page: 'run', file: 'StackRun.tsx', steps: ['DeliverRunStep', 'TopologyStep'] },
+    { page: 'delivery', file: 'StackDelivery.tsx', steps: ['DeliveryStep'] },
+  ];
+  const pageSrc = Object.fromEntries(
+    PAGE_OWNERS.map((p) => [p.page, readRel(`src/app/stack/${p.file}`)])
+  );
+  const wrongSeg = PAGE_OWNERS.filter((p) => {
+    const src = pageSrc[p.page];
+    // ① 自己那几步必须都在
+    if (!p.steps.every((s) => src.includes(s))) return true;
+    // ② 别人的步骤组件一律不许出现（出现即说明两页渲染同一段）
+    const foreign = PAGE_OWNERS.filter((q) => q.page !== p.page).flatMap((q) => q.steps);
+    return foreign.some((s) => new RegExp(`\\b${s}\\b`).test(src));
+  });
+  check(
+    'P0 拆页：四个容器各渲染自己那一段（外段的步骤组件一个都不许出现）',
+    wrongSeg.length === 0,
+    wrongSeg.map((p) => `${p.file} 的步骤归属不对`).join('；')
+  );
+  const selfDecl = PAGE_OWNERS.filter((p) => !pageSrc[p.page].includes(`useStackChannel('${p.page}')`));
+  check(
+    'P0 拆页：每个容器都声明自己的页面 id（useStackChannel(\'<page>\')）',
+    selfDecl.length === 0,
+    selfDecl.map((p) => `${p.file} 没声明 page id`).join('；')
+  );
+  check(
+    'P0 拆页：页面归属裁决只许在挂载时做一次（step 不许进 useStackChannel 恢复 effect 的依赖数组）',
+    // 依赖数组里出现裸 `step` = 页内换步会被顶回属主页（实测会把 URL 拽回 /stack/）。
+    // 判据抓的是「setStep(pageSpec.steps[0]) 那行之后紧跟着的依赖数组」——
+    // 用 [\s\S] 跨行而不是 \s（\s 不含跨段注释里的换行会漏判）。
+    /setStep\(pageSpec\.steps\[0\]\);[\s\S]*?\}, \[hydrated, pageSpec\.id, pageSpec\.steps\]\);/.test(
+      readRel('src/app/stack/useStackChannel.ts')
+    ),
+    'useStackChannel 的页面归属 effect 依赖数组被改过 —— 一旦把 step 放回去，四个装配台页会渲染成同一页'
   );
 
   const topologySrc = readRel('src/lib/topology.ts');
@@ -2615,7 +2713,7 @@ console.log('\n【21】README 正文里的项数口径');
   // ── 两位数口径（2026-09-27 补）────────────────────────────────────────
   // 09-26 有 4 处张数漂移（45→42→…）就是趁「两位数没人守」溜过去的。这里收窄守卫：
   // 只守**当前规模**的断言（「N 张截图矩阵 / N 张矩阵 / 跑 N 张」「N 路由」），
-  // 数据源是 visual/shoot.mjs 的 EXPECTED 声明值（51 张 = 17 路由 × 3 视口，
+  // 数据源是 visual/shoot.mjs 的 EXPECTED 声明值（63 张 = 21 路由 × 3 视口，
   // visual 层拿它对账、shoot.mjs 截图数对不上它自己会红）——README 跟它对齐即闭环。
   // 刻意不守（真值不在机器源里，硬守只会教会人写假数字）：
   //   · 历史叙事：「由 45 张同步为 42 张」是过去式，不是当前规模的断言；
