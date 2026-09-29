@@ -2044,7 +2044,9 @@
           "dependencies": [
             {
               "groupId": "org.springframework.cloud",
-              "artifactId": "spring-cloud-starter-gateway"
+              "artifactId": "spring-cloud-starter-gateway",
+              "version": "4.1.1",
+              "note": "Spring Cloud 不在 Boot parent BOM 管辖内：无版本声明时 Maven 解析直接报 version is missing，必须显式给出与 Boot 3.2 对应的版本（Spring Cloud 2023.0.x）"
             }
           ],
           "notes": [
@@ -2365,7 +2367,8 @@
           "dependencies": [
             {
               "groupId": "org.apache.solr",
-              "artifactId": "solr-solrj"
+              "artifactId": "solr-solrj",
+              "version": "9.4.1"
             }
           ],
           "topologyDefault": "single"
@@ -2389,7 +2392,8 @@
           "dependencies": [
             {
               "groupId": "com.meilisearch.sdk",
-              "artifactId": "meilisearch-java"
+              "artifactId": "meilisearch-java",
+              "version": "0.14.2"
             }
           ],
           "topologyDefault": "single"
@@ -2412,7 +2416,8 @@
           "dependencies": [
             {
               "groupId": "io.milvus",
-              "artifactId": "milvus-sdk-java"
+              "artifactId": "milvus-sdk-java",
+              "version": "2.3.6"
             }
           ],
           "topologyDefault": "single"
@@ -2489,7 +2494,8 @@
           "dependencies": [
             {
               "groupId": "com.clickhouse",
-              "artifactId": "clickhouse-jdbc"
+              "artifactId": "clickhouse-jdbc",
+              "version": "0.6.0"
             }
           ]
         },
@@ -2511,8 +2517,9 @@
           ],
           "dependencies": [
             {
-              "groupId": "mysql",
-              "artifactId": "mysql-connector-j"
+              "groupId": "com.mysql",
+              "artifactId": "mysql-connector-j",
+              "scope": "runtime"
             }
           ]
         },
@@ -2534,8 +2541,9 @@
           ],
           "dependencies": [
             {
-              "groupId": "mysql",
-              "artifactId": "mysql-connector-j"
+              "groupId": "com.mysql",
+              "artifactId": "mysql-connector-j",
+              "scope": "runtime"
             }
           ]
         },
@@ -2557,7 +2565,8 @@
           "dependencies": [
             {
               "groupId": "org.apache.kylin",
-              "artifactId": "kylin-jdbc"
+              "artifactId": "kylin-jdbc",
+              "version": "4.6.0"
             }
           ]
         },
@@ -2580,7 +2589,8 @@
           "dependencies": [
             {
               "groupId": "org.apache.iceberg",
-              "artifactId": "iceberg-spark-runtime-3.5_2.12"
+              "artifactId": "iceberg-spark-runtime-3.5_2.12",
+              "version": "1.4.3"
             }
           ]
         }
@@ -2627,7 +2637,8 @@
           "dependencies": [
             {
               "groupId": "io.minio",
-              "artifactId": "minio"
+              "artifactId": "minio",
+              "version": "8.5.7"
             }
           ]
         },
@@ -2650,7 +2661,8 @@
           "dependencies": [
             {
               "groupId": "software.amazon.awssdk",
-              "artifactId": "s3"
+              "artifactId": "s3",
+              "version": "2.21.46"
             }
           ]
         },
@@ -2673,7 +2685,8 @@
           "dependencies": [
             {
               "groupId": "com.aliyun.oss",
-              "artifactId": "aliyun-sdk-oss"
+              "artifactId": "aliyun-sdk-oss",
+              "version": "3.17.4"
             }
           ]
         },
@@ -2695,7 +2708,8 @@
           "dependencies": [
             {
               "groupId": "com.amazonaws",
-              "artifactId": "aws-java-sdk-s3"
+              "artifactId": "aws-java-sdk-s3",
+              "version": "1.12.676"
             }
           ]
         }
@@ -2830,7 +2844,8 @@
           "dependencies": [
             {
               "groupId": "au.com.dius.pact.consumer",
-              "artifactId": "junit5"
+              "artifactId": "junit5",
+              "version": "4.6.3"
             }
           ]
         },
@@ -2852,7 +2867,10 @@
           "dependencies": [
             {
               "groupId": "org.pitest",
-              "artifactId": "pitest"
+              "artifactId": "pitest-maven",
+              "version": "1.15.3",
+              "mavenPlugin": true,
+              "note": "PITest 是构建插件不是依赖：org.pitest:pitest 是核心库坐标，Maven 入口是 pitest-maven；无版本声明会让 Maven 解析直接失败，渲染端按 mavenPlugin 输出到 <build><plugins>"
             }
           ]
         }
@@ -2940,7 +2958,10 @@
           "dependencies": [
             {
               "groupId": "org.pitest",
-              "artifactId": "pitest"
+              "artifactId": "pitest-maven",
+              "version": "1.15.3",
+              "mavenPlugin": true,
+              "note": "PITest 是构建插件不是依赖：org.pitest:pitest 是核心库坐标，Maven 入口是 pitest-maven；无版本声明会让 Maven 解析直接失败，渲染端按 mavenPlugin 输出到 <build><plugins>"
             }
           ]
         }

@@ -62,7 +62,7 @@ DIMENSIONS = [
                 "pitfalls": ["SolrCloud 依赖 ZooKeeper 外部协调，运维面增大",
                              "schemaless 模式自动推断字段类型，脏数据涌入后难回滚",
                              "8.x 到 9.x 配置格式大改，升级需重写 solrconfig"],
-                "dependencies": [{"groupId": "org.apache.solr", "artifactId": "solr-solrj"}],
+                "dependencies": [{"groupId": "org.apache.solr", "artifactId": "solr-solrj", "version": "9.4.1"}],
             },
             {
                 "id": "meili",
@@ -76,7 +76,7 @@ DIMENSIONS = [
                 "pitfalls": ["单实例内存索引，数据量超千万条后内存吃紧",
                              "不支持复杂聚合与 join，超出能力需换 ES",
                              "主从复制仍不成熟，多写会冲突"],
-                "dependencies": [{"groupId": "com.meilisearch.sdk", "artifactId": "meilisearch-java"}],
+                "dependencies": [{"groupId": "com.meilisearch.sdk", "artifactId": "meilisearch-java", "version": "0.14.2"}],
             },
             {
                 "id": "vector",
@@ -89,7 +89,7 @@ DIMENSIONS = [
                 "pitfalls": ["HNSW 索引构建占大量内存，亿级向量需分片部署",
                              "ANN 召回率靠 efSearch 调，过低会漏召回关键结果",
                              "Milvus 分布式版依赖 etcd+MinIO+对象存储，组件链长"],
-                "dependencies": [{"groupId": "io.milvus", "artifactId": "milvus-sdk-java"}],
+                "dependencies": [{"groupId": "io.milvus", "artifactId": "milvus-sdk-java", "version": "2.3.6"}],
             },
         ],
     },
@@ -121,7 +121,7 @@ DIMENSIONS = [
                 "pitfalls": ["高并发点查性能差，不适合做 TP 业务库",
                              "ALTER 改分区元数据会锁表，大表操作挑低峰",
                              "JOIN 需把小表放右，否则全量 shuffle"],
-                "dependencies": [{"groupId": "com.clickhouse", "artifactId": "clickhouse-jdbc"}],
+                "dependencies": [{"groupId": "com.clickhouse", "artifactId": "clickhouse-jdbc", "version": "0.6.0"}],
             },
             {
                 "id": "doris",
@@ -135,7 +135,7 @@ DIMENSIONS = [
                 "pitfalls": ["FE 选主强依赖多数派，3 节点最少 2 活",
                              "导入 Label 重复会幂等失败，需自管去重",
                              "大表 Compaction 滞后会拖查询，要控导入频率"],
-                "dependencies": [{"groupId": "mysql", "artifactId": "mysql-connector-j"}],
+                "dependencies": [{"groupId": "com.mysql", "artifactId": "mysql-connector-j", "scope": "runtime"}],
             },
             {
                 "id": "starrocks",
@@ -149,7 +149,7 @@ DIMENSIONS = [
                 "pitfalls": ["BE 节点对内存敏感，OOM 会踢节点",
                              "多表 Join 广播超阈值会落盘变慢",
                              "社区版缺资源隔离，混合负载互相干扰"],
-                "dependencies": [{"groupId": "mysql", "artifactId": "mysql-connector-j"}],
+                "dependencies": [{"groupId": "com.mysql", "artifactId": "mysql-connector-j", "scope": "runtime"}],
             },
             {
                 "id": "kylin",
@@ -162,7 +162,7 @@ DIMENSIONS = [
                 "pitfalls": ["Cube 构建耗资源，维度过多组合指数膨胀",
                              "强绑定 HDFS+Hive，脱离 Hadoop 难部署",
                              "增量构建需指定 Partition 列，错配丢数据"],
-                "dependencies": [{"groupId": "org.apache.kylin", "artifactId": "kylin-jdbc"}],
+                "dependencies": [{"groupId": "org.apache.kylin", "artifactId": "kylin-jdbc", "version": "4.6.0"}],
             },
             {
                 "id": "lakehouse",
@@ -176,7 +176,7 @@ DIMENSIONS = [
                 "pitfalls": ["小文件累积拖垮元数据，需定时 compaction",
                              "Catalog 多选，Glue/Hive 切换坑多",
                              "并发写需开乐观锁，否则 commit 冲突"],
-                "dependencies": [{"groupId": "org.apache.iceberg", "artifactId": "iceberg-spark-runtime-3.5_2.12"}],
+                "dependencies": [{"groupId": "org.apache.iceberg", "artifactId": "iceberg-spark-runtime-3.5_2.12", "version": "1.4.3"}],
             },
         ],
     },
@@ -210,7 +210,7 @@ DIMENSIONS = [
                 "pitfalls": ["单机无纠删码，磁盘坏即丢数据",
                              "默认匿名可读，需显式设 policy 锁桶",
                              "大文件分片上传需客户端支持"],
-                "dependencies": [{"groupId": "io.minio", "artifactId": "minio"}],
+                "dependencies": [{"groupId": "io.minio", "artifactId": "minio", "version": "8.5.7"}],
             },
             {
                 "id": "s3",
@@ -224,7 +224,7 @@ DIMENSIONS = [
                 "pitfalls": ["跨区流量费昂贵，读频繁要就近缓存",
                              "误设 public 桶会被爬数据",
                              "List 大桶千万元件会很慢，需分页"],
-                "dependencies": [{"groupId": "software.amazon.awssdk", "artifactId": "s3"}],
+                "dependencies": [{"groupId": "software.amazon.awssdk", "artifactId": "s3", "version": "2.21.46"}],
             },
             {
                 "id": "oss",
@@ -238,7 +238,7 @@ DIMENSIONS = [
                 "pitfalls": ["Endpoint 选错内网/外网计费差异大",
                              "Bucket 名全局唯一，命名要规划",
                              "低频访问有最小 30 天计费陷阱"],
-                "dependencies": [{"groupId": "com.aliyun.oss", "artifactId": "aliyun-sdk-oss"}],
+                "dependencies": [{"groupId": "com.aliyun.oss", "artifactId": "aliyun-sdk-oss", "version": "3.17.4"}],
             },
             {
                 "id": "ceph",
@@ -251,7 +251,7 @@ DIMENSIONS = [
                 "pitfalls": ["MON/OSD/MDS 组件多，排障复杂",
                              "扩容需手工重平衡，期间 IO 抖动",
                              "小集群性价比低，最少 3 节点起步"],
-                "dependencies": [{"groupId": "com.amazonaws", "artifactId": "aws-java-sdk-s3"}],
+                "dependencies": [{"groupId": "com.amazonaws", "artifactId": "aws-java-sdk-s3", "version": "1.12.676"}],
             },
         ],
     },

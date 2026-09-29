@@ -252,7 +252,9 @@ DIMENSIONS = [
                 "summary": "Spring Cloud Gateway 用 Java 写路由与过滤器，和 Spring 生态无缝集成，适合做鉴权、限流、灰度等统一入口逻辑。",
                 "yaml": "spring:\n  cloud:\n    gateway:\n      routes:\n      - id: user\n        uri: lb://user-svc\n        predicates:\n        - Path=/api/user/**",
                 "dependencies": [
-                    {"groupId": "org.springframework.cloud", "artifactId": "spring-cloud-starter-gateway"},
+                    {"groupId": "org.springframework.cloud", "artifactId": "spring-cloud-starter-gateway",
+                     "version": "4.1.1",
+                     "note": "Spring Cloud 不在 Boot parent BOM 管辖内：无版本声明时 Maven 解析直接报 version is missing，必须显式给出与 Boot 3.2 对应的版本（Spring Cloud 2023.0.x）"},
                 ],
                 "notes": [
                     "用 GatewayFilter 统一加鉴权头、限流用 RequestRateLimiter 过滤器。",
