@@ -49,15 +49,9 @@ export function resolveModules(
       remedy: 'auth 改为 securityjwt 或 custom',
     });
   }
-  // securityjwt 的 Spring Security 过滤器链会拦下 /api/auth/login（默认全部要求认证），
-  // 与脚手架的登录端点直接冲突 —— 实测 403。v1 只承诺 custom 组合可用。
-  if (chosen.size > 0 && stackPicks.auth === 'securityjwt') {
-    warnings.push({
-      module: 'auth',
-      reason: '模块体系的登录/RBAC 基于自研 JWT 拦截器，与 Spring Security 的过滤器链冲突（登录端点会被 403）',
-      remedy: 'auth 改为 custom',
-    });
-  }
+  // securityjwt 与模块体系不再冲突（09-29 起 backend-plan 在 securityjwt 组合下
+  // 剔除骨架简版鉴权件，SecurityConfig/WebMvcConfig 换模块接管版）——
+  // 曾因两套 JwtAuthenticationFilter/AuthInterceptor 同名 bean 冲突启动即崩。
   // 模块仓储按 mybatisplus/jpa 两叉交付；jdbc 直写 SQL 没有对应实现
   if (chosen.size > 0 && stackPicks.persistence === 'jdbc') {
     warnings.push({

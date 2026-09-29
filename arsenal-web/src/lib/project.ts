@@ -1,7 +1,7 @@
 import projRaw from '@/generated/project.json';
 import { auditArchitecture, capLabel, STATUS_META, type ArchAudit, type ArchGap, type GapRemedy } from './arch';
 import type { ComposedStack, StackPicks } from './content-types';
-import { bootVersionOf, composeStack, dimensionById, dimensions, renderPom, renderYaml } from './stack';
+import { baseById, bootVersionOf, composeStack, dimensionById, dimensions, renderPom, renderYaml } from './stack';
 import { buildArchDiagram, archDiagramD2, archDiagramMermaid } from './arch-diagram';
 import { buildDeployPlan } from './deploy';
 
@@ -861,6 +861,14 @@ export function collectExportFiles(
   const javaVersion = composed.properties['java.version'] ?? '17';
   // 基底决定 pom parent / gradle 插件里写的 Spring Boot 版本
   const bootVersion = bootVersionOf(baseId);
+  // 所选基底未覆盖时 bootVersionOf 会回落到骨架基线 —— 这个差异必须写进 pom，
+  // 否则用户「选了 4.1 拿到 3.2」却找不到任何解释（09-29 事故的真实质疑）
+  const pickedBase = baseId ? baseById.get(baseId) : undefined;
+  const baseNote =
+    pickedBase && pickedBase.covered === false
+      ? `注意：所选基底「${pickedBase.name}」本平台尚未覆盖（骨架按 3.x 编写），` +
+        `pom parent 回落到骨架基线 ${bootVersion}。升级该基底前请勿手改此版本。`
+      : undefined;
   const name = (projectName ?? '').trim() || projectDoc.artifactId;
 
   // ── 构建文件 ──
@@ -870,7 +878,7 @@ export function collectExportFiles(
   } else {
     files.push({
       path: 'pom.xml',
-      content: renderPom(composed, name, bootVersion),
+      content: renderPom(composed, name, bootVersion, baseNote),
       group: '构建',
     });
   }

@@ -117,6 +117,38 @@ export function buildBackendFiles(
     );
   }
 
+  // ── securityjwt：auth 模块体系接管，剔除骨架侧同名 bean ───────
+  // 09-29 事故：骨架 SCAFFOLD 在 auth=securityjwt 时渲染简版 JWT 三件
+  //（security/JwtAuthenticationFilter、security/CurrentUserHolder、
+  // interceptor/AuthInterceptor，全是 @Component），与模块的
+  // auth/security/JwtAuthenticationFilter、auth/web/AuthInterceptor
+  // 简单类名相同 → 组件扫描同名 bean 冲突，应用启动即崩
+  //（BeanDefinitionStoreException: Failed to parse configuration class）。
+  // 骨架 SecurityConfig 还 import 被剔除的过滤器，编译也过不了。
+  // 处理：剔除三件 + SecurityConfig/WebMvcConfig 换成「模块接管版」——
+  // SecurityConfig 必须保留一个全放行的 SecurityFilterChain bean，
+  // 否则 starter-security 在 classpath 上时 Boot 默认安全配置会 403 一切。
+  if (picks.auth === 'securityjwt') {
+    const takenOver = new Set([
+      'src/main/java/com/example/security/JwtAuthenticationFilter.java',
+      'src/main/java/com/example/security/CurrentUserHolder.java',
+      'src/main/java/com/example/interceptor/AuthInterceptor.java',
+    ]);
+    for (let i = files.length - 1; i >= 0; i -= 1) {
+      if (takenOver.has(files[i].path)) files.splice(i, 1);
+    }
+    const security = files.find((f) => f.path === 'src/main/java/com/example/config/SecurityConfig.java');
+    if (security) {
+      security.content = TAKEOVER_SECURITY_CONFIG;
+      security.from = '认证基础设施 · 模块接管版';
+    }
+    const webMvc = files.find((f) => f.path === 'src/main/java/com/example/config/WebMvcConfig.java');
+    if (webMvc) {
+      webMvc.content = TAKEOVER_WEBMVC_CONFIG;
+      webMvc.from = '认证基础设施 · 模块接管版';
+    }
+  }
+
   // ── MyBatis-Plus 分页插件配置 ─────────────────────────────────
   if (persistence === 'mybatisplus') {
     collectTemplates(
@@ -211,6 +243,15 @@ export function buildBackendFiles(
     }
   }
 
+  // ── 同 path 去重（保留后渲染的模板版）────────────────────────
+  // 实测撞名：MybatisPlusConfig 同时来自选型 configClasses（无分页插件）
+  // 与 backend/mybatis/ 模板（带分页插件）。重复条目会在 zip 里落成同名
+  // 双份，树 zip 一致性跟着乱 —— 模板是脚手架升级后的新版，以它为准。
+  for (let i = files.length - 1; i >= 0; i -= 1) {
+    const first = files.findIndex((f) => f.path === files[i].path);
+    if (first >= 0 && first < i) files.splice(first, 1);
+  }
+
   return files;
 }
 
@@ -218,3 +259,97 @@ export function buildBackendFiles(
 export function envSummary(values: EnvValues): { key: string; value: string }[] {
   return Object.entries(values).map(([key, value]) => ({ key, value }));
 }
+
+/**
+ * securityjwt + auth 模块组合的「模块接管版」SecurityConfig。
+ *
+ * 鉴权交给模块拦截器链（AuthWebMvcConfig 注册的 AuthInterceptor +
+ * PermissionInterceptor），本类只提供三样东西：
+ *   1. 一个 SecurityFilterChain bean —— starter-security 在 classpath 上而
+ *      没有这个 bean 时，Boot 的默认安全配置会生成随机密码并拦下所有请求；
+ *   2. CSRF 关闭 + STATELESS 会话（JWT 语义）；
+ *   3. 全放行 —— 路径级鉴权由模块拦截器决定，过滤器链不再重复拦。
+ * 改回纯 Spring Security 过滤器链时：换回「白名单显式列出 +
+ * anyRequest().authenticated()」并加回 JWT 过滤器，默认拒绝而非默认放行。
+ */
+const TAKEOVER_SECURITY_CONFIG = `package com.example.config;
+
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
+import org.springframework.security.config.annotation.web.builders.HttpSecurity;
+import org.springframework.security.config.http.SessionCreationPolicy;
+import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
+import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.security.web.SecurityFilterChain;
+
+/**
+ * Spring Security 配置（auth 功能模块接管模式）。
+ *
+ * 登录/RBAC 由 auth 模块的拦截器链接管（AuthWebMvcConfig 注册的
+ * AuthInterceptor + PermissionInterceptor），本类只负责三件事：
+ *   1. 提供 SecurityFilterChain bean —— starter-security 在 classpath 上时
+ *      若没有它，Boot 默认安全配置会拦下所有请求（随机密码 + 全部 403）；
+ *   2. 关 CSRF + 无状态会话（JWT 语义）；
+ *   3. 全部放行：路径级鉴权由模块拦截器决定，过滤器链不再重复拦。
+ */
+@Configuration
+@EnableMethodSecurity
+public class SecurityConfig {
+
+    @Bean
+    public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
+        http
+                .csrf(csrf -> csrf.disable())
+                .sessionManagement(session ->
+                        session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+                .authorizeHttpRequests(auth -> auth.anyRequest().permitAll());
+        return http.build();
+    }
+
+    /** BCrypt 自带盐值且可调计算强度，是密码存储的默认选择。 */
+    @Bean
+    public PasswordEncoder passwordEncoder() {
+        return new BCryptPasswordEncoder();
+    }
+}
+`;
+
+/**
+ * securityjwt + auth 模块组合的「模块接管版」WebMvcConfig。
+ *
+ * 鉴权拦截器与跨域由 auth/config/AuthWebMvcConfig 统一注册
+ *（公开路径名单只有那里一处），本类只保留 TraceId —— 它必须排在
+ * 鉴权之前：排查 401 时需要「这个请求为什么被拒」的完整日志链。
+ */
+const TAKEOVER_WEBMVC_CONFIG = `package com.example.config;
+
+import com.example.interceptor.TraceIdInterceptor;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.web.servlet.config.annotation.InterceptorRegistry;
+import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
+
+/**
+ * 拦截器链。不用 @EnableWebMvc —— 它会让 Spring Boot 的
+ * MVC 自动配置整体失效，Jackson 的全局定制会跟着失灵。
+ *
+ * auth 功能模块接管登录校验后：鉴权拦截器与跨域由
+ * auth/config/AuthWebMvcConfig 统一注册（公开路径名单只有那里一处），
+ * 本类只保留 TraceId —— 它必须排在鉴权之前：排查 401 时需要
+ * 「这个请求为什么被拒」的完整日志链。
+ */
+@Configuration
+public class WebMvcConfig implements WebMvcConfigurer {
+
+    private final TraceIdInterceptor traceIdInterceptor;
+
+    public WebMvcConfig(TraceIdInterceptor traceIdInterceptor) {
+        this.traceIdInterceptor = traceIdInterceptor;
+    }
+
+    @Override
+    public void addInterceptors(InterceptorRegistry registry) {
+        registry.addInterceptor(traceIdInterceptor).addPathPatterns("/**").order(0);
+    }
+}
+`;

@@ -207,9 +207,14 @@ DIMENSIONS = [
             },
             {
                 "id": "configcenter",
-                "name": "配置中心加密",
+                "name": "配置中心加密（Nacos）",
                 "badge": "推荐",
-                "summary": "把配置与密钥放进 Nacos/Apollo 并加密存储，支持热更新与权限，但多一套中间件、密钥仍可能落本地缓存。",
+                "summary": (
+                    "把配置与密钥放进 Nacos 并加密存储，支持热更新与权限，"
+                    "但多一套中间件、密钥仍可能落本地缓存。"
+                    "⚠️ 勾它会拖进 spring-cloud-alibaba 依赖，启动时连 Nacos —— "
+                    "单体项目没有 Nacos 就选「配置文件」。"
+                ),
                 "yaml": (
                     "# optional: 前缀 —— Nacos 没部署/连不上时跳过，不阻断本地启动；\n"
                     "# 没有它，nacos-config 在 classpath 时启动即因 import 检查失败退出\n"

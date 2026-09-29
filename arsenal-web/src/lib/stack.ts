@@ -246,7 +246,8 @@ function groupDeps(composed: ComposedStack) {
 export function renderPom(
   composed: ComposedStack,
   artifactId = 'arsenal-demo',
-  bootVersion = DEFAULT_BOOT_VERSION
+  bootVersion = DEFAULT_BOOT_VERSION,
+  baseNote?: string,
 ): string {
   const groupsOfDeps = groupDeps(composed);
   const props = Object.entries(composed.properties);
@@ -299,7 +300,7 @@ export function renderPom(
 <!--
   由「军火库 · 架构装配台」按当前组合生成。
   座右铭：业务依赖不写 <version>，版本交给 parent BOM 统一管理。
--->
+${baseNote ? `  ${baseNote}\n` : ''}-->
 <project xmlns="http://maven.apache.org/POM/4.0.0"
          xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
