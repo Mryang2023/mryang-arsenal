@@ -153,7 +153,7 @@ export default function StackDelivery() {
     <div className="space-y-4">
       <h1 className="sr-only">架构装配台 · 交付中心</h1>
       <StackDeck ch={ch} focusDim={focusDim} />
-      <JourneyBar current="delivery" />
+      <JourneyBar current="delivery" picks={picks} />
       {/* 预检闸首屏：能不能交付是进这一页要看到的第一个答案，
           所以它在版面切换之上 —— 「交付预览 / 组合产物」两个版面都在。 */}
       <ExportGate scopes={gateScopes} />

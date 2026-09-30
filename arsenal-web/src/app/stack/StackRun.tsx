@@ -59,7 +59,7 @@ export default function StackRun() {
     <div className="space-y-4">
       <h1 className="sr-only">架构装配台 · 运行与部署</h1>
       <StackDeck ch={ch} focusDim={focusDim} />
-      <JourneyBar current="run" />
+      <JourneyBar current="run" picks={picks} />
       <StepRail
         page="run"
         step={step}

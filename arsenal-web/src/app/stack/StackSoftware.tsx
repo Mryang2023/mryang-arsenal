@@ -107,7 +107,7 @@ export default function StackSoftware() {
       <h1 className="sr-only">架构装配台 · 选型台</h1>
       {/* ── 顶部：这套组合能不能跑（S1-5 闭环仪表）—— 四页常驻 ── */}
       <StackDeck ch={ch} focusDim={focusDim} />
-      <JourneyBar current="software" />
+      <JourneyBar current="software" picks={picks} />
       <StepRail
         page="software"
         step={step}
