@@ -252,6 +252,35 @@ export default function useStackChannel(page: StackPageId = 'software') {
     if (diffDraftId === id) setDiffDraftId(null);
   }
 
+  /** 重读一次草稿（交付中心的方案历史面板挂载时用：草稿可能是别的页面存下的） */
+  function reloadDrafts() {
+    setDrafts(loadDrafts());
+  }
+
+  /**
+   * 恢复一份草稿（交付中心方案历史面板）。
+   *
+   * 三通道**整份**回灌，不挑着改：草稿存的时候就存的是一整套（picks + meta +
+   * baseId），只回灌 picks 会留着上一套的副本数与形态，等于拼出第三套方案 ——
+   * 那种「既不是 A 也不是 B」的组合最难查。恢复走历史栈（Ctrl+Z 可撤回）。
+   */
+  function restoreDraft(id: string) {
+    const d = drafts.find((x) => x.id === id);
+    if (!d) return;
+    hist.record(snapRef.current);
+    setPicks(d.picks);
+    setMeta(d.meta);
+    setBaseId(d.baseId);
+    const matched = presets.find((p) =>
+      dimensions.every((dim) => (d.picks[dim.id] ?? '') === (p.picks[dim.id] ?? ''))
+    );
+    setPresetId(matched ? matched.id : null);
+    setExported(null);
+    setFillNote(null);
+    clearProvenance();
+    setProvenance(null);
+  }
+
   /**
    * S3-3 分享：三通道快照编码进 #s=，复制到剪贴板。剪贴板不可用
    * （file:// / 隐私模式 / 权限被拒）不静默 —— 降级成可全选复制的输入行，
@@ -779,7 +808,7 @@ export default function useStackChannel(page: StackPageId = 'software') {
     // 草稿 / 分享
     drafts, setDrafts, showDraftSave, setShowDraftSave, draftName, setDraftName,
     showDraftList, setShowDraftList, diffDraftId, setDiffDraftId, diffDraft, diffDims,
-    openDraftSave, doSaveDraft, openDraftList, doDeleteDraft,
+    openDraftSave, doSaveDraft, openDraftList, doDeleteDraft, reloadDrafts, restoreDraft,
     copied, shareUrl, setShareUrl, doShare,
     // 交付预览 / 产物
     tab, setTab, showArtifacts, setShowArtifacts, exported, setExported,
