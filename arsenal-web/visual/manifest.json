@@ -1,6 +1,6 @@
 {
   "generator": "arsenal-web/visual/shoot.mjs",
-  "generatedAt": "2026-09-29T17:11:57.274Z",
+  "generatedAt": "2026-09-30T03:16:26.058Z",
   "baseUrl": "http://127.0.0.1:3021",
   "fullPage": false,
   "captureMode": "viewport",
@@ -194,7 +194,7 @@
       "width": 1440,
       "height": 900,
       "bytes": 216503,
-      "durationMs": 1466,
+      "durationMs": 2246,
       "ok": true,
       "error": null,
       "metrics": {
@@ -215,7 +215,7 @@
       "pageErrors": [],
       "consoleErrors": [
         {
-          "text": "Failed to load resource: the server responded with a status of 404 (File not found)",
+          "text": "Failed to load resource: the server responded with a status of 404 (Not Found)",
           "url": "http://127.0.0.1:3021/favicon.ico",
           "lineNumber": 0
         }
@@ -232,7 +232,7 @@
       "width": 1024,
       "height": 768,
       "bytes": 164652,
-      "durationMs": 1312,
+      "durationMs": 1398,
       "ok": true,
       "error": null,
       "metrics": {
@@ -264,7 +264,7 @@
       "width": 390,
       "height": 844,
       "bytes": 108084,
-      "durationMs": 1240,
+      "durationMs": 1576,
       "ok": true,
       "error": null,
       "metrics": {
@@ -295,8 +295,8 @@
       "viewport": "desktop",
       "width": 1440,
       "height": 900,
-      "bytes": 156481,
-      "durationMs": 1208,
+      "bytes": 156485,
+      "durationMs": 1494,
       "ok": true,
       "error": null,
       "metrics": {
@@ -327,8 +327,8 @@
       "viewport": "tablet",
       "width": 1024,
       "height": 768,
-      "bytes": 111309,
-      "durationMs": 1172,
+      "bytes": 111308,
+      "durationMs": 1492,
       "ok": true,
       "error": null,
       "metrics": {
@@ -360,7 +360,7 @@
       "width": 390,
       "height": 844,
       "bytes": 48405,
-      "durationMs": 1148,
+      "durationMs": 1188,
       "ok": true,
       "error": null,
       "metrics": {
@@ -392,7 +392,7 @@
       "width": 1440,
       "height": 900,
       "bytes": 143243,
-      "durationMs": 1230,
+      "durationMs": 1257,
       "ok": true,
       "error": null,
       "metrics": {
@@ -441,7 +441,7 @@
       "width": 1024,
       "height": 768,
       "bytes": 123000,
-      "durationMs": 1222,
+      "durationMs": 1247,
       "ok": true,
       "error": null,
       "metrics": {
@@ -490,7 +490,7 @@
       "width": 390,
       "height": 844,
       "bytes": 56836,
-      "durationMs": 1168,
+      "durationMs": 1212,
       "ok": true,
       "error": null,
       "metrics": {
@@ -539,7 +539,7 @@
       "width": 1440,
       "height": 900,
       "bytes": 180613,
-      "durationMs": 1272,
+      "durationMs": 1337,
       "ok": true,
       "error": null,
       "metrics": {
@@ -571,7 +571,7 @@
       "width": 1024,
       "height": 768,
       "bytes": 130183,
-      "durationMs": 1210,
+      "durationMs": 1248,
       "ok": true,
       "error": null,
       "metrics": {
@@ -603,7 +603,7 @@
       "width": 390,
       "height": 844,
       "bytes": 59496,
-      "durationMs": 1223,
+      "durationMs": 1227,
       "ok": true,
       "error": null,
       "metrics": {
@@ -635,7 +635,7 @@
       "width": 1440,
       "height": 900,
       "bytes": 220635,
-      "durationMs": 1260,
+      "durationMs": 1291,
       "ok": true,
       "error": null,
       "metrics": {
@@ -667,7 +667,7 @@
       "width": 1024,
       "height": 768,
       "bytes": 166128,
-      "durationMs": 1254,
+      "durationMs": 1319,
       "ok": true,
       "error": null,
       "metrics": {
@@ -699,7 +699,7 @@
       "width": 390,
       "height": 844,
       "bytes": 97468,
-      "durationMs": 1218,
+      "durationMs": 1258,
       "ok": true,
       "error": null,
       "metrics": {
@@ -730,8 +730,8 @@
       "viewport": "desktop",
       "width": 1440,
       "height": 900,
-      "bytes": 113507,
-      "durationMs": 1604,
+      "bytes": 113577,
+      "durationMs": 1573,
       "ok": true,
       "error": null,
       "metrics": {
@@ -762,8 +762,8 @@
       "viewport": "tablet",
       "width": 1024,
       "height": 768,
-      "bytes": 90461,
-      "durationMs": 1171,
+      "bytes": 90478,
+      "durationMs": 1287,
       "ok": true,
       "error": null,
       "metrics": {
@@ -794,8 +794,8 @@
       "viewport": "mobile",
       "width": 390,
       "height": 844,
-      "bytes": 58718,
-      "durationMs": 1115,
+      "bytes": 58743,
+      "durationMs": 1158,
       "ok": true,
       "error": null,
       "metrics": {
@@ -827,7 +827,7 @@
       "width": 1440,
       "height": 900,
       "bytes": 185307,
-      "durationMs": 1359,
+      "durationMs": 1335,
       "ok": true,
       "error": null,
       "metrics": {
@@ -859,7 +859,7 @@
       "width": 1024,
       "height": 768,
       "bytes": 119627,
-      "durationMs": 1273,
+      "durationMs": 1441,
       "ok": true,
       "error": null,
       "metrics": {
@@ -891,7 +891,7 @@
       "width": 390,
       "height": 844,
       "bytes": 47635,
-      "durationMs": 1232,
+      "durationMs": 1300,
       "ok": true,
       "error": null,
       "metrics": {
@@ -923,7 +923,7 @@
       "width": 1440,
       "height": 900,
       "bytes": 197263,
-      "durationMs": 1257,
+      "durationMs": 1347,
       "ok": true,
       "error": null,
       "metrics": {
@@ -955,7 +955,7 @@
       "width": 1024,
       "height": 768,
       "bytes": 144942,
-      "durationMs": 1211,
+      "durationMs": 1260,
       "ok": true,
       "error": null,
       "metrics": {
@@ -987,7 +987,7 @@
       "width": 390,
       "height": 844,
       "bytes": 95035,
-      "durationMs": 1236,
+      "durationMs": 1262,
       "ok": true,
       "error": null,
       "metrics": {
@@ -1019,7 +1019,7 @@
       "width": 1440,
       "height": 900,
       "bytes": 149218,
-      "durationMs": 1305,
+      "durationMs": 1537,
       "ok": true,
       "error": null,
       "metrics": {
@@ -1051,7 +1051,7 @@
       "width": 1024,
       "height": 768,
       "bytes": 111173,
-      "durationMs": 1297,
+      "durationMs": 1338,
       "ok": true,
       "error": null,
       "metrics": {
@@ -1083,7 +1083,7 @@
       "width": 390,
       "height": 844,
       "bytes": 53080,
-      "durationMs": 1239,
+      "durationMs": 1338,
       "ok": true,
       "error": null,
       "metrics": {
@@ -1114,8 +1114,8 @@
       "viewport": "desktop",
       "width": 1440,
       "height": 900,
-      "bytes": 145916,
-      "durationMs": 1319,
+      "bytes": 146834,
+      "durationMs": 1320,
       "ok": true,
       "error": null,
       "metrics": {
@@ -1146,8 +1146,8 @@
       "viewport": "tablet",
       "width": 1024,
       "height": 768,
-      "bytes": 105288,
-      "durationMs": 1261,
+      "bytes": 106181,
+      "durationMs": 1278,
       "ok": true,
       "error": null,
       "metrics": {
@@ -1178,18 +1178,18 @@
       "viewport": "mobile",
       "width": 390,
       "height": 844,
-      "bytes": 49259,
-      "durationMs": 1228,
+      "bytes": 52671,
+      "durationMs": 1395,
       "ok": true,
       "error": null,
       "metrics": {
         "scrollWidth": 390,
         "clientWidth": 390,
-        "scrollHeight": 1983,
+        "scrollHeight": 1951,
         "clientHeight": 844,
-        "bodyScrollHeight": 1983,
+        "bodyScrollHeight": 1951,
         "horizontalOverflowPx": 0,
-        "belowFoldPx": 1139,
+        "belowFoldPx": 1107,
         "imgTotal": 0,
         "failedImages": [],
         "overflowElementCount": 0,
@@ -1210,8 +1210,8 @@
       "viewport": "desktop",
       "width": 1440,
       "height": 900,
-      "bytes": 131410,
-      "durationMs": 1241,
+      "bytes": 132240,
+      "durationMs": 1334,
       "ok": true,
       "error": null,
       "metrics": {
@@ -1242,8 +1242,8 @@
       "viewport": "tablet",
       "width": 1024,
       "height": 768,
-      "bytes": 87913,
-      "durationMs": 1232,
+      "bytes": 88725,
+      "durationMs": 1302,
       "ok": true,
       "error": null,
       "metrics": {
@@ -1274,18 +1274,18 @@
       "viewport": "mobile",
       "width": 390,
       "height": 844,
-      "bytes": 48388,
-      "durationMs": 1181,
+      "bytes": 47604,
+      "durationMs": 1423,
       "ok": true,
       "error": null,
       "metrics": {
         "scrollWidth": 390,
         "clientWidth": 390,
-        "scrollHeight": 2665,
+        "scrollHeight": 2633,
         "clientHeight": 844,
-        "bodyScrollHeight": 2665,
+        "bodyScrollHeight": 2633,
         "horizontalOverflowPx": 0,
-        "belowFoldPx": 1821,
+        "belowFoldPx": 1789,
         "imgTotal": 0,
         "failedImages": [],
         "overflowElementCount": 0,
@@ -1306,8 +1306,8 @@
       "viewport": "desktop",
       "width": 1440,
       "height": 900,
-      "bytes": 99571,
-      "durationMs": 1236,
+      "bytes": 100376,
+      "durationMs": 1290,
       "ok": true,
       "error": null,
       "metrics": {
@@ -1338,8 +1338,8 @@
       "viewport": "tablet",
       "width": 1024,
       "height": 768,
-      "bytes": 91059,
-      "durationMs": 1169,
+      "bytes": 91959,
+      "durationMs": 1271,
       "ok": true,
       "error": null,
       "metrics": {
@@ -1370,18 +1370,18 @@
       "viewport": "mobile",
       "width": 390,
       "height": 844,
-      "bytes": 50914,
-      "durationMs": 1145,
+      "bytes": 50059,
+      "durationMs": 1213,
       "ok": true,
       "error": null,
       "metrics": {
         "scrollWidth": 390,
         "clientWidth": 390,
-        "scrollHeight": 1239,
+        "scrollHeight": 1207,
         "clientHeight": 844,
-        "bodyScrollHeight": 1239,
+        "bodyScrollHeight": 1207,
         "horizontalOverflowPx": 0,
-        "belowFoldPx": 395,
+        "belowFoldPx": 363,
         "imgTotal": 0,
         "failedImages": [],
         "overflowElementCount": 0,
@@ -1402,8 +1402,8 @@
       "viewport": "desktop",
       "width": 1440,
       "height": 900,
-      "bytes": 154229,
-      "durationMs": 1301,
+      "bytes": 155139,
+      "durationMs": 1395,
       "ok": true,
       "error": null,
       "metrics": {
@@ -1434,8 +1434,8 @@
       "viewport": "tablet",
       "width": 1024,
       "height": 768,
-      "bytes": 112768,
-      "durationMs": 1290,
+      "bytes": 113638,
+      "durationMs": 1333,
       "ok": true,
       "error": null,
       "metrics": {
@@ -1466,18 +1466,18 @@
       "viewport": "mobile",
       "width": 390,
       "height": 844,
-      "bytes": 55150,
-      "durationMs": 1262,
+      "bytes": 58002,
+      "durationMs": 1356,
       "ok": true,
       "error": null,
       "metrics": {
         "scrollWidth": 390,
         "clientWidth": 390,
-        "scrollHeight": 8213,
+        "scrollHeight": 8181,
         "clientHeight": 844,
-        "bodyScrollHeight": 8213,
+        "bodyScrollHeight": 8181,
         "horizontalOverflowPx": 0,
-        "belowFoldPx": 7369,
+        "belowFoldPx": 7337,
         "imgTotal": 0,
         "failedImages": [],
         "overflowElementCount": 0,
@@ -1499,7 +1499,7 @@
       "width": 1440,
       "height": 900,
       "bytes": 147074,
-      "durationMs": 1210,
+      "durationMs": 1317,
       "ok": true,
       "error": null,
       "metrics": {
@@ -1531,7 +1531,7 @@
       "width": 1024,
       "height": 768,
       "bytes": 118825,
-      "durationMs": 1188,
+      "durationMs": 1363,
       "ok": true,
       "error": null,
       "metrics": {
@@ -1563,7 +1563,7 @@
       "width": 390,
       "height": 844,
       "bytes": 63625,
-      "durationMs": 1148,
+      "durationMs": 1162,
       "ok": true,
       "error": null,
       "metrics": {
@@ -1648,7 +1648,7 @@
       "width": 1440,
       "height": 900,
       "bytes": 149240,
-      "durationMs": 1194,
+      "durationMs": 1265,
       "ok": true,
       "error": null,
       "metrics": {
@@ -1680,7 +1680,7 @@
       "width": 1024,
       "height": 768,
       "bytes": 124787,
-      "durationMs": 1215,
+      "durationMs": 1234,
       "ok": true,
       "error": null,
       "metrics": {
@@ -1712,7 +1712,7 @@
       "width": 390,
       "height": 844,
       "bytes": 65434,
-      "durationMs": 1149,
+      "durationMs": 1176,
       "ok": true,
       "error": null,
       "metrics": {
@@ -1797,7 +1797,7 @@
       "width": 1440,
       "height": 900,
       "bytes": 169119,
-      "durationMs": 1237,
+      "durationMs": 1247,
       "ok": true,
       "error": null,
       "metrics": {
@@ -1829,7 +1829,7 @@
       "width": 1024,
       "height": 768,
       "bytes": 137565,
-      "durationMs": 1221,
+      "durationMs": 1236,
       "ok": true,
       "error": null,
       "metrics": {
@@ -1861,7 +1861,7 @@
       "width": 390,
       "height": 844,
       "bytes": 72279,
-      "durationMs": 1152,
+      "durationMs": 1198,
       "ok": true,
       "error": null,
       "metrics": {
@@ -1959,7 +1959,7 @@
       "width": 1440,
       "height": 900,
       "bytes": 123092,
-      "durationMs": 1153,
+      "durationMs": 1205,
       "ok": true,
       "error": null,
       "metrics": {
@@ -1991,7 +1991,7 @@
       "width": 1024,
       "height": 768,
       "bytes": 89251,
-      "durationMs": 1131,
+      "durationMs": 1255,
       "ok": true,
       "error": null,
       "metrics": {
@@ -2023,7 +2023,7 @@
       "width": 390,
       "height": 844,
       "bytes": 55854,
-      "durationMs": 1128,
+      "durationMs": 1230,
       "ok": true,
       "error": null,
       "metrics": {
@@ -2055,7 +2055,7 @@
       "width": 1440,
       "height": 900,
       "bytes": 124923,
-      "durationMs": 1234,
+      "durationMs": 1183,
       "ok": true,
       "error": null,
       "metrics": {
@@ -2087,7 +2087,7 @@
       "width": 1024,
       "height": 768,
       "bytes": 92864,
-      "durationMs": 1178,
+      "durationMs": 1201,
       "ok": true,
       "error": null,
       "metrics": {
@@ -2119,7 +2119,7 @@
       "width": 390,
       "height": 844,
       "bytes": 58561,
-      "durationMs": 1110,
+      "durationMs": 1182,
       "ok": true,
       "error": null,
       "metrics": {
@@ -2151,7 +2151,7 @@
       "width": 1440,
       "height": 900,
       "bytes": 193153,
-      "durationMs": 1450,
+      "durationMs": 1443,
       "ok": true,
       "error": null,
       "metrics": {
@@ -2249,7 +2249,7 @@
       "width": 1024,
       "height": 768,
       "bytes": 114416,
-      "durationMs": 1388,
+      "durationMs": 1470,
       "ok": true,
       "error": null,
       "metrics": {
@@ -2347,7 +2347,7 @@
       "width": 390,
       "height": 844,
       "bytes": 61681,
-      "durationMs": 1388,
+      "durationMs": 1451,
       "ok": true,
       "error": null,
       "metrics": {
@@ -2445,7 +2445,7 @@
       "width": 1440,
       "height": 900,
       "bytes": 176249,
-      "durationMs": 1457,
+      "durationMs": 1526,
       "ok": true,
       "error": null,
       "metrics": {
@@ -2543,7 +2543,7 @@
       "width": 1024,
       "height": 768,
       "bytes": 108648,
-      "durationMs": 1461,
+      "durationMs": 1603,
       "ok": true,
       "error": null,
       "metrics": {
@@ -2641,7 +2641,7 @@
       "width": 390,
       "height": 844,
       "bytes": 52633,
-      "durationMs": 1438,
+      "durationMs": 1561,
       "ok": true,
       "error": null,
       "metrics": {
@@ -2739,7 +2739,7 @@
       "width": 1440,
       "height": 900,
       "bytes": 187385,
-      "durationMs": 1405,
+      "durationMs": 1504,
       "ok": true,
       "error": null,
       "metrics": {
@@ -2837,7 +2837,7 @@
       "width": 1024,
       "height": 768,
       "bytes": 112936,
-      "durationMs": 1485,
+      "durationMs": 1529,
       "ok": true,
       "error": null,
       "metrics": {
@@ -2935,7 +2935,7 @@
       "width": 390,
       "height": 844,
       "bytes": 61077,
-      "durationMs": 1381,
+      "durationMs": 1421,
       "ok": true,
       "error": null,
       "metrics": {
@@ -3043,8 +3043,8 @@
     "expectedUrls": 21,
     "actualUrls": 21,
     "minBytes": 8192,
-    "minBytesActual": 47635,
-    "minBytesFile": "export__mobile.png",
+    "minBytesActual": 47604,
+    "minBytesFile": "stack-delivery__mobile.png",
     "pageErrors": 0,
     "consoleErrors": 7,
     "requestFailures": 3,
@@ -3066,7 +3066,7 @@
             "file": "home__desktop.png",
             "kind": "console",
             "url": "http://127.0.0.1:3021/favicon.ico",
-            "text": "Failed to load resource: the server responded with a status of 404 (File not found)",
+            "text": "Failed to load resource: the server responded with a status of 404 (Not Found)",
             "status": null
           }
         ]
