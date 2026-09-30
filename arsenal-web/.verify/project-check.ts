@@ -3084,6 +3084,85 @@ console.log('\n【24】装配台 P1 交付中心（预检闸首屏 / 方案历�
   );
 }
 
+// ═══════════════════════════════════════════════════════════════
+// 【25】装配台 P1 第二组（2026-09-30 补）：⑥ 连接三态卡 + JourneyBar
+//       已选角标与 390 折叠。
+//
+//   四条硬要求，每一条都对应一种「看起来做完其实没做完」：
+//   ① 三态必须**从数据推出来**，不许另存一份开关 —— 存了就会和 `demoMode`
+//      分叉，出现「卡上说是演示模式、导出包却连真库」；
+//   ② 密码「默认不落盘」的提示必须排在表单**之前** —— 填完四组字段才发现
+//      密码不存，等于白填一遍；
+//   ③ 角标数字从 picks 现算，且**没有维度可数的页不许渲染假角标**（0/0 也是假话）；
+//   ④ 窄屏折叠只许**一套 DOM** —— 为窄屏再复制四个链接，任何按
+//      `a[data-journey]` 计数的判据会立刻从 4 变 8 而毫无察觉。
+// ═══════════════════════════════════════════════════════════════
+console.log('\n【25】装配台 P1 第二组（连接三态卡 / JourneyBar 角标与折叠）');
+{
+  const webRoot = path.resolve(here, '..');
+  const readRel = (rel: string) => fs.readFileSync(path.join(webRoot, rel), 'utf8');
+  const envStepSrc = readRel('src/app/stack/steps/EnvStep.tsx');
+  const envPageSrc = readRel('src/app/stack/StackEnv.tsx');
+  const barSrc = readRel('src/app/stack/JourneyBar.tsx');
+
+  const MODES = ['demo', 'remote', 'local'];
+  check(
+    '⑥ 连接三态卡三态齐备，且当前态由数据推导（demoMode + 必填是否填完），组件内不另存开关',
+    MODES.every((m) => envStepSrc.includes("id: '" + m + "'")) &&
+      MODES.every((m) => envStepSrc.includes('data-env-mode={m.id}')) &&
+      /demoMode \? 'demo' : allRequiredFilled \? 'remote' : 'local'/.test(envStepSrc) &&
+      !/useState|useRef\(/.test(envStepSrc),
+    '三态另存一份 state = 与 demoMode 两份真相，「卡上说是演示、导出包却连真库」没人会发现'
+  );
+  check(
+    '⑥ 必填字段集合取自表单事实源（forms 过滤 required），不写死字段个数',
+    /forms\.flatMap\(\(f\) => f\.fields\)\.filter\(\(f\) => f\.required\)\.map\(\(f\) => f\.key\)/.test(
+      envStepSrc
+    ) && !/'(19|33|\d+)'/.test(envStepSrc),
+    '写死个数字 = 事实源加了必填字段而角标不动，卡住的还是用户'
+  );
+  check(
+    '密码「默认不落盘」提示前置：data-secret-note 排在数据库表单之前且只出现一次',
+    // 判据带 `=""`：裸子串 `data-secret-note` 会被 `data-secret-note-LATE` 蒙过去
+    // （2026-09-30 注入实测：改名成 -LATE 时这条**仍然绿** —— 子串判据的老坑）。
+    /data-secret-note=""/.test(envStepSrc) &&
+      envStepSrc.indexOf('data-secret-note=""') < envStepSrc.indexOf('data-env-form="database"') &&
+      (envStepSrc.match(/data-secret-note=""/g) ?? []).length === 1 &&
+      (envStepSrc.match(/data-remember-secrets/g) ?? []).length === 1,
+    '提示沉在表单最底部 = 用户填完才发现密码不存；出现两遍 = 两处说明必然分叉'
+  );
+  check(
+    '「本机默认」回落只清非密码必填字段（密码走既有落盘规则），键取自表单',
+    /\.filter\(\(f\) => f\.required && !f\.secret\)/.test(envPageSrc) &&
+      /for \(const k of keys\) delete next\[k\]/.test(envPageSrc),
+    '连密码一起清 = 绕过「记住到本机」的既有约定，用户以为勾了其实没存'
+  );
+  check(
+    'JourneyBar 角标从 picks 现算，没有维度可数的页返回 null（不渲染假角标）',
+    /function pageProgress\(id: StackPageId, picks: StackPicks\)/.test(barSrc) &&
+      /id === 'software' \? THEME_SECTIONS : id === 'run' \? RUN_SECTIONS : null/.test(barSrc) &&
+      /if \(!src\) return null/.test(barSrc) &&
+      !/'(19|33)'/.test(barSrc),
+    '写一个常量当角标 = 选完件数字不动，这比没有角标更糟（它在主动说假话）'
+  );
+  check(
+    'JourneyBar 窄屏折叠只有一套 DOM（data-journey 只出现一次），尺寸走 class 不走内联',
+    (barSrc.match(/data-journey=\{p\.id\}/g) ?? []).length === 1 &&
+      /h-\[26px\] w-\[26px\]/.test(barSrc) &&
+      /sm:h-auto sm:w-auto/.test(barSrc) &&
+      !/width: 26/.test(barSrc),
+    '为窄屏复制四个链接 = 8 个 data-journey，按节点数写的判据瞬间失真；' +
+      '内联 width/height 压不过 sm:w-auto，宽屏会僵成 26px 方块'
+  );
+  check(
+    '四页都把 picks 喂给 JourneyBar（角标不看页就不可能有数）',
+    ['StackSoftware.tsx', 'StackEnv.tsx', 'StackRun.tsx', 'StackDelivery.tsx'].every((f) =>
+      /<JourneyBar current="[a-z]+" picks=\{picks\} \/>/.test(readRel('src/app/stack/' + f))
+    ),
+    '漏传一页 = 那一页角标永远是 0/0 或干脆不渲染，且不会报错'
+  );
+}
+
 // 【16】启动前提自检
 // 「文件都在、zip 能解」说明不了应用能起。这一层守的是 09-28 实测出的启动根因：
 // 主 yml 缺数据源、重复顶层键被 YAML 加载器拒绝、schema.sql 永不执行、
