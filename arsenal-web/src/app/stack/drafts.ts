@@ -90,6 +90,20 @@ export function loadDrafts(): StackDraft[] {
 }
 
 /**
+ * 列表指纹（id + 名字 + 存档时间）。
+ *
+ * 为什么需要它：方案历史面板挂载时会「重读一次存储」（草稿可能是别的页面存下的），
+ * 而 `loadDrafts()` 每次都新建数组 —— 直接 setDrafts 就是一次**内容完全没变**的
+ * 重渲染，父组件跟着整棵树重算一遍。先比指纹，相同就保留原引用不更新。
+ *
+ * 只比这三个字段是有意的：picks / meta 变了而 id+name+savedAt 没变的情况
+ * 不存在（草稿是整份快照，改任何一处都是新 id 新时间）。
+ */
+export function draftsKey(list: StackDraft[]): string {
+  return list.map((d) => `${d.id}|${d.name}|${d.savedAt}`).join('\n');
+}
+
+/**
  * 写草稿并返回裁剪后的列表（调用方拿它更新 state，避免再读一遍存储）。
  * 超出上限挤掉最旧（数组头部是最新的）。
  */

@@ -20,7 +20,7 @@ import { downloadZip } from '@/lib/zip';
 import type { LintViolation } from '@/lib/export-lint';
 import type { StackPicks } from '@/lib/content-types';
 import { useStackHistory, type StackSnapshot } from './history';
-import { DRAFTS_LIMIT, loadDrafts, saveDrafts, type StackDraft } from './drafts';
+import { DRAFTS_LIMIT, draftsKey, loadDrafts, saveDrafts, type StackDraft } from './drafts';
 import { clearScaffoldDraft, loadScaffoldDraft, saveScaffoldDraft } from '@/lib/picks-store';
 import { buildExportArtifacts } from '@/lib/scaffold/artifacts';
 import type { EnvValues, TemplateVars } from '@/lib/scaffold/contracts';
@@ -252,9 +252,16 @@ export default function useStackChannel(page: StackPageId = 'software') {
     if (diffDraftId === id) setDiffDraftId(null);
   }
 
-  /** 重读一次草稿（交付中心的方案历史面板挂载时用：草稿可能是别的页面存下的） */
+  /**
+   * 重读一次草稿（交付中心的方案历史面板挂载时用：草稿可能是别的页面存下的）。
+   *
+   * 指纹相同就**保留原数组引用**不 setState：读出来的内容没变还换一次引用，
+   * 等于让整棵装配台为一次「什么都没发生」的重读重算一遍。
+   */
   function reloadDrafts() {
-    setDrafts(loadDrafts());
+    const next = loadDrafts();
+    const key = draftsKey(next);
+    setDrafts((prev) => (draftsKey(prev) === key ? prev : next));
   }
 
   /**

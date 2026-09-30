@@ -16,6 +16,11 @@ import { buildTopologySvg, type StackPicksMeta } from '@/lib/topology';
  * （交付预览的「集群形态图」卡片与本卡片共用它，所以两处永远长得一样）。
  * 副本数同理 —— `effectiveAppReplicas()` 一个出处，`replicas` 的语义未动，
  * 这里只是把它念出来。
+ *
+ * ⚠️ 传参只给 `columns: 1`（窄栏单列排版），**与图的内容无关**：节点、副本数、
+ * 连边全由 (picks, meta) 决定，所以它和交付预览那张（传 theme / title）必然同形。
+ * 哪天有人在这里给图「补两笔」，两处立刻分叉，而且没有任何东西会报错 ——
+ * 本文件里出现任何自绘 SVG 的痕迹（'<svg' / 'rect' / 'stroke='）都是错的。
  */
 export default function TopologyPreview({
   picks,
@@ -32,7 +37,11 @@ export default function TopologyPreview({
   const instances = built.figures.reduce((n, f) => n + f.replicas, 0) + built.appReplicas;
 
   return (
-    <section className="panel overflow-hidden" data-topology-preview="">
+    <section
+      className="panel overflow-hidden"
+      data-topology-preview=""
+      data-topology-preview-source="buildTopologySvg"
+    >
       <header className="border-b border-line px-4 py-2.5">
         <div className="flex items-baseline gap-x-2.5">
           <span className="mono text-[12px] leading-none text-brass">⋮</span>
@@ -51,7 +60,10 @@ export default function TopologyPreview({
       />
 
       <div className="px-4 py-2.5">
-        <p className="mono text-[10px] leading-[15px] text-fgFaint">
+        <p
+          className="mono text-[10px] leading-[15px] text-fgFaint"
+          data-topology-preview-instances={instances}
+        >
           应用 ×{built.appReplicas} · 带形态组件 {built.figures.length} 个 · 图上实例合计{' '}
           {instances}
         </p>

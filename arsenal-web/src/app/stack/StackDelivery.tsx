@@ -1,6 +1,6 @@
 'use client';
 
-import { Fragment } from 'react';
+import { Fragment, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import CodeBlock from '@/components/CodeBlock';
 import CopyButton from '@/components/CopyButton';
@@ -15,6 +15,7 @@ import JourneyBar from './JourneyBar';
 import StepRail from './StepRail';
 import useStackChannel from './useStackChannel';
 import { PAGE_OF_STEP, stepOfDim } from './wizard';
+import { TONE, INK, toneAt } from './palette';
 
 /**
  * ④ 交付中心 —— `/stack/delivery`。
@@ -104,20 +105,25 @@ export default function StackDelivery() {
    * violations 一律由 `export-lint.ts` 算好后带在 plan / artifacts 上，
    * 本页只负责把它们摆到第一屏，不重算、不改写、不吞掉。
    */
-  const gateScopes: GateScope[] = [
-    {
-      id: 'products',
-      label: '组合产物包（⑦ 一键导出）',
-      files: plan.files.length,
-      violations: plan.violations,
-    },
-    {
-      id: 'scaffold',
-      label: '双包脚手架（后端 / 前端 / 全家桶）',
-      files: artifacts.all.files.length,
-      violations: artifacts.violations,
-    },
-  ];
+  // useMemo 兜住数组字面量：不 memo 的话每帧都是新数组，
+  // ExportGate 里那份 useMemo 等于白写（依赖一变就重算）。
+  const gateScopes = useMemo<GateScope[]>(
+    () => [
+      {
+        id: 'products',
+        label: '组合产物包（⑦ 一键导出）',
+        files: plan.files.length,
+        violations: plan.violations,
+      },
+      {
+        id: 'scaffold',
+        label: '双包脚手架（后端 / 前端 / 全家桶）',
+        files: artifacts.all.files.length,
+        violations: artifacts.violations,
+      },
+    ],
+    [plan.files.length, plan.violations, artifacts.all.files.length, artifacts.violations]
+  );
 
   function renderStep() {
     switch (step) {
@@ -178,9 +184,9 @@ export default function StackDelivery() {
             onClick={() => setDeliveryView('preview')}
             className="flex items-center gap-1.5 rounded-md px-2.5 py-1 text-[11px] transition-colors"
             style={{
-              background: deliveryView === 'preview' ? 'rgba(217,164,65,0.12)' : 'transparent',
-              color: deliveryView === 'preview' ? '#D9A441' : '#93A39C',
-              border: `1px solid ${deliveryView === 'preview' ? 'rgba(217,164,65,0.6)' : '#243029'}`,
+              background: deliveryView === 'preview' ? toneAt('warn', 0.12) : 'transparent',
+              color: deliveryView === 'preview' ? TONE.warn.color : INK.muted,
+              border: `1px solid ${deliveryView === 'preview' ? toneAt('warn', 0.6) : INK.line}`,
             }}
           >
             <span className="mono text-[11px] leading-none">⬡</span>
@@ -193,9 +199,9 @@ export default function StackDelivery() {
             onClick={() => setDeliveryView('products')}
             className="flex items-center gap-1.5 rounded-md px-2.5 py-1 text-[11px] transition-colors"
             style={{
-              background: deliveryView === 'products' ? 'rgba(217,164,65,0.12)' : 'transparent',
-              color: deliveryView === 'products' ? '#D9A441' : '#93A39C',
-              border: `1px solid ${deliveryView === 'products' ? 'rgba(217,164,65,0.6)' : '#243029'}`,
+              background: deliveryView === 'products' ? toneAt('warn', 0.12) : 'transparent',
+              color: deliveryView === 'products' ? TONE.warn.color : INK.muted,
+              border: `1px solid ${deliveryView === 'products' ? toneAt('warn', 0.6) : INK.line}`,
             }}
           >
             <span className="mono text-[11px] leading-none">⎗</span>
@@ -229,9 +235,9 @@ export default function StackDelivery() {
                   plan.violations.length > 0 ? 'cursor-not-allowed opacity-40' : ''
                 }`}
                 style={{
-                  borderColor: 'rgba(217,164,65,0.6)',
-                  background: 'rgba(217,164,65,0.12)',
-                  color: '#D9A441',
+                  borderColor: toneAt('warn', 0.6),
+                  background: toneAt('warn', 0.12),
+                  color: TONE.warn.color,
                 }}
                 title={
                   plan.violations.length > 0
@@ -280,9 +286,9 @@ export default function StackDelivery() {
           {exported && !exported.blocked && (
             <div
               className="flex flex-wrap items-center gap-x-3 gap-y-1.5 border-b border-line px-4 py-2.5"
-              style={{ background: 'rgba(127,166,80,0.07)' }}
+              style={{ background: toneAt('ok', 0.07) }}
             >
-              <span className="mono text-[11px] leading-none" style={{ color: '#7FA650' }}>
+              <span className="mono text-[11px] leading-none" style={{ color: TONE.ok.color }}>
                 ✓
               </span>
               <p className="text-2xs text-fgMuted">
@@ -309,9 +315,9 @@ export default function StackDelivery() {
           {audit.status === 'broken' && (
             <div
               className="flex flex-wrap items-center gap-x-2 gap-y-1 border-b border-line px-4 py-2"
-              style={{ background: 'rgba(229,72,77,0.07)' }}
+              style={{ background: toneAt('bad', 0.07) }}
             >
-              <span className="mono text-[11px] leading-none" style={{ color: '#E5484D' }}>
+              <span className="mono text-[11px] leading-none" style={{ color: TONE.bad.color }}>
                 !
               </span>
               <p className="text-[10px] leading-[15px] text-fgMuted">
@@ -339,8 +345,8 @@ export default function StackDelivery() {
                             onClick={() => setTab(t.id)}
                             className="flex items-center gap-1.5 rounded-md px-2 py-1 text-[11px] transition-colors"
                             style={{
-                              background: on ? 'rgba(217,164,65,0.10)' : 'transparent',
-                              color: on ? '#D9A441' : '#93A39C',
+                              background: on ? toneAt('warn', 0.10) : 'transparent',
+                              color: on ? TONE.warn.color : INK.muted,
                             }}
                           >
                             <span className="mono text-[11px] leading-none">{t.glyph}</span>
@@ -511,7 +517,7 @@ export default function StackDelivery() {
                                 <li key={i} className="flex gap-3 px-4 py-2.5">
                                   <span
                                     className="mono mt-[1px] flex h-[16px] w-[16px] shrink-0 items-center justify-center rounded border text-[10px]"
-                                    style={{ borderColor: 'rgba(217,164,65,0.4)', color: '#D9A441' }}
+                                    style={{ borderColor: toneAt('warn', 0.4), color: TONE.warn.color }}
                                   >
                                     {i + 1}
                                   </span>
@@ -538,7 +544,7 @@ export default function StackDelivery() {
                                   key={i}
                                   className="flex flex-wrap items-baseline gap-x-3 gap-y-1 px-4 py-2.5"
                                 >
-                                  <code className="mono text-2xs" style={{ color: '#D9A441' }}>
+                                  <code className="mono text-2xs" style={{ color: TONE.warn.color }}>
                                     {e.key}
                                   </code>
                                   <span className="text-2xs text-fgMuted">{e.desc}</span>

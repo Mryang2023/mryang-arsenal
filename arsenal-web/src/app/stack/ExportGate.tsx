@@ -1,5 +1,6 @@
 'use client';
 
+import { useMemo } from 'react';
 import { TONE } from './palette';
 import type { LintCheck, LintViolation } from '@/lib/export-lint';
 
@@ -43,16 +44,25 @@ const CHECK_LABEL: Record<LintCheck, string> = {
 };
 
 export default function ExportGate({ scopes }: { scopes: GateScope[] }) {
-  const blockedScopes = scopes.filter((s) => s.violations.length > 0);
-  const blocked = blockedScopes.length > 0;
-  const total = blockedScopes.reduce((n, s) => n + s.violations.length, 0);
-  const files = scopes.reduce((n, s) => n + s.files, 0);
+  // 派生值一律走 useMemo：scopes 是调用方每帧新建的数组字面量，
+  // 不 memo 的话「过滤 + 归总 + 计数」跟着每帧重跑一遍 —— 台上改一个选项
+  // （每敲一次键盘就一帧）都要白算一次几百条违规的归总。
+  const { blockedScopes, blocked, total, files, tally } = useMemo(() => {
+    const bad = scopes.filter((s) => s.violations.length > 0);
+    const t = new Map<LintCheck, number>();
+    for (const s of bad) {
+      for (const v of s.violations) t.set(v.check, (t.get(v.check) ?? 0) + 1);
+    }
+    return {
+      blockedScopes: bad,
+      blocked: bad.length > 0,
+      total: bad.reduce((n, s) => n + s.violations.length, 0),
+      files: scopes.reduce((n, s) => n + s.files, 0),
+      tally: t,
+    };
+  }, [scopes]);
 
   // 五类各自命中几条 —— 用户先看「哪一类坏了」，再看逐条详情
-  const tally = new Map<LintCheck, number>();
-  for (const s of blockedScopes) {
-    for (const v of s.violations) tally.set(v.check, (tally.get(v.check) ?? 0) + 1);
-  }
 
   const tone = blocked ? TONE.bad : TONE.ok;
 
