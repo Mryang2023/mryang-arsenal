@@ -3163,6 +3163,100 @@ console.log('\n【25】装配台 P1 第二组（连接三态卡 / JourneyBar 角
   );
 }
 
+// ═══════════════════════════════════════════════════════════════
+// 【26】装配台 P1 第三组（2026-09-30 白天补做）
+// 这四条都是「跑得对、但一直在白做」的问题，不会报错，只会慢和分叉：
+//   ① 预检闸的归总每帧重算 —— 只 memo 一侧没用，调用方每帧新建数组照样废掉；
+//   ② 方案历史重读存储换引用 —— 内容一个字没变却让整棵树重渲染；
+//   ③ 形态图右栏自绘 —— 两处画得不一样没人会发现；
+//   ④ 色值在十几个组件里各抄一遍 —— 改主题只能靠 grep 撞运气。
+// ═══════════════════════════════════════════════════════════════
+console.log('\n【26】装配台 P1 第三组（预检闸重算 / 草稿重读 / 色值唯一出处）');
+{
+  const webRoot = path.resolve(here, '..');
+  const readRel = (rel: string) => fs.readFileSync(path.join(webRoot, rel), 'utf8');
+  const gateSrc = readRel('src/app/stack/ExportGate.tsx');
+  const deliverySrc = readRel('src/app/stack/StackDelivery.tsx');
+  const draftsSrc = readRel('src/app/stack/drafts.ts');
+  const channelSrc = readRel('src/app/stack/useStackChannel.ts');
+  const previewSrc = stripComments(readRel('src/app/stack/TopologyPreview.tsx'));
+  const paletteSrc = readRel('src/app/stack/palette.ts');
+  const treeSrc = readRel('src/app/stack/ProjectTree.tsx');
+
+  check(
+    '预检闸的归总只在 useMemo 里算（闸门与调用方两侧都 memo，只做一侧等于没做）',
+    /const \{ blockedScopes, blocked, total, files, tally \} = useMemo\(/.test(gateSrc) &&
+      !/const blockedScopes = scopes\.filter/.test(gateSrc) &&
+      /const gateScopes = useMemo<GateScope\[\]>\(/.test(deliverySrc),
+    '调用方每帧新建 scopes 数组，闸门里的 useMemo 依赖一变就重算 —— 只 memo 一侧白做'
+  );
+  check(
+    '方案历史重读有相等短路（指纹相同保留原引用，内容没变不重渲染）',
+    /export function draftsKey\(list: StackDraft\[\]\): string/.test(draftsSrc) &&
+      /setDrafts\(\(prev\) => \(draftsKey\(prev\) === key \? prev : next\)\)/.test(channelSrc),
+    '读出来的内容一个字没变还换引用 = 整棵装配台为一次「什么都没发生」的重读重算一遍'
+  );
+  check(
+    '形态图右栏不自绘（buildTopologySvg 只调一次，文件里没有 SVG 痕迹）',
+    (previewSrc.match(/buildTopologySvg\(/g) ?? []).length === 1 &&
+      !/'<svg|'<rect|stroke=/.test(previewSrc) &&
+      /data-topology-preview-source="buildTopologySvg"/.test(previewSrc),
+    '自己拼一遍几何 = 与交付预览那张图分叉，「两处画得不一样」没人会发现'
+  );
+  check(
+    '装配台不许裸写已登记色（TONE / INK / SWATCH 是色值的唯一出处）',
+    (() => {
+      const forbidden = [
+        ...new Set([
+          ...[...paletteSrc.matchAll(/#[0-9A-Fa-f]{6}/g)].map((m) => m[0]),
+          ...[...paletteSrc.matchAll(/rgba\(\d+,\d+,\d+,[0-9.]+\)/g)].map((m) => m[0]),
+        ]),
+      ];
+      const stackDir = path.join(webRoot, 'src', 'app', 'stack');
+      const hit: string[] = [];
+      const walk = (dir: string) => {
+        for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
+          const full = path.join(dir, e.name);
+          if (e.isDirectory()) {
+            walk(full);
+          } else if (/\.tsx?$/.test(e.name) && e.name !== 'palette.ts') {
+            const t = fs.readFileSync(full, 'utf8');
+            const bad = forbidden.filter((c) => t.includes(c));
+            if (bad.length) {
+              hit.push(path.relative(stackDir, full).replace(/\\/g, '/') + ':' + bad[0]);
+            }
+          }
+        }
+      };
+      walk(stackDir);
+      return hit.length === 0;
+    })(),
+    '色值在组件里各抄一遍 = 改主题只能靠 grep 撞运气，漏一处就是「这块边框比别处深一点」'
+  );
+  check(
+    '徽章分类色走 SWATCH，不借语义色（TONE 的黄绿是「隐患/通过」，不是分类）',
+    /const BADGE_SWATCH: Record<string, string> = \{/.test(treeSrc) &&
+      /const FILE_GROUP_SWATCH: Record<string, string> = \{/.test(treeSrc) &&
+      !/TONE\./.test(
+        treeSrc.slice(treeSrc.indexOf('const BADGE_SWATCH'), treeSrc.indexOf('function badgeColor'))
+      ) &&
+      !/TONE\./.test(
+        treeSrc.slice(
+          treeSrc.indexOf('const FILE_GROUP_SWATCH'),
+          treeSrc.indexOf('export default function ProjectTree')
+        )
+      ),
+    '「鉴权」徽章绿得跟「校验通过」一个意思 —— 看着像评价，其实只是分类'
+  );
+  check(
+    '半透明取色从 TONE 派生：toneAt() 读 TONE 的 hex，alpha=1 时原样返回实心色',
+    /export function toneAt\(key: ToneKey, alpha = 1\): string/.test(paletteSrc) &&
+      /if \(alpha >= 1\) return TONE\[key\]\.color;/.test(paletteSrc) &&
+      /rgbOf\(TONE\[key\]\.color\)/.test(paletteSrc),
+    'helper 里再写一份色值 = 两处真相，调主色时半透明副本不跟着变'
+  );
+}
+
 // 【16】启动前提自检
 // 「文件都在、zip 能解」说明不了应用能起。这一层守的是 09-28 实测出的启动根因：
 // 主 yml 缺数据源、重复顶层键被 YAML 加载器拒绝、schema.sql 永不执行、
