@@ -6,6 +6,7 @@ import TopologyStep from './steps/TopologyStep';
 import StackDeck from './StackDeck';
 import JourneyBar from './JourneyBar';
 import StepRail from './StepRail';
+import TopologyPreview from './TopologyPreview';
 import useStackChannel from './useStackChannel';
 import { PAGE_OF_STEP, stepOfDim } from './wizard';
 
@@ -68,7 +69,20 @@ export default function StackRun() {
         canAdvance={nameOk}
         blockedHint={nameOk ? undefined : '先给项目起个名字（小写字母 + 点分段）—— 它要写进 pom 的 artifactId、application.yml 与 K8s 应用名。'}
       />
-      {renderStep()}
+      {/* ⑨ 部署形态：左表单 + 右实时形态图。
+          形态是在这一步定的，图原本只在交付中心的九块预览里 —— 调副本数要
+          换页才看得到结果，等于盲调。两栏并排后「改一下 → 图跟着变」同屏发生。
+          窄屏（< xl）退成上下堆叠：图在表单之后，不挤掉滑杆的操作空间。 */}
+      {step === 'topology' ? (
+        <div className="grid gap-3 xl:grid-cols-[minmax(0,1fr)_360px]">
+          <div className="min-w-0">{renderStep()}</div>
+          <div className="min-w-0 xl:sticky xl:top-3 xl:self-start">
+            <TopologyPreview picks={picks} meta={meta} />
+          </div>
+        </div>
+      ) : (
+        renderStep()
+      )}
     </div>
   );
 }
