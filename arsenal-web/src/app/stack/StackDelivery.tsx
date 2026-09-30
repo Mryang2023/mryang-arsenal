@@ -8,6 +8,8 @@ import { formatBytes, projectDoc } from '@/lib/project';
 import DeliveryStep from './steps/DeliveryStep';
 import ScaffoldDelivery from './steps/ScaffoldDelivery';
 import DeployGuides from './DeployGuides';
+import DraftHistory from './DraftHistory';
+import ExportGate, { type GateScope } from './ExportGate';
 import StackDeck, { Empty, Hint } from './StackDeck';
 import JourneyBar from './JourneyBar';
 import StepRail from './StepRail';
@@ -49,6 +51,7 @@ export default function StackDelivery() {
     picks, meta, baseId, audit, composed, scale, plan, projectName,
     artifacts, demoMode, moduleResolution, scaffoldForms, allEnvValues,
     yamlText, promptText, configMd, appCode, ops,
+    drafts, reloadDrafts, restoreDraft, doDeleteDraft,
     tab, setTab, showArtifacts, setShowArtifacts, exported, setExported,
     deliveryView, setDeliveryView, deckFocus, setDeckFocus, deckRef, productsRef,
     step, stepSummary, stepIssues, nameOk, setParam, handleExport, buildLabel,
@@ -96,6 +99,26 @@ export default function StackDelivery() {
     if (home !== '/stack/delivery') router.push(home);
   }
 
+  /**
+   * 预检闸的两份包 —— 各自独立过闸，不合成一个结论。
+   * violations 一律由 `export-lint.ts` 算好后带在 plan / artifacts 上，
+   * 本页只负责把它们摆到第一屏，不重算、不改写、不吞掉。
+   */
+  const gateScopes: GateScope[] = [
+    {
+      id: 'products',
+      label: '组合产物包（⑦ 一键导出）',
+      files: plan.files.length,
+      violations: plan.violations,
+    },
+    {
+      id: 'scaffold',
+      label: '双包脚手架（后端 / 前端 / 全家桶）',
+      files: artifacts.all.files.length,
+      violations: artifacts.violations,
+    },
+  ];
+
   function renderStep() {
     switch (step) {
       case 'delivery':
@@ -131,6 +154,9 @@ export default function StackDelivery() {
       <h1 className="sr-only">架构装配台 · 交付中心</h1>
       <StackDeck ch={ch} focusDim={focusDim} />
       <JourneyBar current="delivery" />
+      {/* 预检闸首屏：能不能交付是进这一页要看到的第一个答案，
+          所以它在版面切换之上 —— 「交付预览 / 组合产物」两个版面都在。 */}
+      <ExportGate scopes={gateScopes} />
       <StepRail
         page="delivery"
         step={step}
@@ -196,13 +222,22 @@ export default function StackDelivery() {
               <button
                 type="button"
                 onClick={handleExport}
-                className="flex items-center gap-1.5 rounded-md border px-2.5 py-1.5 text-[11px] font-medium transition-colors"
+                // 与首屏预检闸同一口径：这份包被拦，按钮就是灰的（点了也只会弹一份拒绝清单）
+                disabled={plan.violations.length > 0}
+                data-export-products=""
+                className={`flex items-center gap-1.5 rounded-md border px-2.5 py-1.5 text-[11px] font-medium transition-colors ${
+                  plan.violations.length > 0 ? 'cursor-not-allowed opacity-40' : ''
+                }`}
                 style={{
                   borderColor: 'rgba(217,164,65,0.6)',
                   background: 'rgba(217,164,65,0.12)',
                   color: '#D9A441',
                 }}
-                title={`打包 ${plan.files.length} 个文件为 zip：构建文件、启动类、配置类、迁移脚本、README、隐患单、架构图与技术说明`}
+                title={
+                  plan.violations.length > 0
+                    ? '预检闸未通过 —— 这份包打出来跑不起来，已禁止导出（见页面顶部清单）'
+                    : `打包 ${plan.files.length} 个文件为 zip：构建文件、启动类、配置类、迁移脚本、README、隐患单、架构图与技术说明`
+                }
               >
                 <span className="mono text-[12px] leading-none">⇩</span>
                 一键导出项目
@@ -537,6 +572,16 @@ export default function StackDelivery() {
           )}
         </section>
       )}
+
+      {/* ── 方案历史（拍板项③）────────────────────────────────
+          存过的草稿在这里取回 / 清理。放在版面之下：它回答「以前存过什么」，
+          不该挡住「现在这套包能不能交付」—— 那是上面预检闸的活。 */}
+      <DraftHistory
+        drafts={drafts}
+        onReload={reloadDrafts}
+        onRestore={restoreDraft}
+        onDelete={doDeleteDraft}
+      />
     </div>
   );
 }
