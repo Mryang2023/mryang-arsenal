@@ -3072,7 +3072,10 @@ console.log('\n【24】装配台 P1 交付中心（预检闸首屏 / 方案历�
   check(
     '⑨ 形态图右栏只在 topology 步出现，且与表单两栏并排（xl 断点起分栏，窄屏堆叠）',
     /step === 'topology' \? \([\s\S]{0,200}?xl:grid-cols-\[minmax\(0,1fr\)_360px\]/.test(runSrc) &&
-      runSrc.includes('<TopologyPreview picks={picks} meta={meta} />'),
+      // 判据不写死整行 JSX：右栏后来要传 focusDim / replicaLines（Helm 联动），
+      // 写成完整字符串会跟着每次加 prop 而假红 —— 只盯「这四个 prop 都在」。
+      /<TopologyPreview[\s\S]{0,300}?picks=\{picks\}[\s\S]{0,300}?meta=\{meta\}/.test(runSrc) &&
+      /focusDim=\{topoFocus\}/.test(runSrc),
     '图不在这一步 = 调副本数要换页才看得到结果，等于盲调'
   );
   check(
@@ -3254,6 +3257,82 @@ console.log('\n【26】装配台 P1 第三组（预检闸重算 / 草稿重读 /
       /if \(alpha >= 1\) return TONE\[key\]\.color;/.test(paletteSrc) &&
       /rgbOf\(TONE\[key\]\.color\)/.test(paletteSrc),
     'helper 里再写一份色值 = 两处真相，调主色时半透明副本不跟着变'
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════
+// 【27】装配台 P2 三项（下载卡层级 / ⑧⑩ 右栏 / 形态图 Helm 联动）
+// 这三条都是「信息摆错了地方」而不是「算错了」：
+//   ① 三张下载卡平级 —— 把「我该点哪个」推给了用户；
+//   ② ⑧⑩ 的后果（生成什么文件 / 拿走什么）原本只在同一页的中段才看得见；
+//   ③ 形态图与 Helm 值是同一个数字，但两处各说各的，谁也没指出对方。
+// ═══════════════════════════════════════════════════════════════
+console.log('\n【27】装配台 P2 三项（下载卡层级 / ⑧⑩ 右栏 / 形态图 Helm 联动）');
+{
+  const webRoot = path.resolve(here, '..');
+  const readRel = (rel: string) => fs.readFileSync(path.join(webRoot, rel), 'utf8');
+  const scaffoldSrc = readRel('src/app/stack/steps/ScaffoldDelivery.tsx');
+  const runSrc = readRel('src/app/stack/StackRun.tsx');
+  const deliverySrc = readRel('src/app/stack/StackDelivery.tsx');
+  const previewSrc = readRel('src/app/stack/TopologyPreview.tsx');
+  const deployPreviewSrc = readRel('src/app/stack/DeployPreview.tsx');
+  const outlineSrc = readRel('src/app/stack/ProductOutline.tsx');
+  const topoStepSrc = readRel('src/app/stack/steps/TopologyStep.tsx');
+  const topoSrc = readRel('src/lib/topology.ts');
+  const deploySrc = readRel('src/lib/deploy.ts');
+
+  check(
+    '三张下载卡分主次：全家桶是主卡且排在前面，后端 / 前端是次卡',
+    /data-download="all"[\s\S]{0,160}?data-download-tier="primary"/.test(scaffoldSrc) &&
+      (scaffoldSrc.match(/data-download-tier="secondary"/g) ?? []).length >= 2 &&
+      scaffoldSrc.indexOf('data-download-tier="primary"') <
+        scaffoldSrc.indexOf('data-download-tier="secondary"'),
+    '三张一样大 = 把「我该点哪个」推给用户；主次不是装饰，是把默认答案写在版面上'
+  );
+  check(
+    '卡上的包构成从 files 现算（topOf），不写死一句「包含后端与前端」',
+    /function topOf\(files: \{ path: string \}\[\]\): string\[\]/.test(scaffoldSrc) &&
+      ['all', 'backend'].every((k) => scaffoldSrc.includes(`topOf(artifacts.${k}.files)`)),
+    '写死构成 = 事实源改了而卡上不动，「下载下来发现和说的不一样」'
+  );
+  check(
+    '⑧ 交付与运行有右栏：列出这套选型会生成的部署文件，且文件由调用方生成（组件只展示）',
+    /step === 'deliverRun' \? \([\s\S]{0,200}?xl:grid-cols-\[minmax\(0,1fr\)_360px\]/.test(runSrc) &&
+      /<DeployPreview files=\{deployFiles\} \/>/.test(runSrc) &&
+      !/buildDeployPlan\(/.test(deployPreviewSrc),
+    '在 ⑧ 表态却看不见自己表出了什么 = 盲选；组件自己再生成一遍 = 两处可能对不上'
+  );
+  check(
+    '⑩ 交付有右栏概览：按类别与顶层目录现算，不写死类别名',
+    /<ProductOutline files=\{plan\.files\} bytes=\{plan\.bytes\} \/>/.test(deliverySrc) &&
+      /f\.group \?\? '其它'/.test(outlineSrc) &&
+      !/'(构建|配置|代码)'\s*:/.test(outlineSrc),
+    '写死类别 = 事实源加了新类别而概览不动，用户数着数着对不上'
+  );
+  check(
+    '形态图认识「当前在调谁」：buildTopologySvg 收 highlight，每张卡带 dimId 钥匙',
+    /highlight\?: string;/.test(topoSrc) &&
+      /dimId: string;/.test(topoSrc) &&
+      /opts\.highlight === c\.dimId/.test(topoSrc) &&
+      /highlight: focusDim/.test(previewSrc),
+    '图上有十来个框，调副本数时不亮对应框 = 让用户自己找是哪个变了'
+  );
+  check(
+    '副本数的落点从生成的部署文件里抽（replicaLines 读 content），不是照格式背一遍',
+    /export function replicaLines\(files: DeployFile\[\]\): ReplicaLine\[\]/.test(deploySrc) &&
+      /f\.content\.split\('\\n'\)/.test(deploySrc) &&
+      /data-replica-line=""/.test(previewSrc) &&
+      /replicaLines=\{replicaRows\}/.test(runSrc),
+    '背格式 = 模板一改就对不上；抽不到就如实说「这份产物没有副本数的落点」'
+  );
+  check(
+    '焦点是双向的：台上调哪一项 → 图上亮（onFocus 上报）；点图上的项 → 焦点回台面',
+    /onFocus\?: \(target: string\) => void/.test(topoStepSrc) &&
+      /onFocus\?\('app'\)/.test(topoStepSrc) &&
+      /onFocus\?\.\(r\.id\)/.test(previewSrc) &&
+      /onFocus=\{setTopoFocus\}/.test(runSrc) &&
+      /focusDim=\{topoFocus\}/.test(runSrc),
+    '只单向 = 用户点了图上的项没反应，以为那排按钮是装饰'
   );
 }
 
