@@ -28,6 +28,7 @@ import {
   type ArchifyReceipt,
   type ArchifyStatus,
 } from '@/lib/arsenal-api';
+import { TONE, toneAt } from './palette';
 
 /**
  * 技术架构图 —— 交付用，可编辑。
@@ -433,9 +434,9 @@ export default function TechArch({
       {followsAssembly && (
         <p
           className="flex flex-wrap items-center gap-x-2 rounded-md border px-3 py-2 text-[11px]"
-          style={{ borderColor: 'rgba(217,164,65,0.35)', background: 'rgba(217,164,65,0.07)' }}
+          style={{ borderColor: toneAt('warn', 0.35), background: toneAt('warn', 0.07) }}
         >
-          <span className="mono" style={{ color: '#D9A441' }}>
+          <span className="mono" style={{ color: TONE.warn.color }}>
             ⇄
           </span>
           <span className="text-fgMuted">

@@ -2,6 +2,7 @@
 
 import { SHAPES, STEP_BY_ID, isValidProjectName } from '../wizard';
 import StepShell from './StepShell';
+import { TONE, INK, toneAt } from '../palette';
 
 /**
  * ① 项目定义 —— 项目名 + 项目形态。
@@ -56,13 +57,13 @@ export default function ProjectStep({
             aria-invalid={bad || undefined}
             className="mt-1.5 w-full max-w-[320px] rounded-md border px-2.5 py-1.5 text-[12px] outline-none transition-colors placeholder:text-fgFaint focus:border-brass"
             style={{
-              borderColor: bad ? 'rgba(229,72,77,0.6)' : '#243029',
+              borderColor: bad ? toneAt('bad', 0.6) : INK.line,
               background: 'transparent',
-              color: '#CFDCD6',
+              color: INK.pale,
             }}
           />
           {bad ? (
-            <p className="mt-1 text-[10px] leading-[15px]" style={{ color: '#E5484D' }}>
+            <p className="mt-1 text-[10px] leading-[15px]" style={{ color: TONE.bad.color }}>
               只接受小写字母、数字与点分段（order-service 请写成 order.service），
               以字母开头 —— 它要当 Java 包名与 Maven 坐标用。
             </p>
@@ -98,16 +99,16 @@ export default function ProjectStep({
                   onClick={() => onShape(s.id)}
                   className="w-[208px] rounded-md border px-2.5 py-2 text-left transition-colors"
                   style={{
-                    borderColor: on ? 'rgba(217,164,65,0.65)' : '#243029',
-                    background: on ? 'rgba(217,164,65,0.09)' : 'transparent',
+                    borderColor: on ? toneAt('warn', 0.65) : INK.line,
+                    background: on ? toneAt('warn', 0.09) : 'transparent',
                   }}
                 >
                   <div className="flex items-center gap-1.5">
                     <span
                       className="mono flex h-[13px] w-[13px] shrink-0 items-center justify-center rounded-full border text-[10px] leading-none"
                       style={{
-                        borderColor: on ? '#D9A441' : '#33413A',
-                        color: on ? '#D9A441' : 'transparent',
+                        borderColor: on ? TONE.warn.color : INK.dim,
+                        color: on ? TONE.warn.color : 'transparent',
                       }}
                     >
                       ✓
@@ -137,8 +138,8 @@ export default function ProjectStep({
               onClick={() => onShape(null)}
               className="w-[208px] rounded-md border border-dashed px-2.5 py-2 text-left transition-colors"
               style={{
-                borderColor: shapeId === '' ? 'rgba(217,164,65,0.65)' : '#33413A',
-                background: shapeId === '' ? 'rgba(217,164,65,0.09)' : 'transparent',
+                borderColor: shapeId === '' ? toneAt('warn', 0.65) : INK.dim,
+                background: shapeId === '' ? toneAt('warn', 0.09) : 'transparent',
               }}
             >
               <div className="flex items-center gap-1.5">

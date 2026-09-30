@@ -4,6 +4,7 @@ import type { StackPicks } from '@/lib/content-types';
 import { RUN_SECTIONS, STEP_BY_ID } from '../wizard';
 import DimPicker, { type DimFlag } from '../DimPicker';
 import StepShell from './StepShell';
+import { TONE, toneAt } from '../palette';
 
 /**
  * ⑤ 交付与运行 —— 交付运行段的第一步，**只谈怎么跑起来**。
@@ -56,7 +57,7 @@ export default function DeliverRunStep({
                 {issues > 0 && (
                   <span
                     className="mono rounded-sm px-1 text-[10px] leading-[15px]"
-                    style={{ color: '#E5484D', background: 'rgba(229,72,77,0.14)' }}
+                    style={{ color: TONE.bad.color, background: toneAt('bad', 0.14) }}
                     title={`这一组有 ${issues} 个槽位卷进「跑不起来」`}
                   >
                     {issues} 个问题

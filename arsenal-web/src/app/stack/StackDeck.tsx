@@ -8,7 +8,7 @@ import type { StackPicks } from '@/lib/content-types';
 import type { PicksProvenance } from '@/lib/picks-store';
 import { clearProvenance } from '@/lib/picks-store';
 import { DRAFTS_LIMIT } from './drafts';
-import { TONE } from './palette';
+import { TONE, INK, toneAt } from './palette';
 import ProgressRing from './ProgressRing';
 import { findOption } from './useStackChannel';
 import { STEPS, STEP_BY_ID, groupOfDim, stepOfDim, type StepId } from './wizard';
@@ -69,11 +69,11 @@ export default function StackDeck({
             <p className="mt-1 text-2xs leading-relaxed text-fgMuted">
               {audit.status === 'broken' ? (
                 <>
-                  缺 <span style={{ color: '#E5484D' }}>{missingRequired}</span> 个必需模块
+                  缺 <span style={{ color: TONE.bad.color }}>{missingRequired}</span> 个必需模块
                   {audit.blockers.length - missingRequired > 0 && (
                     <>
                       ，另有{' '}
-                      <span style={{ color: '#E5484D' }}>
+                      <span style={{ color: TONE.bad.color }}>
                         {audit.blockers.length - missingRequired}
                       </span>{' '}
                       处能力没人提供
@@ -87,7 +87,7 @@ export default function StackDeck({
                   {hazardCount > 0 && (
                     <>
                       　其中{' '}
-                      <span style={{ color: '#D9A441' }}>{hazardCount}</span> 条隐患已写明触发条件与现象。
+                      <span style={{ color: TONE.warn.color }}>{hazardCount}</span> 条隐患已写明触发条件与现象。
                     </>
                   )}
                 </>
@@ -103,9 +103,9 @@ export default function StackDeck({
               data-fill-cta=""
               className="shrink-0 rounded-md border px-2 py-1 text-[11px] font-medium transition-colors"
               style={{
-                borderColor: 'rgba(217,164,65,0.6)',
-                background: 'rgba(217,164,65,0.12)',
-                color: '#D9A441',
+                borderColor: toneAt('warn', 0.6),
+                background: toneAt('warn', 0.12),
+                color: TONE.warn.color,
               }}
               title="把缺的必需模块按事实源推荐档补上；补了哪几块会列出来，一步可撤销"
             >
@@ -135,7 +135,7 @@ export default function StackDeck({
             disabled={hist.undoSteps === 0}
             title="撤销 (Ctrl+Z)"
             className="mono flex items-center gap-1 rounded-md border px-2 py-1 text-[10px] transition-colors disabled:cursor-not-allowed disabled:opacity-40"
-            style={{ borderColor: '#243029', color: hist.undoSteps > 0 ? '#93A39C' : '#5E6E67' }}
+            style={{ borderColor: INK.line, color: hist.undoSteps > 0 ? INK.muted : TONE.idle.color }}
           >
             ↶ {hist.undoSteps}
           </button>
@@ -145,7 +145,7 @@ export default function StackDeck({
             disabled={hist.redoSteps === 0}
             title="重做 (Ctrl+Shift+Z)"
             className="mono flex items-center gap-1 rounded-md border px-2 py-1 text-[10px] transition-colors disabled:cursor-not-allowed disabled:opacity-40"
-            style={{ borderColor: '#243029', color: hist.redoSteps > 0 ? '#93A39C' : '#5E6E67' }}
+            style={{ borderColor: INK.line, color: hist.redoSteps > 0 ? INK.muted : TONE.idle.color }}
           >
             ↷ {hist.redoSteps}
           </button>
@@ -186,9 +186,9 @@ export default function StackDeck({
             onClick={focusArch}
             className="flex items-center gap-1.5 rounded-md border px-2.5 py-1 text-[11px] font-medium transition-colors"
             style={{
-              borderColor: 'rgba(217,164,65,0.6)',
-              background: 'rgba(217,164,65,0.12)',
-              color: '#D9A441',
+              borderColor: toneAt('warn', 0.6),
+              background: toneAt('warn', 0.12),
+              color: TONE.warn.color,
             }}
             title="把这套组合画成架构图：缺什么、请求怎么穿过、哪块有隐患，一眼看到；可下载 SVG / PNG 或复制 D2 / Mermaid 源码"
           >
@@ -212,7 +212,7 @@ export default function StackDeck({
             data-fill-note=""
             className="flex w-full flex-wrap items-center gap-x-3 gap-y-1.5 border-t border-line pt-2.5"
           >
-            <span className="mono text-[11px] leading-none" style={{ color: '#7FA650' }}>
+            <span className="mono text-[11px] leading-none" style={{ color: TONE.ok.color }}>
               ✓
             </span>
             <p className="min-w-0 flex-1 text-2xs text-fgMuted">
@@ -258,16 +258,16 @@ export default function StackDeck({
               aria-label="草稿名称"
               autoFocus
               className="w-[180px] min-w-0 rounded-md border px-2 py-1 text-[11px] outline-none transition-colors placeholder:text-fgFaint focus:border-brass"
-              style={{ borderColor: '#243029', background: 'transparent', color: '#CFDCD6' }}
+              style={{ borderColor: INK.line, background: 'transparent', color: INK.pale }}
             />
             <button
               type="button"
               onClick={doSaveDraft}
               className="rounded-md border px-2 py-1 text-[11px] font-medium transition-colors"
               style={{
-                borderColor: 'rgba(127,166,80,0.6)',
-                background: 'rgba(127,166,80,0.12)',
-                color: '#7FA650',
+                borderColor: toneAt('ok', 0.6),
+                background: toneAt('ok', 0.12),
+                color: TONE.ok.color,
               }}
             >
               保存
@@ -392,7 +392,7 @@ export default function StackDeck({
               onFocus={(e) => e.currentTarget.select()}
               aria-label="分享链接（点击全选复制）"
               className="min-w-0 flex-1 rounded-md border px-2 py-1 text-[10px] outline-none focus:border-brass"
-              style={{ borderColor: '#243029', background: 'transparent', color: '#CFDCD6' }}
+              style={{ borderColor: INK.line, background: 'transparent', color: INK.pale }}
             />
             <button
               type="button"
@@ -456,7 +456,7 @@ function SlotDotMatrix({
   };
   const FLAG_META = {
     need: { color: TONE.bad.color, label: '有问题' },
-    remedy: { color: '#7FA650', label: '可补' },
+    remedy: { color: TONE.ok.color, label: '可补' },
   } as const;
   const flagged = (Object.keys(flags) as string[]).filter((d) => flags[d]);
   return (
@@ -531,9 +531,9 @@ function SlotDotMatrix({
                 onClick={() => onSelect(dimId)}
                 className="flex items-baseline gap-1 rounded-sm border px-1.5 py-0.5 text-[10px] leading-[15px] transition-colors hover:brightness-125"
                 style={{
-                  borderColor: kind === 'need' ? TONE.bad.border : 'rgba(127,166,80,0.5)',
-                  background: kind === 'need' ? TONE.bad.soft : 'rgba(127,166,80,0.10)',
-                  color: kind === 'need' ? TONE.bad.color : '#7FA650',
+                  borderColor: kind === 'need' ? TONE.bad.border : toneAt('ok', 0.5),
+                  background: kind === 'need' ? TONE.bad.soft : toneAt('ok', 0.10),
+                  color: kind === 'need' ? TONE.bad.color : TONE.ok.color,
                 }}
                 title={`${group ? `${group.name} / ` : ''}${dim?.name ?? dimId}（${
                   stepSpec ? `第 ${STEPS_ORDINAL(step!)} 步 · ${stepSpec.name} 配` : '④ 台面'
@@ -618,10 +618,10 @@ function ProvenanceBanner({
   return (
     <section
       className="panel overflow-hidden"
-      style={{ borderColor: 'rgba(217,164,65,0.35)', background: 'rgba(217,164,65,0.05)' }}
+      style={{ borderColor: toneAt('warn', 0.35), background: toneAt('warn', 0.05) }}
     >
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 px-4 py-2.5">
-        <span className="mono text-[12px] leading-none" style={{ color: '#D9A441' }}>
+        <span className="mono text-[12px] leading-none" style={{ color: TONE.warn.color }}>
           ⌕
         </span>
         <p className="text-2xs text-fg">
@@ -635,7 +635,7 @@ function ProvenanceBanner({
           {provenance.unmatchedCount > 0 && ` · ${provenance.unmatchedCount} 项未识别`}
         </span>
         {edited.length > 0 && (
-          <span className="mono text-[10px]" style={{ color: '#D9A441' }}>
+          <span className="mono text-[10px]" style={{ color: TONE.warn.color }}>
             其中 {edited.length} 格已被你改过
           </span>
         )}
@@ -670,7 +670,7 @@ function ProvenanceBanner({
                   {' '}
                   ← {d.tech} · {d.path}:{d.line}
                 </span>
-                {editedDims.has(d.dim) && <span style={{ color: '#D9A441' }}> · 已改动</span>}
+                {editedDims.has(d.dim) && <span style={{ color: TONE.warn.color }}> · 已改动</span>}
               </li>
             ))}
             {provenance.fromDeploy.map((d) => (

@@ -10,6 +10,7 @@ import {
   type StackPageId,
   type StepId,
 } from './wizard';
+import { TONE, INK, toneAt } from './palette';
 
 /**
  * 页内步骤条 + 上一步 / 下一步。
@@ -90,9 +91,9 @@ export default function StepRail({
                 title={stepIssues.length ? `${s.question}\n\n这一步有问题：\n· ${stepIssues.join('\n· ')}` : s.question}
                 className="flex items-center gap-1.5 rounded-md border px-2 py-1 text-[11px] transition-colors"
                 style={{
-                  borderColor: on ? 'rgba(217,164,65,0.6)' : '#243029',
-                  background: on ? 'rgba(217,164,65,0.10)' : 'transparent',
-                  color: on ? '#D9A441' : '#93A39C',
+                  borderColor: on ? toneAt('warn', 0.6) : INK.line,
+                  background: on ? toneAt('warn', 0.10) : 'transparent',
+                  color: on ? TONE.warn.color : INK.muted,
                 }}
               >
                 <span className="mono text-[12px] leading-none">{s.glyph}</span>
@@ -106,7 +107,7 @@ export default function StepRail({
                 {stepIssues.length > 0 && (
                   <span
                     className="mono rounded-sm px-1 text-[10px] leading-[15px]"
-                    style={{ color: '#E5484D', background: 'rgba(229,72,77,0.14)' }}
+                    style={{ color: TONE.bad.color, background: toneAt('bad', 0.14) }}
                     title={stepIssues.join('；')}
                   >
                     {stepIssues.length}
@@ -135,16 +136,16 @@ export default function StepRail({
           disabled={!next || !canAdvance}
           className="rounded-md border px-3 py-1 text-[11px] font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-40"
           style={{
-            borderColor: 'rgba(217,164,65,0.6)',
-            background: 'rgba(217,164,65,0.12)',
-            color: '#D9A441',
+            borderColor: toneAt('warn', 0.6),
+            background: toneAt('warn', 0.12),
+            color: TONE.warn.color,
           }}
           title={next ? `下一步 · ${next.name}` : '已是最后一步'}
         >
           {next ? `下一步 · ${next.name} →` : '已是最后一步'}
         </button>
         {!canAdvance && blockedHint && (
-          <p className="min-w-0 flex-1 text-[10px] leading-[15px]" style={{ color: '#D9A441' }}>
+          <p className="min-w-0 flex-1 text-[10px] leading-[15px]" style={{ color: TONE.warn.color }}>
             {blockedHint}
           </p>
         )}

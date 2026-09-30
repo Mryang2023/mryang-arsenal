@@ -5,6 +5,7 @@ import { layoutFlowFigure } from '@/lib/topology-figure';
 import { svgMotionStyle } from '@/lib/arch-motion';
 import type { TopologyFlow, TopologyFlowSceneId } from '@/lib/content-types';
 import { TOPOLOGY_FLOW_SCENE_IDS } from '@/lib/topology-flows';
+import { TONE, INK, toneAt, gloss } from './palette';
 
 /**
  * 机理台 —— 部署形态的剧本播放器（《部署形态动画化计划》D1/D4）。
@@ -129,9 +130,9 @@ export default function TopologyLab({
                 className="rounded px-2 py-0.5 text-[10px] leading-[16px] transition-colors"
                 style={{
                   border: '1px solid',
-                  borderColor: sceneId === id ? 'rgba(217,164,65,0.65)' : '#243029',
-                  color: sceneId === id ? '#D9A441' : '#93A39C',
-                  background: sceneId === id ? 'rgba(217,164,65,0.09)' : 'transparent',
+                  borderColor: sceneId === id ? toneAt('warn', 0.65) : INK.line,
+                  color: sceneId === id ? TONE.warn.color : INK.muted,
+                  background: sceneId === id ? toneAt('warn', 0.09) : 'transparent',
                 }}
               >
                 {tab}
@@ -148,7 +149,7 @@ export default function TopologyLab({
         role="img"
         aria-label={`${title} ${scene?.title ?? ''} 第 ${stepIndex + 1} 步：${current?.caption ?? ''}`}
         className="rounded-md"
-        style={{ background: '#0A0F0E', border: '1px solid rgba(255,255,255,0.10)' }}
+        style={{ background: INK.deep, border: `1px solid ${gloss(0.1)}` }}
       >
         <defs dangerouslySetInnerHTML={{ __html: svgMotionStyle(LAB_CSS) }} />
         {/* 边（画在节点下层） */}
@@ -160,7 +161,7 @@ export default function TopologyLab({
               <path
                 d={`M${e.x1} ${e.y1} L${e.x2} ${e.y2}`}
                 fill="none"
-                stroke={lit ? '#D9A441' : '#5C7C78'}
+                stroke={lit ? TONE.warn.color : INK.edge}
                 strokeWidth={lit ? 1.6 : 1.2}
                 strokeDasharray={flowEdge ? EDGE_DASH[flowEdge.kind] || undefined : undefined}
               />
@@ -169,7 +170,7 @@ export default function TopologyLab({
                   className="am-flow"
                   d={`M${e.x1} ${e.y1} L${e.x2} ${e.y2}`}
                   fill="none"
-                  stroke="#D9A441"
+                  stroke={TONE.warn.color}
                   strokeWidth="2.4"
                 />
               )}
@@ -187,8 +188,8 @@ export default function TopologyLab({
                 width={n.w}
                 height={n.h}
                 rx="8"
-                fill={lit ? 'rgba(217,164,65,0.14)' : '#16211F'}
-                stroke={lit ? '#D9A441' : 'rgba(255,255,255,0.10)'}
+                fill={lit ? toneAt('warn', 0.14) : '#16211F'}
+                stroke={lit ? TONE.warn.color : gloss(0.10)}
                 stroke-width={lit ? 1.6 : 1}
               />
               <text
@@ -197,7 +198,7 @@ export default function TopologyLab({
                 text-anchor="middle"
                 font-size="12"
                 font-family="-apple-system, 'PingFang SC', 'Microsoft YaHei', sans-serif"
-                fill={lit ? '#D9A441' : '#9BAFB0'}
+                fill={lit ? TONE.warn.color : '#9BAFB0'}
               >
                 {n.label}
               </text>
@@ -220,14 +221,14 @@ export default function TopologyLab({
                   } as React.CSSProperties
                 }
               >
-                <circle r="6" cx="0" cy="0" fill="#D9A441" stroke="#0A0F0E" stroke-width="1.5" />
+                <circle r="6" cx="0" cy="0" fill={TONE.warn.color} stroke={INK.deep} stroke-width="1.5" />
                 <text
                   x="0"
                   y="-10"
                   text-anchor="middle"
                   font-size="9"
                   font-family="'Cascadia Code', Consolas, monospace"
-                  fill="#D9A441"
+                  fill={TONE.warn.color}
                 >
                   {current.token.label}
                 </text>
@@ -275,8 +276,8 @@ export default function TopologyLab({
             title={reduce ? '系统已开启减弱动效，自动播放停用' : undefined}
             className="rounded border px-2 py-0.5 text-[10px] leading-[16px] transition-colors"
             style={{
-              borderColor: playing ? 'rgba(217,164,65,0.65)' : '#243029',
-              color: playing ? '#D9A441' : '#93A39C',
+              borderColor: playing ? toneAt('warn', 0.65) : INK.line,
+              color: playing ? TONE.warn.color : INK.muted,
             }}
           >
             {playing ? '⏸ 暂停' : '▶ 播放'}
@@ -304,8 +305,8 @@ export default function TopologyLab({
                 className="mono rounded px-1.5 py-0.5 text-[10px] leading-[16px] transition-colors"
                 style={{
                   border: '1px solid',
-                  borderColor: speed === v ? 'rgba(217,164,65,0.65)' : '#243029',
-                  color: speed === v ? '#D9A441' : '#6A7F80',
+                  borderColor: speed === v ? toneAt('warn', 0.65) : INK.line,
+                  color: speed === v ? TONE.warn.color : '#6A7F80',
                 }}
               >
                 {v}×
@@ -332,7 +333,7 @@ export default function TopologyLab({
               className="h-1.5 rounded-full transition-all"
               style={{
                 width: i === stepIndex ? 22 : 12,
-                background: i <= stepIndex ? '#D9A441' : '#243029',
+                background: i <= stepIndex ? TONE.warn.color : INK.line,
               }}
             />
           ))}

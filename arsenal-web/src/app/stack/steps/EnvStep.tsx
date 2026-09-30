@@ -3,7 +3,7 @@
 import StepShell from './StepShell';
 import type { EnvFormSpec, EnvValues } from '@/lib/scaffold/contracts';
 import type { StepSpec } from '../wizard';
-import { TONE } from '../palette';
+import { TONE, INK, toneAt } from '../palette';
 
 /**
  * ⑥ 环境与连接：数据库 / Redis / Nacos 的连接信息。
@@ -90,17 +90,17 @@ export default function EnvStep({
                 title={m.hint}
                 className="flex flex-col items-start gap-1 rounded-lg border px-3 py-2.5 text-left transition-colors"
                 style={{
-                  borderColor: on ? t.border : '#243029',
+                  borderColor: on ? t.border : INK.line,
                   background: on ? t.soft : 'transparent',
                 }}
               >
                 <span className="flex w-full items-center gap-1.5">
-                  <span className="mono text-[12px] leading-none" style={{ color: on ? t.color : '#93A39C' }}>
+                  <span className="mono text-[12px] leading-none" style={{ color: on ? t.color : INK.muted }}>
                     {m.glyph}
                   </span>
                   <span
                     className="min-w-0 flex-1 truncate text-[11px] font-medium leading-[16px]"
-                    style={{ color: on ? '#E8F0EC' : '#93A39C' }}
+                    style={{ color: on ? INK.fg : INK.muted }}
                   >
                     {m.name}
                   </span>
@@ -143,7 +143,7 @@ export default function EnvStep({
           <p
             data-env-missing=""
             className="rounded-md border px-3 py-2 text-2xs leading-relaxed"
-            style={{ borderColor: 'rgba(217,164,65,0.5)', color: '#D9A441' }}
+            style={{ borderColor: toneAt('warn', 0.5), color: TONE.warn.color }}
           >
             必填未填：{missing.join('、')} —— 仍可导出（占位符回退默认值），但后端可能连不上库。
           </p>
@@ -174,7 +174,7 @@ export default function EnvStep({
                 <label key={f.key} className="block text-2xs text-fgMuted">
                   <span className="mb-1 block">
                     {f.label}
-                    {f.required && <span className="text-[#E5484D]"> *</span>}
+                    {f.required && <span style={{ color: TONE.bad.color }}> *</span>}
                   </span>
                   <input
                     data-env-key={f.key}

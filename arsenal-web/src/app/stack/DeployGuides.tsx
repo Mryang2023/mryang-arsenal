@@ -10,6 +10,7 @@ import {
   type DeployOs,
   type SelectedGuide,
 } from '@/lib/deploy-guides';
+import { TONE, toneAt } from './palette';
 
 function OsTabs({
   steps,
@@ -41,7 +42,7 @@ function OsTabs({
           {s.title && <p className="text-2xs text-fg">{s.title}</p>}
           <CodeBlock code={s.code} lang={s.lang} label={OS_LABEL[os]} />
           {s.note && (
-            <p className="text-2xs leading-[16px]" style={{ color: '#D9A441' }}>
+            <p className="text-2xs leading-[16px]" style={{ color: TONE.warn.color }}>
               ⚠ {s.note}
             </p>
           )}
@@ -63,7 +64,7 @@ function DeployGuideCard({ g }: { g: SelectedGuide }) {
           <span className="text-sm text-fg">{g.guide.name}</span>
           <span className="mono text-2xs text-fgFaint">{g.optionName}</span>
           {g.clusterActive && (
-            <span className="mono rounded bg-surfaceHi px-1.5 py-0.5 text-2xs" style={{ color: '#E5484D' }}>
+            <span className="mono rounded bg-surfaceHi px-1.5 py-0.5 text-2xs" style={{ color: TONE.bad.color }}>
               集群形态
             </span>
           )}
@@ -77,8 +78,8 @@ function DeployGuideCard({ g }: { g: SelectedGuide }) {
       </section>
 
       {g.clusterActive && cluster && (
-        <section className="space-y-2 rounded-lg border border-line p-3" style={{ background: 'rgba(229,72,77,0.04)' }}>
-          <h4 className="text-2xs font-semibold uppercase tracking-wider" style={{ color: '#E5484D' }}>
+        <section className="space-y-2 rounded-lg border border-line p-3" style={{ background: toneAt('bad', 0.04) }}>
+          <h4 className="text-2xs font-semibold uppercase tracking-wider" style={{ color: TONE.bad.color }}>
             {cluster.title}
           </h4>
           <p className="text-2xs leading-[16px] text-fgMuted">{cluster.intro}</p>
@@ -86,7 +87,7 @@ function DeployGuideCard({ g }: { g: SelectedGuide }) {
           <ul className="space-y-1">
             {cluster.notes.map((n, i) => (
               <li key={i} className="flex gap-1.5 text-2xs leading-[16px] text-fgMuted">
-                <span style={{ color: '#D9A441' }}>•</span>
+                <span style={{ color: TONE.warn.color }}>•</span>
                 <span>{n}</span>
               </li>
             ))}
@@ -98,7 +99,7 @@ function DeployGuideCard({ g }: { g: SelectedGuide }) {
         <h4 className="text-2xs font-semibold uppercase tracking-wider text-fgFaint">代码里怎么接</h4>
         {opt?.yaml && <CodeBlock code={opt.yaml} lang="yaml" label="application.yml" />}
         {g.clusterActive && cluster && g.optionId === 'redis' && (
-          <p className="text-2xs leading-[16px]" style={{ color: '#D9A441' }}>
+          <p className="text-2xs leading-[16px]" style={{ color: TONE.warn.color }}>
             ⚠ 集群形态下把 host/port 换成 cluster.nodes，例如
             <span className="mono"> spring.data.redis.cluster.nodes=10.0.0.1:7000,10.0.0.2:7001 </span>
             （填部分节点即可，Lettuce 自动发现其余）。

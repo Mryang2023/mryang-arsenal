@@ -4,6 +4,7 @@ import { Fragment } from 'react';
 import Link from 'next/link';
 import type { StackPicks } from '@/lib/content-types';
 import { RUN_SECTIONS, STACK_PAGES, THEME_SECTIONS, type StackPageId } from './wizard';
+import { TONE, INK, toneAt } from './palette';
 
 /**
  * 装配旅程 —— 四页之间的横向导航。
@@ -58,9 +59,9 @@ export default function JourneyBar({
               // （内联优先级更高），窄屏圆点会在宽屏上僵成 26px 方块。
               className="flex h-[26px] w-[26px] items-center justify-center gap-1.5 rounded-full border text-[11px] transition-colors sm:h-auto sm:w-auto sm:justify-start sm:rounded-md sm:px-2 sm:py-1"
               style={{
-                borderColor: on ? 'rgba(217,164,65,0.6)' : '#243029',
-                background: on ? 'rgba(217,164,65,0.10)' : 'transparent',
-                color: on ? '#D9A441' : '#93A39C',
+                borderColor: on ? toneAt('warn', 0.6) : INK.line,
+                background: on ? toneAt('warn', 0.10) : 'transparent',
+                color: on ? TONE.warn.color : INK.muted,
               }}
               title={`${p.name} —— ${p.steps.length} 步：${p.steps.join(' · ')}`}
             >

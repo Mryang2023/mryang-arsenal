@@ -24,7 +24,7 @@ import {
   flowOfLane,
   stepOfDim,
 } from './wizard';
-import { TONE } from './palette';
+import { TONE, INK, toneAt, gloss } from './palette';
 
 /**
  * ① 选型台 —— `/stack`。
@@ -199,9 +199,9 @@ export default function StackSoftware() {
                   title={f.desc}
                   className="flex items-center gap-1.5 rounded-md border px-2 py-1 text-[11px] transition-colors"
                   style={{
-                    borderColor: on ? 'rgba(217,164,65,0.6)' : '#243029',
-                    background: on ? 'rgba(217,164,65,0.10)' : 'transparent',
-                    color: on ? '#D9A441' : '#93A39C',
+                    borderColor: on ? toneAt('warn', 0.6) : INK.line,
+                    background: on ? toneAt('warn', 0.10) : 'transparent',
+                    color: on ? TONE.warn.color : INK.muted,
                   }}
                 >
                   <span className="mono text-[11px] leading-none">{f.glyph}</span>
@@ -235,7 +235,7 @@ export default function StackSoftware() {
                 placeholder="搜维度 / 零件名"
                 aria-label="搜索选型维度或零件名"
                 className="w-[150px] min-w-0 rounded-md border px-2 py-1 text-[11px] outline-none transition-colors placeholder:text-fgFaint focus:border-brass"
-                style={{ borderColor: '#243029', background: 'transparent', color: '#CFDCD6' }}
+                style={{ borderColor: INK.line, background: 'transparent', color: INK.pale }}
               />
               {(
                 [
@@ -254,9 +254,9 @@ export default function StackSoftware() {
                     onClick={() => setDimFilter(on ? null : key)}
                     className="rounded-md border px-2 py-1 text-[10px] transition-colors"
                     style={{
-                      borderColor: on ? 'rgba(217,164,65,0.6)' : '#243029',
-                      background: on ? 'rgba(217,164,65,0.10)' : 'transparent',
-                      color: on ? '#D9A441' : '#93A39C',
+                      borderColor: on ? toneAt('warn', 0.6) : INK.line,
+                      background: on ? toneAt('warn', 0.10) : 'transparent',
+                      color: on ? TONE.warn.color : INK.muted,
                     }}
                     title={`只看${label}的槽位；再点一次取消`}
                   >
@@ -277,8 +277,8 @@ export default function StackSoftware() {
               className="flex shrink-0 items-center gap-1.5 rounded-md border px-2 py-0.5 text-[10px] transition-colors"
               style={
                 flowOn
-                  ? { borderColor: 'rgba(217,164,65,0.6)', background: 'rgba(217,164,65,0.12)', color: '#D9A441' }
-                  : { borderColor: '#243029', background: 'transparent', color: '#93A39C' }
+                  ? { borderColor: toneAt('warn', 0.6), background: toneAt('warn', 0.12), color: TONE.warn.color }
+                  : { borderColor: INK.line, background: 'transparent', color: INK.muted }
               }
               title="把请求真正流经的连线点亮成流动虚线（泳道间的竖线 + 链路上的箭头）；旁路件不亮。再点一次熄灭"
             >
@@ -325,7 +325,10 @@ export default function StackSoftware() {
                   <section data-lane={lane.id} className="panel flex overflow-hidden">
                     {/* 泳道标签列（竖轴）：固定 30/34px，不随卡片换行移动。
                         原来表头横排在顶部，七根泳道看不出「上下穿过」的先后。 */}
-                    <div className="flex w-[30px] shrink-0 flex-col items-center gap-2 border-r border-line bg-[rgba(255,255,255,0.015)] py-2.5 sm:w-[34px]">
+                    <div
+                      className="flex w-[30px] shrink-0 flex-col items-center gap-2 border-r border-line py-2.5 sm:w-[34px]"
+                      style={{ background: gloss(0.015) }}
+                    >
                       <span className="mono text-[13px] leading-none text-brass">{lane.glyph}</span>
                       <span
                         className="text-[11px] font-semibold leading-[16px] tracking-[0.18em] text-fgMuted"

@@ -6,7 +6,7 @@ import type { StackDimension, StackOption, StackPicks } from '@/lib/content-type
 import { dimensionById } from '@/lib/stack';
 import GapCard from './GapCard';
 import RuleHits from './RuleHits';
-import { TONE } from './palette';
+import { TONE, INK, toneAt, gloss } from './palette';
 
 /**
  * 右侧装配面板。一栏两用：
@@ -139,7 +139,7 @@ export default function Inspector({
 }
 
 function Metric({ label, value, tone }: { label: string; value: string; tone?: 'ok' | 'bad' }) {
-  const color = tone === 'bad' ? '#E5484D' : tone === 'ok' ? '#7FA650' : '#E8F0EC';
+  const color = tone === 'bad' ? TONE.bad.color : tone === 'ok' ? TONE.ok.color : INK.fg;
   return (
     <div className="rounded-md border border-line bg-surfaceHi px-2 py-1.5">
       <div className="mono text-[15px] leading-tight" style={{ color }}>
@@ -228,7 +228,7 @@ export function Picker({
           {node.required && (
             <span
               className="mono rounded-sm px-1 text-[10px] leading-[15px]"
-              style={{ color: '#E5484D', background: 'rgba(229,72,77,0.14)' }}
+              style={{ color: TONE.bad.color, background: toneAt('bad', 0.14) }}
             >
               必选
             </span>
@@ -306,14 +306,14 @@ export function OptionList({
               type="button"
               onClick={() => onPick(dimId, o.id)}
               className="w-full px-4 py-2.5 text-left transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-brass"
-              style={{ background: on ? 'rgba(127,166,80,0.07)' : undefined }}
+              style={{ background: on ? toneAt('ok', 0.07) : undefined }}
             >
               <div className="flex items-center gap-2">
                 <span
                   className="mono flex h-[13px] w-[13px] shrink-0 items-center justify-center rounded-full border text-[10px] leading-none"
                   style={{
-                    borderColor: on ? '#7FA650' : '#33413A',
-                    color: on ? '#7FA650' : 'transparent',
+                    borderColor: on ? TONE.ok.color : INK.dim,
+                    color: on ? TONE.ok.color : 'transparent',
                   }}
                 >
                   ✓
@@ -333,7 +333,7 @@ export function OptionList({
                   <span
                     key={c}
                     className="mono rounded-sm px-1 text-[10px] leading-[15px]"
-                    style={{ color: '#7FA650', background: 'rgba(127,166,80,0.10)' }}
+                    style={{ color: TONE.ok.color, background: toneAt('ok', 0.10) }}
                   >
                     +{capLabel(c)}
                   </span>
@@ -342,7 +342,7 @@ export function OptionList({
                   <span
                     key={c}
                     className="mono rounded-sm px-1 text-[10px] leading-[15px]"
-                    style={{ color: '#93A39C', background: 'rgba(255,255,255,0.04)' }}
+                    style={{ color: INK.muted, background: gloss(0.04) }}
                   >
                     需 {capLabel(c)}
                   </span>
@@ -406,7 +406,7 @@ function OptionDetail({ dimId, option }: { dimId: string; option: StackOption })
             <ul className="space-y-1">
               {(option.pitfalls ?? []).map((p, i) => (
                 <li key={i} className="flex gap-1.5 text-[10px] leading-[15px] text-fgMuted">
-                  <span style={{ color: '#D9A441' }}>!</span>
+                  <span style={{ color: TONE.warn.color }}>!</span>
                   <span>{p}</span>
                 </li>
               ))}

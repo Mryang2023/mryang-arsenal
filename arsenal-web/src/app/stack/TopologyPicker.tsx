@@ -3,6 +3,7 @@
 import { topologyChoices, topologyModeSvg, topologyPalette, paramValue } from '@/lib/topology';
 import { hasTopologyFlow } from '@/lib/topology-flows';
 import type { StackOption, StackPicks } from '@/lib/content-types';
+import { TONE, INK, toneAt } from './palette';
 
 /**
  * 集群形态选择器 —— **图形化，不是下拉框**。
@@ -64,8 +65,8 @@ export default function TopologyPicker({
             title={mode.note ?? mode.label}
             className="w-[120px] rounded-md border px-1.5 pb-1.5 pt-1 text-left transition-colors"
             style={{
-              borderColor: active ? 'rgba(217,164,65,0.65)' : '#243029',
-              background: active ? 'rgba(217,164,65,0.09)' : 'transparent',
+              borderColor: active ? toneAt('warn', 0.65) : INK.line,
+              background: active ? toneAt('warn', 0.09) : 'transparent',
             }}
           >
             <svg
@@ -80,7 +81,7 @@ export default function TopologyPicker({
             />
             <span
               className="mt-0.5 flex items-baseline gap-1 text-[10px] font-medium leading-none"
-              style={{ color: active ? '#D9A441' : '#93A39C' }}
+              style={{ color: active ? TONE.warn.color : INK.muted }}
             >
               {mode.label}
               <span className="mono text-[10px] opacity-70">×{mode.replicas}</span>

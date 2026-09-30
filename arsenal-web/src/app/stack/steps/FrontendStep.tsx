@@ -3,6 +3,7 @@
 import StepShell from './StepShell';
 import { frontendBases } from '@/lib/scaffold/env-form';
 import type { StepSpec } from '../wizard';
+import { TONE, INK, toneAt, gloss } from '../palette';
 
 /**
  * ⑤ 前端技术栈：选前端基底。
@@ -34,8 +35,8 @@ export default function FrontendStep({
               title={locked ? `${b.name}：${b.summary}` : b.summary}
               className="rounded-lg border p-3 text-left transition-colors"
               style={{
-                borderColor: on ? 'rgba(217,164,65,0.6)' : '#243029',
-                background: on ? 'rgba(217,164,65,0.10)' : 'transparent',
+                borderColor: on ? toneAt('warn', 0.6) : INK.line,
+                background: on ? toneAt('warn', 0.10) : 'transparent',
                 cursor: locked ? 'not-allowed' : 'pointer',
                 opacity: locked ? 0.55 : 1,
               }}
@@ -45,8 +46,8 @@ export default function FrontendStep({
                 <span
                   className="mono rounded-sm px-1 text-[10px] leading-[15px]"
                   style={{
-                    color: b.badge === '完备' ? '#7FA650' : b.badge === '规划中' ? '#D9A441' : '#93A39C',
-                    background: 'rgba(255,255,255,0.04)',
+                    color: b.badge === '完备' ? TONE.ok.color : b.badge === '规划中' ? TONE.warn.color : INK.muted,
+                    background: gloss(0.04),
                   }}
                 >
                   {b.badge}

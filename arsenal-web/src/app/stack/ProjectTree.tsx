@@ -4,6 +4,7 @@ import { useMemo } from 'react';
 import type { ExportPlan } from '@/lib/project';
 import { filterTree, formatBytes, projectDoc, type TreeNode } from '@/lib/project';
 import type { StackPicks } from '@/lib/content-types';
+import { TONE, INK, SWATCH, toneAt } from './palette';
 
 /**
  * 项目结构图。
@@ -39,46 +40,46 @@ function flatten(nodes: TreeNode[], guides: boolean[]): Row[] {
 }
 
 /** 徽章配色。同一个徽章在任何位置都是同一个颜色 —— 靠哈希会撞色，所以显式声明。 */
-const BADGE_TONE: Record<string, string> = {
-  所有项目: '#5E6E67',
-  可选: '#5E6E67',
-  导出附带: '#5E6E67',
-  Maven: '#6E8FA8',
-  Gradle: '#6E8FA8',
-  'MyBatis-Plus': '#5FA8A0',
-  JPA: '#5FA8A0',
-  Druid: '#5FA8A0',
-  Flyway: '#8A7FD0',
-  Liquibase: '#8A7FD0',
-  无迁移工具: '#8A7FD0',
-  Caffeine: '#D9A441',
-  Redis: '#D9A441',
-  鉴权: '#7FA650',
-  'Spring Security': '#7FA650',
-  'Sa-Token': '#7FA650',
-  Prometheus: '#6E8FA8',
-  SpringDoc: '#6E8FA8',
-  'XXL-Job': '#D9A441',
-  '@Scheduled': '#D9A441',
-  Nacos: '#6E8FA8',
-  测试: '#7FA650',
-  Testcontainers: '#7FA650',
-  定时任务: '#D9A441',
-  外部依赖: '#6E8FA8',
-  启动类: '#D9A441',
+const BADGE_SWATCH: Record<string, string> = {
+  所有项目: SWATCH.neutral.color,
+  可选: SWATCH.neutral.color,
+  导出附带: SWATCH.neutral.color,
+  Maven: SWATCH.tool.color,
+  Gradle: SWATCH.tool.color,
+  'MyBatis-Plus': SWATCH.build.color,
+  JPA: SWATCH.build.color,
+  Druid: SWATCH.build.color,
+  Flyway: SWATCH.migration.color,
+  Liquibase: SWATCH.migration.color,
+  无迁移工具: SWATCH.migration.color,
+  Caffeine: SWATCH.cache.color,
+  Redis: SWATCH.cache.color,
+  鉴权: SWATCH.auth.color,
+  'Spring Security': SWATCH.auth.color,
+  'Sa-Token': SWATCH.auth.color,
+  Prometheus: SWATCH.tool.color,
+  SpringDoc: SWATCH.tool.color,
+  'XXL-Job': SWATCH.cache.color,
+  '@Scheduled': SWATCH.cache.color,
+  Nacos: SWATCH.tool.color,
+  测试: SWATCH.auth.color,
+  Testcontainers: SWATCH.auth.color,
+  定时任务: SWATCH.cache.color,
+  外部依赖: SWATCH.tool.color,
+  启动类: SWATCH.cache.color,
 };
 
 function badgeColor(badge: string): string {
-  return BADGE_TONE[badge] ?? '#93A39C';
+  return BADGE_SWATCH[badge] ?? INK.muted;
 }
 
-const FILE_GROUP_TONE: Record<string, string> = {
-  构建: '#6E8FA8',
-  源码: '#7FA650',
-  配置: '#D9A441',
-  数据: '#8A7FD0',
-  测试: '#5FA8A0',
-  文档: '#93A39C',
+const FILE_GROUP_SWATCH: Record<string, string> = {
+  构建: SWATCH.tool.color,
+  源码: SWATCH.auth.color,
+  配置: SWATCH.cache.color,
+  数据: SWATCH.migration.color,
+  测试: SWATCH.build.color,
+  文档: INK.muted,
 };
 
 export default function ProjectTree({
@@ -117,7 +118,7 @@ export default function ProjectTree({
           <span className="mx-2 text-fgFaint">·</span>
           {counts.dirs} 个目录 / {counts.files} 个文件
           <span className="mx-2 text-fgFaint">·</span>
-          <span style={{ color: '#D9A441' }}>{counts.conditional}</span> 个节点是条件出现
+          <span style={{ color: TONE.warn.color }}>{counts.conditional}</span> 个节点是条件出现
         </p>
         <p className="ml-auto text-[10px] text-fgFaint">
           导出包 {plan.files.length} 个文件 · {formatBytes(totalBytes)}
@@ -130,7 +131,7 @@ export default function ProjectTree({
           <span className="mono text-[13px] leading-none text-brass">▤</span>
           <h4 className="text-2xs font-semibold text-fg">目录结构</h4>
           <p className="ml-auto text-[10px] text-fgFaint">
-            <span className="mono" style={{ color: '#D9A441' }}>◇</span>{' '}
+            <span className="mono" style={{ color: TONE.warn.color }}>◇</span>{' '}
             = 条件节点：换掉对应选型，这一块连同里面的文件会整体消失
           </p>
         </header>
@@ -157,14 +158,14 @@ export default function ProjectTree({
               {l.tone === 'badge' ? (
                 <span
                   className="mono rounded-sm px-1 text-[9px] leading-[14px]"
-                  style={{ color: '#5FA8A0', background: 'rgba(95,168,160,0.12)' }}
+                  style={{ color: SWATCH.build.color, background: SWATCH.build.soft }}
                 >
                   MyBatis-Plus
                 </span>
               ) : (
                 <span
                   className="mono shrink-0 text-[11px] leading-none"
-                  style={{ color: l.tone === 'dir' ? '#E8F0EC' : '#93A39C' }}
+                  style={{ color: l.tone === 'dir' ? INK.fg : INK.muted }}
                 >
                   {l.tone === 'dir' ? '▸' : '·'}
                 </span>
@@ -190,8 +191,8 @@ export default function ProjectTree({
               <span
                 className="mono shrink-0 rounded-sm px-1 text-[9px] leading-[15px]"
                 style={{
-                  color: FILE_GROUP_TONE[f.group] ?? '#93A39C',
-                  background: `${FILE_GROUP_TONE[f.group] ?? '#93A39C'}1f`,
+                  color: FILE_GROUP_SWATCH[f.group] ?? INK.muted,
+                  background: `${FILE_GROUP_SWATCH[f.group] ?? INK.muted}1f`,
                 }}
               >
                 {f.group}
@@ -208,7 +209,7 @@ export default function ProjectTree({
 
       {/* ── 悬空引用 ───────────────────────────────────────── */}
       {plan.dangling.length > 0 && (
-        <div className="panel overflow-hidden" style={{ borderColor: 'rgba(217,164,65,0.4)' }}>
+        <div className="panel overflow-hidden" style={{ borderColor: toneAt('warn', 0.4) }}>
           <header className="border-b border-line px-4 py-2.5">
             <h4 className="text-2xs font-semibold text-fg">
               上手前需要自己补的类
@@ -224,7 +225,7 @@ export default function ProjectTree({
           <ul className="divide-y divide-line">
             {plan.dangling.map((d) => (
               <li key={d.fqn} className="px-4 py-2">
-                <code className="mono text-2xs" style={{ color: '#D9A441' }}>
+                <code className="mono text-2xs" style={{ color: TONE.warn.color }}>
                   {d.fqn}
                 </code>
                 <p className="mt-0.5 text-[10px] leading-[15px] text-fgMuted">
@@ -260,7 +261,7 @@ export default function ProjectTree({
                 ) : (
                   <span
                     className="mono rounded-sm px-1 text-[9px] leading-[15px]"
-                    style={{ color: '#D9A441', background: 'rgba(217,164,65,0.10)' }}
+                    style={{ color: TONE.warn.color, background: toneAt('warn', 0.10) }}
                     title="规则集里目前没有守着这条的规则 —— 是个缺口"
                   >
                     规则缺口
@@ -303,7 +304,7 @@ function TreeRow({ row }: { row: Row }) {
       <div className="flex min-w-0 flex-1 items-center gap-2 py-1">
         <span
           className="mono shrink-0 text-[11px] leading-none"
-          style={{ color: isDir ? '#E8F0EC' : '#93A39C' }}
+          style={{ color: isDir ? INK.fg : INK.muted }}
         >
           {isDir ? '▸' : '·'}
         </span>
@@ -311,7 +312,7 @@ function TreeRow({ row }: { row: Row }) {
           className="mono shrink-0 truncate text-[11px] leading-[16px]"
           style={{
             width: 218,
-            color: isDir ? (depth <= 2 ? '#E8F0EC' : '#C8D6D0') : depth <= 3 ? '#C8D6D0' : '#93A39C',
+            color: isDir ? (depth <= 2 ? INK.fg : INK.body) : depth <= 3 ? INK.body : INK.muted,
             fontWeight: isDir && depth <= 1 ? 600 : 400,
           }}
           title={node.name}
@@ -335,7 +336,7 @@ function TreeRow({ row }: { row: Row }) {
         {node.when && (
           <span
             className="mono shrink-0 text-[10px] leading-[15px]"
-            style={{ color: '#D9A441' }}
+            style={{ color: TONE.warn.color }}
             title="条件节点：换掉对应选型后这一块会消失"
           >
             ◇
