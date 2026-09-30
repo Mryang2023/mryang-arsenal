@@ -80,6 +80,20 @@ export default function StackEnv() {
               setRememberSecrets(on);
               if (!on) setScaffoldSecrets({});
             }}
+            onUseDefaults={() => {
+              // 回落占位符默认：只清**非密码**的必填字段（密码类走既有落盘规则，
+              // 不在这里另立一套）。键取自表单事实源，不写死字段个数。
+              hist.record(snapRef.current);
+              const keys = scaffoldForms
+                .flatMap((f) => f.fields)
+                .filter((f) => f.required && !f.secret)
+                .map((f) => f.key);
+              setScaffoldEnv((m) => {
+                const next = { ...m };
+                for (const k of keys) delete next[k];
+                return next;
+              });
+            }}
           />
         );
       case 'modules':
@@ -107,7 +121,7 @@ export default function StackEnv() {
     <div className="space-y-4">
       <h1 className="sr-only">架构装配台 · 环境与模块</h1>
       <StackDeck ch={ch} focusDim={focusDim} />
-      <JourneyBar current="env" />
+      <JourneyBar current="env" picks={picks} />
       <StepRail
         page="env"
         step={step}
