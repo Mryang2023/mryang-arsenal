@@ -2927,6 +2927,163 @@ console.log('\n【23】判据单一来源（W-0 · 共享判据）');
   );
 }
 
+// ═══════════════════════════════════════════════════════════════
+// 【24】装配台 P1 · 交付中心预检闸首屏与方案历史（09-29 夜2棒2）
+//
+// 口径同【17】【18】：源码即数据，字符串 / 正则判据，解析前不剥注释
+// （这里扫的都是新写的组件，注释里恰好没有反例文本；真出现了就是判据写错）。
+//
+// 钉的是四件**会被静默改坏**的事：
+//   ① 预检闸必须在交付页首屏（版面切换之上）—— 挪回双包面板里就等于把
+//      「能不能交付」这个第一问题降级，09-29 三轮导出事故的病灶原样复发；
+//   ② 闸门只许展示、不许自己算 lint —— 一旦组件里重算一份，两份判据必然分叉；
+//   ③ 渲染路径不许抛异常（崩整页比「导出被拦」糟得多）；
+//   ④ 方案历史只许消费 drafts.ts 那份键，不许出现第二个持键方。
+// ═══════════════════════════════════════════════════════════════
+console.log('\n【24】装配台 P1 交付中心（预检闸首屏 / 方案历史 / 形态图右栏）');
+{
+  const webRoot = path.resolve(here, '..');
+  const readRel = (rel: string) => fs.readFileSync(path.join(webRoot, rel), 'utf8');
+
+  const gateSrc = readRel('src/app/stack/ExportGate.tsx');
+  const historySrc = readRel('src/app/stack/DraftHistory.tsx');
+  const deliverySrc = readRel('src/app/stack/StackDelivery.tsx');
+  const scaffoldSrc = readRel('src/app/stack/steps/ScaffoldDelivery.tsx');
+  const lintSrc = readRel('src/lib/export-lint.ts');
+  const channelSrc = readRel('src/app/stack/useStackChannel.ts');
+
+  check(
+    '预检闸首屏化：ExportGate 挂在 StackDelivery 上，且排在版面切换（data-delivery-view）之前',
+    /<ExportGate scopes=\{gateScopes\} \/>/.test(deliverySrc) &&
+      deliverySrc.indexOf('<ExportGate') < deliverySrc.indexOf('data-delivery-view="preview"'),
+    '闸门挪到版面切换之后就等于把它埋回页面中段 —— 进这一页看到的第一个答案必须是「能不能交付」'
+  );
+  check(
+    '预检闸两个版面都在（渲染点在 deliveryView 分支之外，切版面不会把它切没）',
+    /\{step === 'delivery' && \(\s*<div className="panel flex flex-wrap items-center gap-1\.5/.test(
+      deliverySrc
+    ) && !/deliveryView === '[a-z]+'[\s\S]{0,200}?<ExportGate/.test(deliverySrc),
+    '闸门被塞进了某个版面的分支里'
+  );
+  check(
+    '闸门只展示不算 lint：ExportGate 不 import lintExportFiles / 不出现 lintExportFiles( 调用',
+    !/lintExportFiles/.test(gateSrc),
+    '组件里重算一份判据 = 两份判据必然分叉（一处改了另一处没改，红绿对不上）'
+  );
+  check(
+    '闸门红绿两态都有可断言落点（data-export-gate / data-gate-status / data-gate-scope-status）',
+    gateSrc.includes('data-export-gate={blocked') &&
+      gateSrc.includes('data-gate-status={blocked') &&
+      gateSrc.includes('data-gate-scope-status={bad'),
+    '没有 data 落点 = 只能靠肉眼截图判红绿，回归一定漏'
+  );
+  check(
+    '闸门逐条 [check] message 且五类检查的人话标签齐全（duplicate-path / bean-conflict / dangling-import / pom-no-version / yml-foreign-root）',
+    gateSrc.includes('[{v.check}]') &&
+      gateSrc.includes('data-gate-violation={v.check}') &&
+      [
+        'duplicate-path',
+        'bean-conflict',
+        'dangling-import',
+        'pom-no-version',
+        'yml-foreign-root',
+      ].every((k) => gateSrc.includes(`'${k}':`)),
+    '少一类标签，那一类的违规就只能以英文 id 示人'
+  );
+  check(
+    '闸门渲染路径不抛异常（组件体里没有 throw / 没有 new Error）',
+    !/\bthrow\b/.test(gateSrc) && !/new Error\(/.test(gateSrc),
+    '渲染期 throw 会整页白屏 —— 比「导出被拦」严重得多，宁可空态也不许抛'
+  );
+  check(
+    '两份包各自独立过闸（scopes 传入 plan.violations 与 artifacts.violations，不合成一个总数）',
+    /violations: plan\.violations/.test(deliverySrc) &&
+      /violations: artifacts\.violations/.test(deliverySrc) &&
+      /scopes\.filter\(\(s\) => s\.violations\.length > 0\)/.test(gateSrc),
+    '合成一个总数会让「其实能下载的那份包」跟着一起被判死'
+  );
+  check(
+    '下载禁用与闸门同源：三包卡 disabled={blocked}（blocked 来自 artifacts.violations），一键导出按钮同样被拦即灰',
+    /const blocked = violations\.length > 0;/.test(scaffoldSrc) &&
+      (scaffoldSrc.match(/disabled=\{blocked\}/g) ?? []).length >= 3 &&
+      /disabled=\{plan\.violations\.length > 0\}/.test(deliverySrc),
+    '卡片能点而闸门说被拦（或反过来）＝ 两套判据'
+  );
+  check(
+    'export-lint 五检查计算逻辑没被绕过：LintCheck 五类字面量仍在，lintExportFiles 仍是唯一出口',
+    ["'duplicate-path'", "'bean-conflict'", "'dangling-import'", "'pom-no-version'", "'yml-foreign-root'"].every(
+      (k) => lintSrc.includes(k)
+    ) && /export function lintExportFiles\(/.test(lintSrc),
+    '五检查是本仓导出事故的最后防线，一处都不能少'
+  );
+
+  // ── 方案历史（拍板项③）──
+  const draftsSrc = readRel('src/app/stack/drafts.ts');
+  const srcDir = path.join(webRoot, 'src');
+  const keyHolders: string[] = [];
+  (function walk(dir: string) {
+    for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
+      const p = path.join(dir, e.name);
+      if (e.isDirectory()) walk(p);
+      else if (/\.(ts|tsx|mjs|js)$/.test(e.name)) {
+        if (fs.readFileSync(p, 'utf8').includes('arsenal-stack-drafts-v1')) {
+          keyHolders.push(path.relative(webRoot, p).replace(/\\/g, '/'));
+        }
+      }
+    }
+  })(srcDir);
+  // 「提到键名」与「真读写键」是两件事：注释里提一句不算持键，
+  // 持键 = 真的调 getItem / setItem。判据只钉后者（前者太宽，必然误伤注释）。
+  const apiUsers = keyHolders.filter(
+    (f) =>
+      f !== 'src/app/stack/drafts.ts' &&
+      /localStorage\.(getItem|setItem)\(|window\.localStorage/.test(readRel(f))
+  );
+  check(
+    '方案历史不改持键方：arsenal-stack-drafts-v1 仍由 drafts.ts 独家真读写（其余文件提到它只是注释）',
+    draftsSrc.includes("STACK_DRAFTS_KEY = 'arsenal-stack-drafts-v1'") && apiUsers.length === 0,
+    `真读写的第二处：${apiUsers.join(' ') || '无'}（提到键名的文件共 ${keyHolders.length} 个）`
+  );
+  check(
+    '方案历史面板：空态可见（data-draft-empty）且恢复 / 删除入口齐备（data-draft-restore / data-draft-delete）',
+    historySrc.includes('data-draft-empty') &&
+      historySrc.includes('data-draft-restore={d.id}') &&
+      historySrc.includes('data-draft-delete={d.id}'),
+    '入口藏起来 = 用户以为「根本没存过」或「没这功能」'
+  );
+  check(
+    '历史面板挂在交付页底部（版面之外，两个版面都在）且不直接读写存储（挂载后走通道的 reloadDrafts）',
+    /<DraftHistory[\s\S]{0,220}?onReload=\{reloadDrafts\}/.test(deliverySrc) &&
+      !/localStorage\.(getItem|setItem)\(|window\.localStorage/.test(historySrc) &&
+      /onReload\(\);/.test(historySrc),
+    '面板自己开一份存储副本 = 与结论条的对比下拉各读各的，删了这边那边还在'
+  );
+  check(
+    '恢复是整份三通道回灌（restoreDraft 同时写 picks / meta / baseId 并进历史栈），不是只换 picks',
+    /function restoreDraft\([\s\S]{0,700}?setPicks\(d\.picks\)[\s\S]{0,200}?setMeta\(d\.meta\)[\s\S]{0,200}?setBaseId\(d\.baseId\)/.test(
+      channelSrc
+    ) && /function restoreDraft\([\s\S]{0,200}?hist\.record\(snapRef\.current\)/.test(channelSrc),
+    '只回灌 picks 会留着上一套的副本数与形态，拼出第三套方案 —— 最难查的那种'
+  );
+
+  // ── 运行页形态图右栏（plan §2）──
+  const runSrc = readRel('src/app/stack/StackRun.tsx');
+  const previewSrc = readRel('src/app/stack/TopologyPreview.tsx');
+  check(
+    '⑨ 形态图右栏只在 topology 步出现，且与表单两栏并排（xl 断点起分栏，窄屏堆叠）',
+    /step === 'topology' \? \([\s\S]{0,200}?xl:grid-cols-\[minmax\(0,1fr\)_360px\]/.test(runSrc) &&
+      runSrc.includes('<TopologyPreview picks={picks} meta={meta} />'),
+    '图不在这一步 = 调副本数要换页才看得到结果，等于盲调'
+  );
+  check(
+    '形态图画法不重写：右栏预览复用 buildTopologySvg()（唯一实现处），且实例数由 figures 现算',
+    /buildTopologySvg\(picks, meta, \{/.test(previewSrc) &&
+      /built\.figures\.reduce\(\(n, f\) => n \+ f\.replicas, 0\)/.test(previewSrc) &&
+      !/<rect|<svg xmlns/.test(previewSrc),
+    '自己拼一遍几何 = 与交付预览那张图分叉，「两处画得不一样」没人会发现'
+  );
+}
+
 // 【16】启动前提自检
 // 「文件都在、zip 能解」说明不了应用能起。这一层守的是 09-28 实测出的启动根因：
 // 主 yml 缺数据源、重复顶层键被 YAML 加载器拒绝、schema.sql 永不执行、

@@ -1,6 +1,6 @@
 {
   "generator": "arsenal-web/visual/shoot.mjs",
-  "generatedAt": "2026-09-29T16:21:05.818Z",
+  "generatedAt": "2026-09-29T17:11:57.274Z",
   "baseUrl": "http://127.0.0.1:3021",
   "fullPage": false,
   "captureMode": "viewport",
@@ -194,7 +194,7 @@
       "width": 1440,
       "height": 900,
       "bytes": 216503,
-      "durationMs": 1404,
+      "durationMs": 1466,
       "ok": true,
       "error": null,
       "metrics": {
@@ -232,7 +232,7 @@
       "width": 1024,
       "height": 768,
       "bytes": 164652,
-      "durationMs": 1804,
+      "durationMs": 1312,
       "ok": true,
       "error": null,
       "metrics": {
@@ -264,7 +264,7 @@
       "width": 390,
       "height": 844,
       "bytes": 108084,
-      "durationMs": 1457,
+      "durationMs": 1240,
       "ok": true,
       "error": null,
       "metrics": {
@@ -295,8 +295,8 @@
       "viewport": "desktop",
       "width": 1440,
       "height": 900,
-      "bytes": 156504,
-      "durationMs": 1180,
+      "bytes": 156481,
+      "durationMs": 1208,
       "ok": true,
       "error": null,
       "metrics": {
@@ -327,8 +327,8 @@
       "viewport": "tablet",
       "width": 1024,
       "height": 768,
-      "bytes": 111312,
-      "durationMs": 1167,
+      "bytes": 111309,
+      "durationMs": 1172,
       "ok": true,
       "error": null,
       "metrics": {
@@ -359,8 +359,8 @@
       "viewport": "mobile",
       "width": 390,
       "height": 844,
-      "bytes": 48413,
-      "durationMs": 1161,
+      "bytes": 48405,
+      "durationMs": 1148,
       "ok": true,
       "error": null,
       "metrics": {
@@ -392,7 +392,7 @@
       "width": 1440,
       "height": 900,
       "bytes": 143243,
-      "durationMs": 1198,
+      "durationMs": 1230,
       "ok": true,
       "error": null,
       "metrics": {
@@ -441,7 +441,7 @@
       "width": 1024,
       "height": 768,
       "bytes": 123000,
-      "durationMs": 1184,
+      "durationMs": 1222,
       "ok": true,
       "error": null,
       "metrics": {
@@ -490,7 +490,7 @@
       "width": 390,
       "height": 844,
       "bytes": 56836,
-      "durationMs": 1175,
+      "durationMs": 1168,
       "ok": true,
       "error": null,
       "metrics": {
@@ -539,7 +539,7 @@
       "width": 1440,
       "height": 900,
       "bytes": 180613,
-      "durationMs": 1195,
+      "durationMs": 1272,
       "ok": true,
       "error": null,
       "metrics": {
@@ -571,7 +571,7 @@
       "width": 1024,
       "height": 768,
       "bytes": 130183,
-      "durationMs": 1229,
+      "durationMs": 1210,
       "ok": true,
       "error": null,
       "metrics": {
@@ -603,7 +603,7 @@
       "width": 390,
       "height": 844,
       "bytes": 59496,
-      "durationMs": 1192,
+      "durationMs": 1223,
       "ok": true,
       "error": null,
       "metrics": {
@@ -635,7 +635,7 @@
       "width": 1440,
       "height": 900,
       "bytes": 220635,
-      "durationMs": 1300,
+      "durationMs": 1260,
       "ok": true,
       "error": null,
       "metrics": {
@@ -667,7 +667,7 @@
       "width": 1024,
       "height": 768,
       "bytes": 166128,
-      "durationMs": 1244,
+      "durationMs": 1254,
       "ok": true,
       "error": null,
       "metrics": {
@@ -699,7 +699,7 @@
       "width": 390,
       "height": 844,
       "bytes": 97468,
-      "durationMs": 1197,
+      "durationMs": 1218,
       "ok": true,
       "error": null,
       "metrics": {
@@ -730,8 +730,8 @@
       "viewport": "desktop",
       "width": 1440,
       "height": 900,
-      "bytes": 113577,
-      "durationMs": 1541,
+      "bytes": 113507,
+      "durationMs": 1604,
       "ok": true,
       "error": null,
       "metrics": {
@@ -762,8 +762,8 @@
       "viewport": "tablet",
       "width": 1024,
       "height": 768,
-      "bytes": 90387,
-      "durationMs": 1176,
+      "bytes": 90461,
+      "durationMs": 1171,
       "ok": true,
       "error": null,
       "metrics": {
@@ -794,8 +794,8 @@
       "viewport": "mobile",
       "width": 390,
       "height": 844,
-      "bytes": 58743,
-      "durationMs": 1131,
+      "bytes": 58718,
+      "durationMs": 1115,
       "ok": true,
       "error": null,
       "metrics": {
@@ -827,7 +827,7 @@
       "width": 1440,
       "height": 900,
       "bytes": 185307,
-      "durationMs": 1306,
+      "durationMs": 1359,
       "ok": true,
       "error": null,
       "metrics": {
@@ -859,7 +859,7 @@
       "width": 1024,
       "height": 768,
       "bytes": 119627,
-      "durationMs": 1279,
+      "durationMs": 1273,
       "ok": true,
       "error": null,
       "metrics": {
@@ -891,7 +891,7 @@
       "width": 390,
       "height": 844,
       "bytes": 47635,
-      "durationMs": 1227,
+      "durationMs": 1232,
       "ok": true,
       "error": null,
       "metrics": {
@@ -923,7 +923,7 @@
       "width": 1440,
       "height": 900,
       "bytes": 197263,
-      "durationMs": 1305,
+      "durationMs": 1257,
       "ok": true,
       "error": null,
       "metrics": {
@@ -955,7 +955,7 @@
       "width": 1024,
       "height": 768,
       "bytes": 144942,
-      "durationMs": 1237,
+      "durationMs": 1211,
       "ok": true,
       "error": null,
       "metrics": {
@@ -987,7 +987,7 @@
       "width": 390,
       "height": 844,
       "bytes": 95035,
-      "durationMs": 1171,
+      "durationMs": 1236,
       "ok": true,
       "error": null,
       "metrics": {
@@ -1051,7 +1051,7 @@
       "width": 1024,
       "height": 768,
       "bytes": 111173,
-      "durationMs": 1291,
+      "durationMs": 1297,
       "ok": true,
       "error": null,
       "metrics": {
@@ -1083,7 +1083,7 @@
       "width": 390,
       "height": 844,
       "bytes": 53080,
-      "durationMs": 1237,
+      "durationMs": 1239,
       "ok": true,
       "error": null,
       "metrics": {
@@ -1115,7 +1115,7 @@
       "width": 1440,
       "height": 900,
       "bytes": 145916,
-      "durationMs": 1263,
+      "durationMs": 1319,
       "ok": true,
       "error": null,
       "metrics": {
@@ -1147,7 +1147,7 @@
       "width": 1024,
       "height": 768,
       "bytes": 105288,
-      "durationMs": 1246,
+      "durationMs": 1261,
       "ok": true,
       "error": null,
       "metrics": {
@@ -1179,7 +1179,7 @@
       "width": 390,
       "height": 844,
       "bytes": 49259,
-      "durationMs": 1237,
+      "durationMs": 1228,
       "ok": true,
       "error": null,
       "metrics": {
@@ -1210,18 +1210,18 @@
       "viewport": "desktop",
       "width": 1440,
       "height": 900,
-      "bytes": 127762,
-      "durationMs": 1242,
+      "bytes": 131410,
+      "durationMs": 1241,
       "ok": true,
       "error": null,
       "metrics": {
         "scrollWidth": 1440,
         "clientWidth": 1440,
-        "scrollHeight": 1369,
+        "scrollHeight": 1575,
         "clientHeight": 900,
-        "bodyScrollHeight": 1369,
+        "bodyScrollHeight": 1575,
         "horizontalOverflowPx": 0,
-        "belowFoldPx": 469,
+        "belowFoldPx": 675,
         "imgTotal": 0,
         "failedImages": [],
         "overflowElementCount": 0,
@@ -1242,18 +1242,18 @@
       "viewport": "tablet",
       "width": 1024,
       "height": 768,
-      "bytes": 91484,
-      "durationMs": 1231,
+      "bytes": 87913,
+      "durationMs": 1232,
       "ok": true,
       "error": null,
       "metrics": {
         "scrollWidth": 1024,
         "clientWidth": 1024,
-        "scrollHeight": 1458,
+        "scrollHeight": 1664,
         "clientHeight": 768,
-        "bodyScrollHeight": 1458,
+        "bodyScrollHeight": 1664,
         "horizontalOverflowPx": 0,
-        "belowFoldPx": 690,
+        "belowFoldPx": 896,
         "imgTotal": 0,
         "failedImages": [],
         "overflowElementCount": 0,
@@ -1274,18 +1274,18 @@
       "viewport": "mobile",
       "width": 390,
       "height": 844,
-      "bytes": 47008,
-      "durationMs": 1228,
+      "bytes": 48388,
+      "durationMs": 1181,
       "ok": true,
       "error": null,
       "metrics": {
         "scrollWidth": 390,
         "clientWidth": 390,
-        "scrollHeight": 2315,
+        "scrollHeight": 2665,
         "clientHeight": 844,
-        "bodyScrollHeight": 2315,
+        "bodyScrollHeight": 2665,
         "horizontalOverflowPx": 0,
-        "belowFoldPx": 1471,
+        "belowFoldPx": 1821,
         "imgTotal": 0,
         "failedImages": [],
         "overflowElementCount": 0,
@@ -1307,7 +1307,7 @@
       "width": 1440,
       "height": 900,
       "bytes": 99571,
-      "durationMs": 1202,
+      "durationMs": 1236,
       "ok": true,
       "error": null,
       "metrics": {
@@ -1339,7 +1339,7 @@
       "width": 1024,
       "height": 768,
       "bytes": 91059,
-      "durationMs": 1159,
+      "durationMs": 1169,
       "ok": true,
       "error": null,
       "metrics": {
@@ -1371,7 +1371,7 @@
       "width": 390,
       "height": 844,
       "bytes": 50914,
-      "durationMs": 1156,
+      "durationMs": 1145,
       "ok": true,
       "error": null,
       "metrics": {
@@ -1403,7 +1403,7 @@
       "width": 1440,
       "height": 900,
       "bytes": 154229,
-      "durationMs": 1285,
+      "durationMs": 1301,
       "ok": true,
       "error": null,
       "metrics": {
@@ -1435,7 +1435,7 @@
       "width": 1024,
       "height": 768,
       "bytes": 112768,
-      "durationMs": 1271,
+      "durationMs": 1290,
       "ok": true,
       "error": null,
       "metrics": {
@@ -1467,7 +1467,7 @@
       "width": 390,
       "height": 844,
       "bytes": 55150,
-      "durationMs": 1243,
+      "durationMs": 1262,
       "ok": true,
       "error": null,
       "metrics": {
@@ -1499,7 +1499,7 @@
       "width": 1440,
       "height": 900,
       "bytes": 147074,
-      "durationMs": 1214,
+      "durationMs": 1210,
       "ok": true,
       "error": null,
       "metrics": {
@@ -1531,7 +1531,7 @@
       "width": 1024,
       "height": 768,
       "bytes": 118825,
-      "durationMs": 1185,
+      "durationMs": 1188,
       "ok": true,
       "error": null,
       "metrics": {
@@ -1563,7 +1563,7 @@
       "width": 390,
       "height": 844,
       "bytes": 63625,
-      "durationMs": 1170,
+      "durationMs": 1148,
       "ok": true,
       "error": null,
       "metrics": {
@@ -1648,7 +1648,7 @@
       "width": 1440,
       "height": 900,
       "bytes": 149240,
-      "durationMs": 1244,
+      "durationMs": 1194,
       "ok": true,
       "error": null,
       "metrics": {
@@ -1680,7 +1680,7 @@
       "width": 1024,
       "height": 768,
       "bytes": 124787,
-      "durationMs": 1195,
+      "durationMs": 1215,
       "ok": true,
       "error": null,
       "metrics": {
@@ -1712,7 +1712,7 @@
       "width": 390,
       "height": 844,
       "bytes": 65434,
-      "durationMs": 1214,
+      "durationMs": 1149,
       "ok": true,
       "error": null,
       "metrics": {
@@ -1797,7 +1797,7 @@
       "width": 1440,
       "height": 900,
       "bytes": 169119,
-      "durationMs": 1226,
+      "durationMs": 1237,
       "ok": true,
       "error": null,
       "metrics": {
@@ -1829,7 +1829,7 @@
       "width": 1024,
       "height": 768,
       "bytes": 137565,
-      "durationMs": 1171,
+      "durationMs": 1221,
       "ok": true,
       "error": null,
       "metrics": {
@@ -1861,7 +1861,7 @@
       "width": 390,
       "height": 844,
       "bytes": 72279,
-      "durationMs": 1179,
+      "durationMs": 1152,
       "ok": true,
       "error": null,
       "metrics": {
@@ -1959,7 +1959,7 @@
       "width": 1440,
       "height": 900,
       "bytes": 123092,
-      "durationMs": 1150,
+      "durationMs": 1153,
       "ok": true,
       "error": null,
       "metrics": {
@@ -1991,7 +1991,7 @@
       "width": 1024,
       "height": 768,
       "bytes": 89251,
-      "durationMs": 1181,
+      "durationMs": 1131,
       "ok": true,
       "error": null,
       "metrics": {
@@ -2023,7 +2023,7 @@
       "width": 390,
       "height": 844,
       "bytes": 55854,
-      "durationMs": 1130,
+      "durationMs": 1128,
       "ok": true,
       "error": null,
       "metrics": {
@@ -2055,7 +2055,7 @@
       "width": 1440,
       "height": 900,
       "bytes": 124923,
-      "durationMs": 1154,
+      "durationMs": 1234,
       "ok": true,
       "error": null,
       "metrics": {
@@ -2087,7 +2087,7 @@
       "width": 1024,
       "height": 768,
       "bytes": 92864,
-      "durationMs": 1142,
+      "durationMs": 1178,
       "ok": true,
       "error": null,
       "metrics": {
@@ -2119,7 +2119,7 @@
       "width": 390,
       "height": 844,
       "bytes": 58561,
-      "durationMs": 1101,
+      "durationMs": 1110,
       "ok": true,
       "error": null,
       "metrics": {
@@ -2151,7 +2151,7 @@
       "width": 1440,
       "height": 900,
       "bytes": 193153,
-      "durationMs": 1400,
+      "durationMs": 1450,
       "ok": true,
       "error": null,
       "metrics": {
@@ -2249,7 +2249,7 @@
       "width": 1024,
       "height": 768,
       "bytes": 114416,
-      "durationMs": 1395,
+      "durationMs": 1388,
       "ok": true,
       "error": null,
       "metrics": {
@@ -2347,7 +2347,7 @@
       "width": 390,
       "height": 844,
       "bytes": 61681,
-      "durationMs": 1357,
+      "durationMs": 1388,
       "ok": true,
       "error": null,
       "metrics": {
@@ -2543,7 +2543,7 @@
       "width": 1024,
       "height": 768,
       "bytes": 108648,
-      "durationMs": 1439,
+      "durationMs": 1461,
       "ok": true,
       "error": null,
       "metrics": {
@@ -2641,7 +2641,7 @@
       "width": 390,
       "height": 844,
       "bytes": 52633,
-      "durationMs": 1454,
+      "durationMs": 1438,
       "ok": true,
       "error": null,
       "metrics": {
@@ -2739,7 +2739,7 @@
       "width": 1440,
       "height": 900,
       "bytes": 187385,
-      "durationMs": 1426,
+      "durationMs": 1405,
       "ok": true,
       "error": null,
       "metrics": {
@@ -2837,7 +2837,7 @@
       "width": 1024,
       "height": 768,
       "bytes": 112936,
-      "durationMs": 1416,
+      "durationMs": 1485,
       "ok": true,
       "error": null,
       "metrics": {
@@ -2935,7 +2935,7 @@
       "width": 390,
       "height": 844,
       "bytes": 61077,
-      "durationMs": 1333,
+      "durationMs": 1381,
       "ok": true,
       "error": null,
       "metrics": {
@@ -3043,8 +3043,8 @@
     "expectedUrls": 21,
     "actualUrls": 21,
     "minBytes": 8192,
-    "minBytesActual": 47008,
-    "minBytesFile": "stack-delivery__mobile.png",
+    "minBytesActual": 47635,
+    "minBytesFile": "export__mobile.png",
     "pageErrors": 0,
     "consoleErrors": 7,
     "requestFailures": 3,
