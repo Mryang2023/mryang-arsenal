@@ -11,6 +11,7 @@ import DeployGuides from './DeployGuides';
 import DraftHistory from './DraftHistory';
 import ExportGate, { type GateScope } from './ExportGate';
 import StackDeck, { Empty, Hint } from './StackDeck';
+import ProductOutline from './ProductOutline';
 import JourneyBar from './JourneyBar';
 import StepRail from './StepRail';
 import useStackChannel from './useStackChannel';
@@ -130,13 +131,22 @@ export default function StackDelivery() {
       case 'delivery':
         return deliveryView === 'preview' ? (
           <div ref={deckRef} className="space-y-4">
-            <ScaffoldDelivery
-              artifacts={artifacts}
-              demoMode={demoMode}
-              modules={moduleResolution.selected}
-              forms={scaffoldForms}
-              values={allEnvValues}
-            />
+            {/* ⑩ 右栏：左边回答「点哪个按钮」，右边回答「点下去拿走什么」。
+                窄屏（< xl）退成上下堆叠，概览在双包面板之后。 */}
+            <div className="grid gap-3 xl:grid-cols-[minmax(0,1fr)_360px]">
+              <div className="min-w-0">
+                <ScaffoldDelivery
+                  artifacts={artifacts}
+                  demoMode={demoMode}
+                  modules={moduleResolution.selected}
+                  forms={scaffoldForms}
+                  values={allEnvValues}
+                />
+              </div>
+              <div className="min-w-0 xl:sticky xl:top-3 xl:self-start">
+                <ProductOutline files={plan.files} bytes={plan.bytes} />
+              </div>
+            </div>
             <DeliveryStep
               picks={picks}
               meta={meta}
