@@ -551,6 +551,14 @@ export interface TopologySvgOptions {
   columns?: number;
   title?: string;
   subtitle?: string;
+  /**
+   * 高亮哪一张卡 —— 传 `'app'`（应用服务）或某个维度 id（database / cache …）。
+   *
+   * 为什么图要认识「当前在调谁」：形态图右栏与滑杆同屏，但图上有十来个框，
+   * 用户调副本数时得自己找是哪个框变了。给出 highlight，台上动哪一项、
+   * 图上那个框就亮起来 —— 联动是看得见的，不是靠文字说明的。
+   */
+  highlight?: string;
 }
 
 export interface BuiltTopologySvg {
@@ -580,7 +588,16 @@ export function buildTopologySvg(
   const cols = Math.max(1, Math.min(opts.columns ?? (figures.length > 1 ? 2 : 1), 3));
 
   // 应用自身永远画在最前面：它就是「副本数」这个词的本来主语
-  const cards: { title: string; chip: string; modeId: string; reps: number; note: string; extra: string }[] = [
+  const cards: {
+    title: string;
+    chip: string;
+    modeId: string;
+    reps: number;
+    note: string;
+    extra: string;
+    /** 高亮的钥匙：`'app'` 或维度 id（见 TopologySvgOptions.highlight） */
+    dimId: string;
+  }[] = [
     {
       title: '应用服务',
       chip: replicas > 1 ? `多副本 ×${replicas}` : '单副本',
@@ -590,6 +607,7 @@ export function buildTopologySvg(
       reps: replicas,
       note: picks.clustertopology ? '随部署形态' : '未做部署形态表态',
       extra: '',
+      dimId: 'app',
     },
     ...figures.map((f) => ({
       title: `${f.dimName} · ${f.optionName}`,
@@ -598,6 +616,7 @@ export function buildTopologySvg(
       reps: f.replicas,
       note: f.note,
       extra: f.requires.length ? `需 ${f.requires.join(' / ')}` : '',
+      dimId: f.dimId,
     })),
   ];
 
@@ -643,9 +662,18 @@ export function buildTopologySvg(
     const x = PAD + c0 * (CARD_W + CARD_GAP);
     const y = HEAD_H + r0 * (CARD_H + CARD_GAP);
 
+    // 高亮：台上正在调的那一项，它的框加粗 + 外面套一圈淡光晕。
+    // 只改描边不改几何 —— 高亮不能让框移位，否则「亮起来」等于「跳一下」。
+    const lit = !!opts.highlight && opts.highlight === c.dimId;
+    if (lit) {
+      o.push(
+        `<rect x="${rr(x - 4)}" y="${rr(y - 4)}" width="${CARD_W + 8}" height="${CARD_H + 8}" rx="14" ` +
+        `fill="none" stroke="${p.accent}" stroke-opacity="0.3" stroke-width="3"/>`
+      );
+    }
     o.push(
       `<rect x="${rr(x)}" y="${rr(y)}" width="${CARD_W}" height="${CARD_H}" rx="12" ` +
-      `fill="${p.card}" stroke="${p.cardLine}" stroke-width="1"/>`
+      `fill="${p.card}" stroke="${lit ? p.accent : p.cardLine}" stroke-width="${lit ? 2.5 : 1}"/>`
     );
     o.push(`<rect x="${rr(x)}" y="${rr(y)}" width="${CARD_W}" height="3" rx="1.5" fill="${p.accent}" opacity="0.85"/>`);
     o.push(
