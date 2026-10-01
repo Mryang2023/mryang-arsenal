@@ -1270,6 +1270,18 @@ console.log('\n【13】导航与页签契约');
 //   ② 档案里手抄数字 —— 「69 条」写进 JSON，改一次事实源就变成一句自信的错话；
 //   ③ 渲染器偷偷读默认档案 —— 切了档案图上还是老项目的数据。
 // ═══════════════════════════════════════════════════════════════
+/**
+ * 源码当数据断言 → 先去注释。
+ *
+ * 2026-10-01 抓到一个真缺陷：它原本只定义在 `profileChecks()` 内部，
+ * 而【26】组（色值唯一出处）在别的块里照着用了同一个名字 —— TS 编译期没报错
+ * （别处另有同名局部量），**运行时 ReferenceError 直接把整个 project-check 打断**，
+ * 于是那一组 6 条断言从写下到今天一次都没真正跑过。提到模块级，去掉这个隐患。
+ */
+function stripComments(s: string): string {
+  return s.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^[ \t]*\/\/.*$/gm, '');
+}
+
 function profileChecks() {
 console.log('\n【14】项目档案契约');
 {
@@ -1950,7 +1962,10 @@ console.log('\n【17】装配台视觉契约（/stack P1 第一组）');
   );
   check(
     'S1-3 选中态 = 黄铜 ring + shadow-lift + --stack-part-hi（L4）',
-    slotSrc.includes('0 0 0 1px #D9A441') &&
+    // 2026-10-01：色值收编后这里不再是裸 `#D9A441`，而是 `${TONE.warn.color}` ——
+    // 判据改成「ring 的色值取自 TONE.warn」而不是「等于某个字面量」，
+    // 既跟上了收编，又仍然拦得住「选中态改成了别的颜色」。
+    /0 0 0 1px \$\{TONE\.warn\.color\}/.test(slotSrc) &&
       slotSrc.includes('0 12px 32px -16px rgba(0,0,0,0.9)') &&
       slotSrc.includes('var(--stack-part-hi)')
   );
@@ -2002,7 +2017,9 @@ console.log('\n【17】装配台视觉契约（/stack P1 第一组）');
   const wireSrc = readRel('src/app/stack/WireLayer.tsx');
   check(
     '配色守卫：WireLayer.tsx 已读到且含连线（定位不到的话下面的色值扫描就是空跑）',
-    wireSrc.includes('#3C4D45') && wireSrc.length > 800
+    // 2026-10-01：结构线色收编进 INK.treeLine，文件里不再有 `#3C4D45` 字面量 ——
+    // 判据改成「结构线取自 INK.treeLine」，仍拦得住「这个文件读空了 / 连线被删了」。
+    wireSrc.includes('INK.treeLine') && wireSrc.length > 800
   );
   const ALLOWED_HEX = new Set([
     '#E5484D', '#D9A441', '#7FA650', '#5E6E67', '#6E8FA8',
@@ -2335,9 +2352,9 @@ console.log('\n【18】装配台 P1 第二组（S1-4 / S1-5 / S2-7）');
     'S2-6 草稿键读写同源：drafts.ts 唯一持有 arsenal-stack-drafts-v1，StackComposer 消费 loadDrafts/saveDrafts（只写不读的键不许存在）',
     draftsSrc.includes("STACK_DRAFTS_KEY = 'arsenal-stack-drafts-v1'") &&
       (draftsSrc.match(/localStorage/g) ?? []).length >= 2 &&
-      /import \{ DRAFTS_LIMIT, loadDrafts, saveDrafts, type StackDraft \} from '\.\/drafts';/.test(
-        composerSrc
-      ) &&
+      // 花名册不写死：C-4-2 加了 `draftsKey` 之后整行 import 变了，
+      // 写死一份名字列表 = 每次多导出一个 helper 这条就假红。
+      /import \{[^}]*\bloadDrafts, saveDrafts\b[^}]*\} from '\.\/drafts';/.test(composerSrc) &&
       /loadDrafts\(\)/.test(composerSrc) &&
       /saveDrafts\(/.test(composerSrc)
   );
@@ -3207,14 +3224,24 @@ console.log('\n【26】装配台 P1 第三组（预检闸重算 / 草稿重读 /
     '自己拼一遍几何 = 与交付预览那张图分叉，「两处画得不一样」没人会发现'
   );
   check(
-    '装配台不许裸写已登记色（TONE / INK / SWATCH 是色值的唯一出处）',
+    '装配台色值只有一处出处（不许裸写 hex / 手拼 rgba / 混用 tailwind 出厂语义色）',
     (() => {
-      const forbidden = [
-        ...new Set([
-          ...[...paletteSrc.matchAll(/#[0-9A-Fa-f]{6}/g)].map((m) => m[0]),
-          ...[...paletteSrc.matchAll(/rgba\(\d+,\d+,\d+,[0-9.]+\)/g)].map((m) => m[0]),
-        ]),
-      ];
+      // 旧判据只禁「palette 里登记过的色值」—— 于是出现了三种漏网：
+      //   ② 未登记色裸写：2026-10-01 实测 7 处（#80918A / #E5A33D / #3FB950 / #16211F /
+      //      #9BAFB0 / #6A7F80 / #3C4D45），它们不在 palette 里，旧判据一个都抓不到 ——
+      //      「登记」反而成了绕过登记的捷径；
+      //   ③ tailwind 出厂语义色（rose / amber / emerald…）：实测 13 处 rose-* 用在预检闸
+      //      拦截块上，与 TONE.bad 是两套红，改主色时它们纹丝不动。
+      // 现在按「装配台里不许出现任何色值来源，只许 TONE / INK / SWATCH / gloss / toneAt」来判。
+      const registered = new Set(
+        [...paletteSrc.matchAll(/#[0-9A-Fa-f]{6}/g)].map((m) => m[0])
+      );
+      const FACTORY =
+        'rose|amber|emerald|sky|violet|red|green|blue|yellow|orange|lime|teal|cyan|indigo|purple|pink|fuchsia|slate|gray|zinc|neutral|stone';
+      const factoryRe = new RegExp(
+        `(?:text|bg|border|from|to|via|ring|fill|stroke|shadow|divide|outline|decoration|accent|caret|placeholder)-(?:${FACTORY})-\\d{2,3}`,
+        'g'
+      );
       const stackDir = path.join(webRoot, 'src', 'app', 'stack');
       const hit: string[] = [];
       const walk = (dir: string) => {
@@ -3223,18 +3250,32 @@ console.log('\n【26】装配台 P1 第三组（预检闸重算 / 草稿重读 /
           if (e.isDirectory()) {
             walk(full);
           } else if (/\.tsx?$/.test(e.name) && e.name !== 'palette.ts') {
-            const t = fs.readFileSync(full, 'utf8');
-            const bad = forbidden.filter((c) => t.includes(c));
-            if (bad.length) {
-              hit.push(path.relative(stackDir, full).replace(/\\/g, '/') + ':' + bad[0]);
+            const t = stripComments(fs.readFileSync(full, 'utf8'));
+            const rel = path.relative(stackDir, full).replace(/\\/g, '/');
+            for (const m of t.matchAll(/#[0-9A-Fa-f]{6}/g)) {
+              hit.push(
+                `${rel}: 裸 hex ${m[0]}${registered.has(m[0]) ? '（已登记）' : '（未登记）'}`
+              );
+            }
+            for (const m of t.matchAll(/rgba\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*,[0-9.]+\s*\)/g)) {
+              // 纯黑遮罩与纯白高光不是配色（阴影 gloss(0.10) 之类），不算裸色
+              const mono =
+                (m[1] === '0' && m[2] === '0' && m[3] === '0') ||
+                (m[1] === '255' && m[2] === '255' && m[3] === '255');
+              if (!mono) hit.push(`${rel}: 手拼 ${m[0]}`);
+            }
+            for (const m of t.matchAll(factoryRe)) {
+              hit.push(`${rel}: tailwind 出厂语义色 ${m[0]}`);
             }
           }
         }
       };
       walk(stackDir);
+      if (hit.length) console.log('    ↳ ' + hit.slice(0, 14).join('\n    ↳ '));
       return hit.length === 0;
     })(),
-    '色值在组件里各抄一遍 = 改主题只能靠 grep 撞运气，漏一处就是「这块边框比别处深一点」'
+    '色值在组件里各抄一遍 = 改主题只能靠 grep 撞运气，漏一处就是「这块边框比别处深一点」；' +
+      '混用 tailwind 出厂语义色 = 页面上有两套红，改主色时只有一套跟着变'
   );
   check(
     '徽章分类色走 SWATCH，不借语义色（TONE 的黄绿是「隐患/通过」，不是分类）',
@@ -3275,7 +3316,9 @@ console.log('\n【27】装配台 P2 三项（下载卡层级 / ⑧⑩ 右栏 / �
   const runSrc = readRel('src/app/stack/StackRun.tsx');
   const deliverySrc = readRel('src/app/stack/StackDelivery.tsx');
   const previewSrc = readRel('src/app/stack/TopologyPreview.tsx');
-  const deployPreviewSrc = readRel('src/app/stack/DeployPreview.tsx');
+  // 去注释再判：文件头注释里写了一句「调用方传 buildDeployPlan() 的结果」，
+  // 不去注释这条会因为**注释里的函数名**假红（2026-10-01 实测）。
+  const deployPreviewSrc = stripComments(readRel('src/app/stack/DeployPreview.tsx'));
   const outlineSrc = readRel('src/app/stack/ProductOutline.tsx');
   const topoStepSrc = readRel('src/app/stack/steps/TopologyStep.tsx');
   const topoSrc = readRel('src/lib/topology.ts');
@@ -3328,7 +3371,9 @@ console.log('\n【27】装配台 P2 三项（下载卡层级 / ⑧⑩ 右栏 / �
   check(
     '焦点是双向的：台上调哪一项 → 图上亮（onFocus 上报）；点图上的项 → 焦点回台面',
     /onFocus\?: \(target: string\) => void/.test(topoStepSrc) &&
-      /onFocus\?\('app'\)/.test(topoStepSrc) &&
+      // `\?\.` 别漏了那个点：写成 `\?\(` 匹配的是 `onFocus?(`，而源码是 `onFocus?.(`，
+      // 于是这条恒红（2026-10-01 首次真跑才暴露）。
+      /onFocus\?\.\('app'\)/.test(topoStepSrc) &&
       /onFocus\?\.\(r\.id\)/.test(previewSrc) &&
       /onFocus=\{setTopoFocus\}/.test(runSrc) &&
       /focusDim=\{topoFocus\}/.test(runSrc),
