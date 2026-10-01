@@ -1,6 +1,6 @@
 # V-1 截图矩阵 · 人读报告
 
-- 生成时间：2026-09-30T03:16:26.058Z
+- 生成时间：2026-10-01T14:54:30.642Z
 - 站点：`http://127.0.0.1:3021`（静态导出 `out/`，深色单主题）
 - 矩阵：21 个 URL × 3 个视口 = **63 张**
 - 截图范围：`viewport`（视口尺寸 —— 整页图在长页上完全不可判读，见脚本里 FULL_PAGE 的注释）
@@ -75,8 +75,8 @@
 | `home__desktop.png` | `/` | desktop | 211.4 KB | 1440×900 | 1440/1440 | 0px | 4287 | 0 | 0 | 1 | 0 | 0 |
 | `home__tablet.png` | `/` | tablet | 160.8 KB | 1024×768 | 1024/1024 | 0px | 4785 | 0 | 0 | 0 | 0 | 0 |
 | `home__mobile.png` | `/` | mobile | 105.6 KB | 390×844 | 390/390 | 0px | 8575 | 0 | 0 | 0 | 0 | 0 |
-| `arch__desktop.png` | `/arch/` | desktop | 152.8 KB | 1440×900 | 1440/1440 | 0px | 986 | 0 | 0 | 0 | 0 | 0 |
-| `arch__tablet.png` | `/arch/` | tablet | 108.7 KB | 1024×768 | 1024/1024 | 0px | 930 | 0 | 0 | 0 | 0 | 0 |
+| `arch__desktop.png` | `/arch/` | desktop | 152.9 KB | 1440×900 | 1440/1440 | 0px | 986 | 0 | 0 | 0 | 0 | 0 |
+| `arch__tablet.png` | `/arch/` | tablet | 108.8 KB | 1024×768 | 1024/1024 | 0px | 930 | 0 | 0 | 0 | 0 | 0 |
 | `arch__mobile.png` | `/arch/` | mobile | 47.3 KB | 390×844 | 390/390 | 0px | 1112 | 0 | 0 | 0 | 0 | 0 |
 | `archify__desktop.png` | `/archify/` | desktop | 139.9 KB | 1440×900 | 1440/1440 | 0px | 930 | 0 | 0 | 2 | 1 | 0 |
 | `archify__tablet.png` | `/archify/` | tablet | 120.1 KB | 1024×768 | 1024/1024 | 0px | 930 | 0 | 0 | 2 | 1 | 0 |
@@ -87,9 +87,9 @@
 | `cases__desktop.png` | `/cases/` | desktop | 215.5 KB | 1440×900 | 1440/1440 | 0px | 1753 | 0 | 0 | 0 | 0 | 0 |
 | `cases__tablet.png` | `/cases/` | tablet | 162.2 KB | 1024×768 | 1024/1024 | 0px | 2147 | 0 | 0 | 0 | 0 | 0 |
 | `cases__mobile.png` | `/cases/` | mobile | 95.2 KB | 390×844 | 390/390 | 0px | 3211 | 0 | 0 | 0 | 0 | 0 |
-| `check__desktop.png` | `/check/` | desktop | 110.9 KB | 1440×900 | 1440/1440 | 0px | 2648 | 0 | 0 | 0 | 0 | 0 |
-| `check__tablet.png` | `/check/` | tablet | 88.4 KB | 1024×768 | 1024/1024 | 0px | 2727 | 0 | 0 | 0 | 0 | 0 |
-| `check__mobile.png` | `/check/` | mobile | 57.4 KB | 390×844 | 390/390 | 0px | 4044 | 0 | 0 | 0 | 0 | 0 |
+| `check__desktop.png` | `/check/` | desktop | 110.7 KB | 1440×900 | 1440/1440 | 0px | 2648 | 0 | 0 | 0 | 0 | 0 |
+| `check__tablet.png` | `/check/` | tablet | 88.3 KB | 1024×768 | 1024/1024 | 0px | 2727 | 0 | 0 | 0 | 0 | 0 |
+| `check__mobile.png` | `/check/` | mobile | 57.3 KB | 390×844 | 390/390 | 0px | 4044 | 0 | 0 | 0 | 0 | 0 |
 | `export__desktop.png` | `/export/` | desktop | 181.0 KB | 1440×900 | 1440/1440 | 0px | 1198 | 0 | 0 | 0 | 0 | 0 |
 | `export__tablet.png` | `/export/` | tablet | 116.8 KB | 1024×768 | 1024/1024 | 0px | 1301 | 0 | 0 | 0 | 0 | 0 |
 | `export__mobile.png` | `/export/` | mobile | 46.5 KB | 390×844 | 390/390 | 0px | 2240 | 0 | 0 | 0 | 0 | 0 |
@@ -102,15 +102,15 @@
 | `stack__desktop.png` | `/stack/` | desktop | 143.4 KB | 1440×900 | 1440/1440 | 0px | 1000 | 0 | 0 | 0 | 0 | 0 |
 | `stack__tablet.png` | `/stack/` | tablet | 103.7 KB | 1024×768 | 1024/1024 | 0px | 1145 | 0 | 0 | 0 | 0 | 0 |
 | `stack__mobile.png` | `/stack/` | mobile | 51.4 KB | 390×844 | 390/390 | 0px | 1951 | 0 | 0 | 0 | 0 | 0 |
-| `stack-delivery__desktop.png` | `/stack/delivery/` | desktop | 129.1 KB | 1440×900 | 1440/1440 | 0px | 1575 | 0 | 0 | 0 | 0 | 0 |
-| `stack-delivery__tablet.png` | `/stack/delivery/` | tablet | 86.6 KB | 1024×768 | 1024/1024 | 0px | 1664 | 0 | 0 | 0 | 0 | 0 |
-| `stack-delivery__mobile.png` | `/stack/delivery/` | mobile | 46.5 KB | 390×844 | 390/390 | 0px | 2633 | 0 | 0 | 0 | 0 | 0 |
+| `stack-delivery__desktop.png` | `/stack/delivery/` | desktop | 128.2 KB | 1440×900 | 1440/1440 | 0px | 1756 | 0 | 0 | 0 | 0 | 0 |
+| `stack-delivery__tablet.png` | `/stack/delivery/` | tablet | 84.6 KB | 1024×768 | 1024/1024 | 0px | 2088 | 0 | 0 | 0 | 0 | 0 |
+| `stack-delivery__mobile.png` | `/stack/delivery/` | mobile | 46.5 KB | 390×844 | 390/390 | 0px | 3051 | 0 | 0 | 0 | 0 | 0 |
 | `stack-env__desktop.png` | `/stack/env/` | desktop | 98.0 KB | 1440×900 | 1440/1440 | 0px | 930 | 0 | 0 | 0 | 0 | 0 |
 | `stack-env__tablet.png` | `/stack/env/` | tablet | 89.8 KB | 1024×768 | 1024/1024 | 0px | 930 | 0 | 0 | 0 | 0 | 0 |
 | `stack-env__mobile.png` | `/stack/env/` | mobile | 48.9 KB | 390×844 | 390/390 | 0px | 1207 | 0 | 0 | 0 | 0 | 0 |
-| `stack-run__desktop.png` | `/stack/run/` | desktop | 151.5 KB | 1440×900 | 1440/1440 | 0px | 2858 | 0 | 0 | 0 | 0 | 0 |
-| `stack-run__tablet.png` | `/stack/run/` | tablet | 111.0 KB | 1024×768 | 1024/1024 | 0px | 3910 | 0 | 0 | 0 | 0 | 0 |
-| `stack-run__mobile.png` | `/stack/run/` | mobile | 56.6 KB | 390×844 | 390/390 | 0px | 8181 | 0 | 0 | 0 | 0 | 0 |
+| `stack-run__desktop.png` | `/stack/run/` | desktop | 163.5 KB | 1440×900 | 1440/1440 | 0px | 3847 | 0 | 0 | 0 | 0 | 0 |
+| `stack-run__tablet.png` | `/stack/run/` | tablet | 111.0 KB | 1024×768 | 1024/1024 | 0px | 4140 | 0 | 0 | 0 | 0 | 0 |
+| `stack-run__mobile.png` | `/stack/run/` | mobile | 56.6 KB | 390×844 | 390/390 | 0px | 8441 | 0 | 0 | 0 | 0 | 0 |
 | `rules-COL-CODE-001__desktop.png` | `/rules/COL-CODE-001/` | desktop | 143.6 KB | 1440×900 | 1440/1440 | 0px | 1682 | 0 | 0 | 0 | 0 | 0 |
 | `rules-COL-CODE-001__tablet.png` | `/rules/COL-CODE-001/` | tablet | 116.0 KB | 1024×768 | 1024/1024 | 0px | 1875 | 0 | 0 | 0 | 0 | 0 |
 | `rules-COL-CODE-001__mobile.png` | `/rules/COL-CODE-001/` | mobile | 62.1 KB | 390×844 | 390/390 | 0px | 2891 | 0 | 0 | 0 | 0 | 0 |
