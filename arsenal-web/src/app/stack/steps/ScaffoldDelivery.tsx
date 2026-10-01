@@ -75,14 +75,14 @@ export default function ScaffoldDelivery({
       </header>
 
       {blocked && (
-        <div className="border-b border-rose-500/30 bg-rose-500/5 px-4 py-3" data-export-blocked="">
-          <p className="text-[12px] font-semibold leading-[17px] text-rose-400">
+        <div className="border-b border-rust/30 bg-rust/5 px-4 py-3" data-export-blocked="">
+          <p className="text-[12px] font-semibold leading-[17px] text-rust">
             导出被预检闸拦截 —— 当前组合打出的包跑不起来，已禁止下载
           </p>
           <ul className="mt-1.5 space-y-1">
             {violations.map((v, i) => (
               <li key={`${v.check}-${i}`} className="text-2xs leading-relaxed text-fgMuted">
-                <span className="mono text-rose-400">[{v.check}]</span> {v.message}
+                <span className="mono text-rust">[{v.check}]</span> {v.message}
               </li>
             ))}
           </ul>

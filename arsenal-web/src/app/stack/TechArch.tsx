@@ -101,7 +101,7 @@ function channelLine(status: ArchifyStatus): { text: string; tone: string } {
         tone: 'text-brass',
       };
     case 'unavailable':
-      return { text: `出图通道 ✗ ${status.message}`, tone: 'text-rose-400' };
+      return { text: `出图通道 ✗ ${status.message}`, tone: 'text-rust' };
     case 'offline':
       return { text: `出图通道 — ${status.message}`, tone: 'text-fgFaint' };
   }
@@ -716,7 +716,7 @@ export default function TechArch({
             下载 IR JSON
           </button>
           <CopyButton text={irJson} label="复制 IR JSON" />
-          <span className={'text-2xs ' + (irIssues.length ? 'text-rose-400' : 'text-brass')}>
+          <span className={'text-2xs ' + (irIssues.length ? 'text-rust' : 'text-brass')}>
             {irIssues.length ? `结构自检 ✗ ${irIssues.length} 处：${irIssues[0]}` : '结构自检 ✓'}
           </span>
           <span className="ml-auto text-2xs text-fgFaint">
@@ -735,7 +735,7 @@ export default function TechArch({
         {archifyError && (
           <div className="space-y-1 rounded border border-line bg-surfaceHi/60 p-2">
             <div className="flex flex-wrap items-center gap-2">
-              <span className="text-2xs text-rose-400">
+              <span className="text-2xs text-rust">
                 {archifyError.kind === 'rejected' ? '这张图没通过对方的构图检查' : '出图没跑成'}
               </span>
               {archifyError.kind === 'rejected' && (
@@ -819,7 +819,7 @@ export default function TechArch({
             </button>
           </div>
           {artifact.irJson !== irJson && (
-            <p className="text-2xs leading-relaxed text-rose-400">
+            <p className="text-2xs leading-relaxed text-rust">
               选型或编辑已经变过，下面这张是旧图 —— 重新点一次「直接生成 HTML」。
             </p>
           )}

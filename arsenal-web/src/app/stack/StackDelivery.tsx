@@ -271,16 +271,16 @@ export default function StackDelivery() {
           {/* 导出反馈：成功绿条告诉用户包里装了什么、怎么跑；被预检闸拦截时换红色清单 */}
           {exported?.blocked && (
             <div
-              className="border-b border-rose-500/30 bg-rose-500/5 px-4 py-2.5"
+              className="border-b border-rust/30 bg-rust/5 px-4 py-2.5"
               data-export-blocked=""
             >
-              <p className="text-2xs font-semibold text-rose-400">
+              <p className="text-2xs font-semibold text-rust">
                 导出被预检闸拦截 —— 这份包打出来也跑不起来，已拒绝打包
               </p>
               <ul className="mt-1 space-y-1">
                 {exported.blocked.map((v, i) => (
                   <li key={`${v.check}-${i}`} className="text-2xs leading-relaxed text-fgMuted">
-                    <span className="mono text-rose-400">[{v.check}]</span> {v.message}
+                    <span className="mono text-rust">[{v.check}]</span> {v.message}
                   </li>
                 ))}
               </ul>

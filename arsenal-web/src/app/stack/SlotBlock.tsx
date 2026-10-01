@@ -237,7 +237,7 @@ export default function SlotBlock({
         ) : !picked ? (
           <span
             className="text-[11px] leading-[16px]"
-            style={{ color: state === 'missing-required' ? toneAt('bad', 0.85) : '#80918A' }}
+            style={{ color: state === 'missing-required' ? toneAt('bad', 0.85) : INK.faint }}
           >
             {node.missing}
           </span>

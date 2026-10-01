@@ -188,7 +188,7 @@ export default function TopologyLab({
                 width={n.w}
                 height={n.h}
                 rx="8"
-                fill={lit ? toneAt('warn', 0.14) : '#16211F'}
+                fill={lit ? toneAt('warn', 0.14) : INK.node}
                 stroke={lit ? TONE.warn.color : gloss(0.10)}
                 stroke-width={lit ? 1.6 : 1}
               />
@@ -198,7 +198,7 @@ export default function TopologyLab({
                 text-anchor="middle"
                 font-size="12"
                 font-family="-apple-system, 'PingFang SC', 'Microsoft YaHei', sans-serif"
-                fill={lit ? TONE.warn.color : '#9BAFB0'}
+                fill={lit ? TONE.warn.color : INK.nodeText}
               >
                 {n.label}
               </text>
@@ -306,7 +306,7 @@ export default function TopologyLab({
                 style={{
                   border: '1px solid',
                   borderColor: speed === v ? toneAt('warn', 0.65) : INK.line,
-                  color: speed === v ? TONE.warn.color : '#6A7F80',
+                  color: speed === v ? TONE.warn.color : INK.controlIdle,
                 }}
               >
                 {v}×

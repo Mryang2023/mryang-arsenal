@@ -1,5 +1,5 @@
 'use client';
-import { TONE } from './palette';
+import { TONE, INK } from './palette';
 
 /**
  * 请求链路连线（S1-4）。
@@ -21,7 +21,8 @@ import { TONE } from './palette';
  *     连线才点亮（pipelines 数据决定，不亮旁路件之间的分隔线）。
  */
 
-const IDLE_STROKE = '#3C4D45'; // treeLine：结构线专用 token，不是语义色
+// treeLine：结构线专用 token，不是语义色（与 tailwind 的 treeLine 同值，此处从 INK 取）
+const IDLE_STROKE = INK.treeLine;
 const FLOW_STROKE = TONE.warn.color; // brass：点亮 = 方案的 warn 语义色，不引第二配色
 
 /**

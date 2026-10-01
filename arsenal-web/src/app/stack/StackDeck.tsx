@@ -682,7 +682,7 @@ function ProvenanceBanner({
               </li>
             ))}
             {provenance.conflicts.map((c) => (
-              <li key={`pv-cf-${c.dim}`} className="mono" style={{ color: '#E5A33D' }}>
+              <li key={`pv-cf-${c.dim}`} className="mono" style={{ color: TONE.warn.color }}>
                 · {c.dim} 命中多个候选，取了 {c.kept}；另有 {c.dropped.join('、')} 未采用
               </li>
             ))}

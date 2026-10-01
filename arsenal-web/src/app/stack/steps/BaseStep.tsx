@@ -19,7 +19,14 @@ import { TONE, INK, toneAt } from '../palette';
  */
 
 const BASE_STATUS: Record<string, { label: string; color: string; bg: string; border: string }> = {
-  supported: { label: '支持中', color: '#3FB950', bg: 'rgba(63,185,80,0.12)', border: 'rgba(63,185,80,0.40)' },
+  // 支持中 = TONE.ok 的绿（2026-10-01 从裸写 #3FB950 收编：那套 GitHub 绿与 TONE.ok
+  // 是两套绿，页面上同时存在，改主色时只有一套跟着变）。
+  supported: {
+    label: '支持中',
+    color: TONE.ok.color,
+    bg: toneAt('ok', 0.12),
+    border: toneAt('ok', 0.4),
+  },
   eol: { label: '已 EOL', color: TONE.warn.color, bg: toneAt('warn', 0.12), border: toneAt('warn', 0.45) },
   uncovered: { label: '未覆盖', color: INK.muted, bg: 'transparent', border: INK.line },
 };

@@ -46,6 +46,16 @@ export const INK = {
   deep: '#0A0F0E',
   /** 连线（画布内的边，与页面描边 line 不是一回事） */
   edge: '#5C7C78',
+  /** 最淡一档说明文字（与 tailwind `fgFaint` 同值 —— 组件里裸写 #80918A 会让两处分叉） */
+  faint: '#80918A',
+  /** 画布内未点亮节点的填充底（形态图 / 拓扑图） */
+  node: '#16211F',
+  /** 画布内未点亮节点的文字 */
+  nodeText: '#9BAFB0',
+  /** 未选中的小控件文字（倍速按钮、次要切换） */
+  controlIdle: '#6A7F80',
+  /** 结构线（与 tailwind `treeLine` 同值：WireLayer 的结构线专用，不是语义色） */
+  treeLine: '#3C4D45',
 } as const;
 
 /**
