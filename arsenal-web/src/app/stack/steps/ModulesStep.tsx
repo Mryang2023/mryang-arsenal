@@ -4,6 +4,7 @@ import { moduleList, moduleStats } from '@/lib/scaffold/module-registry';
 import type { ModuleDef, ModuleWarning } from '@/lib/scaffold/contracts';
 import StepShell from './StepShell';
 import type { StepSpec } from '../wizard';
+import { TONE, INK, toneAt } from '../palette';
 
 /**
  * ⑦ 功能模块：勾选要搭进去的现成功能。
@@ -40,8 +41,8 @@ export default function ModulesStep({
               onClick={() => onToggle(def.id)}
               className="rounded-lg border p-3 text-left transition-colors"
               style={{
-                borderColor: on ? 'rgba(217,164,65,0.6)' : '#243029',
-                background: on ? 'rgba(217,164,65,0.10)' : 'transparent',
+                borderColor: on ? toneAt('warn', 0.6) : INK.line,
+                background: on ? toneAt('warn', 0.10) : 'transparent',
               }}
             >
               <div className="flex items-baseline justify-between gap-2">
@@ -68,7 +69,7 @@ export default function ModulesStep({
             <p
               key={i}
               className="rounded-md border px-3 py-2 text-2xs leading-relaxed"
-              style={{ borderColor: 'rgba(217,164,65,0.5)', color: '#D9A441' }}
+              style={{ borderColor: toneAt('warn', 0.5), color: TONE.warn.color }}
             >
               ⚠ {w.reason}
               {w.remedy && <span className="text-fgMuted">（建议：{w.remedy}）</span>}

@@ -1531,3 +1531,36 @@ export function buildDeployPlan(
 
   return out;
 }
+
+export interface ReplicaLine {
+  /** 落在哪个文件（相对项目根） */
+  file: string;
+  /** 那一行的原文（`key: value`，值可能是 Helm 模板引用） */
+  line: string;
+}
+
+/**
+ * 形态图 ↔ 产物：副本数到底落在哪几行。
+ *
+ * 用户在台上把副本数滑到 3，下一个问题是「那 3 写进了哪个文件的哪一行」。
+ * 答案不许靠背 —— 直接从生成好的部署文件里把 `replicaCount` / `replicas` /
+ * `minReplicas` / `maxReplicas` 这几行抽出来。图上的框数与这里显示的数字
+ * **同一份数据**（都来自 `effectiveAppReplicas()`），所以两处不可能对不上。
+ *
+ * 抽不到（这套选型没选 K8s / Helm / compose）就返回空数组 ——
+ * 那是「这份产物里没有副本数这回事」，如实说，不编一行出来。
+ */
+export function replicaLines(files: DeployFile[]): ReplicaLine[] {
+  const out: ReplicaLine[] = [];
+  const KEYS = '(replicaCount|replicas|minReplicas|maxReplicas)';
+  const rx = new RegExp(`^\\s*${KEYS}:\\s*(.+)$`);
+  for (const f of files) {
+    for (const raw of f.content.split('\n')) {
+      const t = raw.trim();
+      if (!t || t.startsWith('#')) continue;
+      const m = rx.exec(raw);
+      if (m) out.push({ file: f.path, line: `${m[1]}: ${m[2].trim()}` });
+    }
+  }
+  return out;
+}

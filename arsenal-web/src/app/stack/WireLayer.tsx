@@ -1,4 +1,5 @@
 'use client';
+import { TONE } from './palette';
 
 /**
  * 请求链路连线（S1-4）。
@@ -21,7 +22,7 @@
  */
 
 const IDLE_STROKE = '#3C4D45'; // treeLine：结构线专用 token，不是语义色
-const FLOW_STROKE = '#D9A441'; // brass：点亮 = 方案的 warn 语义色，不引第二配色
+const FLOW_STROKE = TONE.warn.color; // brass：点亮 = 方案的 warn 语义色，不引第二配色
 
 /**
  * 泳道之间的竖连线。

@@ -6,6 +6,7 @@
  */
 import type { ExportFile } from '@/lib/project';
 import { buildExportPlan } from '@/lib/project';
+import { lintExportFiles } from '@/lib/export-lint';
 import { auditArchitecture } from '@/lib/arch';
 import type { StackPicks } from '@/lib/content-types';
 import { SCAFFOLD_FILES } from '@/generated/scaffold-templates';
@@ -118,7 +119,10 @@ export function buildExportArtifacts(
   }
 
   const all = artifact(`${projectName}-all.zip`, allFiles);
-  return { backend, frontend, all };
+  // 导出预检闸：后端包清单终检。违规 ≠ 抛异常（useMemo 里抛会崩页面），
+  // 而是带回去让交付面板禁用下载、在台面亮清单 —— 问题看得见，包拿不走。
+  const violations = lintExportFiles(backendFiles);
+  return { backend, frontend, all, violations };
 }
 
 /** 交付页只需要 plan 的场景（渐进接入期兼容旧调用） */

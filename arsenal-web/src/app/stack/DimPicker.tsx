@@ -3,7 +3,7 @@
 import { capsOf, needsOf, capLabel, nodeArch } from '@/lib/arch';
 import { recommendedOrder } from './Inspector';
 import type { StackDimension, StackPicks } from '@/lib/content-types';
-import { TONE } from './palette';
+import { TONE, INK, toneAt, gloss } from './palette';
 
 /**
  * 一个维度一行：维度名 + 候选零件横排。
@@ -48,7 +48,7 @@ export default function DimPicker({
   const current = picks[dim.id] ?? '';
   const node = nodeArch[dim.id];
   const order = recommendedOrder(dim);
-  const flagColor = flag?.kind === 'need' ? TONE.bad : { color: '#7FA650', border: 'rgba(127,166,80,0.6)', soft: 'rgba(127,166,80,0.10)' };
+  const flagColor = flag?.kind === 'need' ? TONE.bad : { color: TONE.ok.color, border: toneAt('ok', 0.6), soft: toneAt('ok', 0.10) };
 
   return (
     <div className="relative border-t border-line px-4 py-3 first:border-t-0">
@@ -67,7 +67,7 @@ export default function DimPicker({
               style={{
                 color: flagColor.color,
                 borderColor: flagColor.border,
-                background: flag.kind === 'need' ? 'rgba(229,72,77,0.16)' : 'rgba(127,166,80,0.16)',
+                background: flag.kind === 'need' ? toneAt('bad', 0.16) : toneAt('ok', 0.16),
               }}
             >
               {flag.label}
@@ -121,11 +121,11 @@ export default function DimPicker({
               }
               className="w-[208px] rounded-md border px-2.5 py-2 text-left transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-brass"
               style={{
-                borderColor: on ? 'rgba(217,164,65,0.65)' : isRemedyPick ? flagColor.border : '#243029',
+                borderColor: on ? toneAt('warn', 0.65) : isRemedyPick ? flagColor.border : INK.line,
                 background: on
-                  ? 'rgba(217,164,65,0.09)'
+                  ? toneAt('warn', 0.09)
                   : isRemedyPick
-                    ? 'rgba(127,166,80,0.10)'
+                    ? toneAt('ok', 0.10)
                     : 'transparent',
                 opacity: isNone && !on ? 0.72 : 1,
               }}
@@ -134,8 +134,8 @@ export default function DimPicker({
                 <span
                   className="mono flex h-[13px] w-[13px] shrink-0 items-center justify-center rounded-full border text-[10px] leading-none"
                   style={{
-                    borderColor: on ? '#D9A441' : isRemedyPick ? '#7FA650' : '#33413A',
-                    color: on ? '#D9A441' : isRemedyPick ? '#7FA650' : 'transparent',
+                    borderColor: on ? TONE.warn.color : isRemedyPick ? TONE.ok.color : INK.dim,
+                    color: on ? TONE.warn.color : isRemedyPick ? TONE.ok.color : 'transparent',
                   }}
                 >
                   {on ? '✓' : isRemedyPick ? '+' : ''}
@@ -158,7 +158,7 @@ export default function DimPicker({
                     <span
                       key={c}
                       className="mono rounded-sm px-1 text-[10px] leading-[15px]"
-                      style={{ color: '#7FA650', background: 'rgba(127,166,80,0.10)' }}
+                      style={{ color: TONE.ok.color, background: toneAt('ok', 0.10) }}
                     >
                       +{capLabel(c)}
                     </span>
@@ -167,7 +167,7 @@ export default function DimPicker({
                     <span
                       key={c}
                       className="mono rounded-sm px-1 text-[10px] leading-[15px]"
-                      style={{ color: '#93A39C', background: 'rgba(255,255,255,0.04)' }}
+                      style={{ color: INK.muted, background: gloss(0.04) }}
                     >
                       需 {capLabel(c)}
                     </span>

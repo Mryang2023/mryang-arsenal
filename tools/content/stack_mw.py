@@ -416,21 +416,19 @@ DIMENSIONS = [
                 "badge": "主流",
                 "summary": "同时做注册中心与配置中心，支持配置热更新与分组隔离。国内微服务的事实标准之一。",
                 "dependencies": [
-                    {"groupId": "com.alibaba.cloud", "artifactId": "spring-cloud-starter-alibaba-nacos-discovery"},
-                    {"groupId": "com.alibaba.cloud", "artifactId": "spring-cloud-starter-alibaba-nacos-config"},
+                    {"groupId": "com.alibaba.cloud", "artifactId": "spring-cloud-starter-alibaba-nacos-discovery",
+                     "version": "2023.0.1.3",
+                     "note": "com.alibaba.cloud 不在 Boot BOM 管辖内，必须显式给版本"},
+                    {"groupId": "com.alibaba.cloud", "artifactId": "spring-cloud-starter-alibaba-nacos-config",
+                     "version": "2023.0.1.3"},
                     {"groupId": "org.springframework.cloud", "artifactId": "spring-cloud-starter-bootstrap",
+                     "version": "4.1.2",
                      "note": "Spring Cloud 2021+ 默认关闭 bootstrap，需要它才能在启动早期读配置"},
                 ],
                 "yaml": (
-                    "# ── bootstrap.yml（注意：配置中心的连接信息必须写在这里）──\n"
-                    "# 为什么不能写在 application.yml：\n"
-                    "# application.yml 的加载时机晚于 Spring Cloud 上下文初始化，\n"
-                    "# 导致「配置中心地址」本身要从配置中心读 —— 循环依赖。\n"
+                    "# 应用名与 profiles 由骨架 application.yml 头部统一给出，此处不重复 ——\n"
+                    "# 多文档拼接时后文档会覆盖前文档，写死会把用户的项目名改回 arsenal-demo\n"
                     "spring:\n"
-                    "  application:\n"
-                    "    name: arsenal-demo\n"
-                    "  profiles:\n"
-                    "    active: dev\n"
                     "  cloud:\n"
                     "    nacos:\n"
                     "      server-addr: ${NACOS_ADDR:127.0.0.1:8848}\n"

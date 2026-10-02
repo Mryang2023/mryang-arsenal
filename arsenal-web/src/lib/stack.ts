@@ -131,6 +131,7 @@ export function composeStack(picks: StackPicks): ComposedStack {
   const selected = selectedEntries(picks);
 
   const dependencies: Dependency[] = [];
+  const buildPlugins: Dependency[] = [];
   const properties: Record<string, string> = {};
   const yamlBlocks: ComposedStack['yamlBlocks'] = [];
   const configClasses: ComposedStack['configClasses'] = [];
@@ -141,10 +142,16 @@ export function composeStack(picks: StackPicks): ComposedStack {
   const pitfalls: ComposedStack['pitfalls'] = [];
 
   for (const { dimension, option } of selected) {
-    dependencies.push(...(option.dependencies ?? []));
+    for (const d of option.dependencies ?? []) {
+      // 构建插件（jacoco 等）单独收口：混进 <dependencies> 且无版本时 Maven 解析直接失败
+      if (d.mavenPlugin) buildPlugins.push(d);
+      else dependencies.push(d);
+    }
     Object.assign(properties, option.pomProperties ?? {});
 
-    if (option.yaml && option.yaml.trim()) {
+    // yamlNote = 台面展示用的非 Spring 配置示例（Dockerfile / K8s 清单等），
+    // 拼进 application.yml 轻则污染配置，重则非法 YAML 让应用解析配置即崩
+    if (option.yaml && option.yaml.trim() && !option.yamlNote) {
       yamlBlocks.push({
         dimName: dimension.name,
         optName: option.name,
@@ -180,6 +187,7 @@ export function composeStack(picks: StackPicks): ComposedStack {
 
   return {
     dependencies: dedupeDeps(dependencies),
+    buildPlugins: dedupeDeps(buildPlugins),
     properties,
     yamlBlocks,
     configClasses,
@@ -216,7 +224,7 @@ function groupDeps(composed: ComposedStack) {
 
   for (const { dimension, option } of composed.selected) {
     const deps = (option.dependencies ?? []).filter((d) => {
-      if (d.kind || !d.groupId || !d.artifactId) return false;
+      if (d.kind || d.mavenPlugin || !d.groupId || !d.artifactId) return false;
       const key = `${d.groupId}:${d.artifactId}`;
       if (used.has(key)) return false;
       used.add(key);
@@ -238,7 +246,8 @@ function groupDeps(composed: ComposedStack) {
 export function renderPom(
   composed: ComposedStack,
   artifactId = 'arsenal-demo',
-  bootVersion = DEFAULT_BOOT_VERSION
+  bootVersion = DEFAULT_BOOT_VERSION,
+  baseNote?: string,
 ): string {
   const groupsOfDeps = groupDeps(composed);
   const props = Object.entries(composed.properties);
@@ -270,11 +279,28 @@ export function renderPom(
     })
     .join('\n\n');
 
+  // 构建插件渲染进 <build><plugins>。JaCoCo 这类质量门禁是插件不是依赖：
+  // 之前作为 <dependency> 且无版本声明，Maven 解析 pom 那一步就报
+  // 「'dependencies.dependency.version' is missing」，导出包根本编译不了。
+  const pluginsBlock = composed.buildPlugins
+    .map((d) => {
+      const lines = [
+        '            <plugin>',
+        `                <groupId>${d.groupId}</groupId>`,
+        `                <artifactId>${d.artifactId}</artifactId>`,
+      ];
+      if (d.version) lines.push(`                <version>${d.version}</version>`);
+      lines.push('            </plugin>');
+      if (d.note) lines.push(`            <!-- ${d.note} -->`);
+      return lines.join('\n');
+    })
+    .join('\n');
+
   return `<?xml version="1.0" encoding="UTF-8"?>
 <!--
   由「军火库 · 架构装配台」按当前组合生成。
   座右铭：业务依赖不写 <version>，版本交给 parent BOM 统一管理。
--->
+${baseNote ? `  ${baseNote}\n` : ''}-->
 <project xmlns="http://maven.apache.org/POM/4.0.0"
          xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
@@ -314,6 +340,7 @@ ${depsBlock}
                     <parameters>true</parameters>
                 </configuration>
             </plugin>
+${pluginsBlock}
         </plugins>
     </build>
 </project>

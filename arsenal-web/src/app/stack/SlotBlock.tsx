@@ -3,7 +3,7 @@
 import { capLabel, capsOf, needsOf, nodeArch } from '@/lib/arch';
 import type { SlotState } from '@/lib/arch';
 import type { StackOption } from '@/lib/content-types';
-import { TONE } from './palette';
+import { TONE, INK, toneAt, gloss } from './palette';
 
 /**
  * 卡片三档宽度（方案 §2.4）。
@@ -141,9 +141,9 @@ export default function SlotBlock({
           ? 'var(--stack-part-hi)'
           : picked
             ? 'var(--stack-part)'
-            : 'rgba(255,255,255,0.012)',
+            : gloss(0.012),
         // L4 选中：黄铜 ring + 抬升；L1 同层降噪 0.96；未用件 0.72；筛选未命中 0.28（S2-4 聚光灯）
-        boxShadow: active ? '0 0 0 1px #D9A441, 0 12px 32px -16px rgba(0,0,0,0.9)' : undefined,
+        boxShadow: active ? `0 0 0 1px ${TONE.warn.color}, 0 12px 32px -16px rgba(0,0,0,0.9)` : undefined,
         opacity: muted ? 0.28 : unused ? 0.72 : dimmed ? 0.96 : 1,
       }}
     >
@@ -160,8 +160,8 @@ export default function SlotBlock({
           <span
             className="mono ml-auto rounded-sm px-1 text-[10px] leading-[15px]"
             style={{
-              color: state === 'missing-required' ? '#E5484D' : '#5E6E67',
-              background: state === 'missing-required' ? 'rgba(229,72,77,0.14)' : 'rgba(255,255,255,0.04)',
+              color: state === 'missing-required' ? TONE.bad.color : TONE.idle.color,
+              background: state === 'missing-required' ? toneAt('bad', 0.14) : gloss(0.04),
             }}
           >
             必选
@@ -169,7 +169,7 @@ export default function SlotBlock({
         ) : state === 'conflict' ? (
           <span
             className="mono ml-auto rounded-sm px-1 text-[10px] leading-[15px]"
-            style={{ color: '#D9A441', background: 'rgba(217,164,65,0.14)' }}
+            style={{ color: TONE.warn.color, background: toneAt('warn', 0.14) }}
           >
             有隐患
           </span>
@@ -184,7 +184,7 @@ export default function SlotBlock({
         <div
           className="min-w-0 flex-1 truncate text-[12px] font-semibold leading-[18px]"
           style={{
-            color: picked ? '#E8F0EC' : state === 'missing-required' ? '#E5484D' : '#5E6E67',
+            color: picked ? INK.fg : state === 'missing-required' ? TONE.bad.color : TONE.idle.color,
           }}
         >
           {picked ? option?.name : node.required ? '未选型' : '未使用'}
@@ -196,7 +196,7 @@ export default function SlotBlock({
       <div className="mt-1.5 flex min-h-[30px] flex-col gap-0.5">
         {picked && !isNone && hazards && hazards.length > 0 ? (
           <>
-            <span className="mono text-[10px] uppercase leading-[15px] tracking-wider" style={{ color: '#D9A441' }}>
+            <span className="mono text-[10px] uppercase leading-[15px] tracking-wider" style={{ color: TONE.warn.color }}>
               隐患 · {hazards.length}
             </span>
             <ul className="space-y-0.5">
@@ -204,7 +204,7 @@ export default function SlotBlock({
                 <li
                   key={h}
                   className="text-[11px] leading-[16px]"
-                  style={{ color: 'rgba(217,164,65,0.92)' }}
+                  style={{ color: toneAt('warn', 0.92) }}
                 >
                   · {h}
                 </li>
@@ -237,7 +237,7 @@ export default function SlotBlock({
         ) : !picked ? (
           <span
             className="text-[11px] leading-[16px]"
-            style={{ color: state === 'missing-required' ? 'rgba(229,72,77,0.85)' : '#80918A' }}
+            style={{ color: state === 'missing-required' ? toneAt('bad', 0.85) : '#80918A' }}
           >
             {node.missing}
           </span>

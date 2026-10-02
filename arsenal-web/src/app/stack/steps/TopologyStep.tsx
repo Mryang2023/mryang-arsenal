@@ -44,6 +44,7 @@ export default function TopologyStep({
   onParam,
   onPick,
   onClear,
+  onFocus,
 }: {
   picks: StackPicks;
   meta: StackPicksMeta;
@@ -53,6 +54,11 @@ export default function TopologyStep({
   onParam: (key: string, value: number) => void;
   onPick: (dimId: string, optId: string) => void;
   onClear: (dimId: string) => void;
+  /**
+   * 把「当前在调哪一项」报给右栏形态图（'app' 或维度 id）。
+   * 可选是故意的：这一步在别处被复用时不传也一样能跑，只是图上没有高亮。
+   */
+  onFocus?: (target: string) => void;
 }) {
   const spec = STEP_BY_ID.get('topology')!;
   const capacity = estimateCapacity(picks, meta);
@@ -120,7 +126,11 @@ export default function TopologyStep({
               dim={clusterDim}
               picks={picks}
               flag={dimFlags?.[clusterDim.id]}
-              onPick={onPick}
+              // 全局可用性立场改的是**应用**那张卡 —— 焦点推给 app
+              onPick={(dimId, optId) => {
+                onFocus?.('app');
+                onPick(dimId, optId);
+              }}
               onClear={onClear}
             />
           )}
@@ -139,7 +149,10 @@ export default function TopologyStep({
                 option={webDim.options.find((o) => o.id === picks.web) ?? null}
                 picks={picks}
                 meta={meta}
-                onPick={onTopology}
+                onPick={(dimId, modeId) => {
+                  onFocus?.('app');
+                  onTopology(dimId, modeId);
+                }}
                 onExplain={openLab}
               />
             </div>
@@ -174,7 +187,10 @@ export default function TopologyStep({
                     option={opt}
                     picks={picks}
                     meta={meta}
-                    onPick={onTopology}
+                    onPick={(dimId, modeId) => {
+                      onFocus?.(dimId);
+                      onTopology(dimId, modeId);
+                    }}
                     onExplain={openLab}
                   />
                 </section>
@@ -219,7 +235,11 @@ export default function TopologyStep({
                     max={s.max}
                     step={s.step}
                     value={v}
-                    onChange={(e) => onParam(s.key, Number(e.target.value))}
+                    onChange={(e) => {
+                      // 容量滑杆改的是应用侧的副本与资源 —— 焦点推回 app 那张卡
+                      onFocus?.('app');
+                      onParam(s.key, Number(e.target.value));
+                    }}
                     aria-label={s.label}
                     className="mt-1 w-full accent-brass"
                   />

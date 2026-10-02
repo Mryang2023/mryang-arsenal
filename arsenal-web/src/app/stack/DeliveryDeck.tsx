@@ -37,7 +37,7 @@ import {
 import { buildArchifyIr } from '@/lib/archify-ir';
 import { deliverArchify } from '@/lib/arsenal-api';
 import type { ComposedStack, StackPicks } from '@/lib/content-types';
-import { TONE } from './palette';
+import { TONE, INK, toneAt } from './palette';
 import ProgressRing from './ProgressRing';
 import { STEP_BY_ID, groupOfDim, stepOfDim } from './wizard';
 
@@ -191,7 +191,7 @@ export default function DeliveryDeck({
                 type="button"
                 onClick={() => setNote(null)}
                 className="mono max-w-[280px] truncate text-[10px]"
-                style={{ color: '#7FA650' }}
+                style={{ color: TONE.ok.color }}
                 title={note}
               >
                 {note}
@@ -212,8 +212,8 @@ export default function DeliveryDeck({
                 }}
                 className="flex items-center gap-1 rounded-md px-2 py-1 text-[11px] transition-colors"
                 style={{
-                  background: on ? 'rgba(217,164,65,0.10)' : 'transparent',
-                  color: on ? '#D9A441' : '#93A39C',
+                  background: on ? toneAt('warn', 0.10) : 'transparent',
+                  color: on ? TONE.warn.color : INK.muted,
                 }}
               >
                 <span className="mono text-[11px] leading-none">{t.glyph}</span>
@@ -240,9 +240,9 @@ export default function DeliveryDeck({
                 title={t.hint}
                 className="mono rounded-sm border px-1.5 py-0.5 text-[10px] transition-colors"
                 style={{
-                  borderColor: theme === t.id ? 'rgba(217,164,65,0.6)' : '#243029',
-                  background: theme === t.id ? 'rgba(217,164,65,0.10)' : 'transparent',
-                  color: theme === t.id ? '#D9A441' : '#93A39C',
+                  borderColor: theme === t.id ? toneAt('warn', 0.6) : INK.line,
+                  background: theme === t.id ? toneAt('warn', 0.10) : 'transparent',
+                  color: theme === t.id ? TONE.warn.color : INK.muted,
                 }}
               >
                 {t.label}
@@ -260,9 +260,9 @@ export default function DeliveryDeck({
                 title="输出像素倍率。viewBox 不变，几何一像素不差"
                 className="mono rounded-sm border px-1.5 py-0.5 text-[10px]"
                 style={{
-                  borderColor: hd ? 'rgba(217,164,65,0.6)' : '#243029',
-                  background: hd ? 'rgba(217,164,65,0.10)' : 'transparent',
-                  color: hd ? '#D9A441' : '#93A39C',
+                  borderColor: hd ? toneAt('warn', 0.6) : INK.line,
+                  background: hd ? toneAt('warn', 0.10) : 'transparent',
+                  color: hd ? TONE.warn.color : INK.muted,
                 }}
               >
                 {hd ? '高清 ×1.5' : '原尺寸'}
@@ -360,9 +360,9 @@ export default function DeliveryDeck({
                   value={v}
                   onChange={(e) => onParam(spec.key, Number(e.target.value))}
                   className="h-[3px] min-w-0 flex-1 cursor-pointer appearance-none rounded-full"
-                  style={{ background: '#243029', accentColor: '#D9A441' }}
+                  style={{ background: INK.line, accentColor: TONE.warn.color }}
                 />
-                <span className="mono w-[62px] shrink-0 text-right text-[10px]" style={{ color: '#D9A441' }}>
+                <span className="mono w-[62px] shrink-0 text-right text-[10px]" style={{ color: TONE.warn.color }}>
                   {unsetReplicas ? (
                     <span className="text-fgFaint">—</span>
                   ) : (
@@ -607,9 +607,9 @@ function Toggle({ on, onClick, label }: { on: boolean; onClick: () => void; labe
       aria-pressed={on}
       className="mono rounded-sm border px-1.5 py-0.5 text-[10px]"
       style={{
-        borderColor: on ? 'rgba(217,164,65,0.6)' : '#243029',
-        background: on ? 'rgba(217,164,65,0.10)' : 'transparent',
-        color: on ? '#D9A441' : '#93A39C',
+        borderColor: on ? toneAt('warn', 0.6) : INK.line,
+        background: on ? toneAt('warn', 0.10) : 'transparent',
+        color: on ? TONE.warn.color : INK.muted,
       }}
     >
       {on ? '✓ ' : ''}
@@ -680,7 +680,7 @@ function Overview({
                 </span>
                 <span className="text-[10px] text-fgMuted">{g.detail ?? ''}</span>
                 {g.remedies && g.remedies.length > 0 && (
-                  <span className="text-[10px]" style={{ color: '#7FA650' }}>
+                  <span className="text-[10px]" style={{ color: TONE.ok.color }}>
                     怎么补：{remedyText(g)}
                   </span>
                 )}
@@ -743,7 +743,7 @@ function FlowBlock({ picks, audit }: { picks: StackPicks; audit: ArchAudit }) {
                         style={
                           miss
                             ? { borderColor: TONE.bad.border, color: TONE.bad.color }
-                            : { borderColor: '#243029', color: '#93A39C' }
+                            : { borderColor: INK.line, color: INK.muted }
                         }
                         title={
                           miss
@@ -800,6 +800,20 @@ function TreeBlock({ plan, rootName }: { plan: ExportPlan; rootName: string }) {
 
   return (
     <div>
+      {plan.violations.length > 0 && (
+        <div className="mb-2 rounded-md border border-rose-500/30 bg-rose-500/5 px-2.5 py-2" data-export-blocked="">
+          <p className="text-2xs font-semibold text-rose-400">
+            预检闸拦截 {plan.violations.length} 项 —— 这份包现在导出去也跑不起来
+          </p>
+          <ul className="mt-1 space-y-0.5">
+            {plan.violations.map((v, i) => (
+              <li key={`${v.check}-${i}`} className="text-2xs leading-relaxed text-fgMuted">
+                <span className="mono text-rose-400">[{v.check}]</span> {v.message}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
       <p className="mb-1.5 text-[10px] leading-[15px] text-fgFaint">
         这套组合会导出 {stats.files} 个文件（Java {stats.java} / 资源 {stats.resources} / 测试{' '}
         {stats.test}），分布在 {stats.dirs} 个目录里。这棵树与交付包**逐文件一致** ——
@@ -938,7 +952,7 @@ function RiskBlock({ audit }: { audit: ArchAudit }) {
                     <p className="mt-0.5 text-[10px] leading-[15px] text-fgMuted">{gap.detail}</p>
                   )}
                   {gap.remedies && gap.remedies.length > 0 && (
-                    <p className="mt-0.5 text-[10px] leading-[15px]" style={{ color: '#7FA650' }}>
+                    <p className="mt-0.5 text-[10px] leading-[15px]" style={{ color: TONE.ok.color }}>
                       <span className="mono mr-1 text-fgFaint">怎么补</span>
                       {remedyText(gap)}
                     </p>
@@ -974,7 +988,7 @@ function CapacityBlock({ capacity }: { capacity: ReturnType<typeof estimateCapac
 
       <p className="text-[10px] leading-[15px] text-fgMuted">
         全站连接数 = 副本 {capacity.appReplicas} × 池上限 {capacity.poolSize} ={' '}
-        <span className="mono" style={{ color: '#D9A441' }}>{capacity.dbConnections}</span>。
+        <span className="mono" style={{ color: TONE.warn.color }}>{capacity.dbConnections}</span>。
         这个数字超过数据库的 <span className="mono">max_connections</span> 时，
         扩容应用只会让更多连接卡在等待上 —— 先看这一项，再动副本数。
       </p>
@@ -993,7 +1007,7 @@ function CapacityBlock({ capacity }: { capacity: ReturnType<typeof estimateCapac
               <li key={r.dimId} className="flex items-baseline gap-2 px-2.5 py-1.5">
                 <span className="text-[10px] text-fgMuted">{r.dimName}</span>
                 <span className="text-[10px] text-fgFaint">{r.optionName}</span>
-                <span className="ml-auto text-[10px]" style={{ color: '#D9A441' }}>
+                <span className="ml-auto text-[10px]" style={{ color: TONE.warn.color }}>
                   {r.modeLabel}
                 </span>
                 <span className="mono w-[42px] text-right text-[10px] text-fg">×{r.replicas}</span>
@@ -1021,7 +1035,7 @@ function CapacityBlock({ capacity }: { capacity: ReturnType<typeof estimateCapac
 function Num({ label, value, accent }: { label: string; value: string; accent?: boolean }) {
   return (
     <div className="rounded-md border border-line bg-surfaceHi px-2 py-1.5">
-      <div className="mono text-[15px] leading-tight" style={{ color: accent ? '#D9A441' : '#E8F0EC' }}>
+      <div className="mono text-[15px] leading-tight" style={{ color: accent ? TONE.warn.color : INK.fg }}>
         {value}
       </div>
       <div className="mt-0.5 text-[10px] text-fgFaint">{label}</div>

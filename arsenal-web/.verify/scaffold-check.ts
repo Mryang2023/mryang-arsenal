@@ -17,6 +17,7 @@ import { SCAFFOLD_FILES, SCAFFOLD_MODULES } from '@/generated/scaffold-templates
 import { defaultPicks } from '@/lib/stack';
 import type { StackPicks } from '@/lib/content-types';
 import { buildExportArtifacts } from '@/lib/scaffold/artifacts';
+import { lintExportFiles } from '@/lib/export-lint';
 import { resolveModules } from '@/lib/scaffold/module-registry';
 import { findIllegalPlaceholders } from '@/lib/scaffold/render';
 import { check, finish } from './lib/report';
@@ -197,6 +198,64 @@ const scaffoldDir = path.resolve(here, '..', '..', 'arsenal-scaffold');
       env: { values: { 'db.host': '10.0.0.5', 'db.username': 'app' }, demoMode: false },
       modules: [], feBase: 'none', vars,
     }).backend.files.find((f) => f.path.endsWith('application.yml'))!.content.includes('${DB_HOST:10.0.0.5}'));
+}
+
+// ── ⑦ 导出预检闸（export-lint）────────────────────────────────
+// 09-29 三轮导出事故的系统性防线：同名 bean / 重复文件 / 悬空 import /
+// 无版本依赖 / yml 异类键，任何一类出现都拒绝导出。断言反着验：先验
+// 事故同款组合零违规，再注入五类毒物确认全被拦。
+{
+  console.log('\n【7】导出预检闸');
+  const stackJson = JSON.parse(
+    fs.readFileSync(path.resolve(here, '..', 'src', 'generated', 'stack.json'), 'utf-8'),
+  ) as { dimensions: { id: string; defaultOption?: string }[] };
+  const picks: Record<string, string> = {};
+  for (const d of stackJson.dimensions) if (d.defaultOption) picks[d.id] = d.defaultOption;
+  picks['auth'] = 'securityjwt';
+  picks['secret'] = 'configcenter';
+  picks['qualitygate'] = 'jacoco';
+
+  const vars = {
+    basePackage: 'com.example', basePackagePath: 'com/example', artifactId: 'demo',
+    appName: 'demo', backendBaseUrl: 'http://127.0.0.1:8080', dbImage: 'mysql:8.0.36',
+  };
+  const arts = buildExportArtifacts(picks as StackPicks, {
+    projectName: 'demo', env: { values: {}, demoMode: false }, modules: [], feBase: 'none', vars,
+  });
+  check('事故同款组合（securityjwt+configcenter+jacoco）：后端包零违规',
+    arts.violations.length === 0, arts.violations.map((v) => v.message).join('；').slice(0, 200));
+
+  // 接管回归：main 侧骨架三件被剔除后，test 侧 @MockBean 目标必须跟着指向模块版
+  const testFile = arts.backend.files.find((f) => f.path.endsWith('UserControllerTest.java'));
+  check('securityjwt 接管：切片测试的 AuthInterceptor import 指向模块版（无骨架悬空引用）',
+    !!testFile && testFile.content.includes('import com.example.auth.web.AuthInterceptor;')
+      && !testFile.content.includes('import com.example.interceptor.AuthInterceptor;'));
+
+  const pom = arts.backend.files.find((f) => f.path === 'pom.xml')?.content ?? '';
+  check('nacos / jacoco 均带显式版本（BOM 外必须显式）',
+    /<version>2023\.0\.1\.3<\/version>/.test(pom) &&
+      /jacoco-maven-plugin[\s\S]{0,200}?<version>0\.8\.11<\/version>/.test(pom));
+
+  // 五类注入反验：每一类毒物都必须命中对应检查
+  const bad = [
+    { path: 'src/main/java/com/example/a/Dup.java', content: '@Component\npublic class Dup {\n}\n', group: '源码' },
+    { path: 'src/main/java/com/example/b/Dup2.java', content: '// @Component class NotBean {}\n@Service\npublic class Dup {\n}\n', group: '源码' },
+    { path: 'src/main/java/com/example/c/Uses.java', content: 'import com.example.missing.Ghost;\nimport static com.example.a.Dup.x;\nimport com.example.a.*;\npublic class Uses {\n}\n', group: '源码' },
+    { path: 'pom.xml', content: '<dependency><groupId>io.minio</groupId><artifactId>minio</artifactId></dependency><dependency><groupId>org.springframework.boot</groupId><artifactId>spring-boot-starter-web</artifactId></dependency><build><plugins><plugin><groupId>org.pitest</groupId><artifactId>pitest-maven</artifactId></plugin></plugins></build>', group: '构建' },
+    { path: 'src/main/resources/application.yml', content: 'spring:\n  application:\n    name: demo\nnginx:\n  worker_processes: 1\n', group: '配置' },
+    { path: 'a.txt', content: 'x', group: '文档' },
+    { path: 'a.txt', content: 'y', group: '文档' },
+  ] as const;
+  const lint = lintExportFiles(bad as never);
+  const checks = new Set(lint.map((v) => v.check));
+  check('五类毒物注入全被拦（同名 bean/悬空 import/无版本/yml 异类键/重复 path）',
+    checks.size === 5
+      && lint.some((v) => v.check === 'bean-conflict' && v.message.includes('Dup') && !v.message.includes('NotBean'))
+      && lint.some((v) => v.check === 'dangling-import' && v.message.includes('Ghost'))
+      && lint.filter((v) => v.check === 'pom-no-version').length === 2 // minio 无版本 + pitest-maven 插件无版本；boot starter 不误报
+      && lint.some((v) => v.check === 'yml-foreign-root' && v.message.includes('nginx'))
+      && lint.some((v) => v.check === 'duplicate-path'),
+    `命中 ${[...checks].join(',')}（${lint.length} 条）`);
 }
 
 process.exit(finish('scaffold'));

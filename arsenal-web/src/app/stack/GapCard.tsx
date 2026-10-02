@@ -3,7 +3,7 @@
 import type { ArchGap } from '@/lib/arch';
 import { dimensions } from '@/lib/stack';
 import { STEP_BY_ID, groupOfDim, stepOfDim } from './wizard';
-import { TONE } from './palette';
+import { TONE, INK } from './palette';
 
 /**
  * 一条隐患的完整呈现。
@@ -79,7 +79,7 @@ export default function GapCard({
           ) : null}
 
           {gap.impact && (
-            <p className="mt-2 border-l-2 pl-2 text-[10px] leading-[16px]" style={{ borderColor: t.border, color: '#C8D6D0' }}>
+            <p className="mt-2 border-l-2 pl-2 text-[10px] leading-[16px]" style={{ borderColor: t.border, color: INK.body }}>
               <span className="mono mr-1 text-fgFaint">后果</span>
               {gap.impact}
             </p>
@@ -132,7 +132,7 @@ export default function GapCard({
                           {g ? `${g.name} / ` : ''}
                           {d?.name ?? r.dim}
                         </span>
-                        {opt && <span style={{ color: '#7FA650' }}>→ {opt.name}</span>}
+                        {opt && <span style={{ color: TONE.ok.color }}>→ {opt.name}</span>}
                         {onFocus && (
                           <button
                             type="button"

@@ -71,7 +71,8 @@ DIMENSIONS = [
                     "    map-underscore-to-camel-case: true\n"
                     "    # 生产环境关掉 SQL 打印，否则日志量会失控\n"
                     "    log-impl: org.apache.ibatis.logging.nologging.NoLoggingImpl\n"
-                    "mapper-locations: classpath*:/mapper/**/*.xml"
+                    "  # mapper XML 位置必须挂在 mybatis-plus 键下，顶格写会被当成未知顶层键静默丢弃\n"
+                    "  mapper-locations: classpath*:/mapper/**/*.xml"
                 ),
                 "configClasses": [
                     {

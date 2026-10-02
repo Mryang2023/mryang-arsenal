@@ -5,6 +5,7 @@ import type { StackPicks } from '@/lib/content-types';
 import { STEP_BY_ID } from '../wizard';
 import DimPicker, { type DimFlag } from '../DimPicker';
 import StepShell from './StepShell';
+import { TONE, INK, toneAt } from '../palette';
 
 /**
  * ② 技术栈基底 —— 整个项目跑在哪条栈上。
@@ -19,8 +20,8 @@ import StepShell from './StepShell';
 
 const BASE_STATUS: Record<string, { label: string; color: string; bg: string; border: string }> = {
   supported: { label: '支持中', color: '#3FB950', bg: 'rgba(63,185,80,0.12)', border: 'rgba(63,185,80,0.40)' },
-  eol: { label: '已 EOL', color: '#D9A441', bg: 'rgba(217,164,65,0.12)', border: 'rgba(217,164,65,0.45)' },
-  uncovered: { label: '未覆盖', color: '#93A39C', bg: 'transparent', border: '#243029' },
+  eol: { label: '已 EOL', color: TONE.warn.color, bg: toneAt('warn', 0.12), border: toneAt('warn', 0.45) },
+  uncovered: { label: '未覆盖', color: INK.muted, bg: 'transparent', border: INK.line },
 };
 
 export default function BaseStep({
@@ -60,8 +61,8 @@ export default function BaseStep({
                 title={b.note ? `${b.summary}\n\n${b.note}` : b.summary}
                 className="w-[208px] rounded-md border px-2.5 py-2 text-left transition-colors"
                 style={{
-                  borderColor: on ? 'rgba(217,164,65,0.65)' : '#243029',
-                  background: on ? 'rgba(217,164,65,0.09)' : 'transparent',
+                  borderColor: on ? toneAt('warn', 0.65) : INK.line,
+                  background: on ? toneAt('warn', 0.09) : 'transparent',
                   opacity: b.covered ? 1 : 0.86,
                 }}
               >
@@ -69,8 +70,8 @@ export default function BaseStep({
                   <span
                     className="mono flex h-[13px] w-[13px] shrink-0 items-center justify-center rounded-full border text-[10px] leading-none"
                     style={{
-                      borderColor: on ? '#D9A441' : '#33413A',
-                      color: on ? '#D9A441' : 'transparent',
+                      borderColor: on ? TONE.warn.color : INK.dim,
+                      color: on ? TONE.warn.color : 'transparent',
                     }}
                   >
                     ✓
@@ -93,12 +94,12 @@ export default function BaseStep({
                   {b.summary}
                 </p>
                 {!b.covered && (
-                  <p className="mt-1 text-[10px] leading-[15px]" style={{ color: '#D9A441' }}>
+                  <p className="mt-1 text-[10px] leading-[15px]" style={{ color: TONE.warn.color }}>
                     本平台未覆盖：只作声明，产物仍是 Spring Boot 骨架。
                   </p>
                 )}
                 {b.recommended && (
-                  <p className="mono mt-1 text-[10px] leading-[15px]" style={{ color: '#7FA650' }}>
+                  <p className="mono mt-1 text-[10px] leading-[15px]" style={{ color: TONE.ok.color }}>
                     新项目建议落点
                   </p>
                 )}

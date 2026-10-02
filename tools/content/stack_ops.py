@@ -11,6 +11,7 @@ DIMENSIONS = [
         "options": [
             {
                 "id": "manual",
+                "yamlNote": True,
                 "name": "手工",
                 "badge": "轻量",
                 "summary": "手工打 jar、scp 到服务器、java -jar 启停，零工具成本，但发布靠人、易出错、无法回滚，规模一大就失控。",
@@ -25,6 +26,7 @@ DIMENSIONS = [
             },
             {
                 "id": "jenkins",
+                "yamlNote": True,
                 "name": "Jenkins",
                 "badge": "通用",
                 "summary": "Jenkins 用自由风格或 Pipeline 串起构建到部署，插件极多、可控性强，但 Master 要自己维护，配置易腐化。",
@@ -40,6 +42,7 @@ DIMENSIONS = [
             },
             {
                 "id": "gitlabci",
+                "yamlNote": True,
                 "name": "GitLab CI",
                 "badge": "推荐",
                 "summary": "GitLab CI 用仓库内 .gitlab-ci.yml 定义流水线，与代码同仓、体验顺滑，但需要 Runner 资源且强绑定 GitLab。",
@@ -55,6 +58,7 @@ DIMENSIONS = [
             },
             {
                 "id": "argocd",
+                "yamlNote": True,
                 "name": "ArgoCD GitOps",
                 "badge": "高阶",
                 "summary": "ArgoCD 以 Git 仓库为唯一事实源，自动同步 K8s 期望态、可视化差异，是 GitOps 标准做法，但前提是已经上 K8s。",
@@ -70,6 +74,7 @@ DIMENSIONS = [
             },
             {
                 "id": "githubactions",
+                "yamlNote": True,
                 "name": "GitHub Actions",
                 "badge": "通用",
                 "summary": "GitHub Actions 用 YAML 在工作流里构建发布，与 GitHub 深度集成、生态丰富，但私有仓库分钟数受限、数据在境外。",
@@ -111,6 +116,7 @@ DIMENSIONS = [
             },
             {
                 "id": "promgrafana",
+                "yamlNote": True,
                 "name": "Prometheus+Grafana",
                 "badge": "推荐",
                 "summary": "Prometheus 拉取指标、Grafana 画图告警，云原生监控事实标准，开源免费、生态全，但需自建存储与保留策略。",
@@ -126,6 +132,7 @@ DIMENSIONS = [
             },
             {
                 "id": "zabbix",
+                "yamlNote": True,
                 "name": "Zabbix",
                 "badge": "稳妥",
                 "summary": "Zabbix 监控主机、网络与数据库等基础设施，Agent 成熟、告警灵活，但界面老旧、对容器动态实例发现较弱。",
@@ -140,6 +147,7 @@ DIMENSIONS = [
             },
             {
                 "id": "skywalking",
+                "yamlNote": True,
                 "name": "SkyWalking APM",
                 "badge": "高阶",
                 "summary": "SkyWalking 无侵入采集链路、拓扑与 JVM 指标，国产 APM 标杆，适合定位跨服务慢调用，但 OAP 集群运维不轻。",
@@ -199,12 +207,34 @@ DIMENSIONS = [
             },
             {
                 "id": "configcenter",
-                "name": "配置中心加密",
+                "name": "配置中心加密（Nacos）",
                 "badge": "推荐",
-                "summary": "把配置与密钥放进 Nacos/Apollo 并加密存储，支持热更新与权限，但多一套中间件、密钥仍可能落本地缓存。",
-                "yaml": "spring:\n  cloud:\n    nacos:\n      config:\n        extension-configs[0]:\n          data-id: secret.yml\n          refresh: true",
+                "summary": (
+                    "把配置与密钥放进 Nacos 并加密存储，支持热更新与权限，"
+                    "但多一套中间件、密钥仍可能落本地缓存。"
+                    "⚠️ 勾它会拖进 spring-cloud-alibaba 依赖，启动时连 Nacos —— "
+                    "单体项目没有 Nacos 就选「配置文件」。"
+                ),
+                "yaml": (
+                    "# optional: 前缀 —— Nacos 没部署/连不上时跳过，不阻断本地启动；\n"
+                    "# 没有它，nacos-config 在 classpath 时启动即因 import 检查失败退出\n"
+                    "spring:\n"
+                    "  config:\n"
+                    "    import: optional:nacos:secret.yml\n"
+                    "  cloud:\n"
+                    "    nacos:\n"
+                    "      config:\n"
+                    "        server-addr: ${NACOS_ADDR:127.0.0.1:8848}\n"
+                    "        username: ${NACOS_USER:nacos}\n"
+                    "        password: ${NACOS_PASSWORD:nacos}\n"
+                    "        extension-configs[0]:\n"
+                    "          data-id: secret.yml\n"
+                    "          refresh: true"
+                ),
                 "dependencies": [
-                    {"groupId": "com.alibaba.cloud", "artifactId": "spring-cloud-starter-alibaba-nacos-config"},
+                    {"groupId": "com.alibaba.cloud", "artifactId": "spring-cloud-starter-alibaba-nacos-config",
+                     "version": "2023.0.1.3",
+                     "note": "com.alibaba.cloud 不在 Boot BOM 管辖内，必须显式给版本；2023.0.1.x 配 Boot 3.2/3.3"},
                 ],
                 "notes": [
                     "敏感值用 AES 加密后存配置中心，应用侧自动解密。",
@@ -217,6 +247,7 @@ DIMENSIONS = [
             },
             {
                 "id": "k8ssecret",
+                "yamlNote": True,
                 "name": "Kubernetes Secret",
                 "badge": "通用",
                 "summary": "用 Kubernetes Secret 以 Base64 存密钥并挂进 Pod，和集群原生融合，但默认不加密落盘、需开 KMS 加密才安全。",
@@ -232,6 +263,7 @@ DIMENSIONS = [
             },
             {
                 "id": "vault",
+                "yamlNote": True,
                 "name": "HashiCorp Vault",
                 "badge": "高阶",
                 "summary": "HashiCorp Vault 提供动态密钥、自动轮换与短时令牌，安全等级最高，但部署复杂、需管理密封/解封与备份。",
@@ -248,6 +280,7 @@ DIMENSIONS = [
             },
             {
                 "id": "cloudkms",
+                "yamlNote": True,
                 "name": "云 KMS",
                 "badge": "高阶",
                 "summary": "用云 KMS 托管主密钥、应用运行时解密，密钥不落本地、合规省心，但解密调用依赖该云、离线环境不可用。",
@@ -272,6 +305,7 @@ DIMENSIONS = [
         "options": [
             {
                 "id": "logback",
+                "yamlNote": True,
                 "name": "Logback 落盘",
                 "badge": "轻量",
                 "summary": "Spring Boot 默认 Logback 把日志落本地文件，零配置可用，但分散在各实例磁盘，查问题要登录多台机器翻文件。",
@@ -289,6 +323,7 @@ DIMENSIONS = [
             },
             {
                 "id": "elk",
+                "yamlNote": True,
                 "name": "ELK",
                 "badge": "推荐",
                 "summary": "Filebeat 把日志送 Elasticsearch、Kibana 检索，集中查询与可视化强，但 ES 吃内存、集群运维成本不低。",
@@ -304,6 +339,7 @@ DIMENSIONS = [
             },
             {
                 "id": "loki",
+                "yamlNote": True,
                 "name": "Loki+Promtail",
                 "badge": "高阶",
                 "summary": "Loki+Promtail 以标签索引日志、和 Grafana 一体，资源比 ELK 轻、查询便宜，但全文检索能力弱于 ES。",
@@ -319,6 +355,7 @@ DIMENSIONS = [
             },
             {
                 "id": "clickhouse",
+                "yamlNote": True,
                 "name": "ClickHouse 日志",
                 "badge": "高阶",
                 "summary": "用 ClickHouse 存日志，列存压缩高、亿级日志聚合秒回，适合做审计与离线分析，但需单独维护数据库与写入管道。",

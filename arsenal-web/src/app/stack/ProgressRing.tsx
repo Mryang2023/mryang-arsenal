@@ -1,3 +1,4 @@
+import { INK } from './palette';
 /**
  * 进度环（S1-5 从 DeliveryDeck 提取为共享组件）。
  *
@@ -14,7 +15,7 @@ export default function ProgressRing({ ratio, tone, size = 56 }: { ratio: number
   const stroke = size >= 56 ? 5 : 4;
   return (
     <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} aria-label="必选项覆盖">
-      <circle cx={cx} cy={cx} r={R} fill="none" stroke="#243029" strokeWidth={stroke} />
+      <circle cx={cx} cy={cx} r={R} fill="none" stroke={INK.line} strokeWidth={stroke} />
       <circle
         cx={cx}
         cy={cx}

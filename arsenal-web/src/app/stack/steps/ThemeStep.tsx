@@ -6,6 +6,7 @@ import { dimensions } from '@/lib/stack';
 import { STEP_BY_ID, THEME_SECTIONS } from '../wizard';
 import DimPicker, { type DimFlag } from '../DimPicker';
 import StepShell from './StepShell';
+import { TONE, INK, toneAt } from '../palette';
 
 /**
  * ③ 主题框架 —— 按「主题」而不是按「层」选，且**一次只展开一组**。
@@ -77,23 +78,23 @@ export default function ThemeStep({
                     onClick={() => setGi(i)}
                     className="flex w-full items-center gap-2 rounded-md border px-2.5 py-2 text-left transition-colors"
                     style={{
-                      borderColor: on ? 'rgba(217,164,65,0.6)' : '#243029',
-                      background: on ? 'rgba(217,164,65,0.10)' : 'transparent',
+                      borderColor: on ? toneAt('warn', 0.6) : INK.line,
+                      background: on ? toneAt('warn', 0.10) : 'transparent',
                     }}
                   >
-                    <span className="mono text-[13px] leading-none" style={{ color: on ? '#D9A441' : '#93A39C' }}>
+                    <span className="mono text-[13px] leading-none" style={{ color: on ? TONE.warn.color : INK.muted }}>
                       {s.group.glyph}
                     </span>
                     <span
                       className="min-w-0 flex-1 truncate text-[11px] font-medium leading-[16px]"
-                      style={{ color: on ? '#E8F0EC' : '#93A39C' }}
+                      style={{ color: on ? INK.fg : INK.muted }}
                     >
                       {s.group.name}
                     </span>
                     {issues > 0 && (
                       <span
                         className="mono shrink-0 rounded-sm px-1 text-[10px] leading-[15px]"
-                        style={{ color: '#E5484D', background: 'rgba(229,72,77,0.14)' }}
+                        style={{ color: TONE.bad.color, background: toneAt('bad', 0.14) }}
                         title={`这一组有 ${issues} 个槽位卷进「跑不起来」：${groupIssueDims(s.group.id).join('；')}`}
                       >
                         {issues}
@@ -103,7 +104,7 @@ export default function ThemeStep({
                       {f}/{s.dims.length}
                     </span>
                     {done && (
-                      <span className="mono shrink-0 text-[10px] leading-none" style={{ color: '#7FA650' }}>
+                      <span className="mono shrink-0 text-[10px] leading-none" style={{ color: TONE.ok.color }}>
                         ✓
                       </span>
                     )}

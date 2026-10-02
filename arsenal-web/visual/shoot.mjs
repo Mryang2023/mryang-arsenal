@@ -10,15 +10,15 @@
  * 因为 `channel: 'msedge'` 在这台机器上找不到它 —— Edge 装在版本子目录里）。
  *
  * 用法：
- *   node visual/shoot.mjs              # 跑全部 17 URL × 3 视口 = 51 张（cookbook 收敛只剩 1 个蓝图，cases 三层 +3 页）
+ *   node visual/shoot.mjs              # 跑全部 21 URL × 3 视口 = 63 张
  *   VISUAL_BASE_URL=http://127.0.0.1:3021/ node visual/shoot.mjs
  *
  * 退出码：
- *   0 = 四项闸门全过（截图数 42 / 每张 >8KB / 无 4xx 响应 / 无运行时报错）
+ *   0 = 四项闸门全过（截图数 63 / 每张 >8KB / 无 4xx 响应 / 无运行时报错）
  *   1 = 任一闸门不过，或 URL 发现数与预期不符 —— 全文打印实际错误
  *
  * 产物：
- *   visual/shots/*.png      51 张（已 gitignore，不入库）
+ *   visual/shots/*.png      63 张（已 gitignore，不入库）
  *   visual/manifest.json    机器可读（V-3 assert.mjs 的输入）
  *   visual/report.md        人读
  */
@@ -43,18 +43,23 @@ const BASE_URL = (process.env.VISUAL_BASE_URL || 'http://127.0.0.1:3021').replac
 // ---------- 预期值（写死的判据，不符即红） ----------
 
 const EXPECTED = {
-  fixedPages: 10,
+  // 装配台拆页（2026-09-29 P0）：/stack 由单页拆成四页，stack 子树整棵计入固定页
+  // （10 → 13），矩阵随之 17 URL → 20 URL、51 张 → 60 张。
+  fixedPages: 13,
   rulePicks: 3,
-  // cookbook 收敛后只剩 virtual-thread 一个蓝图（2026-09-24），
-  // 首/末抽同一实例 → 去重后只拍 1 个。曾预期 2，收敛时漏同步导致 42/45 的假红。
-  blueprintPicks: 1,
+  // 2026-09-29 修正：上面这句「只剩 1 个」早就过期了 —— 蓝图主题已回到 6 个
+  // （connection-pool / local-cache / retry-timeout / untrusted-data / web-layer +
+  // virtual-thread，全部静态导出），抽首/末就是 2 个。
+  // 这条漂移一直没被任何人发现，是因为 **verify 链只跑 assert.mjs，它不读 mismatches**
+  // —— 本棒第一次单独跑 shoot.mjs 才让它红出来。
+  blueprintPicks: 2,
   // 场景案例库三层路由（2026-09-26 第 2 棒）：L2 场景页已静态导出（9 个），
   // 按 rules 的先例抽首/中/末 3 个；L3 切片页（61 个）次夜才做，
   // 那时池子非空后这里的 slicePicks 必须改成 2（首/末），脚本会当场报警。
   casePicks: 3,
   slicePicks: 0,
-  urls: 17,
-  shots: 51,
+  urls: 21,
+  shots: 63,
   minBytes: 8 * 1024,
 };
 
@@ -172,7 +177,11 @@ export function discoverUrls({ outDir = OUT_DIR, expect = EXPECTED } = {}) {
       casePages.push({ id: segs[1], abs, segs });
     } else if (top === 'cases' && segs.length === 3) {
       caseSlicePages.push({ id: segs[2], abs, segs });
-    } else if (segs.length <= 1) {
+    } else if (segs.length <= 1 || top === 'stack') {
+      // 装配台 2026-09-29 P0 拆页：`/stack` 由单页拆成四页，子树多了
+      // `/stack/env` `/stack/run` `/stack/delivery` 三片 index.html。
+      // 它们是**静态路由**而非「同一动态路由的不同实例」，所以与固定页同类；
+      // 这里不放行就会落进下面的 problems（未归类），发现数当场对不上。
       fixed.push({ abs, segs });
     } else {
       problems.push(`未归类的 index.html（既不是固定页也不是已知动态路由）：${segmentsToRoute(segs)}`);

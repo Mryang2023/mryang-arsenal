@@ -1152,7 +1152,10 @@ console.log('\n【13】导航与页签契约');
   );
 
   // ④ 装配台页签三处必须同时成立：TabId 类型、页签条数组、渲染分支
-  const composer = code('app/stack/StackComposer.tsx');
+  //
+  // P0 四页（2026-09-29）：StackComposer.tsx 已拆成四页容器，产物区（页签的家）
+  // 整体搬进 StackDelivery.tsx —— 三处仍在同一文件，判据一条没动。
+  const composer = code('app/stack/StackDelivery.tsx');
   const idUnion = [
     ...(
       /type TabId\s*=([\s\S]*?);/.exec(composer)?.[1] ?? ''
@@ -1215,7 +1218,8 @@ console.log('\n【13】导航与页签契约');
   // effect 还会拿 standard 把 localStorage 里 /arch 正要读的那份一起抹掉。
   // 实测（2026-09-23）：塞 `{database:'postgres'}` 进快照，打开 /stack 再刷新，读到的是 mysql。
   // 旧断言只问「有没有人读」，所以它一直是绿的。
-  const stackComposer = code('app/stack/StackComposer.tsx');
+  // 同上，装配台自己的恢复逻辑随拆页搬进了 useStackChannel.ts（四页共用的状态通道）
+  const stackComposer = code('app/stack/useStackChannel.ts');
   check(
     '装配台自己读快照（属主必须恢复自己的数据）',
     stackComposer.includes('loadSnapshot('),
@@ -1816,7 +1820,24 @@ console.log('\n【17】装配台视觉契约（/stack P1 第一组）');
   const readRel = (rel: string) => fs.readFileSync(path.join(webRoot, rel), 'utf8');
   const stackCss = readRel('src/app/globals.css');
   const slotSrc = readRel('src/app/stack/SlotBlock.tsx');
-  const composerSrc = readRel('src/app/stack/StackComposer.tsx');
+
+  // P0 四页（2026-09-29）：StackComposer.tsx 已拆成 `useStackChannel`（状态通道）+
+  // `StackDeck`（常驻结论条）+ `StackSoftware`（台面）+ `StackDelivery`（产物区）。
+  // 原来「对着一个源码文件」的断言改为读**这一组文件的合集** ——
+  // 判据一条没放松，只是被搜索的文件从 1 个变成 4 个：拆页不该让断言静默变空跑。
+  const STACK_SPLIT = [
+    'src/app/stack/useStackChannel.ts',
+    'src/app/stack/StackDeck.tsx',
+    'src/app/stack/StackSoftware.tsx',
+    'src/app/stack/StackDelivery.tsx',
+  ];
+  const missingSplit = STACK_SPLIT.filter((f) => !fs.existsSync(path.join(webRoot, f)));
+  check(
+    `装配台拆页：${STACK_SPLIT.length} 个承载文件都在（P0 四页后断言读它们的合集）`,
+    missingSplit.length === 0,
+    `缺失：${missingSplit.join(' ') || '无'}`
+  );
+  const composerSrc = STACK_SPLIT.map(readRel).join('\n');
 
   // ── S1-1 台面化 ──────────────────────────────────────────────
   const STACK_VARS = ['--stack-bench', '--stack-bench-grid', '--stack-part', '--stack-part-hi'];
@@ -1846,7 +1867,7 @@ console.log('\n【17】装配台视觉契约（/stack P1 第一组）');
   check(
     `S1-1 装配区容器套上台面（stack-bench 是完整类名，实测 ${benchTokens.length} 处）`,
     benchTokens.length > 0,
-    'StackComposer 的 className 里没有独立的 stack-bench 类名（只比子串会让拼错的变形也判过）'
+    '装配台承载文件（P0 拆页后是四个容器而非 StackComposer）的 className 里没有独立的 stack-bench 类名（只比子串会让拼错的变形也判过）'
   );
   check(
     'S1-1 泳道表头是左侧固定标签列（writing-mode vertical-rl）',
@@ -1856,7 +1877,7 @@ console.log('\n【17】装配台视觉契约（/stack P1 第一组）');
     'S1-1 泳道之间的连线是 SVG（WireLayer，S1-4 迁出），不再用 ↓ 字符',
     /export function WireLayer\(/.test(readRel('src/app/stack/WireLayer.tsx')) &&
       !composerSrc.includes('↓'),
-    composerSrc.includes('↓') ? 'StackComposer 源码里还有 ↓ 字符' : ''
+    composerSrc.includes('↓') ? '装配台承载文件源码里还有 ↓ 字符' : ''
   );
 
   // ── S1-2 权重分级 ────────────────────────────────────────────
@@ -1976,8 +1997,8 @@ console.log('\n【17】装配台视觉契约（/stack P1 第一组）');
 
   // ── 配色守卫：语义色仍然只有 TONE 五色 + 既有文本 token ──────
   // 只扫本棒新写/重写的两处：SlotBlock 全文件 + WireLayer 全文件
-  // （S1-4 起连线职责从 StackComposer 的 LaneWire 迁到独立文件 WireLayer.tsx）。
-  // 不扫整个 StackComposer（54KB，历史色值不归本棒管，扫了只会报一堆无法归因的红）。
+  // （S1-4 起连线职责从 StackComposer 的 LaneWire 迁到独立文件 WireLayer.tsx；
+  //   2026-09-29 P0 拆页后原 StackComposer 已不存在，这里说的「不扫」变成了天然成立）。
   const wireSrc = readRel('src/app/stack/WireLayer.tsx');
   check(
     '配色守卫：WireLayer.tsx 已读到且含连线（定位不到的话下面的色值扫描就是空跑）',
@@ -2013,7 +2034,21 @@ console.log('\n【18】装配台 P1 第二组（S1-4 / S1-5 / S2-7）');
   const wireSrc = readRel('src/app/stack/WireLayer.tsx');
   const ringSrc = readRel('src/app/stack/ProgressRing.tsx');
   const deckSrc = readRel('src/app/stack/DeliveryDeck.tsx');
-  const composerSrc = readRel('src/app/stack/StackComposer.tsx');
+
+  // 同【17】：P0 四页后被搜索的是四个承载文件的合集（判据不变，只是换了承载文件）
+  const STACK_SPLIT_18 = [
+    'src/app/stack/useStackChannel.ts',
+    'src/app/stack/StackDeck.tsx',
+    'src/app/stack/StackSoftware.tsx',
+    'src/app/stack/StackDelivery.tsx',
+  ];
+  const missingSplit18 = STACK_SPLIT_18.filter((f) => !fs.existsSync(path.join(webRoot, f)));
+  check(
+    `装配台拆页：${STACK_SPLIT_18.length} 个承载文件都在（【18】断点阵 / 连线 / 草稿 / 分享）`,
+    missingSplit18.length === 0,
+    `缺失：${missingSplit18.join(' ') || '无'}`
+  );
+  const composerSrc = STACK_SPLIT_18.map(readRel).join('\n');
   const globalsCss = readRel('src/app/globals.css');
 
   // ── S1-4 连线可视化 ──────────────────────────────────────────
@@ -2128,21 +2163,84 @@ console.log('\n【18】装配台 P1 第二组（S1-4 / S1-5 / S2-7）');
   );
 
   // ── S1-6 收尾 / S2-8 V2-12 / S2-3 撤销重做（09-24 白天补） ────
-  const stackFiles = [
-    'src/app/stack/SlotBlock.tsx',
-    'src/app/stack/Inspector.tsx',
-    'src/app/stack/DeliveryDeck.tsx',
-    'src/app/stack/GapCard.tsx',
-    'src/app/stack/TopologyPicker.tsx',
-    'src/app/stack/StackComposer.tsx',
-  ].map(readRel);
-  const with9px = ['SlotBlock', 'Inspector', 'DeliveryDeck', 'GapCard', 'TopologyPicker', 'StackComposer'].filter(
-    (_, i) => stackFiles[i].includes('text-[9px]')
+  // P0 四页：StackComposer 拆成 useStackChannel / StackDeck / StackSoftware /
+  // StackEnv / StackRun / StackDelivery，加上新拆出的 StepRail / JourneyBar。
+  // 清单跟着一起换 —— 留着旧文件名等于「扫一个不存在的文件」，断言会变空跑。
+  const STACK_9PX = [
+    'SlotBlock',
+    'Inspector',
+    'DeliveryDeck',
+    'GapCard',
+    'TopologyPicker',
+    'useStackChannel',
+    'StackDeck',
+    'StackSoftware',
+    'StackEnv',
+    'StackRun',
+    'StackDelivery',
+    'StepRail',
+    'JourneyBar',
+  ];
+  const stackFiles = STACK_9PX.map((n) =>
+    readRel(`src/app/stack/${n === 'useStackChannel' ? 'useStackChannel.ts' : `${n}.tsx`}`)
   );
+  const with9px = STACK_9PX.filter((_, i) => stackFiles[i].includes('text-[9px]'));
   check(
-    'S1-6 装配台六个活跃组件全部无 9px 字号（9px 连排清零；孤儿文件 ProjectTree 不在扫描内）',
+    `S1-6 装配台 ${STACK_9PX.length} 个活跃组件全部无 9px 字号（9px 连排清零；孤儿文件 ProjectTree 不在扫描内）`,
     with9px.length === 0,
     `仍有 9px：${with9px.join(' ')}`
+  );
+
+  // ── P0 拆页防回归：四个容器必须各渲染**自己那一段** ──────────
+  //
+  // 2026-09-29 P0 实测事故的指纹：四张装配台截图**字节完全相同**。
+  // 根因是 useStackChannel 里那条「恢复出来的 step 不在本页 → replace 回属主页」
+  // 的 effect 把 `step` 写进了依赖数组 —— 于是进入任意装配台页都会先被一条
+  // `router.replace` 拽回 `/stack/`，四页渲染成同一个页面。
+  //
+  // 这层把关只能靠源码文本（渲染结果要浏览器，那是 visual 层的事），判据是两条：
+  //   ① 四个容器各自只用自己那几步的步骤组件（不能都挂同一批）；
+  //   ② 每个容器都写死了自己的页面 id（useStackChannel('env') 这类）。
+  // 判据刻意不碰 wizard / 步骤组件本身 —— 拆页是信息架构改动，引擎该零改动。
+  const PAGE_OWNERS: { page: string; file: string; steps: string[] }[] = [
+    // ④ 分层装配不做成独立步骤组件 —— 它就是「台面」本身（StackSoftware 里的 renderBench），
+    // 所以 Software 页只认前三个 imports，第四个槽位留给台面渲染函数。
+    { page: 'software', file: 'StackSoftware.tsx', steps: ['ProjectStep', 'BaseStep', 'ThemeStep', 'renderBench'] },
+    { page: 'env', file: 'StackEnv.tsx', steps: ['FrontendStep', 'EnvStep', 'ModulesStep'] },
+    { page: 'run', file: 'StackRun.tsx', steps: ['DeliverRunStep', 'TopologyStep'] },
+    { page: 'delivery', file: 'StackDelivery.tsx', steps: ['DeliveryStep'] },
+  ];
+  const pageSrc = Object.fromEntries(
+    PAGE_OWNERS.map((p) => [p.page, readRel(`src/app/stack/${p.file}`)])
+  );
+  const wrongSeg = PAGE_OWNERS.filter((p) => {
+    const src = pageSrc[p.page];
+    // ① 自己那几步必须都在
+    if (!p.steps.every((s) => src.includes(s))) return true;
+    // ② 别人的步骤组件一律不许出现（出现即说明两页渲染同一段）
+    const foreign = PAGE_OWNERS.filter((q) => q.page !== p.page).flatMap((q) => q.steps);
+    return foreign.some((s) => new RegExp(`\\b${s}\\b`).test(src));
+  });
+  check(
+    'P0 拆页：四个容器各渲染自己那一段（外段的步骤组件一个都不许出现）',
+    wrongSeg.length === 0,
+    wrongSeg.map((p) => `${p.file} 的步骤归属不对`).join('；')
+  );
+  const selfDecl = PAGE_OWNERS.filter((p) => !pageSrc[p.page].includes(`useStackChannel('${p.page}')`));
+  check(
+    'P0 拆页：每个容器都声明自己的页面 id（useStackChannel(\'<page>\')）',
+    selfDecl.length === 0,
+    selfDecl.map((p) => `${p.file} 没声明 page id`).join('；')
+  );
+  check(
+    'P0 拆页：页面归属裁决只许在挂载时做一次（step 不许进 useStackChannel 恢复 effect 的依赖数组）',
+    // 依赖数组里出现裸 `step` = 页内换步会被顶回属主页（实测会把 URL 拽回 /stack/）。
+    // 判据抓的是「setStep(pageSpec.steps[0]) 那行之后紧跟着的依赖数组」——
+    // 用 [\s\S] 跨行而不是 \s（\s 不含跨段注释里的换行会漏判）。
+    /setStep\(pageSpec\.steps\[0\]\);[\s\S]*?\}, \[hydrated, pageSpec\.id, pageSpec\.steps\]\);/.test(
+      readRel('src/app/stack/useStackChannel.ts')
+    ),
+    'useStackChannel 的页面归属 effect 依赖数组被改过 —— 一旦把 step 放回去，四个装配台页会渲染成同一页'
   );
 
   const topologySrc = readRel('src/lib/topology.ts');
@@ -2615,7 +2713,7 @@ console.log('\n【21】README 正文里的项数口径');
   // ── 两位数口径（2026-09-27 补）────────────────────────────────────────
   // 09-26 有 4 处张数漂移（45→42→…）就是趁「两位数没人守」溜过去的。这里收窄守卫：
   // 只守**当前规模**的断言（「N 张截图矩阵 / N 张矩阵 / 跑 N 张」「N 路由」），
-  // 数据源是 visual/shoot.mjs 的 EXPECTED 声明值（51 张 = 17 路由 × 3 视口，
+  // 数据源是 visual/shoot.mjs 的 EXPECTED 声明值（63 张 = 21 路由 × 3 视口，
   // visual 层拿它对账、shoot.mjs 截图数对不上它自己会红）——README 跟它对齐即闭环。
   // 刻意不守（真值不在机器源里，硬守只会教会人写假数字）：
   //   · 历史叙事：「由 45 张同步为 42 张」是过去式，不是当前规模的断言；
@@ -2826,6 +2924,415 @@ console.log('\n【23】判据单一来源（W-0 · 共享判据）');
     'sync 对契约缺键是失败而不是静默回落（缺键 → fail，不许回落默认值）',
     /cbMeta\.contract/.test(syncSec) && /missingKeys\.length[\s\S]{0,160}?fail\(/.test(syncSec),
     'sync 必须先读 meta.contract，且缺键时 fail —— 回落到默认值等于藏了一份内联副本'
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════
+// 【24】装配台 P1 · 交付中心预检闸首屏与方案历史（09-29 夜2棒2）
+//
+// 口径同【17】【18】：源码即数据，字符串 / 正则判据，解析前不剥注释
+// （这里扫的都是新写的组件，注释里恰好没有反例文本；真出现了就是判据写错）。
+//
+// 钉的是四件**会被静默改坏**的事：
+//   ① 预检闸必须在交付页首屏（版面切换之上）—— 挪回双包面板里就等于把
+//      「能不能交付」这个第一问题降级，09-29 三轮导出事故的病灶原样复发；
+//   ② 闸门只许展示、不许自己算 lint —— 一旦组件里重算一份，两份判据必然分叉；
+//   ③ 渲染路径不许抛异常（崩整页比「导出被拦」糟得多）；
+//   ④ 方案历史只许消费 drafts.ts 那份键，不许出现第二个持键方。
+// ═══════════════════════════════════════════════════════════════
+console.log('\n【24】装配台 P1 交付中心（预检闸首屏 / 方案历史 / 形态图右栏）');
+{
+  const webRoot = path.resolve(here, '..');
+  const readRel = (rel: string) => fs.readFileSync(path.join(webRoot, rel), 'utf8');
+
+  const gateSrc = readRel('src/app/stack/ExportGate.tsx');
+  const historySrc = readRel('src/app/stack/DraftHistory.tsx');
+  const deliverySrc = readRel('src/app/stack/StackDelivery.tsx');
+  const scaffoldSrc = readRel('src/app/stack/steps/ScaffoldDelivery.tsx');
+  const lintSrc = readRel('src/lib/export-lint.ts');
+  const channelSrc = readRel('src/app/stack/useStackChannel.ts');
+
+  check(
+    '预检闸首屏化：ExportGate 挂在 StackDelivery 上，且排在版面切换（data-delivery-view）之前',
+    /<ExportGate scopes=\{gateScopes\} \/>/.test(deliverySrc) &&
+      deliverySrc.indexOf('<ExportGate') < deliverySrc.indexOf('data-delivery-view="preview"'),
+    '闸门挪到版面切换之后就等于把它埋回页面中段 —— 进这一页看到的第一个答案必须是「能不能交付」'
+  );
+  check(
+    '预检闸两个版面都在（渲染点在 deliveryView 分支之外，切版面不会把它切没）',
+    /\{step === 'delivery' && \(\s*<div className="panel flex flex-wrap items-center gap-1\.5/.test(
+      deliverySrc
+    ) && !/deliveryView === '[a-z]+'[\s\S]{0,200}?<ExportGate/.test(deliverySrc),
+    '闸门被塞进了某个版面的分支里'
+  );
+  check(
+    '闸门只展示不算 lint：ExportGate 不 import lintExportFiles / 不出现 lintExportFiles( 调用',
+    !/lintExportFiles/.test(gateSrc),
+    '组件里重算一份判据 = 两份判据必然分叉（一处改了另一处没改，红绿对不上）'
+  );
+  check(
+    '闸门红绿两态都有可断言落点（data-export-gate / data-gate-status / data-gate-scope-status）',
+    gateSrc.includes('data-export-gate={blocked') &&
+      gateSrc.includes('data-gate-status={blocked') &&
+      gateSrc.includes('data-gate-scope-status={bad'),
+    '没有 data 落点 = 只能靠肉眼截图判红绿，回归一定漏'
+  );
+  check(
+    '闸门逐条 [check] message 且五类检查的人话标签齐全（duplicate-path / bean-conflict / dangling-import / pom-no-version / yml-foreign-root）',
+    gateSrc.includes('[{v.check}]') &&
+      gateSrc.includes('data-gate-violation={v.check}') &&
+      [
+        'duplicate-path',
+        'bean-conflict',
+        'dangling-import',
+        'pom-no-version',
+        'yml-foreign-root',
+      ].every((k) => gateSrc.includes(`'${k}':`)),
+    '少一类标签，那一类的违规就只能以英文 id 示人'
+  );
+  check(
+    '闸门渲染路径不抛异常（组件体里没有 throw / 没有 new Error）',
+    !/\bthrow\b/.test(gateSrc) && !/new Error\(/.test(gateSrc),
+    '渲染期 throw 会整页白屏 —— 比「导出被拦」严重得多，宁可空态也不许抛'
+  );
+  check(
+    '两份包各自独立过闸（scopes 传入 plan.violations 与 artifacts.violations，不合成一个总数）',
+    /violations: plan\.violations/.test(deliverySrc) &&
+      /violations: artifacts\.violations/.test(deliverySrc) &&
+      /scopes\.filter\(\(s\) => s\.violations\.length > 0\)/.test(gateSrc),
+    '合成一个总数会让「其实能下载的那份包」跟着一起被判死'
+  );
+  check(
+    '下载禁用与闸门同源：三包卡 disabled={blocked}（blocked 来自 artifacts.violations），一键导出按钮同样被拦即灰',
+    /const blocked = violations\.length > 0;/.test(scaffoldSrc) &&
+      (scaffoldSrc.match(/disabled=\{blocked\}/g) ?? []).length >= 3 &&
+      /disabled=\{plan\.violations\.length > 0\}/.test(deliverySrc),
+    '卡片能点而闸门说被拦（或反过来）＝ 两套判据'
+  );
+  check(
+    'export-lint 五检查计算逻辑没被绕过：LintCheck 五类字面量仍在，lintExportFiles 仍是唯一出口',
+    ["'duplicate-path'", "'bean-conflict'", "'dangling-import'", "'pom-no-version'", "'yml-foreign-root'"].every(
+      (k) => lintSrc.includes(k)
+    ) && /export function lintExportFiles\(/.test(lintSrc),
+    '五检查是本仓导出事故的最后防线，一处都不能少'
+  );
+
+  // ── 方案历史（拍板项③）──
+  const draftsSrc = readRel('src/app/stack/drafts.ts');
+  const srcDir = path.join(webRoot, 'src');
+  const keyHolders: string[] = [];
+  (function walk(dir: string) {
+    for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
+      const p = path.join(dir, e.name);
+      if (e.isDirectory()) walk(p);
+      else if (/\.(ts|tsx|mjs|js)$/.test(e.name)) {
+        if (fs.readFileSync(p, 'utf8').includes('arsenal-stack-drafts-v1')) {
+          keyHolders.push(path.relative(webRoot, p).replace(/\\/g, '/'));
+        }
+      }
+    }
+  })(srcDir);
+  // 「提到键名」与「真读写键」是两件事：注释里提一句不算持键，
+  // 持键 = 真的调 getItem / setItem。判据只钉后者（前者太宽，必然误伤注释）。
+  const apiUsers = keyHolders.filter(
+    (f) =>
+      f !== 'src/app/stack/drafts.ts' &&
+      /localStorage\.(getItem|setItem)\(|window\.localStorage/.test(readRel(f))
+  );
+  check(
+    '方案历史不改持键方：arsenal-stack-drafts-v1 仍由 drafts.ts 独家真读写（其余文件提到它只是注释）',
+    draftsSrc.includes("STACK_DRAFTS_KEY = 'arsenal-stack-drafts-v1'") && apiUsers.length === 0,
+    `真读写的第二处：${apiUsers.join(' ') || '无'}（提到键名的文件共 ${keyHolders.length} 个）`
+  );
+  check(
+    '方案历史面板：空态可见（data-draft-empty）且恢复 / 删除入口齐备（data-draft-restore / data-draft-delete）',
+    historySrc.includes('data-draft-empty') &&
+      historySrc.includes('data-draft-restore={d.id}') &&
+      historySrc.includes('data-draft-delete={d.id}'),
+    '入口藏起来 = 用户以为「根本没存过」或「没这功能」'
+  );
+  check(
+    '历史面板挂在交付页底部（版面之外，两个版面都在）且不直接读写存储（挂载后走通道的 reloadDrafts）',
+    /<DraftHistory[\s\S]{0,220}?onReload=\{reloadDrafts\}/.test(deliverySrc) &&
+      !/localStorage\.(getItem|setItem)\(|window\.localStorage/.test(historySrc) &&
+      /onReload\(\);/.test(historySrc),
+    '面板自己开一份存储副本 = 与结论条的对比下拉各读各的，删了这边那边还在'
+  );
+  check(
+    '恢复是整份三通道回灌（restoreDraft 同时写 picks / meta / baseId 并进历史栈），不是只换 picks',
+    /function restoreDraft\([\s\S]{0,700}?setPicks\(d\.picks\)[\s\S]{0,200}?setMeta\(d\.meta\)[\s\S]{0,200}?setBaseId\(d\.baseId\)/.test(
+      channelSrc
+    ) && /function restoreDraft\([\s\S]{0,200}?hist\.record\(snapRef\.current\)/.test(channelSrc),
+    '只回灌 picks 会留着上一套的副本数与形态，拼出第三套方案 —— 最难查的那种'
+  );
+
+  // ── 运行页形态图右栏（plan §2）──
+  const runSrc = readRel('src/app/stack/StackRun.tsx');
+  const previewSrc = readRel('src/app/stack/TopologyPreview.tsx');
+  check(
+    '⑨ 形态图右栏只在 topology 步出现，且与表单两栏并排（xl 断点起分栏，窄屏堆叠）',
+    /step === 'topology' \? \([\s\S]{0,200}?xl:grid-cols-\[minmax\(0,1fr\)_360px\]/.test(runSrc) &&
+      // 判据不写死整行 JSX：右栏后来要传 focusDim / replicaLines（Helm 联动），
+      // 写成完整字符串会跟着每次加 prop 而假红 —— 只盯「这四个 prop 都在」。
+      /<TopologyPreview[\s\S]{0,300}?picks=\{picks\}[\s\S]{0,300}?meta=\{meta\}/.test(runSrc) &&
+      /focusDim=\{topoFocus\}/.test(runSrc),
+    '图不在这一步 = 调副本数要换页才看得到结果，等于盲调'
+  );
+  check(
+    '形态图画法不重写：右栏预览复用 buildTopologySvg()（唯一实现处），且实例数由 figures 现算',
+    /buildTopologySvg\(picks, meta, \{/.test(previewSrc) &&
+      /built\.figures\.reduce\(\(n, f\) => n \+ f\.replicas, 0\)/.test(previewSrc) &&
+      !/<rect|<svg xmlns/.test(previewSrc),
+    '自己拼一遍几何 = 与交付预览那张图分叉，「两处画得不一样」没人会发现'
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════
+// 【25】装配台 P1 第二组（2026-09-30 补）：⑥ 连接三态卡 + JourneyBar
+//       已选角标与 390 折叠。
+//
+//   四条硬要求，每一条都对应一种「看起来做完其实没做完」：
+//   ① 三态必须**从数据推出来**，不许另存一份开关 —— 存了就会和 `demoMode`
+//      分叉，出现「卡上说是演示模式、导出包却连真库」；
+//   ② 密码「默认不落盘」的提示必须排在表单**之前** —— 填完四组字段才发现
+//      密码不存，等于白填一遍；
+//   ③ 角标数字从 picks 现算，且**没有维度可数的页不许渲染假角标**（0/0 也是假话）；
+//   ④ 窄屏折叠只许**一套 DOM** —— 为窄屏再复制四个链接，任何按
+//      `a[data-journey]` 计数的判据会立刻从 4 变 8 而毫无察觉。
+// ═══════════════════════════════════════════════════════════════
+console.log('\n【25】装配台 P1 第二组（连接三态卡 / JourneyBar 角标与折叠）');
+{
+  const webRoot = path.resolve(here, '..');
+  const readRel = (rel: string) => fs.readFileSync(path.join(webRoot, rel), 'utf8');
+  const envStepSrc = readRel('src/app/stack/steps/EnvStep.tsx');
+  const envPageSrc = readRel('src/app/stack/StackEnv.tsx');
+  const barSrc = readRel('src/app/stack/JourneyBar.tsx');
+
+  const MODES = ['demo', 'remote', 'local'];
+  check(
+    '⑥ 连接三态卡三态齐备，且当前态由数据推导（demoMode + 必填是否填完），组件内不另存开关',
+    MODES.every((m) => envStepSrc.includes("id: '" + m + "'")) &&
+      MODES.every((m) => envStepSrc.includes('data-env-mode={m.id}')) &&
+      /demoMode \? 'demo' : allRequiredFilled \? 'remote' : 'local'/.test(envStepSrc) &&
+      !/useState|useRef\(/.test(envStepSrc),
+    '三态另存一份 state = 与 demoMode 两份真相，「卡上说是演示、导出包却连真库」没人会发现'
+  );
+  check(
+    '⑥ 必填字段集合取自表单事实源（forms 过滤 required），不写死字段个数',
+    /forms\.flatMap\(\(f\) => f\.fields\)\.filter\(\(f\) => f\.required\)\.map\(\(f\) => f\.key\)/.test(
+      envStepSrc
+    ) && !/'(19|33|\d+)'/.test(envStepSrc),
+    '写死个数字 = 事实源加了必填字段而角标不动，卡住的还是用户'
+  );
+  check(
+    '密码「默认不落盘」提示前置：data-secret-note 排在数据库表单之前且只出现一次',
+    // 判据带 `=""`：裸子串 `data-secret-note` 会被 `data-secret-note-LATE` 蒙过去
+    // （2026-09-30 注入实测：改名成 -LATE 时这条**仍然绿** —— 子串判据的老坑）。
+    /data-secret-note=""/.test(envStepSrc) &&
+      envStepSrc.indexOf('data-secret-note=""') < envStepSrc.indexOf('data-env-form="database"') &&
+      (envStepSrc.match(/data-secret-note=""/g) ?? []).length === 1 &&
+      (envStepSrc.match(/data-remember-secrets/g) ?? []).length === 1,
+    '提示沉在表单最底部 = 用户填完才发现密码不存；出现两遍 = 两处说明必然分叉'
+  );
+  check(
+    '「本机默认」回落只清非密码必填字段（密码走既有落盘规则），键取自表单',
+    /\.filter\(\(f\) => f\.required && !f\.secret\)/.test(envPageSrc) &&
+      /for \(const k of keys\) delete next\[k\]/.test(envPageSrc),
+    '连密码一起清 = 绕过「记住到本机」的既有约定，用户以为勾了其实没存'
+  );
+  check(
+    'JourneyBar 角标从 picks 现算，没有维度可数的页返回 null（不渲染假角标）',
+    /function pageProgress\(id: StackPageId, picks: StackPicks\)/.test(barSrc) &&
+      /id === 'software' \? THEME_SECTIONS : id === 'run' \? RUN_SECTIONS : null/.test(barSrc) &&
+      /if \(!src\) return null/.test(barSrc) &&
+      !/'(19|33)'/.test(barSrc),
+    '写一个常量当角标 = 选完件数字不动，这比没有角标更糟（它在主动说假话）'
+  );
+  check(
+    'JourneyBar 窄屏折叠只有一套 DOM（data-journey 只出现一次），尺寸走 class 不走内联',
+    (barSrc.match(/data-journey=\{p\.id\}/g) ?? []).length === 1 &&
+      /h-\[26px\] w-\[26px\]/.test(barSrc) &&
+      /sm:h-auto sm:w-auto/.test(barSrc) &&
+      !/width: 26/.test(barSrc),
+    '为窄屏复制四个链接 = 8 个 data-journey，按节点数写的判据瞬间失真；' +
+      '内联 width/height 压不过 sm:w-auto，宽屏会僵成 26px 方块'
+  );
+  check(
+    '四页都把 picks 喂给 JourneyBar（角标不看页就不可能有数）',
+    ['StackSoftware.tsx', 'StackEnv.tsx', 'StackRun.tsx', 'StackDelivery.tsx'].every((f) =>
+      /<JourneyBar current="[a-z]+" picks=\{picks\} \/>/.test(readRel('src/app/stack/' + f))
+    ),
+    '漏传一页 = 那一页角标永远是 0/0 或干脆不渲染，且不会报错'
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════
+// 【26】装配台 P1 第三组（2026-09-30 白天补做）
+// 这四条都是「跑得对、但一直在白做」的问题，不会报错，只会慢和分叉：
+//   ① 预检闸的归总每帧重算 —— 只 memo 一侧没用，调用方每帧新建数组照样废掉；
+//   ② 方案历史重读存储换引用 —— 内容一个字没变却让整棵树重渲染；
+//   ③ 形态图右栏自绘 —— 两处画得不一样没人会发现；
+//   ④ 色值在十几个组件里各抄一遍 —— 改主题只能靠 grep 撞运气。
+// ═══════════════════════════════════════════════════════════════
+console.log('\n【26】装配台 P1 第三组（预检闸重算 / 草稿重读 / 色值唯一出处）');
+{
+  const webRoot = path.resolve(here, '..');
+  const readRel = (rel: string) => fs.readFileSync(path.join(webRoot, rel), 'utf8');
+  const gateSrc = readRel('src/app/stack/ExportGate.tsx');
+  const deliverySrc = readRel('src/app/stack/StackDelivery.tsx');
+  const draftsSrc = readRel('src/app/stack/drafts.ts');
+  const channelSrc = readRel('src/app/stack/useStackChannel.ts');
+  const previewSrc = stripComments(readRel('src/app/stack/TopologyPreview.tsx'));
+  const paletteSrc = readRel('src/app/stack/palette.ts');
+  const treeSrc = readRel('src/app/stack/ProjectTree.tsx');
+
+  check(
+    '预检闸的归总只在 useMemo 里算（闸门与调用方两侧都 memo，只做一侧等于没做）',
+    /const \{ blockedScopes, blocked, total, files, tally \} = useMemo\(/.test(gateSrc) &&
+      !/const blockedScopes = scopes\.filter/.test(gateSrc) &&
+      /const gateScopes = useMemo<GateScope\[\]>\(/.test(deliverySrc),
+    '调用方每帧新建 scopes 数组，闸门里的 useMemo 依赖一变就重算 —— 只 memo 一侧白做'
+  );
+  check(
+    '方案历史重读有相等短路（指纹相同保留原引用，内容没变不重渲染）',
+    /export function draftsKey\(list: StackDraft\[\]\): string/.test(draftsSrc) &&
+      /setDrafts\(\(prev\) => \(draftsKey\(prev\) === key \? prev : next\)\)/.test(channelSrc),
+    '读出来的内容一个字没变还换引用 = 整棵装配台为一次「什么都没发生」的重读重算一遍'
+  );
+  check(
+    '形态图右栏不自绘（buildTopologySvg 只调一次，文件里没有 SVG 痕迹）',
+    (previewSrc.match(/buildTopologySvg\(/g) ?? []).length === 1 &&
+      !/'<svg|'<rect|stroke=/.test(previewSrc) &&
+      /data-topology-preview-source="buildTopologySvg"/.test(previewSrc),
+    '自己拼一遍几何 = 与交付预览那张图分叉，「两处画得不一样」没人会发现'
+  );
+  check(
+    '装配台不许裸写已登记色（TONE / INK / SWATCH 是色值的唯一出处）',
+    (() => {
+      const forbidden = [
+        ...new Set([
+          ...[...paletteSrc.matchAll(/#[0-9A-Fa-f]{6}/g)].map((m) => m[0]),
+          ...[...paletteSrc.matchAll(/rgba\(\d+,\d+,\d+,[0-9.]+\)/g)].map((m) => m[0]),
+        ]),
+      ];
+      const stackDir = path.join(webRoot, 'src', 'app', 'stack');
+      const hit: string[] = [];
+      const walk = (dir: string) => {
+        for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
+          const full = path.join(dir, e.name);
+          if (e.isDirectory()) {
+            walk(full);
+          } else if (/\.tsx?$/.test(e.name) && e.name !== 'palette.ts') {
+            const t = fs.readFileSync(full, 'utf8');
+            const bad = forbidden.filter((c) => t.includes(c));
+            if (bad.length) {
+              hit.push(path.relative(stackDir, full).replace(/\\/g, '/') + ':' + bad[0]);
+            }
+          }
+        }
+      };
+      walk(stackDir);
+      return hit.length === 0;
+    })(),
+    '色值在组件里各抄一遍 = 改主题只能靠 grep 撞运气，漏一处就是「这块边框比别处深一点」'
+  );
+  check(
+    '徽章分类色走 SWATCH，不借语义色（TONE 的黄绿是「隐患/通过」，不是分类）',
+    /const BADGE_SWATCH: Record<string, string> = \{/.test(treeSrc) &&
+      /const FILE_GROUP_SWATCH: Record<string, string> = \{/.test(treeSrc) &&
+      !/TONE\./.test(
+        treeSrc.slice(treeSrc.indexOf('const BADGE_SWATCH'), treeSrc.indexOf('function badgeColor'))
+      ) &&
+      !/TONE\./.test(
+        treeSrc.slice(
+          treeSrc.indexOf('const FILE_GROUP_SWATCH'),
+          treeSrc.indexOf('export default function ProjectTree')
+        )
+      ),
+    '「鉴权」徽章绿得跟「校验通过」一个意思 —— 看着像评价，其实只是分类'
+  );
+  check(
+    '半透明取色从 TONE 派生：toneAt() 读 TONE 的 hex，alpha=1 时原样返回实心色',
+    /export function toneAt\(key: ToneKey, alpha = 1\): string/.test(paletteSrc) &&
+      /if \(alpha >= 1\) return TONE\[key\]\.color;/.test(paletteSrc) &&
+      /rgbOf\(TONE\[key\]\.color\)/.test(paletteSrc),
+    'helper 里再写一份色值 = 两处真相，调主色时半透明副本不跟着变'
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════
+// 【27】装配台 P2 三项（下载卡层级 / ⑧⑩ 右栏 / 形态图 Helm 联动）
+// 这三条都是「信息摆错了地方」而不是「算错了」：
+//   ① 三张下载卡平级 —— 把「我该点哪个」推给了用户；
+//   ② ⑧⑩ 的后果（生成什么文件 / 拿走什么）原本只在同一页的中段才看得见；
+//   ③ 形态图与 Helm 值是同一个数字，但两处各说各的，谁也没指出对方。
+// ═══════════════════════════════════════════════════════════════
+console.log('\n【27】装配台 P2 三项（下载卡层级 / ⑧⑩ 右栏 / 形态图 Helm 联动）');
+{
+  const webRoot = path.resolve(here, '..');
+  const readRel = (rel: string) => fs.readFileSync(path.join(webRoot, rel), 'utf8');
+  const scaffoldSrc = readRel('src/app/stack/steps/ScaffoldDelivery.tsx');
+  const runSrc = readRel('src/app/stack/StackRun.tsx');
+  const deliverySrc = readRel('src/app/stack/StackDelivery.tsx');
+  const previewSrc = readRel('src/app/stack/TopologyPreview.tsx');
+  const deployPreviewSrc = readRel('src/app/stack/DeployPreview.tsx');
+  const outlineSrc = readRel('src/app/stack/ProductOutline.tsx');
+  const topoStepSrc = readRel('src/app/stack/steps/TopologyStep.tsx');
+  const topoSrc = readRel('src/lib/topology.ts');
+  const deploySrc = readRel('src/lib/deploy.ts');
+
+  check(
+    '三张下载卡分主次：全家桶是主卡且排在前面，后端 / 前端是次卡',
+    /data-download="all"[\s\S]{0,160}?data-download-tier="primary"/.test(scaffoldSrc) &&
+      (scaffoldSrc.match(/data-download-tier="secondary"/g) ?? []).length >= 2 &&
+      scaffoldSrc.indexOf('data-download-tier="primary"') <
+        scaffoldSrc.indexOf('data-download-tier="secondary"'),
+    '三张一样大 = 把「我该点哪个」推给用户；主次不是装饰，是把默认答案写在版面上'
+  );
+  check(
+    '卡上的包构成从 files 现算（topOf），不写死一句「包含后端与前端」',
+    /function topOf\(files: \{ path: string \}\[\]\): string\[\]/.test(scaffoldSrc) &&
+      ['all', 'backend'].every((k) => scaffoldSrc.includes(`topOf(artifacts.${k}.files)`)),
+    '写死构成 = 事实源改了而卡上不动，「下载下来发现和说的不一样」'
+  );
+  check(
+    '⑧ 交付与运行有右栏：列出这套选型会生成的部署文件，且文件由调用方生成（组件只展示）',
+    /step === 'deliverRun' \? \([\s\S]{0,200}?xl:grid-cols-\[minmax\(0,1fr\)_360px\]/.test(runSrc) &&
+      /<DeployPreview files=\{deployFiles\} \/>/.test(runSrc) &&
+      !/buildDeployPlan\(/.test(deployPreviewSrc),
+    '在 ⑧ 表态却看不见自己表出了什么 = 盲选；组件自己再生成一遍 = 两处可能对不上'
+  );
+  check(
+    '⑩ 交付有右栏概览：按类别与顶层目录现算，不写死类别名',
+    /<ProductOutline files=\{plan\.files\} bytes=\{plan\.bytes\} \/>/.test(deliverySrc) &&
+      /f\.group \?\? '其它'/.test(outlineSrc) &&
+      !/'(构建|配置|代码)'\s*:/.test(outlineSrc),
+    '写死类别 = 事实源加了新类别而概览不动，用户数着数着对不上'
+  );
+  check(
+    '形态图认识「当前在调谁」：buildTopologySvg 收 highlight，每张卡带 dimId 钥匙',
+    /highlight\?: string;/.test(topoSrc) &&
+      /dimId: string;/.test(topoSrc) &&
+      /opts\.highlight === c\.dimId/.test(topoSrc) &&
+      /highlight: focusDim/.test(previewSrc),
+    '图上有十来个框，调副本数时不亮对应框 = 让用户自己找是哪个变了'
+  );
+  check(
+    '副本数的落点从生成的部署文件里抽（replicaLines 读 content），不是照格式背一遍',
+    /export function replicaLines\(files: DeployFile\[\]\): ReplicaLine\[\]/.test(deploySrc) &&
+      /f\.content\.split\('\\n'\)/.test(deploySrc) &&
+      /data-replica-line=""/.test(previewSrc) &&
+      /replicaLines=\{replicaRows\}/.test(runSrc),
+    '背格式 = 模板一改就对不上；抽不到就如实说「这份产物没有副本数的落点」'
+  );
+  check(
+    '焦点是双向的：台上调哪一项 → 图上亮（onFocus 上报）；点图上的项 → 焦点回台面',
+    /onFocus\?: \(target: string\) => void/.test(topoStepSrc) &&
+      /onFocus\?\('app'\)/.test(topoStepSrc) &&
+      /onFocus\?\.\(r\.id\)/.test(previewSrc) &&
+      /onFocus=\{setTopoFocus\}/.test(runSrc) &&
+      /focusDim=\{topoFocus\}/.test(runSrc),
+    '只单向 = 用户点了图上的项没反应，以为那排按钮是装饰'
   );
 }
 

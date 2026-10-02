@@ -9,18 +9,62 @@ import { dimensions } from '@/lib/stack';
 import { iconStats } from '@/lib/icon-assets';
 import { isNavActive } from '@/lib/nav-active';
 
-const NAV = [
+/**
+ * 侧边栏。
+ *
+ * P0（2026-09-29）：装配台从 `/stack` 单页拆成四页，导航里对应变成一个
+ * 「装配台」分组 —— 四项各自的 href 就是四条真实路由，没有 href 的那一项
+ * 是纯分组标题（不渲染成链接）。父路由的高亮判定改按精确匹配，
+ * 判据仍在 `lib/nav-active.ts` 一处。
+ */
+interface NavChild {
+  href: string;
+  label: string;
+  glyph: string;
+  count: number;
+}
+
+interface NavItem {
+  /** 缺 href = 纯分组标题，下面才有子项 */
+  href?: string;
+  label: string;
+  glyph: string;
+  count: number;
+  children?: NavChild[];
+}
+
+const NAV: NavItem[] = [
   { href: '/', label: '概览', glyph: '◈', count: 0 },
   { href: '/rules', label: '规则库', glyph: '▦', count: liveStats.total },
   { href: '/blueprints', label: '最佳实践案例库', glyph: '▤', count: cookbookStats.features },
   { href: '/cases', label: '场景案例库', glyph: '◫', count: casesStats.cases },
-  { href: '/stack', label: '脚手架装配台', glyph: '⬡', count: dimensions.length },
+  {
+    label: '装配台',
+    glyph: '⬡',
+    count: dimensions.length,
+    children: [
+      { href: '/stack', label: '选型台', glyph: '◈', count: 0 },
+      { href: '/stack/env', label: '环境与模块', glyph: '❖', count: 0 },
+      { href: '/stack/run', label: '运行与部署', glyph: '⬢', count: 0 },
+      { href: '/stack/delivery', label: '交付中心', glyph: '⇩', count: 0 },
+    ],
+  },
   { href: '/arch', label: '架构图谱', glyph: '▣', count: 6 },
   { href: '/icons', label: '图标库', glyph: '❖', count: iconStats.total },
   { href: '/archify', label: '出图服务', glyph: '⚒', count: 0 },
   { href: '/check', label: '校验台', glyph: '⛨', count: 0 },
   { href: '/export', label: '导出中心', glyph: '⎘', count: 0 },
 ];
+
+/** 渲染行：depth -1 = 分组标题（不可点），0 = 一级，1 = 分组内的子项 */
+const NAV_ROWS: { href: string; label: string; glyph: string; depth: number }[] = NAV.flatMap((n) =>
+  n.href
+    ? [{ href: n.href, label: n.label, glyph: n.glyph, depth: 0 }]
+    : [
+        { href: '', label: n.label, glyph: n.glyph, depth: -1 },
+        ...(n.children ?? []).map((c) => ({ href: c.href, label: c.label, glyph: c.glyph, depth: 1 })),
+      ]
+);
 
 export default function Shell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname() || '/';
@@ -59,31 +103,54 @@ export default function Shell({ children }: { children: React.ReactNode }) {
           {/* 移动端导航。加 flex-wrap + min-w-0：10 个标签在 390px 下会折行，
               而不是把最后一个标签推出视口（V2-01：整站 mobile 溢出 53px）。 */}
           <nav className="flex min-w-0 flex-wrap items-center gap-1 md:hidden">
-            {NAV.map((n) => (
-              <Link
-                key={n.href}
-                href={n.href}
-                className="rounded px-2 py-1 text-xs transition-colors"
-                style={{
-                  color: isActive(n.href) ? '#D9A441' : '#93A39C',
-                  background: isActive(n.href) ? 'rgba(217,164,65,0.1)' : 'transparent',
-                }}
-              >
-                {n.label}
-              </Link>
-            ))}
+            {NAV_ROWS.map((n) =>
+              n.depth < 0 ? (
+                <span
+                  key={`g-${n.label}`}
+                  className="mono px-1 text-2xs uppercase tracking-wider text-fgFaint"
+                >
+                  {n.label}
+                </span>
+              ) : (
+                <Link
+                  key={n.href}
+                  href={n.href}
+                  className="rounded px-2 py-1 text-xs transition-colors"
+                  style={{
+                    color: isActive(n.href) ? '#D9A441' : '#93A39C',
+                    background: isActive(n.href) ? 'rgba(217,164,65,0.1)' : 'transparent',
+                  }}
+                >
+                  {n.label}
+                </Link>
+              )
+            )}
           </nav>
         </div>
 
         {/* 桌面导航 */}
         <nav className="hidden px-3 md:sticky md:top-[88px] md:block">
-          {NAV.map((n) => {
+          {NAV_ROWS.map((n) => {
+            if (n.depth < 0) {
+              return (
+                <div
+                  key={`g-${n.label}`}
+                  className="mb-0.5 mt-2 flex items-center gap-3 px-3 py-1 text-2xs uppercase tracking-wider text-fgFaint"
+                >
+                  <span className="w-4 text-center text-sm">{n.glyph}</span>
+                  {n.label}
+                </div>
+              );
+            }
             const active = isActive(n.href);
             return (
               <Link
                 key={n.href}
                 href={n.href}
-                className="mb-0.5 flex items-center gap-3 rounded-md px-3 py-2.5 text-[13px] transition-colors"
+                className={
+                  'mb-0.5 flex items-center gap-3 rounded-md py-2.5 text-[13px] transition-colors ' +
+                  (n.depth === 1 ? 'ml-3 pl-3 pr-3 text-[12px]' : 'px-3')
+                }
                 style={{
                   background: active ? 'rgba(217,164,65,0.09)' : 'transparent',
                   color: active ? '#E8F0EC' : '#93A39C',

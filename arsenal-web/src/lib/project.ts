@@ -1,9 +1,10 @@
 import projRaw from '@/generated/project.json';
 import { auditArchitecture, capLabel, STATUS_META, type ArchAudit, type ArchGap, type GapRemedy } from './arch';
 import type { ComposedStack, StackPicks } from './content-types';
-import { bootVersionOf, composeStack, dimensionById, dimensions, renderPom, renderYaml } from './stack';
+import { baseById, bootVersionOf, composeStack, dimensionById, dimensions, renderPom, renderYaml } from './stack';
 import { buildArchDiagram, archDiagramD2, archDiagramMermaid } from './arch-diagram';
 import { buildDeployPlan } from './deploy';
+import { lintExportFiles, needsExplicitVersion, type LintViolation } from './export-lint';
 
 /**
  * 项目结构层。
@@ -453,7 +454,12 @@ export function renderGradle(
       if (seen.has(key)) continue;
       seen.add(key);
 
-      const coord = `${d.groupId}:${d.artifactId}`;
+      // Gradle 没有 parent 传递 BOM 的说法，版本来源是 io.spring.dependency-management
+      // 导入的 spring-boot-dependencies：BOM 管辖内可不写版本，管辖外（nacos 生态等）
+      // 必须显式拼上 —— 否则 Gradle 解析依赖那一步直接失败，与 Maven 侧同族事故。
+      const bare = `${d.groupId}:${d.artifactId}`;
+      const coord =
+        d.version && needsExplicitVersion(d.groupId) ? `${bare}:${d.version}` : bare;
       const isProcessor = d.scope === 'provided';
       if (d.scope === 'test') deps.push(`    testImplementation '${coord}'`);
       else if (isProcessor) {
@@ -600,6 +606,8 @@ export interface ExportPlan {
   files: ExportFile[];
   bytes: number;
   dangling: DanglingRef[];
+  /** 导出预检闸：包自洽性检查（同名 bean / 重复文件 / 悬空 import / 无版本依赖 / yml 异类键） */
+  violations: LintViolation[];
   kind: 'maven' | 'gradle';
 }
 
@@ -861,6 +869,14 @@ export function collectExportFiles(
   const javaVersion = composed.properties['java.version'] ?? '17';
   // 基底决定 pom parent / gradle 插件里写的 Spring Boot 版本
   const bootVersion = bootVersionOf(baseId);
+  // 所选基底未覆盖时 bootVersionOf 会回落到骨架基线 —— 这个差异必须写进 pom，
+  // 否则用户「选了 4.1 拿到 3.2」却找不到任何解释（09-29 事故的真实质疑）
+  const pickedBase = baseId ? baseById.get(baseId) : undefined;
+  const baseNote =
+    pickedBase && pickedBase.covered === false
+      ? `注意：所选基底「${pickedBase.name}」本平台尚未覆盖（骨架按 3.x 编写），` +
+        `pom parent 回落到骨架基线 ${bootVersion}。升级该基底前请勿手改此版本。`
+      : undefined;
   const name = (projectName ?? '').trim() || projectDoc.artifactId;
 
   // ── 构建文件 ──
@@ -870,7 +886,7 @@ export function collectExportFiles(
   } else {
     files.push({
       path: 'pom.xml',
-      content: renderPom(composed, name, bootVersion),
+      content: renderPom(composed, name, bootVersion, baseNote),
       group: '构建',
     });
   }
@@ -1064,6 +1080,7 @@ export function buildExportPlan(
     files: unique,
     bytes: unique.reduce((n, f) => n + f.content.length, 0),
     dangling,
+    violations: lintExportFiles(unique),
     kind: isGradle ? 'gradle' : 'maven',
   };
 }

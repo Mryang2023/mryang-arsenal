@@ -1149,6 +1149,44 @@ def build_project():
             problems.append('SCAFFOLD %s 变体全带条件，但结构树恒画它 —— 某些组合下包里有、图上没有'
                             % p)
 
+    # ── ⑦ 选项 yaml 片段必须能安全拼进 application.yml ────────
+    # renderYaml 把各选项的 yaml 以 --- 多文档拼进导出包的 application.yml。
+    # 凡未标 yamlNote 的片段都会真实进导出包：语法非法（Nginx conf / Dockerfile
+    # / logback XML）或顶层键不是 Spring 配置（scrape_configs 等）时，应用在
+    # 解析配置那一步就崩 —— 09-29 事故：49 个片段混进 application.yml，
+    # 用户导出的后端启动不起来。这类问题必须构建期炸掉，不许静默进产物。
+    SPRING_ROOTS = {
+        'spring', 'server', 'mybatis-plus', 'springdoc', 'management', 'logging',
+        'app', 'shardingsphere', 'xxl', 'xxl-job', 'xxljob', 'dubbo', 'redisson',
+        'resilience4j', 'feign', 'rocketmq', 'kafka', 'elasticsearch', 'sentinel',
+        'seata', 'knife4j', 'restclient', 'webflux', 'grpc', 'mqtt', 'minio',
+        'clickhouse', 'milvus', 'wiremock', 'sonar', 'test', 'sa-token',
+    }
+    for d in dimensions:
+        for o in d['options']:
+            y = o.get('yaml')
+            if not y or not y.strip() or o.get('yamlNote'):
+                continue  # yamlNote = 台面展示用的非 Spring 示例，不进 application.yml
+            where = '%s/%s' % (d['id'], o['id'])
+            for ln in y.splitlines():
+                if ln[:1].isspace():
+                    continue  # 非顶层行
+                s = ln.strip()
+                if not s or s.startswith('#') or s == '---':
+                    continue
+                if s.endswith(':'):
+                    token = s[:-1].strip()
+                elif re.match(r'^[A-Za-z_][\w.-]*:(\s|$)', s):
+                    token = s.split(':', 1)[0].strip()
+                else:
+                    token = s  # 裸标量行（命令/清单内容），必不在白名单
+                if token not in SPRING_ROOTS:
+                    problems.append(
+                        '选项 %s 的 yaml 片段含非 Spring 顶层内容「%s」—— '
+                        '它会被拼进 application.yml。展示用示例请标 yamlNote: True'
+                        % (where, token[:40]))
+                    break
+
     if problems:
         print('\n[arsenal] 项目结构数据校验失败：')
         for p in problems:

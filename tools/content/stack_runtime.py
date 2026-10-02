@@ -18,6 +18,7 @@ DIMENSIONS = [
         "options": [
             {
                 "id": "bare",
+                "yamlNote": True,
                 "name": "裸机进程",
                 "badge": "通用",
                 "summary": "直接在宿主操作系统上以进程方式跑 jar，最省资源、零额外依赖，但扩容和配置下发全靠手工，环境一致性无法保证。",
@@ -32,6 +33,7 @@ DIMENSIONS = [
             },
             {
                 "id": "vm",
+                "yamlNote": True,
                 "name": "虚拟机",
                 "badge": "通用",
                 "summary": "在虚拟机里跑进程，环境隔离比裸机好、可克隆镜像，但每个 VM 带完整操作系统，资源开销大、启动慢。",
@@ -46,6 +48,7 @@ DIMENSIONS = [
             },
             {
                 "id": "container",
+                "yamlNote": True,
                 "name": "容器",
                 "badge": "推荐",
                 "summary": "用 Docker 把应用与依赖打包成镜像，环境一致、秒级启停，是绝大多数微服务的默认落点，但需维护构建与仓库。",
@@ -60,6 +63,7 @@ DIMENSIONS = [
             },
             {
                 "id": "k8s",
+                "yamlNote": True,
                 "name": "Kubernetes",
                 "badge": "高阶",
                 "summary": "Kubernetes 提供声明式编排、自愈与水平扩容，适合多服务多环境，但控制面与运维心智成本明显更高。",
@@ -75,6 +79,7 @@ DIMENSIONS = [
             },
             {
                 "id": "serverless",
+                "yamlNote": True,
                 "name": "Serverless 函数",
                 "badge": "灵活",
                 "summary": "以 Spring Cloud Function 打包成函数，按请求计费、免运维，但冷启动、超时与有状态限制让大部分业务跑不进去。",
@@ -89,6 +94,7 @@ DIMENSIONS = [
             },
             {
                 "id": "hybrid",
+                "yamlNote": True,
                 "name": "混合异构",
                 "badge": "灵活",
                 "summary": "核心服务跑 K8s、边缘推理跑裸机 GPU、批处理跑虚拟机，按负载选最合适的基座，但跨环境网络与运维规范要自己打通。",
@@ -126,6 +132,7 @@ DIMENSIONS = [
             },
             {
                 "id": "nginx",
+                "yamlNote": True,
                 "name": "Nginx 反向代理",
                 "badge": "推荐",
                 "summary": "用 Nginx 做七层反向代理与负载均衡，配置成熟、性能稳，单机可扛万级并发，是绝大多数项目的默认入口。",
@@ -140,6 +147,7 @@ DIMENSIONS = [
             },
             {
                 "id": "haproxy",
+                "yamlNote": True,
                 "name": "HAProxy",
                 "badge": "稳妥",
                 "summary": "HAProxy 专注四/七层负载均衡，连接数与健康检查能力比 Nginx 更强，适合长连接和极高性能入口场景。",
@@ -154,6 +162,7 @@ DIMENSIONS = [
             },
             {
                 "id": "slb",
+                "yamlNote": True,
                 "name": "云负载均衡",
                 "badge": "通用",
                 "summary": "直接用云厂商负载均衡（如 ALB/CLB），免运维、自带证书与可用区容灾，但流量与规则被绑定在单一云，跨云迁移成本高。",
@@ -168,6 +177,7 @@ DIMENSIONS = [
             },
             {
                 "id": "lvs",
+                "yamlNote": True,
                 "name": "LVS+Keepalived",
                 "badge": "高阶",
                 "summary": "LVS+Keepalived 做四层 DR 模式转发，性能接近线速、支撑百万并发，但需要内核参数调优与双机 VIP 漂移，运维门槛高。",
@@ -183,6 +193,7 @@ DIMENSIONS = [
             },
             {
                 "id": "envoy",
+                "yamlNote": True,
                 "name": "Envoy+Istio",
                 "badge": "高阶",
                 "summary": "Envoy 作为边车代理配合 Istio 提供精细流量治理、mTLS 与可观测，是 Service Mesh 标配，但引入控制面后复杂度陡增。",
@@ -198,6 +209,7 @@ DIMENSIONS = [
             },
             {
                 "id": "f5",
+                "yamlNote": True,
                 "name": "F5 硬件",
                 "badge": "高阶",
                 "summary": "F5 硬件负载均衡提供金融级吞吐、SSL 卸载与策略引擎，稳定性极强，但设备昂贵、配置依赖专有控制台、弹性差。",
@@ -240,7 +252,9 @@ DIMENSIONS = [
                 "summary": "Spring Cloud Gateway 用 Java 写路由与过滤器，和 Spring 生态无缝集成，适合做鉴权、限流、灰度等统一入口逻辑。",
                 "yaml": "spring:\n  cloud:\n    gateway:\n      routes:\n      - id: user\n        uri: lb://user-svc\n        predicates:\n        - Path=/api/user/**",
                 "dependencies": [
-                    {"groupId": "org.springframework.cloud", "artifactId": "spring-cloud-starter-gateway"},
+                    {"groupId": "org.springframework.cloud", "artifactId": "spring-cloud-starter-gateway",
+                     "version": "4.1.1",
+                     "note": "Spring Cloud 不在 Boot parent BOM 管辖内：无版本声明时 Maven 解析直接报 version is missing，必须显式给出与 Boot 3.2 对应的版本（Spring Cloud 2023.0.x）"},
                 ],
                 "notes": [
                     "用 GatewayFilter 统一加鉴权头、限流用 RequestRateLimiter 过滤器。",
@@ -253,6 +267,7 @@ DIMENSIONS = [
             },
             {
                 "id": "apisix",
+                "yamlNote": True,
                 "name": "Apache APISIX",
                 "badge": "高阶",
                 "summary": "Apache APISIX 基于 Nginx+Lua/etcd，动态路由热更新、插件丰富，性能高于 Java 网关，适合高并发与多云统一网关。",
@@ -268,6 +283,7 @@ DIMENSIONS = [
             },
             {
                 "id": "kong",
+                "yamlNote": True,
                 "name": "Kong",
                 "badge": "高阶",
                 "summary": "Kong 以 OpenResty 为底座、插件生态庞大，企业集成成熟，但 Lua 插件开发与调试门槛高于配置式网关。",
@@ -282,6 +298,7 @@ DIMENSIONS = [
             },
             {
                 "id": "envoygw",
+                "yamlNote": True,
                 "name": "Envoy Gateway",
                 "badge": "高阶",
                 "summary": "Envoy Gateway 用 Kubernetes Gateway API 标准驱动 Envoy，声明式、和 K8s 原生融合，是 mesh 与网关统一的方向，但落地资料仍少。",
@@ -306,6 +323,7 @@ DIMENSIONS = [
         "options": [
             {
                 "id": "single",
+                "yamlNote": True,
                 "name": "单进程",
                 "badge": "轻量",
                 "summary": "单进程 jar 自己跑，最简单、零编排，但只能纵向扩容，挂了靠外部守护进程拉起，不适合多实例协同。",
@@ -320,6 +338,7 @@ DIMENSIONS = [
             },
             {
                 "id": "compose",
+                "yamlNote": True,
                 "name": "Docker Compose",
                 "badge": "通用",
                 "summary": "Docker Compose 用一份 yaml 拉起多容器，本地与单机部署极方便，但缺乏跨主机调度与生产级自愈，不适合真正集群。",
@@ -335,6 +354,7 @@ DIMENSIONS = [
             },
             {
                 "id": "swarm",
+                "yamlNote": True,
                 "name": "Docker Swarm",
                 "badge": "稳妥",
                 "summary": "Docker Swarm 在 Compose 基础上加集群调度与多副本，学习成本低，但生态与功能已被 Kubernetes 全面压制，新项目少选。",
@@ -349,6 +369,7 @@ DIMENSIONS = [
             },
             {
                 "id": "k8s",
+                "yamlNote": True,
                 "name": "Kubernetes",
                 "badge": "高阶",
                 "summary": "Kubernetes 声明式管理多副本、滚动发布与自愈，是生产集群事实标准，但 yaml 多、概念重，小项目会觉得杀鸡用牛刀。",
@@ -364,6 +385,7 @@ DIMENSIONS = [
             },
             {
                 "id": "k3s",
+                "yamlNote": True,
                 "name": "K3s 轻量",
                 "badge": "高阶",
                 "summary": "K3s 是砍掉非核心组件的轻量 K8s，单二进制、512M 即可跑，适合边缘和小型集群，但少数上游特性被精简。",
@@ -378,6 +400,7 @@ DIMENSIONS = [
             },
             {
                 "id": "nomad",
+                "yamlNote": True,
                 "name": "Nomad",
                 "badge": "高阶",
                 "summary": "HashiCorp Nomad 调度容器/二进制/Java 任务，比 K8s 轻、跨数据中心简单，但生态与社区规模远小于 Kubernetes。",
@@ -401,6 +424,7 @@ DIMENSIONS = [
         "options": [
             {
                 "id": "public",
+                "yamlNote": True,
                 "name": "公有云仓库",
                 "badge": "轻量",
                 "summary": "直接用 Docker Hub 或云厂商镜像仓库，零搭建、拉取即用，但镜像公开或受速率限制，私有关键镜像有泄露与合规风险。",
@@ -416,6 +440,7 @@ DIMENSIONS = [
             },
             {
                 "id": "harbor",
+                "yamlNote": True,
                 "name": "Harbor",
                 "badge": "推荐",
                 "summary": "Harbor 是带权限、漏洞扫描和镜像签名的私有仓库，满足企业合规，但需要单独部署维护一套存储与证书。",
@@ -431,6 +456,7 @@ DIMENSIONS = [
             },
             {
                 "id": "nexus",
+                "yamlNote": True,
                 "name": "Nexus",
                 "badge": "通用",
                 "summary": "Sonatype Nexus 同时托管镜像与 Maven/npm 制品，一套管理多类依赖，但对纯镜像场景配置偏重。",
@@ -445,6 +471,7 @@ DIMENSIONS = [
             },
             {
                 "id": "artifactory",
+                "yamlNote": True,
                 "name": "JFrog Artifactory",
                 "badge": "高阶",
                 "summary": "JFrog Artifactory 统一管理镜像、包与构建元数据，企业级合规与溯源强，但授权费用高、资源占用大。",
