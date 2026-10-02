@@ -1,6 +1,6 @@
 # V-1 截图矩阵 · 人读报告
 
-- 生成时间：2026-10-01T14:54:30.642Z
+- 生成时间：2026-10-02T15:22:45.836Z
 - 站点：`http://127.0.0.1:3021`（静态导出 `out/`，深色单主题）
 - 矩阵：21 个 URL × 3 个视口 = **63 张**
 - 截图范围：`viewport`（视口尺寸 —— 整页图在长页上完全不可判读，见脚本里 FULL_PAGE 的注释）
@@ -16,7 +16,7 @@
 | 每张字节数 | > 8192 | 最小 47604（stack-delivery__mobile.png） | ✅ |
 | URL 发现数 | 21 | 21 | ✅ |
 | pageerror | 0 | 0 / 0 | ✅ |
-| console.error | 0 | 0 / 7 | ✅ |
+| console.error | 0 | 0 / 6 | ✅ |
 | requestfailed | 0 | 0 / 3 | ✅ |
 | HTTP ≥400 | 0 | 0 / 0 | ✅ |
 
@@ -26,11 +26,8 @@
 
 | id | 条数 | 原因 | 归属 |
 |---|---|---|---|
-| `favicon-404` | 1 | public/ 下无 favicon.*、src/app/layout.tsx 的 metadata 无 icons 字段 → 浏览器回退请求 /favicon.ico 得 404。真实缺陷，见 findings.md F-07，归 V-4 图形资产。 | findings.md |
 | `archify-backend-down` | 9 | src/lib/arsenal-api.ts:16 硬编码 DEFAULT_BASE = http://localhost:3011；静态导出站（output:export）挂载即请求 /api/archify，后端未起则必然失败。真实缺陷，见 findings.md F-06。 | findings.md |
 
-- `favicon-404`：
-  - `home__desktop.png` · console ·  http://127.0.0.1:3021/favicon.ico
 - `archify-backend-down`：
   - `archify__desktop.png` · console ·  http://127.0.0.1:3021/archify/
   - `archify__desktop.png` · console ·  http://localhost:3011/api/archify
@@ -72,14 +69,14 @@
 
 | 文件 | 路由 | 视口 | 字节 | 尺寸(视口) | scrollW/clientW | 横向溢出 | scrollH | img 失败 | pageerror | console.err | reqfail | 4xx |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|
-| `home__desktop.png` | `/` | desktop | 211.4 KB | 1440×900 | 1440/1440 | 0px | 4287 | 0 | 0 | 1 | 0 | 0 |
-| `home__tablet.png` | `/` | tablet | 160.8 KB | 1024×768 | 1024/1024 | 0px | 4785 | 0 | 0 | 0 | 0 | 0 |
-| `home__mobile.png` | `/` | mobile | 105.6 KB | 390×844 | 390/390 | 0px | 8575 | 0 | 0 | 0 | 0 | 0 |
+| `home__desktop.png` | `/` | desktop | 211.5 KB | 1440×900 | 1440/1440 | 0px | 4287 | 0 | 0 | 0 | 0 | 0 |
+| `home__tablet.png` | `/` | tablet | 163.3 KB | 1024×768 | 1024/1024 | 0px | 4801 | 0 | 0 | 0 | 0 | 0 |
+| `home__mobile.png` | `/` | mobile | 106.6 KB | 390×844 | 390/390 | 0px | 8591 | 0 | 0 | 0 | 0 | 0 |
 | `arch__desktop.png` | `/arch/` | desktop | 152.9 KB | 1440×900 | 1440/1440 | 0px | 986 | 0 | 0 | 0 | 0 | 0 |
 | `arch__tablet.png` | `/arch/` | tablet | 108.8 KB | 1024×768 | 1024/1024 | 0px | 930 | 0 | 0 | 0 | 0 | 0 |
 | `arch__mobile.png` | `/arch/` | mobile | 47.3 KB | 390×844 | 390/390 | 0px | 1112 | 0 | 0 | 0 | 0 | 0 |
-| `archify__desktop.png` | `/archify/` | desktop | 139.9 KB | 1440×900 | 1440/1440 | 0px | 930 | 0 | 0 | 2 | 1 | 0 |
-| `archify__tablet.png` | `/archify/` | tablet | 120.1 KB | 1024×768 | 1024/1024 | 0px | 930 | 0 | 0 | 2 | 1 | 0 |
+| `archify__desktop.png` | `/archify/` | desktop | 140.5 KB | 1440×900 | 1440/1440 | 0px | 930 | 0 | 0 | 2 | 1 | 0 |
+| `archify__tablet.png` | `/archify/` | tablet | 120.7 KB | 1024×768 | 1024/1024 | 0px | 930 | 0 | 0 | 2 | 1 | 0 |
 | `archify__mobile.png` | `/archify/` | mobile | 55.5 KB | 390×844 | 390/390 | 0px | 1588 | 0 | 0 | 2 | 1 | 0 |
 | `blueprints__desktop.png` | `/blueprints/` | desktop | 176.4 KB | 1440×900 | 1440/1440 | 0px | 1325 | 0 | 0 | 0 | 0 | 0 |
 | `blueprints__tablet.png` | `/blueprints/` | tablet | 127.1 KB | 1024×768 | 1024/1024 | 0px | 1619 | 0 | 0 | 0 | 0 | 0 |
@@ -87,15 +84,15 @@
 | `cases__desktop.png` | `/cases/` | desktop | 215.5 KB | 1440×900 | 1440/1440 | 0px | 1753 | 0 | 0 | 0 | 0 | 0 |
 | `cases__tablet.png` | `/cases/` | tablet | 162.2 KB | 1024×768 | 1024/1024 | 0px | 2147 | 0 | 0 | 0 | 0 | 0 |
 | `cases__mobile.png` | `/cases/` | mobile | 95.2 KB | 390×844 | 390/390 | 0px | 3211 | 0 | 0 | 0 | 0 | 0 |
-| `check__desktop.png` | `/check/` | desktop | 110.7 KB | 1440×900 | 1440/1440 | 0px | 2648 | 0 | 0 | 0 | 0 | 0 |
+| `check__desktop.png` | `/check/` | desktop | 110.9 KB | 1440×900 | 1440/1440 | 0px | 2648 | 0 | 0 | 0 | 0 | 0 |
 | `check__tablet.png` | `/check/` | tablet | 88.3 KB | 1024×768 | 1024/1024 | 0px | 2727 | 0 | 0 | 0 | 0 | 0 |
 | `check__mobile.png` | `/check/` | mobile | 57.3 KB | 390×844 | 390/390 | 0px | 4044 | 0 | 0 | 0 | 0 | 0 |
-| `export__desktop.png` | `/export/` | desktop | 181.0 KB | 1440×900 | 1440/1440 | 0px | 1198 | 0 | 0 | 0 | 0 | 0 |
-| `export__tablet.png` | `/export/` | tablet | 116.8 KB | 1024×768 | 1024/1024 | 0px | 1301 | 0 | 0 | 0 | 0 | 0 |
+| `export__desktop.png` | `/export/` | desktop | 182.4 KB | 1440×900 | 1440/1440 | 0px | 1198 | 0 | 0 | 0 | 0 | 0 |
+| `export__tablet.png` | `/export/` | tablet | 117.6 KB | 1024×768 | 1024/1024 | 0px | 1301 | 0 | 0 | 0 | 0 | 0 |
 | `export__mobile.png` | `/export/` | mobile | 46.5 KB | 390×844 | 390/390 | 0px | 2240 | 0 | 0 | 0 | 0 | 0 |
-| `icons__desktop.png` | `/icons/` | desktop | 192.6 KB | 1440×900 | 1440/1440 | 0px | 3425 | 0 | 0 | 0 | 0 | 0 |
+| `icons__desktop.png` | `/icons/` | desktop | 191.7 KB | 1440×900 | 1440/1440 | 0px | 3425 | 0 | 0 | 0 | 0 | 0 |
 | `icons__tablet.png` | `/icons/` | tablet | 141.5 KB | 1024×768 | 1024/1024 | 0px | 4137 | 0 | 0 | 0 | 0 | 0 |
-| `icons__mobile.png` | `/icons/` | mobile | 92.8 KB | 390×844 | 390/390 | 0px | 8321 | 0 | 0 | 0 | 0 | 0 |
+| `icons__mobile.png` | `/icons/` | mobile | 89.1 KB | 390×844 | 390/390 | 0px | 8298 | 0 | 0 | 0 | 0 | 0 |
 | `rules__desktop.png` | `/rules/` | desktop | 145.7 KB | 1440×900 | 1440/1440 | 0px | 7042 | 0 | 0 | 0 | 0 | 0 |
 | `rules__tablet.png` | `/rules/` | tablet | 108.6 KB | 1024×768 | 1024/1024 | 0px | 8009 | 0 | 0 | 0 | 0 | 0 |
 | `rules__mobile.png` | `/rules/` | mobile | 51.8 KB | 390×844 | 390/390 | 0px | 15375 | 0 | 0 | 0 | 0 | 0 |
@@ -111,11 +108,11 @@
 | `stack-run__desktop.png` | `/stack/run/` | desktop | 163.5 KB | 1440×900 | 1440/1440 | 0px | 3847 | 0 | 0 | 0 | 0 | 0 |
 | `stack-run__tablet.png` | `/stack/run/` | tablet | 111.0 KB | 1024×768 | 1024/1024 | 0px | 4140 | 0 | 0 | 0 | 0 | 0 |
 | `stack-run__mobile.png` | `/stack/run/` | mobile | 56.6 KB | 390×844 | 390/390 | 0px | 8441 | 0 | 0 | 0 | 0 | 0 |
-| `rules-COL-CODE-001__desktop.png` | `/rules/COL-CODE-001/` | desktop | 143.6 KB | 1440×900 | 1440/1440 | 0px | 1682 | 0 | 0 | 0 | 0 | 0 |
-| `rules-COL-CODE-001__tablet.png` | `/rules/COL-CODE-001/` | tablet | 116.0 KB | 1024×768 | 1024/1024 | 0px | 1875 | 0 | 0 | 0 | 0 | 0 |
+| `rules-COL-CODE-001__desktop.png` | `/rules/COL-CODE-001/` | desktop | 143.8 KB | 1440×900 | 1440/1440 | 0px | 1682 | 0 | 0 | 0 | 0 | 0 |
+| `rules-COL-CODE-001__tablet.png` | `/rules/COL-CODE-001/` | tablet | 116.2 KB | 1024×768 | 1024/1024 | 0px | 1875 | 0 | 0 | 0 | 0 | 0 |
 | `rules-COL-CODE-001__mobile.png` | `/rules/COL-CODE-001/` | mobile | 62.1 KB | 390×844 | 390/390 | 0px | 2891 | 0 | 0 | 0 | 0 | 0 |
-| `rules-REL-LOG-002__desktop.png` | `/rules/REL-LOG-002/` | desktop | 145.7 KB | 1440×900 | 1440/1440 | 0px | 1568 | 0 | 0 | 0 | 0 | 0 |
-| `rules-REL-LOG-002__tablet.png` | `/rules/REL-LOG-002/` | tablet | 121.9 KB | 1024×768 | 1024/1024 | 0px | 1699 | 0 | 0 | 0 | 0 | 0 |
+| `rules-REL-LOG-002__desktop.png` | `/rules/REL-LOG-002/` | desktop | 145.6 KB | 1440×900 | 1440/1440 | 0px | 1568 | 0 | 0 | 0 | 0 | 0 |
+| `rules-REL-LOG-002__tablet.png` | `/rules/REL-LOG-002/` | tablet | 121.4 KB | 1024×768 | 1024/1024 | 0px | 1699 | 0 | 0 | 0 | 0 | 0 |
 | `rules-REL-LOG-002__mobile.png` | `/rules/REL-LOG-002/` | mobile | 63.9 KB | 390×844 | 390/390 | 0px | 2703 | 0 | 0 | 0 | 0 | 0 |
 | `rules-WEB-DTO-001__desktop.png` | `/rules/WEB-DTO-001/` | desktop | 165.2 KB | 1440×900 | 1440/1440 | 0px | 1551 | 0 | 0 | 0 | 0 | 0 |
 | `rules-WEB-DTO-001__tablet.png` | `/rules/WEB-DTO-001/` | tablet | 134.3 KB | 1024×768 | 1024/1024 | 0px | 1683 | 0 | 0 | 0 | 0 | 0 |
@@ -144,10 +141,8 @@
 
 （无）
 
-## console.error 全文（7 条）
+## console.error 全文（6 条）
 
-- `home__desktop.png`：Failed to load resource: the server responded with a status of 404 (Not Found)
-  - at: http://127.0.0.1:3021/favicon.ico:0
 - `archify__desktop.png`：Access to fetch at 'http://localhost:3011/api/archify' from origin 'http://127.0.0.1:3021' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource.
   - at: http://127.0.0.1:3021/archify/:0
 - `archify__desktop.png`：Failed to load resource: net::ERR_FAILED
