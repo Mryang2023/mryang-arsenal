@@ -71,10 +71,7 @@ export default function HomePage() {
             杨先生的军火库
           </h1>
           <p className="mt-3 max-w-2xl text-[15px] leading-relaxed text-fgMuted">
-            我不用 AI 写的代码去反推规范 —— 那等于把自己的毛病立碑。这里的每一条都来自
-            <span className="text-fg">行业基准</span>：
-            阿里巴巴 Java 开发手册、Google Java Style、Spring 官方约定、OWASP、Effective Java。
-            目的只有一个 ——{' '}
+            {'我不用 AI 写的代码去反推规范 —— 那等于把自己的毛病立碑。这里的每一条都来自行业基准：阿里巴巴 Java 开发手册、Google Java Style、Spring 官方约定、OWASP、Effective Java。目的只有一个 —— '}
             <span className="text-brass">让任何 AI 生成的代码，都收敛到同一套规范上。</span>
           </p>
 
@@ -92,7 +89,7 @@ export default function HomePage() {
               label="可自动检出"
               value={String(liveStats.regexCapable)}
               unit="条"
-              sub="正则层，零成本即时判定"
+              sub="前端正则层口径（后端另含 AST 层）"
               accent="#56C596"
             />
             <Metric label="溯源出处" value={String(liveStats.sources)} unit="个" sub="无出处不收录" />

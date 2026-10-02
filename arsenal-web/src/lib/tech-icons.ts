@@ -788,7 +788,8 @@ export const TECH_ICONS: Record<string, TechIcon> = {
   },
   ai: {
     name: 'AI / 模型服务',
-    color: '#6C5CE7',
+    // V2-08：跟随 actor 类目灰系（#4A5568），不再做全站唯一的色彩例外
+    color: '#4A5568',
     kind: 'actor',
     svg:
       R(5, 5, 14, 14, 3, 'fill="none" stroke="currentColor" stroke-width="1.7"') +

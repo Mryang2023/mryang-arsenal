@@ -354,7 +354,7 @@ export default function RuleDetailPage({ params }: { params: { id: string } }) {
             {rule.appliesTo?.pathGlob && (
               <div className="mt-3 border-t border-line pt-3">
                 <div className="text-2xs text-fgFaint">适用路径</div>
-                <div className="mono mt-1 break-all text-2xs text-fgMuted">{rule.appliesTo.pathGlob}</div>
+                <div className="mono mt-1 [overflow-wrap:anywhere] text-2xs text-fgMuted">{rule.appliesTo.pathGlob}</div>
               </div>
             )}
             {rule.appliesTo?.stack && rule.appliesTo.stack.length > 0 && (
@@ -387,7 +387,7 @@ export default function RuleDetailPage({ params }: { params: { id: string } }) {
 
           <div className="panel p-4">
             <h3 className="mono text-2xs uppercase tracking-[0.18em] text-fgFaint">数据溯源</h3>
-            <div className="mono mt-2 break-all text-2xs text-fgMuted">
+            <div className="mono mt-2 [overflow-wrap:anywhere] text-2xs text-fgMuted">
               arsenal-rules/{rule._sourceFile}
             </div>
             <p className="mt-2 text-2xs leading-relaxed text-fgFaint">
