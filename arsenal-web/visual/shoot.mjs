@@ -94,12 +94,8 @@ const FULL_PAGE = process.env.VISUAL_FULL_PAGE === '1';
  * ③ `--strict` 或 `VISUAL_STRICT=1` 可让它们照常算失败，供终检棒独立复核。
  */
 const KNOWN_BASELINE = [
-  {
-    id: 'favicon-404',
-    reason:
-      'public/ 下无 favicon.*、src/app/layout.tsx 的 metadata 无 icons 字段 → 浏览器回退请求 /favicon.ico 得 404。真实缺陷，见 findings.md F-07，归 V-4 图形资产。',
-    match: (e) => /\/favicon\.ico$/.test(String(e.url || '')),
-  },
+  // favicon-404 已于 2026-10-02 修复（public/favicon.svg + layout.tsx metadata.icons），
+  // 基线条目同步摘除 —— 若 404 回归，现在会作为「意外」直接红，不再被基线吞掉。
   {
     id: 'archify-backend-down',
     reason:

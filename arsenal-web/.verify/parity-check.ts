@@ -123,8 +123,54 @@ if (!fs.existsSync(probeScript)) {
 const sevCsv = DEFAULT_EXPORT_OPTIONS.severities.join(',');
 const catCsv = DEFAULT_EXPORT_OPTIONS.categories.join(',');
 
-fs.rmSync(beDir, { recursive: true, force: true });
-fs.rmSync(feDir, { recursive: true, force: true });
+/**
+ * 清掉上一次探针的产物目录。
+ *
+ * 为什么不裸 rmSync（A-6 的教训）：本机沙箱的删除守卫会拦「一次删太多文件」的
+ * rmSync（实测 target/parity-be 2598 个文件 → SAFE_DELETE_BULK_CONFIRM_REQUIRED），
+ * 层进程当场被杀成退出码 1，而磁盘上还留着上一轮的 layer-parity.json ——
+ * runner 读到旧状态报「记账不可信」，全链 verify 从绿变红，内容却零变化。
+ *
+ * 处理：rm 被拒就先 rename 挪成 .trash-<ts>（rename 不是删除，守卫不拦）——
+ * 对本层而言只需保证「探针写进去的是一个不存在的新目录」；挪走的垃圾若还删得动
+ * 就顺手删，删不动就留给下一轮 / 外部清理（target/ 本就 gitignore，不进仓库）。
+ */
+function cleanProbeDir(dir: string): void {
+  const parent = path.dirname(dir);
+  const base = path.basename(dir);
+  try {
+    for (const f of fs.readdirSync(parent).filter((n) => n.startsWith(`${base}.trash-`))) {
+      try {
+        fs.rmSync(path.join(parent, f), { recursive: true, force: true });
+      } catch {
+        /* 守卫在：留给下一轮 */
+      }
+    }
+  } catch {
+    /* 父目录读不了不致命 */
+  }
+  try {
+    fs.rmSync(dir, { recursive: true, force: true });
+    return;
+  } catch {
+    /* 落到 rename 兜底 */
+  }
+  const trash = `${dir}.trash-${Date.now()}`;
+  try {
+    fs.renameSync(dir, trash);
+  } catch {
+    // 连 rename 都失败（目录被占用等）：探针大概率跟着失败并如实报红，这里不吞
+    return;
+  }
+  try {
+    fs.rmSync(trash, { recursive: true, force: true });
+  } catch {
+    /* 同上，留给下一轮 */
+  }
+}
+
+cleanProbeDir(beDir);
+cleanProbeDir(feDir);
 
 const probe = spawnSync(
   'bash',

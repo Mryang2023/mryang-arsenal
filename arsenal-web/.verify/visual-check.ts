@@ -345,22 +345,43 @@ if (manifestShots === null) {
 // ═══════════════════════════════════════════════════════════════
 console.log('\n【4】findings.md 的素材核对（条目数与引用的 PNG 真实存在）');
 
-const findings = spawnSync(process.execPath, [assertScript, '--check-findings'], {
-  cwd: webRoot,
-  encoding: 'utf8',
-  maxBuffer: 16 * 1024 * 1024,
-  timeout: 60 * 1000,
-});
-const fRaw = `${findings.stdout ?? ''}${findings.stderr ?? ''}`;
-for (const l of fRaw.split(/\r?\n/)) {
-  if (l.trim()) console.log(`  ${l}`);
+// shots/ 是 gitignore 的截图产物（fresh clone / 磁盘清理后不存在是常态）。
+// 没有矩阵就无从核对素材 —— 如实 skip 并点名，不静默当绿，也不许整层假红
+//（2026-10-02 修订：此前 shots/ 缺失时会把 evidence/ 之外的引用全部判负，
+//  本机清理一次 shots/ 就从全绿变红，守门变成了对「本机有没有跑过截图台」的断言）。
+const shotsDirOnDisk = path.join(visualDir, 'shots');
+const shotsPngCount = (() => {
+  try {
+    return fs.readdirSync(shotsDirOnDisk).filter((f) => f.endsWith('.png')).length;
+  } catch {
+    return 0;
+  }
+})();
+
+if (shotsPngCount === 0) {
+  skip(
+    'findings.md：素材核对',
+    `visual/shots/ 不存在或没有 PNG（${shotsDirOnDisk}）—— 素材无从核对。` +
+      `先跑 node visual/shoot.mjs 生成 63 张矩阵，再重跑本层。`
+  );
+} else {
+  const findings = spawnSync(process.execPath, [assertScript, '--check-findings'], {
+    cwd: webRoot,
+    encoding: 'utf8',
+    maxBuffer: 16 * 1024 * 1024,
+    timeout: 60 * 1000,
+  });
+  const fRaw = `${findings.stdout ?? ''}${findings.stderr ?? ''}`;
+  for (const l of fRaw.split(/\r?\n/)) {
+    if (l.trim()) console.log(`  ${l}`);
+  }
+  const fHit = /findings:\s*条目\s*(\d+)\s*\/\s*引用 PNG\s*(\d+)\s*\/\s*(.+)$/m.exec(fRaw);
+  check(
+    `findings.md：条目 ${fHit ? fHit[1] : '—'} 条 / 引用 PNG ${fHit ? fHit[2] : '—'} 个 / ${fHit ? fHit[3].trim() : '输出读不到'}`,
+    findings.status === 0 && !!fHit,
+    fHit ? '' : '读不到结论行 —— 素材核对自己坏了，别让它静默变绿'
+  );
 }
-const fHit = /findings:\s*条目\s*(\d+)\s*\/\s*引用 PNG\s*(\d+)\s*\/\s*(.+)$/m.exec(fRaw);
-check(
-  `findings.md：条目 ${fHit ? fHit[1] : '—'} 条 / 引用 PNG ${fHit ? fHit[2] : '—'} 个 / ${fHit ? fHit[3].trim() : '输出读不到'}`,
-  findings.status === 0 && !!fHit,
-  fHit ? '' : '读不到结论行 —— 素材核对自己坏了，别让它静默变绿'
-);
 
 console.log(`\n${'\u2500'.repeat(56)}`);
 process.exit(finish('visual', `（${shots} 张截图 × ${ASSERTION_NAMES.length} 项断言）`));

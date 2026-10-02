@@ -10,6 +10,7 @@ export const metadata: Metadata = {
   },
   description:
     '个人 Java / Spring Boot 工程规范集。一份数据三种出口：人查、给 AI 用、拿代码验。',
+  icons: { icon: '/favicon.svg' },
 };
 
 export const viewport: Viewport = {
