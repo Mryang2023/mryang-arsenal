@@ -176,7 +176,7 @@ function buildPrompt(rules: Rule[], o: ExportOptions): string {
     L.push(`_${g.lead}_`);
     L.push('');
     list.forEach((r, i) => {
-      L.push(`${i + 1}. ${r.promptFragment}  <sub>${r.id}</sub>`);
+      L.push(`${i + 1}. ${r.promptFragment}（${r.id}）`);
     });
     L.push('');
   }
@@ -304,7 +304,7 @@ function buildMarkdown(rules: Rule[], o: ExportOptions): string {
         L.push('**来源**');
         L.push('');
         for (const s of r.sources) {
-          L.push(`- ${s.ref}　<sub>${sourceTypeLabel(s.type)}</sub>`);
+          L.push(`- ${s.ref}（${sourceTypeLabel(s.type)}）`);
           if (s.quote) L.push(`  > ${s.quote}`);
         }
         L.push('');

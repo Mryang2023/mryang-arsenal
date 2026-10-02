@@ -141,7 +141,7 @@ public class ExporterService {
             b.append("_").append(leads[i]).append("_\n\n");
             int n = 1;
             for (Rule r : group) {
-                b.append(n++).append(". ").append(r.promptFragment()).append("  <sub>").append(r.id()).append("</sub>\n");
+                b.append(n++).append(". ").append(r.promptFragment()).append("（").append(r.id()).append("）\n");
             }
             b.append('\n');
         }
@@ -282,7 +282,7 @@ public class ExporterService {
                     L.add("**来源**");
                     L.add("");
                     for (Rule.Source s : r.sources()) {
-                        L.add("- " + s.ref() + "　<sub>" + meta.sourceTypeLabel(s.type()) + "</sub>");
+                        L.add("- " + s.ref() + "（" + meta.sourceTypeLabel(s.type()) + "）");
                         if (s.quote() != null && !s.quote().isBlank()) {
                             L.add("  > " + s.quote().replace("\n", " "));
                         }

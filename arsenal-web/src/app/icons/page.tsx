@@ -35,11 +35,11 @@ export default function IconsPage() {
             图标资产库
           </h1>
           <p className="mt-3 max-w-3xl text-[14.5px] leading-relaxed text-fgMuted">
-            第一批 89 个图标全是具体技术件（MySQL / Redis / Nacos）。真正画交付级架构图时缺的
-            恰恰是那些<span className="text-fg">不是某个产品</span>的东西：谁在用系统、跑在哪、
-            怎么进来、一个还是多个。这一批补的就是它们 ——
-            <span className="text-fg">全部手绘 SVG</span>，随 currentColor 变色、能进 SVG 导出，
-            不引任何图标库。
+            {'第一批图标全是具体技术件（MySQL / Redis / Nacos）。真正画交付级架构图时缺的恰恰是那些'}
+            <span className="text-fg">不是某个产品</span>
+            {'的东西：谁在用系统、跑在哪、怎么进来、一个还是多个 —— 这一批补的就是它们：'}
+            <span className="text-fg">全部手绘 SVG</span>
+            {'，随 currentColor 变色、能进 SVG 导出，不引任何图标库。'}
           </p>
 
           <div className="mt-6 grid grid-cols-2 gap-px overflow-hidden rounded-lg border border-line bg-line md:grid-cols-4">

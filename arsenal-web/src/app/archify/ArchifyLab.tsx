@@ -369,7 +369,8 @@ function StatusRow({ status }: { status: ArchifyStatus }) {
     checking: { dot: '#93A39C', label: '正在探测后端…', tone: 'text-fgMuted' },
     ready: { dot: '#56C596', label: '后端就绪', tone: 'text-fg' },
     unavailable: { dot: '#E5A33D', label: '后端在，但这台机器出不了图', tone: 'text-fg' },
-    offline: { dot: '#E5484D', label: '后端连不上', tone: 'text-fg' },
+    // 离线是静态站的正常形态，不是故障 —— 用中性灰，不用告警红（findings V2-03）
+    offline: { dot: '#93A39C', label: '后端不在 · 离线模式', tone: 'text-fg' },
   } as const;
   const m = map[status.kind];
 
@@ -594,6 +595,22 @@ function ArtifactCard({
   }
 
   if (artifact.kind === 'error') {
+    // 连不上后端不是故障，是静态站的常态（arsenal-api.ts 的 UNREACHABLE）——
+    // 用与状态卡一致的中性呈现 + 离线出路，红色告警只留给真正的请求失败。
+    if (artifact.code === 'UNREACHABLE') {
+      return (
+        <div className="panel px-3 py-2.5">
+          <p className="mono text-[10px] uppercase tracking-wider text-fgMuted">
+            ③ 出图结果 · 后端不在 · 离线模式
+          </p>
+          <p className="mt-1 text-[11px] leading-[17px] text-fgMuted">
+            {artifact.message}
+            <br />
+            离线也能用：把左栏的 IR 复制走，用 CLI 直接出图。
+          </p>
+        </div>
+      );
+    }
     return (
       <div className="panel px-3 py-2.5" style={{ borderColor: 'rgba(229,72,77,0.4)' }}>
         <p className="mono text-[10px] uppercase tracking-wider" style={{ color: '#E5484D' }}>

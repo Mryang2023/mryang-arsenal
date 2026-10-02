@@ -271,11 +271,11 @@ export default function ExportStudio() {
             </div>
           </div>
 
-          {/* 预览 */}
+          {/* 源文件视图：这里是编译产物的原文（.md），不是渲染后的文档 */}
           <div className="panel overflow-hidden">
             <div className="flex items-center gap-2 border-b border-line bg-surfaceHi px-4 py-2">
               <span className="mono text-2xs uppercase tracking-wider text-fgFaint">
-                preview
+                source · 源文件
               </span>
               <span className="mono ml-auto text-2xs text-fgFaint">{selected.filename}</span>
             </div>
