@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { StackPicks } from '@/lib/content-types';
 import { dimensions } from '@/lib/stack';
 import { STEP_BY_ID, THEME_SECTIONS } from '../wizard';
@@ -26,16 +26,44 @@ export default function ThemeStep({
   dimFlags,
   onPick,
   onClear,
+  activeDim,
 }: {
   picks: StackPicks;
   /** 问题槽位标记（dimId → 红/绿 + 一句话）。出处见 StackComposer 的 issueDots */
   dimFlags?: Record<string, DimFlag>;
   onPick: (dimId: string, optId: string) => void;
   onClear: (dimId: string) => void;
+  /** focusDim 链路：点阵/台面点进来的槽位。到位后本组件切组 + 滚动 + 高亮 */
+  activeDim?: string | null;
 }) {
   const spec = STEP_BY_ID.get('theme')!;
   const [gi, setGi] = useState(0);
   const section = THEME_SECTIONS[Math.min(gi, THEME_SECTIONS.length - 1)] ?? THEME_SECTIONS[0];
+  // ── focusDim 断线修复（2026-10-03）：此前展开组只认本地 useState(0)，activeDim
+  // 没人消费 —— 点非首组维度（如 缓存→中间件组）落在 ③ 却看着「数据访问」组，
+  // 页面上根本没有被点维度的选件 UI。现在：activeDim 变化 → 按事实源 groupId
+  // 切到对应分区 → 把该槽位滚进视野 + 黄铜高亮（DimPicker highlight）。
+  const followRef = useRef<HTMLDivElement | null>(null);
+  const followedRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!activeDim || followedRef.current === activeDim) return;
+    followedRef.current = activeDim;
+    const groupId = dimensions.find((d) => d.id === activeDim)?.groupId;
+    const idx = THEME_SECTIONS.findIndex((s) => s.group.id === groupId);
+    if (idx >= 0 && idx !== gi) setGi(idx);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- gi 只读当前值；变化由下方守卫拦截，不重复切组
+  }, [activeDim]);
+  useEffect(() => {
+    if (!activeDim || followedRef.current !== activeDim) return;
+    // 双 rAF：等「切组」那次 setState 提交渲染完再找元素
+    requestAnimationFrame(() =>
+      requestAnimationFrame(() => {
+        followRef.current
+          ?.querySelector(`[data-dim-id="${activeDim}"]`)
+          ?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      })
+    );
+  }, [activeDim, gi]);
   const total = THEME_SECTIONS.reduce((n, s) => n + s.dims.length, 0);
   const filled = THEME_SECTIONS.reduce((n, s) => n + s.dims.filter((d) => picks[d.id]).length, 0);
   // 有问题的组要提前暴露 —— 导航上一眼看到哪组红。按**事实源组**统计该组
@@ -57,7 +85,7 @@ export default function ThemeStep({
 
   return (
     <StepShell spec={spec}>
-      <div className="grid gap-4 p-4 lg:grid-cols-[minmax(0,176px)_minmax(0,1fr)]">
+      <div ref={followRef} className="grid gap-4 p-4 lg:grid-cols-[minmax(0,176px)_minmax(0,1fr)]">
         {/* ── 分组导航：一次只展开并定一组 ── */}
         <nav className="lg:sticky lg:top-4 lg:self-start" aria-label="主题分组">
           <p className="mono px-1 text-[10px] uppercase leading-[15px] tracking-wider text-fgFaint">
@@ -153,6 +181,7 @@ export default function ThemeStep({
                 dim={d}
                 picks={picks}
                 flag={dimFlags?.[d.id]}
+                highlight={activeDim === d.id}
                 onPick={onPick}
                 onClear={onClear}
               />
@@ -173,6 +202,7 @@ export default function ThemeStep({
                     dim={d}
                     picks={picks}
                     flag={dimFlags?.[d.id]}
+                    highlight={activeDim === d.id}
                     onPick={onPick}
                     onClear={onClear}
                   />

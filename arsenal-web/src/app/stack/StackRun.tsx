@@ -24,7 +24,7 @@ import { PAGE_OF_STEP, stepOfDim } from './wizard';
 export default function StackRun() {
   const router = useRouter();
   const ch = useStackChannel('run');
-  const { picks, meta, dimFlags, step, stepSummary, stepIssues, nameOk, pickTopology, setParam } = ch;
+  const { picks, meta, dimFlags, step, stepSummary, stepIssues, nameOk, pickTopology, setParam, activeDim } = ch;
   const { pick, clear, composed, projectName } = ch;
 
   /**
@@ -63,7 +63,15 @@ export default function StackRun() {
   function renderStep() {
     switch (step) {
       case 'deliverRun':
-        return <DeliverRunStep picks={picks} dimFlags={dimFlags} onPick={pick} onClear={clear} />;
+        return (
+          <DeliverRunStep
+            picks={picks}
+            dimFlags={dimFlags}
+            onPick={pick}
+            onClear={clear}
+            activeDim={activeDim}
+          />
+        );
       case 'topology':
         return (
           <TopologyStep
@@ -75,6 +83,7 @@ export default function StackRun() {
             onPick={pick}
             onClear={clear}
             onFocus={setTopoFocus}
+            activeDim={activeDim}
           />
         );
       default:

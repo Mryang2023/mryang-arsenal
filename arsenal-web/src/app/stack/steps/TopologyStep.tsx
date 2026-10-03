@@ -45,6 +45,7 @@ export default function TopologyStep({
   onPick,
   onClear,
   onFocus,
+  activeDim,
 }: {
   picks: StackPicks;
   meta: StackPicksMeta;
@@ -59,6 +60,8 @@ export default function TopologyStep({
    * 可选是故意的：这一步在别处被复用时不传也一样能跑，只是图上没有高亮。
    */
   onFocus?: (target: string) => void;
+  /** focusDim 链路：点阵/台面点进来的槽位（本页短，只高亮不滚动） */
+  activeDim?: string | null;
 }) {
   const spec = STEP_BY_ID.get('topology')!;
   const capacity = estimateCapacity(picks, meta);
@@ -126,6 +129,7 @@ export default function TopologyStep({
               dim={clusterDim}
               picks={picks}
               flag={dimFlags?.[clusterDim.id]}
+              highlight={activeDim === clusterDim.id}
               // 全局可用性立场改的是**应用**那张卡 —— 焦点推给 app
               onPick={(dimId, optId) => {
                 onFocus?.('app');

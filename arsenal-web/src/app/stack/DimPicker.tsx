@@ -36,6 +36,7 @@ export default function DimPicker({
   onPick,
   onClear,
   flag,
+  highlight,
 }: {
   dim: StackDimension;
   picks: StackPicks;
@@ -44,6 +45,9 @@ export default function DimPicker({
   /** 问题标记：need 红 / remedy 绿。三类问题都标 ——
       要没人给的能力（need）、能补上缺口（remedy）、必选未装（need）。 */
   flag?: DimFlag;
+  /** focusDim 链路的聚焦态：点阵/台面点进来的槽位给黄铜描边；
+      根元素同时带 data-dim-id 供步骤页滚动定位。flag 在场时让位（红绿框已够醒目） */
+  highlight?: boolean;
 }) {
   const current = picks[dim.id] ?? '';
   const node = nodeArch[dim.id];
@@ -51,7 +55,15 @@ export default function DimPicker({
   const flagColor = flag?.kind === 'need' ? TONE.bad : { color: TONE.ok.color, border: toneAt('ok', 0.6), soft: toneAt('ok', 0.10) };
 
   return (
-    <div className="relative border-t border-line px-4 py-3 first:border-t-0">
+    <div data-dim-id={dim.id} className="relative border-t border-line px-4 py-3 first:border-t-0">
+      {/* focusDim 聚焦框：与 flag 框同一覆盖语言，黄铜色（= 台面 active 的 ring-brass） */}
+      {highlight && !flag && (
+        <div
+          aria-hidden
+          className="pointer-events-none absolute inset-x-1.5 inset-y-1 rounded-md border-2"
+          style={{ borderColor: TONE.warn.color, boxShadow: `0 0 0 1px ${TONE.warn.color}40` }}
+        />
+      )}
       {/* 显眼的问题框（09-28 反馈：满卡打勾看不出哪张卡有问题）——
           absolute 覆盖框不碰 divide 分隔布局；need 红 / remedy 绿，与点阵同一语言 */}
       {flag && (

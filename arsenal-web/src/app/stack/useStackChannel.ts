@@ -73,6 +73,15 @@ import {
  */
 let pendingDeckFocus: 'arch' | null = null;
 
+/**
+ * focusDim 的跨页载体（2026-10-03）：activeDim 同样是瞬时态、换页即丢，而四页的
+ * focusDim 都是「setActiveDim → 必要时 router.push」。照 pendingDeckFocus 的先例
+ * 写一张模块级一次性便条 —— 新页面的实例挂载时从便条取初值（取走即清），
+ * 「点阵点进来的槽位」的高亮与滚动才能跨页成立（此前点 编排/交付/日志 等运行组
+ * 维度会跳到 /stack/run 却没有任何聚焦 UI）。
+ */
+let pendingActiveDim: string | null = null;
+
 export default function useStackChannel(page: StackPageId = 'software') {
   const router = useRouter();
   const [picks, setPicks] = useState<StackPicks>(() => presetPicks('standard'));
@@ -112,7 +121,12 @@ export default function useStackChannel(page: StackPageId = 'software') {
   const [meta, setMeta] = useState<StackPicksMeta>(() => emptyMeta());
   /** 形态（= 事实源 preset id）。null = 自定义组合，不高亮任何形态卡 */
   const [presetId, setPresetId] = useState<string | null>('standard');
-  const [activeDim, setActiveDim] = useState<string | null>(null);
+  const [activeDim, setActiveDimState] = useState<string | null>(pendingActiveDim);
+  /** 见 pendingActiveDim 的注释：写状态的同时留跨页便条 */
+  function setActiveDim(dimId: string | null) {
+    setActiveDimState(dimId);
+    pendingActiveDim = dimId;
+  }
   const [tab, setTab] = useState<string>('build');
   /**
    * 「点亮请求链路」开关（S1-4）。默认关 —— 动效是给「想看请求怎么穿」的人
@@ -801,6 +815,7 @@ export default function useStackChannel(page: StackPageId = 'software') {
   // 焦点便条是一次性的：新实例挂载取走后就地清掉
   useEffect(() => {
     pendingDeckFocus = null;
+    pendingActiveDim = null;
   }, []);
 
   return {

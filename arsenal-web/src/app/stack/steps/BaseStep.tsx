@@ -38,6 +38,7 @@ export default function BaseStep({
   dimFlags,
   onPick,
   onClear,
+  activeDim,
 }: {
   baseId: string;
   onBase: (id: string) => void;
@@ -46,6 +47,8 @@ export default function BaseStep({
   dimFlags?: Record<string, DimFlag>;
   onPick: (dimId: string, optId: string) => void;
   onClear: (dimId: string) => void;
+  /** focusDim 链路：点阵/台面点进来的槽位（三个维度一屏可见，只高亮不滚动） */
+  activeDim?: string | null;
 }) {
   const spec = STEP_BY_ID.get('base')!;
   /** 基础组的三个维度（JDK / 构建工具 / Web 运行时）—— 与基底同一步定完 */
@@ -122,6 +125,7 @@ export default function BaseStep({
               dim={d}
               picks={picks}
               flag={dimFlags?.[d.id]}
+              highlight={activeDim === d.id}
               onPick={onPick}
               onClear={onClear}
             />

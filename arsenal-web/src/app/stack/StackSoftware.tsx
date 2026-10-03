@@ -91,10 +91,19 @@ export default function StackSoftware() {
             dimFlags={dimFlags}
             onPick={pick}
             onClear={clear}
+            activeDim={activeDim}
           />
         );
       case 'theme':
-        return <ThemeStep picks={picks} dimFlags={dimFlags} onPick={pick} onClear={clear} />;
+        return (
+          <ThemeStep
+            picks={picks}
+            dimFlags={dimFlags}
+            onPick={pick}
+            onClear={clear}
+            activeDim={activeDim}
+          />
+        );
       case 'layers':
         return renderBench();
       default:
