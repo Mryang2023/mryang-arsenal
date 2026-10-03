@@ -353,6 +353,9 @@ export interface ScaffoldDraft {
   envValues: Record<string, string>;
   demoMode: boolean;
   feBase: string;
+  /** 前端 UI 模板 id（vue3-vite 基底下：element-admin / naive-admin / element-topbar）。
+   *  旧草稿没有该字段时由读取方兜底到该基底的 default 模板 */
+  feUi?: string;
   moduleIds: string[];
 }
 
@@ -369,6 +372,7 @@ export function saveScaffoldDraft(draft: ScaffoldDraft, secrets: Record<string, 
       envValues: draft.envValues,
       demoMode: draft.demoMode,
       feBase: draft.feBase,
+      feUi: draft.feUi,
       moduleIds: draft.moduleIds,
       rememberSecrets: remember,
       storedSecrets: remember ? secrets : undefined,
@@ -397,6 +401,8 @@ export function loadScaffoldDraft(): { draft: ScaffoldDraft; secrets: Record<str
         envValues: p.envValues,
         demoMode: !!p.demoMode,
         feBase: typeof p.feBase === 'string' ? p.feBase : 'vue3-vite',
+        // feUi 是后加字段：旧草稿没有时给 undefined，让消费方按 base 的 default 模板兜底
+        feUi: typeof p.feUi === 'string' && p.feUi ? p.feUi : undefined,
         moduleIds: Array.isArray(p.moduleIds) ? p.moduleIds.filter((x) => typeof x === 'string') : [],
       },
       secrets,

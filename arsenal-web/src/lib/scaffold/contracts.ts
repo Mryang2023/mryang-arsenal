@@ -35,6 +35,15 @@ export interface FrontendBase {
   summary: string;
 }
 
+/** 同一前端基底下的 UI 模板（stack.json frontend.templates，2026-10-03）。
+ *  模板本体 = arsenal-scaffold/frontend/<base>/<id>/ 文件树；default 标记兜底值 */
+export interface FeUiTemplate {
+  id: string;
+  name: string;
+  summary: string;
+  default?: boolean;
+}
+
 /** 用户在「环境与连接」步骤填的值：key → 字符串 */
 export type EnvValues = Record<string, string>;
 

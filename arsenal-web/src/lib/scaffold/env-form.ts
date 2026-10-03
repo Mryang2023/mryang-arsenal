@@ -3,16 +3,31 @@
  * schema 来自 stack.json 顶层 envForms（tools/content/stack_frontend.py）。
  */
 import stackRaw from '@/generated/stack.json';
-import type { EnvFieldSpec, EnvFormSpec, EnvValues, FrontendBase } from './contracts';
+import type { EnvFieldSpec, EnvFormSpec, EnvValues, FeUiTemplate, FrontendBase } from './contracts';
 
 const stack = stackRaw as unknown as {
-  frontend: { bases: FrontendBase[]; defaults: Record<string, string> };
+  frontend: {
+    bases: FrontendBase[];
+    templates?: Record<string, FeUiTemplate[]>;
+    defaults: Record<string, string>;
+  };
   envForms: EnvFormSpec[];
 };
 
 export const frontendBases: FrontendBase[] = stack.frontend.bases;
 export const frontendDefaults = stack.frontend.defaults;
 export const envForms: EnvFormSpec[] = stack.envForms;
+
+/** 某个前端基底下的 UI 模板清单（没有声明 templates 的基底 = 单模板语义，不出选择 UI） */
+export function frontendTemplatesOf(baseId: string): FeUiTemplate[] {
+  return stack.frontend.templates?.[baseId] ?? [];
+}
+
+/** 该基底的兜底模板 id：default 标记优先，否则取清单第一项 */
+export function defaultTemplateOf(baseId: string): string {
+  const list = frontendTemplatesOf(baseId);
+  return list.find((t) => t.default)?.id ?? list[0]?.id ?? '';
+}
 
 /** 当前选型下应该出现哪些表单 */
 export function formsFor(picks: Record<string, string | undefined>): EnvFormSpec[] {

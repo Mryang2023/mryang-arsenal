@@ -14,6 +14,7 @@ import type { EnvInput, ExportArtifacts, ExportArtifact, ModuleDef, TemplateVars
 import { buildBackendFiles } from './backend-plan';
 import { buildFrontendFiles } from './frontend-plan';
 import { renderPath, renderText } from './render';
+import { defaultTemplateOf } from './env-form';
 
 function artifact(name: string, files: ExportFile[]): ExportArtifact {
   const bytes = files.reduce((n, f) => n + new TextEncoder().encode(f.content).length, 0);
@@ -57,10 +58,14 @@ export function buildExportArtifacts(
     env: EnvInput;
     modules: ModuleDef[];
     feBase: string;
+    /** 前端 UI 模板 id（vue3-vite 基底下：element-admin / naive-admin / element-topbar） */
+    feUi?: string;
     vars: TemplateVars;
   },
 ): ExportArtifacts {
   const { projectName, env, modules, feBase, vars } = opts;
+  // feUi 未传（旧调用方 / 摘要路径）时落回该基底的 default 模板 —— 行为与多模板化之前一致
+  const feUi = opts.feUi ?? defaultTemplateOf(feBase);
   const audit = auditArchitecture(picks);
 
   // ── 后端包 ─────────────────────────────────────────────────
@@ -75,9 +80,16 @@ export function buildExportArtifacts(
   const backend = artifact(`${projectName}-backend.zip`, backendFiles);
 
   // ── 前端包（feBase=none 或 react 规划中时不出）──────────────
+  // feUi 是同一基底下的 UI 模板选择；模板目录不存在时 buildFrontendFiles
+  // 如实返回 null，按「没有前端包」处理，不静默回落到别的模板
   let frontend: ExportArtifact | undefined;
   if (feBase === 'vue3-vite') {
-    const feFiles = buildFrontendFiles({ vars, withMenuModule: modules.some((m) => m.id === 'menu') });
+    const feFiles = buildFrontendFiles({
+      vars,
+      withMenuModule: modules.some((m) => m.id === 'menu'),
+      baseId: feBase,
+      templateId: feUi,
+    });
     if (feFiles) frontend = artifact(`${projectName}-frontend.zip`, feFiles);
   }
 
