@@ -88,6 +88,9 @@ async function doLogout() {
   gap: 6px;
   cursor: pointer;
   outline: none;
+  /* 顶栏导航式布局里本组件坐在深色 header 上（#001529），
+     不显式给色会继承 body 的深字 —— 深底深字等于看不见 */
+  color: #e8f0ec;
 }
 .icon {
   margin-right: 2px;

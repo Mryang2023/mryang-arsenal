@@ -11,7 +11,6 @@ import http from '@/api/http';
  */
 const router = useRouter();
 const auth = useAuthStore();
-const dialog = useDialog();
 
 const dialogVisible = ref(false);
 const newPassword = ref('');

@@ -14,6 +14,8 @@ const router = createRouter({
   routes: dynamicSkeletonRoutes() as RouteRecordRaw[],
 });
 
-installGuard(router, { dynamic: true });
+import { registerDynamicRoutes } from './dynamic-routes';
+// 注册函数在这里注入：静态变体不装配本文件，guard 里因此不需要对 dynamic-routes 的依赖
+installGuard(router, { dynamic: true, registerDynamicRoutes });
 
 export default router;

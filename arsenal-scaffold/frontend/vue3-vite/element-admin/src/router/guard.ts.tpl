@@ -1,4 +1,5 @@
 import type { Router } from 'vue-router';
+import type { MenuNode } from '@/types/api';
 import { useAuthStore } from '@/stores/auth';
 
 /**
@@ -11,7 +12,14 @@ import { useAuthStore } from '@/stores/auth';
  * dynamic = true 时 refreshIdentity 拿到菜单后注册动态路由，并以
  * fullPath 重进一次：新路由必须在下一次匹配时才生效。
  */
-export function installGuard(router: Router, options: { dynamic?: boolean } = {}) {
+export function installGuard(
+  router: Router,
+  options: {
+    dynamic?: boolean;
+    /** 动态变体传入注册函数；静态变体没有 dynamic-routes 文件，不传也不会被调用 */
+    registerDynamicRoutes?: (router: Router, menus: MenuNode[]) => void;
+  } = {}
+) {
   let dynamicRegistered = false;
   router.beforeEach(async (to) => {
     const auth = useAuthStore();
@@ -28,9 +36,16 @@ export function installGuard(router: Router, options: { dynamic?: boolean } = {}
         auth.clearLocal();
         return { path: '/login' };
       }
-      if (options.dynamic && !dynamicRegistered && auth.menus.length > 0) {
-        const { registerDynamicRoutes } = await import('./dynamic-routes');
-        registerDynamicRoutes(router, auth.menus);
+      // 动态路由的注册函数由「动态变体的路由入口」注入（见 index.dynamic.ts）——
+      // 不在这里 import('./dynamic-routes')：静态变体不含该文件，
+      // 静态 import 会让 vue-tsc 报 TS2307，生成的项目 npm run build 直接失败
+      if (
+        options.dynamic &&
+        options.registerDynamicRoutes &&
+        !dynamicRegistered &&
+        auth.menus.length > 0
+      ) {
+        options.registerDynamicRoutes(router, auth.menus);
         dynamicRegistered = true;
         return to.fullPath;
       }
