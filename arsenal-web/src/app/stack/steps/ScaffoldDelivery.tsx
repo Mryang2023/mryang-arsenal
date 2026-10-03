@@ -41,12 +41,15 @@ export default function ScaffoldDelivery({
   modules,
   forms,
   values,
+  feLabel,
 }: {
   artifacts: ExportArtifacts;
   demoMode: boolean;
   modules: ModuleDef[];
   forms: EnvFormSpec[];
   values: EnvValues;
+  /** 前端摘要（「Vue3 · Naive UI · 清爽管理端」/「无前端」），前端卡上亮出选的是哪套 */
+  feLabel?: string;
 }) {
   const secretKeys = new Set(forms.flatMap((f) => f.fields.filter((x) => x.secret).map((x) => x.key)));
   const envRows = Object.entries(values).filter(([, v]) => v !== '');
@@ -172,6 +175,14 @@ export default function ScaffoldDelivery({
             >
               <div className="flex flex-wrap items-baseline gap-x-2.5 gap-y-1">
                 <p className="text-[12px] font-semibold leading-[17px] text-fg">只拿前端</p>
+                {feLabel && (
+                  <span
+                    className="mono rounded-sm px-1 text-[10px] leading-[15px]"
+                    style={{ color: TONE.warn.color, background: toneAt('warn', 0.1) }}
+                  >
+                    {feLabel}
+                  </span>
+                )}
                 <span className="mono ml-auto text-[10px] leading-[15px] text-fgFaint">
                   {artifacts.frontend.files.length} 文件
                 </span>

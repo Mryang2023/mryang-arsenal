@@ -114,25 +114,35 @@ const scaffoldDir = path.resolve(here, '..', '..', 'arsenal-scaffold');
 
 // ── ③ 前端 import ↔ package.json ─────────────────────────────
 {
-  console.log('\n【3】前端模板 import ↔ package.json');
-  const pkgRaw = SCAFFOLD_FILES['frontend/vue3-vite/package.json.tpl'];
-  const deps = new Set<string>();
-  const pkg = JSON.parse(pkgRaw) as { dependencies: Record<string, string>; devDependencies: Record<string, string> };
-  for (const k of Object.keys(pkg.dependencies ?? {})) deps.add(k);
-  for (const k of Object.keys(pkg.devDependencies ?? {})) deps.add(k);
+  console.log('\n【3】前端模板 import ↔ package.json（逐套模板自洽）');
+  // 多套 UI 模板（2026-10-03）：模板根 = frontend/<base>/<template>/，
+  // 从 bundle key 动态发现，不再硬编码单一目录 —— 新增模板后这里自动多测一套。
+  const templateRoots = new Set<string>();
+  for (const key of Object.keys(SCAFFOLD_FILES)) {
+    const m = /^frontend\/[^/]+\/([^/]+)\/package\.json\.tpl$/.exec(key);
+    if (m) templateRoots.add(key.slice(0, key.length - 'package.json.tpl'.length));
+  }
 
   const bad: string[] = [];
-  for (const [key, content] of Object.entries(SCAFFOLD_FILES)) {
-    if (!key.startsWith('frontend/vue3-vite/src/')) continue;
-    for (const m of content.matchAll(/from\s+['"]([^'"]+)['"]/g)) {
-      const src = m[1];
-      if (src.startsWith('.') || src.startsWith('@/')) continue;
-      const pkgName = src.startsWith('@') ? src.split('/').slice(0, 2).join('/') : src.split('/')[0];
-      if (!deps.has(pkgName)) bad.push(`${pkgName} @ ${key}`);
+  for (const root of templateRoots) {
+    const pkgRaw = SCAFFOLD_FILES[`${root}package.json.tpl`];
+    const deps = new Set<string>();
+    const pkg = JSON.parse(pkgRaw) as { dependencies: Record<string, string>; devDependencies: Record<string, string> };
+    for (const k of Object.keys(pkg.dependencies ?? {})) deps.add(k);
+    for (const k of Object.keys(pkg.devDependencies ?? {})) deps.add(k);
+    for (const [key, content] of Object.entries(SCAFFOLD_FILES)) {
+      if (!key.startsWith(`${root}src/`)) continue;
+      for (const m of content.matchAll(/from\s+['"]([^'"]+)['"]/g)) {
+        const src = m[1];
+        if (src.startsWith('.') || src.startsWith('@/')) continue;
+        const pkgName = src.startsWith('@') ? src.split('/').slice(0, 2).join('/') : src.split('/')[0];
+        if (!deps.has(pkgName)) bad.push(`${pkgName} @ ${key}`);
+      }
     }
   }
-  check('前端模板的外部 import 全部在 package.json 里（零悬空）',
-    bad.length === 0, [...new Set(bad)].slice(0, 4).join('；') || '');
+  check(`前端模板的外部 import 全部在各自 package.json 里（零悬空 · ${templateRoots.size} 套模板）`,
+    templateRoots.size > 0 && bad.length === 0,
+    templateRoots.size === 0 ? '没发现任何模板目录 —— 迁移或 sync 断了' : [...new Set(bad)].slice(0, 4).join('；') || '');
 }
 
 // ── ④ module.json 字段契约 ───────────────────────────────────

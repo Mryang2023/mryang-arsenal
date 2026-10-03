@@ -51,7 +51,7 @@ export default function StackDelivery() {
   const ch = useStackChannel('delivery');
   const {
     picks, meta, baseId, audit, composed, scale, plan, projectName,
-    artifacts, demoMode, moduleResolution, scaffoldForms, allEnvValues,
+    artifacts, demoMode, moduleResolution, scaffoldForms, allEnvValues, feLabel,
     yamlText, promptText, configMd, appCode, ops,
     drafts, reloadDrafts, restoreDraft, doDeleteDraft,
     tab, setTab, showArtifacts, setShowArtifacts, exported, setExported,
@@ -141,6 +141,7 @@ export default function StackDelivery() {
                   modules={moduleResolution.selected}
                   forms={scaffoldForms}
                   values={allEnvValues}
+                  feLabel={feLabel}
                 />
               </div>
               <div className="min-w-0 xl:sticky xl:top-3 xl:self-start">

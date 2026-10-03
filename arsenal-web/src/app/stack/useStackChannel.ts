@@ -24,7 +24,7 @@ import { DRAFTS_LIMIT, draftsKey, loadDrafts, saveDrafts, type StackDraft } from
 import { clearScaffoldDraft, loadScaffoldDraft, saveScaffoldDraft } from '@/lib/picks-store';
 import { buildExportArtifacts } from '@/lib/scaffold/artifacts';
 import type { EnvValues, TemplateVars } from '@/lib/scaffold/contracts';
-import { dbImageOf, defaultValues, formsFor, validateEnv } from '@/lib/scaffold/env-form';
+import { dbImageOf, defaultTemplateOf, defaultValues, formsFor, frontendTemplatesOf, validateEnv } from '@/lib/scaffold/env-form';
 import { resolveModules } from '@/lib/scaffold/module-registry';
 import {
   clearProvenance,
@@ -418,8 +418,17 @@ export default function useStackChannel(page: StackPageId = 'software') {
   const [scaffoldSecrets, setScaffoldSecrets] = useState<EnvValues>({});
   const [rememberSecrets, setRememberSecrets] = useState(false);
   const [demoMode, setDemoMode] = useState(false);
-  const [feBase, setFeBase] = useState('vue3-vite');
+  const [feBase, setFeBaseState] = useState('vue3-vite');
+  /** 前端 UI 模板（vue3-vite 基底下：element-admin / naive-admin / element-topbar）。
+   *  兜底见 setFeBase：换基底/未知值一律落回该基底的 default 模板 */
+  const [feUi, setFeUiState] = useState('element-admin');
   const [moduleIds, setModuleIds] = useState<string[]>([]);
+
+  /** 换前端基底时 feUi 落回新基底的 default 模板 —— 旧模板 id 对新基底无意义 */
+  function setFeBase(baseId: string) {
+    setFeBaseState(baseId);
+    setFeUiState(defaultTemplateOf(baseId));
+  }
 
   // 脚手架草稿水合：一次，读第四通道（环境值/模块/前端基底/演示模式 + 可选的密码）
   useEffect(() => {
@@ -428,7 +437,11 @@ export default function useStackChannel(page: StackPageId = 'software') {
       setScaffoldEnv(saved.draft.envValues);
       setScaffoldSecrets(saved.secrets);
       setDemoMode(saved.draft.demoMode);
-      setFeBase(saved.draft.feBase);
+      setFeBaseState(saved.draft.feBase);
+      // 旧草稿没有 feUi：只在值确实是本基底的已知模板时采用，否则兜底 default
+      const draftUi = saved.draft.feUi;
+      const known = frontendTemplatesOf(saved.draft.feBase).some((t) => t.id === draftUi);
+      setFeUiState(known && draftUi ? draftUi : defaultTemplateOf(saved.draft.feBase));
       setModuleIds(saved.draft.moduleIds);
       setRememberSecrets(Object.keys(saved.secrets).length > 0);
     }
@@ -438,11 +451,11 @@ export default function useStackChannel(page: StackPageId = 'software') {
   useEffect(() => {
     if (!hydrated) return;
     saveScaffoldDraft(
-      { envValues: scaffoldEnv, demoMode, feBase, moduleIds },
+      { envValues: scaffoldEnv, demoMode, feBase, feUi, moduleIds },
       scaffoldSecrets,
       rememberSecrets
     );
-  }, [scaffoldEnv, scaffoldSecrets, rememberSecrets, demoMode, feBase, moduleIds, hydrated]);
+  }, [scaffoldEnv, scaffoldSecrets, rememberSecrets, demoMode, feBase, feUi, moduleIds, hydrated]);
 
   const audit = useMemo(() => auditArchitecture(picks), [picks]);
   const composed = useMemo(() => composeStack(picks), [picks]);
@@ -486,9 +499,10 @@ export default function useStackChannel(page: StackPageId = 'software') {
         env: { values: allEnvValues, demoMode },
         modules: moduleResolution.selected,
         feBase,
+        feUi,
         vars: scaffoldVars,
       }),
-    [picks, appName, baseId, allEnvValues, demoMode, moduleResolution.selected, feBase, scaffoldVars]
+    [picks, appName, baseId, allEnvValues, demoMode, moduleResolution.selected, feBase, feUi, scaffoldVars]
   );
 
   const yamlText = useMemo(() => renderYaml(composed, projectName), [composed, projectName]);
@@ -777,7 +791,15 @@ export default function useStackChannel(page: StackPageId = 'software') {
   );
   const topologyCount = topologyFigures(picks, meta).length;
 
-  const feLabel = feBase === 'none' ? '无前端' : feBase === 'vue3-vite' ? 'Vue3' : feBase;
+  const feLabel = (() => {
+    if (feBase === 'none') return '无前端';
+    if (feBase === 'vue3-vite') {
+      // 有多套 UI 模板时把选中的带出来 —— 摘要里「Vue3」不知道用的是哪套皮
+      const tpl = frontendTemplatesOf(feBase).find((t) => t.id === feUi);
+      return tpl ? `Vue3 · ${tpl.name.split(' · ')[1] ?? tpl.name}` : 'Vue3';
+    }
+    return feBase;
+  })();
   const stepSummary: Record<StepId, string> = {
     project: projectName || '未命名',
     base: picks.build === 'gradle' ? 'Gradle' : 'Maven',
@@ -842,12 +864,12 @@ export default function useStackChannel(page: StackPageId = 'software') {
     // 脚手架通道
     scaffoldEnv, setScaffoldEnv, scaffoldSecrets, setScaffoldSecrets,
     rememberSecrets, setRememberSecrets, demoMode, setDemoMode,
-    feBase, setFeBase, moduleIds, setModuleIds,
+    feBase, setFeBase, feUi, setFeUi: setFeUiState, moduleIds, setModuleIds,
     // 派生
     audit, composed, scale, plan, scaffoldForms, appName, allEnvValues, envMissing,
     moduleResolution, scaffoldVars, artifacts, yamlText, promptText, configMd, appCode, ops,
     hazardsByDim, issueDots, dimFlags, dotFlags, stepIssues, statusMeta, tone,
-    hazardCount, buildLabel, missingRequired, stepSummary, nameOk,
+    hazardCount, buildLabel, missingRequired, stepSummary, nameOk, feLabel,
   };
 }
 

@@ -23,7 +23,7 @@ export default function StackEnv() {
   const ch = useStackChannel('env');
   const {
     picks, activeDim, audit, dotFlags, issueDots, step, stepSummary, stepIssues, nameOk,
-    feBase, setFeBase, scaffoldForms, setScaffoldEnv, setScaffoldSecrets, allEnvValues,
+    feBase, setFeBase, feUi, setFeUi, scaffoldForms, setScaffoldEnv, setScaffoldSecrets, allEnvValues,
     demoMode, setDemoMode, rememberSecrets, setRememberSecrets, envMissing,
     moduleResolution, moduleIds, setModuleIds, hist, snapRef,
   } = ch;
@@ -44,6 +44,7 @@ export default function StackEnv() {
         return (
           <FrontendStep
             feBase={feBase}
+            feUi={feUi}
             onFeBase={(id) => {
               if (id === 'none' && moduleIds.length > 0) {
                 // 切到无前端时模块保留勾选（后端接口照出），⑦ 的警告条会说明后果 ——
@@ -51,6 +52,7 @@ export default function StackEnv() {
               }
               setFeBase(id);
             }}
+            onFeUi={setFeUi}
           />
         );
       case 'env':
