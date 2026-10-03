@@ -34,6 +34,29 @@ FRONTEND = {
             "summary": "只导出 Spring Boot 后端包，不产出前端工程。",
         },
     ],
+    # UI 模板（2026-10-03）：同一技术栈基底下的多套界面方案，按 base 分组。
+    # 模板本体 = arsenal-scaffold/frontend/<base>/<templateId>/ 文件树（与 bases 同一载体），
+    # default: true 的是 feUi 的兜底值 —— 换 base 或旧草稿没有该字段时都落回它。
+    "templates": {
+        "vue3-vite": [
+            {
+                "id": "element-admin",
+                "name": "Element Plus · 经典侧边栏",
+                "default": True,
+                "summary": "深色侧边栏 + 面包屑顶栏的教科书式管理端，Element Plus 全家桶，与后端三管理页一一对应。",
+            },
+            {
+                "id": "naive-admin",
+                "name": "Naive UI · 清爽管理端",
+                "summary": "同一套页面换 Naive UI 组件库：n-layout 折叠侧栏 + n-data-table 管理页，TS 类型更完整，暗色友好。",
+            },
+            {
+                "id": "element-topbar",
+                "name": "Element Plus · 顶栏导航",
+                "summary": "组件库与 element-admin 相同，布局改横向顶栏导航 + 通栏内容区 —— 屏幕窄、层级浅的项目更合适。",
+            },
+        ],
+    },
     "defaults": {
         "base": "vue3-vite",
         "lang": "ts",

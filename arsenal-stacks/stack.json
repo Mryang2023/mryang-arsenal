@@ -3777,6 +3777,26 @@
         "summary": "只导出 Spring Boot 后端包，不产出前端工程。"
       }
     ],
+    "templates": {
+      "vue3-vite": [
+        {
+          "id": "element-admin",
+          "name": "Element Plus · 经典侧边栏",
+          "default": true,
+          "summary": "深色侧边栏 + 面包屑顶栏的教科书式管理端，Element Plus 全家桶，与后端三管理页一一对应。"
+        },
+        {
+          "id": "naive-admin",
+          "name": "Naive UI · 清爽管理端",
+          "summary": "同一套页面换 Naive UI 组件库：n-layout 折叠侧栏 + n-data-table 管理页，TS 类型更完整，暗色友好。"
+        },
+        {
+          "id": "element-topbar",
+          "name": "Element Plus · 顶栏导航",
+          "summary": "组件库与 element-admin 相同，布局改横向顶栏导航 + 通栏内容区 —— 屏幕窄、层级浅的项目更合适。"
+        }
+      ]
+    },
     "defaults": {
       "base": "vue3-vite",
       "lang": "ts",
