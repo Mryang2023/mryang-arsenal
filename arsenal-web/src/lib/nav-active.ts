@@ -21,8 +21,14 @@
 const LEAF_PARENTS = new Set(['/stack']);
 
 export function isNavActive(pathname: string, href: string): boolean {
-  if (href === '/') return pathname === '/';
-  if (href === '') return false;
-  if (LEAF_PARENTS.has(href)) return pathname === href;
-  return pathname === href || pathname.startsWith(`${href}/`);
+  // trailingSlash: true 下 usePathname() 带尾巴（/stack/），而导航配置的 href 没有
+  //（/stack）。先双双归一到无尾斜杠再判定，否则 LEAF_PARENTS 的精确匹配对
+  // /stack/ 永远不成立 —— 「选型台」菜单在选型台上永不点亮（2026-10-03 实测）。
+  // 根 '/'.length === 1，不参与剥尾巴。
+  const p = pathname.length > 1 && pathname.endsWith('/') ? pathname.slice(0, -1) : pathname;
+  const h = href.length > 1 && href.endsWith('/') ? href.slice(0, -1) : href;
+  if (h === '/') return p === '/';
+  if (h === '') return false;
+  if (LEAF_PARENTS.has(h)) return p === h;
+  return p === h || p.startsWith(`${h}/`);
 }
