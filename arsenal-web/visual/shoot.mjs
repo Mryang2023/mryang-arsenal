@@ -10,7 +10,7 @@
  * 因为 `channel: 'msedge'` 在这台机器上找不到它 —— Edge 装在版本子目录里）。
  *
  * 用法：
- *   node visual/shoot.mjs              # 跑全部 21 URL × 3 视口 = 63 张
+ *   node visual/shoot.mjs              # 跑全部 22 URL × 3 视口 = 66 张
  *   VISUAL_BASE_URL=http://127.0.0.1:3021/ node visual/shoot.mjs
  *
  * 退出码：
@@ -45,7 +45,8 @@ const BASE_URL = (process.env.VISUAL_BASE_URL || 'http://127.0.0.1:3021').replac
 const EXPECTED = {
   // 装配台拆页（2026-09-29 P0）：/stack 由单页拆成四页，stack 子树整棵计入固定页
   // （10 → 13），矩阵随之 17 URL → 20 URL、51 张 → 60 张。
-  fixedPages: 13,
+  // 项目章程页（2026-10-03 夜跑）：/charter 上线，固定页 13 → 14，矩阵 21 → 22 URL、63 → 66 张。
+  fixedPages: 14,
   rulePicks: 3,
   // 2026-09-29 修正：上面这句「只剩 1 个」早就过期了 —— 蓝图主题已回到 6 个
   // （connection-pool / local-cache / retry-timeout / untrusted-data / web-layer +
@@ -58,8 +59,8 @@ const EXPECTED = {
   // 那时池子非空后这里的 slicePicks 必须改成 2（首/末），脚本会当场报警。
   casePicks: 3,
   slicePicks: 0,
-  urls: 21,
-  shots: 63,
+  urls: 22,
+  shots: 66,
   minBytes: 8 * 1024,
 };
 
@@ -107,6 +108,17 @@ const KNOWN_BASELINE = [
       // 报错原文（e.text）里带目标 URL，如 "Access to fetch at 'http://localhost:3011/api/archify' … CORS policy"。
       // 只归入本条基线，不涉及其它 console.error。
       /\/api\/archify/.test(String(e.text || '')),
+  },
+  {
+    // 2026-10-04：矩阵从 63 张扩到 66 张（/charter 上线）后首次爆量（423 条）。
+    // 机理：shoot 逐页 goto 节奏很快，每页视口里的 <Link> 预取还在飞就被下一次
+    // 导航中止，Next 路由器对每个被中止的预取打一条 console.error —— 原文自己
+    // 写明「Falling back to browser navigation」，页面行为无损，属良性噪音。
+    // 页面越重、链接越多，被中止的预取越多（63→66 张时爆量就是这么来的）。
+    id: 'rsc-prefetch-abort',
+    reason:
+      '静态导出站上 <Link> 预取被矩阵的快速导航中止：Next 路由器打 console.error 并回退浏览器导航，页面行为无损。基线申报而非静默 —— --strict 下照常算失败。',
+    match: (e) => /Failed to fetch RSC payload/.test(String(e.text || '')),
   },
 ];
 
