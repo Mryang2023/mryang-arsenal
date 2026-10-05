@@ -72,10 +72,17 @@ export function exState(
   ex: CharterException,
   doc: CharterDoc,
   today: string = todayOf(),
+  /**
+   * 「在队」名单。**不给就用章程手写的 team**（向后兼容原行为）；
+   * 传了就以它为准 —— 那是中枢名册口径（见 lib/roster.ts 的口径纪律：
+   * 两套口径不许混，且任何输出都要标明当前用的是哪一份）。
+   */
+  activeTeam?: readonly string[],
 ): ExState {
   if (ex.status === 'repaid') return 'repaid';
   const overdue = isExceptionOverdue(ex, today);
-  const inTeam = (doc.team ?? []).includes(ex.owner ?? '');
+  const team = activeTeam ?? doc.team ?? [];
+  const inTeam = team.includes(ex.owner ?? '');
   if (overdue && !inTeam) return 'orphaned';
   if (overdue) return 'expired';
   return 'active';
@@ -104,12 +111,17 @@ export const EXPIRING_SOON_DAYS = 30;
  * `overdueException: error` 时逾期是 P0（会真的拦人），`warn` 时只是 P1（记一笔）。
  * 同一个问题在不同项目里严重程度不同，因为它们的 policy 不同。
  */
-export function actionItems(doc: CharterDoc, today: string = todayOf()): ActionItem[] {
+export function actionItems(
+  doc: CharterDoc,
+  today: string = todayOf(),
+  /** 同 exState 的 activeTeam：中枢名册口径。省略即用章程手写名单。 */
+  activeTeam?: readonly string[],
+): ActionItem[] {
   const out: ActionItem[] = [];
   const overdueIsBlocking = (doc.policy?.overdueException ?? 'error') === 'error';
 
   for (const ex of doc.exceptions ?? []) {
-    const st = exState(ex, doc, today);
+    const st = exState(ex, doc, today, activeTeam);
     if (st === 'orphaned') {
       out.push({
         id: `orphan-debt:${ex.id}`,
@@ -250,12 +262,19 @@ export interface PersonRow {
  * 按人聚合。**团队成员与「只在台账里出现过的名字」要分开列** ——
  * 后者往往就是离队遗留，它在原页面上完全看不见，而它恰恰是最该被看见的。
  */
-export function peopleView(doc: CharterDoc, today: string = todayOf()): {
+export function peopleView(
+  doc: CharterDoc,
+  today: string = todayOf(),
+  /** 同 exState 的 activeTeam：中枢名册口径。省略即用章程手写名单。 */
+  activeTeam?: readonly string[],
+): {
   rows: PersonRow[];
   outsiders: PersonRow[];
   unassigned: { clauseExceptions: string[] };
 } {
-  const team = new Set(doc.team ?? []);
+  // ⚠ 「在册」只表示**当前口径下他算团队成员**；名册不可用时它等于章程手写名单。
+  //   所以 outsiders 那一栏读的是「不在当前口径里」，页面必须同时显示用的是哪一份。
+  const team = new Set(activeTeam ?? doc.team ?? []);
   const map = new Map<string, PersonRow>();
   const row = (name: string): PersonRow => {
     let r = map.get(name);
@@ -284,7 +303,7 @@ export function peopleView(doc: CharterDoc, today: string = todayOf()): {
       const r = row(ex.owner);
       r.owesExceptions.push(ex.id);
       if (ex.approver && ex.approver !== ex.owner) row(ex.approver).approvedExceptions.push(ex.id);
-      const st = exState(ex, doc, today);
+      const st = exState(ex, doc, today, activeTeam);
       if (st === 'expired') r.overdue += 1;
       if (st === 'orphaned') r.orphan += 1;
     } else {

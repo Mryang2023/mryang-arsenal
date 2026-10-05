@@ -22,6 +22,7 @@ import { resolveCharterDir, readProfileCharterDir } from '../scripts/lib/charter
 import * as ciLint from '../../arsenal-server/scripts/charter-ci.mjs';
 import * as charterLib from '@/lib/charter';
 import * as stdLib from '@/lib/standards';
+import * as rosterLib from '@/lib/roster';
 import { rules as l0Rules } from '@/lib/rules';
 import { lint, globToRegExp } from '@/lib/engine';
 import type { CharterDoc, CharterException } from '@/lib/charter';
@@ -1388,6 +1389,94 @@ const expectAreas = new Set([...doc.clauses.map((c) => areaOf(c.pathGlob)), ...d
 check('模块风险：路径前两级的每个取值都单独成格（不同模块不许被合并）',
   expectAreas.size === areas.length && [...expectAreas].every((a) => areas.some((x) => x.area === a)),
   `期望 ${[...expectAreas].join(' / ')}；实得 ${areas.map((a) => a.area).join(' / ')}`);
+}
+
+
+console.log('\n【17】中枢名册联动（roster）—— 口径不许混，差异必须说得出来');
+{
+const today = charterLib.todayOf();
+const doc = primaryCharterDoc();
+
+// fixture：中枢名册三种状态各一份（不依赖中枢在线 —— CI 里没有中枢，
+// 断言却必须能验「中枢可用 / 不可用 / 没配」三条分支的结论不同）。
+const rosterOk: any = {
+  status: 'ok', teamName: '平台组', fetchedAt: '2026-10-05T10:00:00Z',
+  members: [{ name: 'mryang', role: 'owner' }, { name: 'someone', role: 'member' }],
+};
+const rosterUnavailable: any = { status: 'unavailable', members: [], error: '中枢未配置 integrations.roster.api-key（503）' };
+const rosterNotConfigured: any = { status: 'not-configured', members: [], error: '未配置 ARSENAL_CC_BASE_URL / ARSENAL_CC_API_KEY / ARSENAL_CC_TEAM_ID' };
+
+// ① 三种状态都判得出「用的是哪一份」
+const dOk = rosterLib.rosterDiff(rosterOk, doc);
+const dUn = rosterLib.rosterDiff(rosterUnavailable, doc);
+const dNc = rosterLib.rosterDiff(rosterNotConfigured, doc);
+check('名册可用 → 口径是中枢（不再是手写名单）',
+  dOk.available === true && dOk.usedSource === 'command-center', `usedSource=${dOk.usedSource}`);
+check('名册不可用（中枢 503）→ 回落手写名单并说明原因',
+  dUn.available === false && dUn.usedSource === 'charter' && dUn.note.includes('503'),
+  dUn.note.slice(0, 70));
+check('名册未配置 → 回落手写名单且**明说那份可能已过期**',
+  dNc.available === false && dNc.note.includes('可能已过期'), dNc.note.slice(0, 70));
+check('名册文件缺失（产物没生成）也算「不可用」，不崩',
+  rosterLib.rosterDiff(null, doc).available === false, '');
+
+// ② 差异双向都要算出来，且方向不能反
+const docWithExtra = { ...doc, team: [...doc.team, '已离职的人'] };
+const dDiff = rosterLib.rosterDiff(rosterOk, docWithExtra);
+// 判据只盯**目标方向**：onlyInRoster 里可能有别的名字（本仓 team 只有 mryang，
+// 而 fixture 名册有 mryang+someone，所以 someone 属于「中枢有、章程没」—— 那是事实，不是错）。
+// 第一版这里写死 `onlyInRoster.length === 0`，红的原因是我拿夹具当事实，**不是产品错**。
+check('章程有、中枢没有 → 判为「已离队」（方向别搞反）',
+  dDiff.onlyInCharter.includes('已离职的人') && !dDiff.onlyInRoster.includes('已离职的人'),
+  `onlyInCharter=${dDiff.onlyInCharter.join('、') || '空'} onlyInRoster=${dDiff.onlyInRoster.join('、') || '空'}`);
+const rosterWithNew = { ...rosterOk, members: [...rosterOk.members, { name: '新同事', role: 'member' }] };
+const dNew = rosterLib.rosterDiff(rosterWithNew, doc);
+check('中枢有、章程没登记 → 列为「待补进章程」（不是离队）',
+  dNew.onlyInRoster.includes('新同事') && !dNew.onlyInCharter.includes('新同事'),
+  `onlyInRoster=${dNew.onlyInRoster.join('、') || '空'}`);
+// 「两侧一致」需要构造一份 team 与 fixture 名册完全相同的章程；
+// 直接拿真实 doc 判 agree 则是拿夹具当事实（本仓 team 只有 mryang，fixture 有两个人）。
+const docSameAsRoster = { ...doc, team: rosterOk.members.map((m: any) => m.name) };
+const dSame = rosterLib.rosterDiff(rosterOk, docSameAsRoster as CharterDoc);
+check('两侧一致时 agree=true 且 note 说出来源已生效',
+  dSame.agree === true && dSame.onlyInRoster.length === 0 && dSame.onlyInCharter.length === 0
+  && dSame.note.includes('中枢'),
+  `agree=${dSame.agree} note=${dSame.note.slice(0, 50)}`);
+
+// ③ ★ 口径真的进了判定：同一份数据，两种口径给出不同结论
+const orphanEx = {
+  id: 'EXC-ROSTER', clauseId: doc.clauses[0]?.id ?? 'PJX-SVC-001',
+  pathGlob: 'src/**', reason: '测试用例外：验证离队口径会改变结论', approver: 'tester',
+  owner: '已离职的人', grantedAt: '2026-01-01', expiresAt: '2020-01-01', ticket: 'T-1', status: 'active',
+};
+const docWithOrphan = { ...doc, team: [...doc.team, '已离职的人'], exceptions: [...doc.exceptions, orphanEx] };
+const byCharter = stdLib.exState(orphanEx as any, docWithOrphan as CharterDoc, today);
+const byRoster = stdLib.exState(orphanEx as any, docWithOrphan as CharterDoc, today, rosterOk.members.map((m: any) => m.name));
+check('★ 离队判定随口径变：手写名单里他在（→ 到期未销账），中枢口径里他已离队（→ 孤儿债）',
+  byCharter === 'expired' && byRoster === 'orphaned',
+  `手写口径=${byCharter} 中枢口径=${byRoster}`);
+check('★ 待办随之改变：中枢口径下多出一条孤儿债（P1，该谁处理=章程负责人）',
+  stdLib.actionItems(docWithOrphan as CharterDoc, today, rosterOk.members.map((m: any) => m.name))
+    .some((i) => i.kind === 'orphan-debt' && i.who === doc.owner),
+  '');
+check('两种口径下孤儿/到期的归属人不同（中枢口径下责任回到章程负责人）',
+  stdLib.actionItems(docWithOrphan as CharterDoc, today, rosterOk.members.map((m: any) => m.name))
+    .find((i) => i.kind === 'orphan-debt')?.who === doc.owner, '');
+
+// ④ 名册里「一个人都没有」不算可用（那是数据不对，不是团队没人）
+check('名册 ok 但 0 人 → 判不可用（避免把「拉到空表」当成「全员离队」）',
+  rosterLib.rosterDiff({ status: 'ok', members: [] } as any, doc).available === false, '');
+
+// ⑤ 产物与实况：真实 roster.json 存在且形状对（sync 跑过就有）
+const rosterPath = path.join(here, '..', 'src', 'generated', 'roster.json');
+const rosterExists = fs.existsSync(rosterPath);
+const rosterRaw = rosterExists ? JSON.parse(fs.readFileSync(rosterPath, 'utf8')) : null;
+check('名册产物存在且 status 合法（sync-roster 跑过）',
+  rosterExists && ['ok', 'unavailable', 'not-configured'].includes(rosterRaw?.status),
+  rosterExists ? `status=${rosterRaw.status}` : 'src/generated/roster.json 不存在');
+check('名册产物里不留 email / 头像（最小暴露，不进 Git 的是组织信息）',
+  !rosterExists || !JSON.stringify(rosterRaw).match(/email|avatar/i),
+  '名册产物里出现了邮箱或头像字段');
 }
 
 process.exit(finish('charter'));

@@ -33,6 +33,9 @@ import {
 } from '@/lib/standards';
 import type { ActionItem, ActionKind } from '@/lib/standards';
 import type { CharterDoc } from '@/lib/charter';
+import rosterRaw from '@/generated/roster.json';
+import { rosterDiff, activeTeam } from '@/lib/roster';
+import type { RosterFile } from '@/lib/roster';
 
 const TONE_CLASS = {
   error: 'bg-rust/15 text-rust',
@@ -49,8 +52,8 @@ function LevelChip({ level }: { level: ActionItem['level'] }) {
 
 /* ══ 汇总带 ══════════════════════════════════════════════════════════ */
 
-export function ActionBand({ doc, today }: { doc: CharterDoc; today: string }) {
-  const items = actionItems(doc, today);
+export function ActionBand({ doc, today, team }: { doc: CharterDoc; today: string; team?: readonly string[] }) {
+  const items = actionItems(doc, today, team);
   const s = actionSummary(items);
   const kinds = Object.entries(s.byKind).filter(([, n]) => n > 0) as [ActionKind, number][];
 
@@ -102,8 +105,8 @@ export function ActionBand({ doc, today }: { doc: CharterDoc; today: string }) {
 
 /* ══ 一、人 ══════════════════════════════════════════════════════════ */
 
-export function PeoplePanel({ doc, today }: { doc: CharterDoc; today: string }) {
-  const { rows, outsiders, unassigned } = peopleView(doc, today);
+export function PeoplePanel({ doc, today, team }: { doc: CharterDoc; today: string; team?: readonly string[] }) {
+  const { rows, outsiders, unassigned } = peopleView(doc, today, team);
   const cell = 'px-2 py-1 align-top';
 
   return (
@@ -306,11 +309,74 @@ export function GatePanel({ doc, today }: { doc: CharterDoc; today: string }) {
   );
 }
 
+
+/* ══ 名册一致性（A 方向：中枢团队名册 vs 章程手写名单）══════════════════ */
+
+export function RosterPanel({ doc }: { doc: CharterDoc }) {
+  const diff = rosterDiff(rosterRaw as unknown as RosterFile, doc);
+  const toneCls = diff.available ? (diff.agree ? 'text-olive' : 'text-brass') : 'text-fgFaint';
+  return (
+    <section className="mt-6 border-t border-line pt-5">
+      <h2 className="text-sm text-fg">团队名册一致性</h2>
+      <p className="mt-1 text-xs text-fgMuted">
+        「谁离队了」这条判据只能来自中枢 —— 章程里那份 <b>手写 team 名单必然过期</b>，
+        忘了更新就永远发现不了孤儿债。这里把两侧摆在一起对照，并标明当前判定用的是哪一份。
+      </p>
+
+      <div className="mt-3 flex flex-wrap gap-x-6 gap-y-1 text-xs">
+        <span className="text-fgMuted">
+          当前判定口径{' '}
+          <b className={diff.usedSource === 'command-center' ? 'text-olive' : 'text-brass'}>
+            {diff.usedSource === 'command-center' ? '中枢名册' : '章程手写名单（可能已过期）'}
+          </b>
+        </span>
+        {diff.teamName && (
+          <span className="text-fgMuted">团队 <b className="font-mono text-fg">{diff.teamName}</b></span>
+        )}
+        {diff.available && (
+          <span className="text-fgMuted">中枢 {diff.rosterNames.length} 人 · 章程 {diff.charterNames.length} 人</span>
+        )}
+        {diff.fetchedAt && (
+          <span className="text-fgFaint">拉取于 {diff.fetchedAt.slice(0, 19).replace('T', ' ')}</span>
+        )}
+      </div>
+
+      <p className={`mt-2 text-[11px] ${toneCls}`}>{diff.note}</p>
+
+      {diff.available && (diff.onlyInRoster.length > 0 || diff.onlyInCharter.length > 0) && (
+        <ul className="mt-2 space-y-1">
+          {diff.onlyInCharter.map((n) => (
+            <li key={`out-${n}`} className="text-[11px] text-rust">
+              · {n}：在中枢已不在这个团队 —— 若他名下有豁免，那些豁免已转孤儿债
+            </li>
+          ))}
+          {diff.onlyInRoster.map((n) => (
+            <li key={`in-${n}`} className="text-[11px] text-brass">
+              · {n}：中枢有、章程 team 没登记 —— 想让他认领条款就把名字补进章程
+            </li>
+          ))}
+        </ul>
+      )}
+
+      {!diff.available && (
+        <p className="mt-2 text-[11px] text-fgFaint">
+          接入方式：给军火库的构建环境配三个环境变量
+          （<code>ARSENAL_CC_BASE_URL</code> / <code>ARSENAL_CC_API_KEY</code> /
+          <code>ARSENAL_CC_TEAM_ID</code>），sync 会自动拉一次。
+          契约与实测步骤见 <code>docs/开发计划-2026-10-05-中枢联动/</code>。
+        </p>
+      )}
+    </section>
+  );
+}
+
 export default function StandardsPanels({ doc, today }: { doc: CharterDoc; today: string }) {
+  const team = activeTeam(rosterDiff(rosterRaw as unknown as RosterFile, doc));
   return (
     <>
-      <ActionBand doc={doc} today={today} />
-      <PeoplePanel doc={doc} today={today} />
+      <ActionBand doc={doc} today={today} team={team} />
+      <PeoplePanel doc={doc} today={today} team={team} />
+      <RosterPanel doc={doc} />
       <AreaRiskPanel doc={doc} today={today} />
       <TimelinePanel doc={doc} today={today} />
       <GatePanel doc={doc} today={today} />
