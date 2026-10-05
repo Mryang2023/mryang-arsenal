@@ -807,10 +807,27 @@ export function buildCharterMarkdown(doc: CharterDoc, today: string = todayOf())
  */
 export function buildCharterCI(opts?: { projectName?: string; charterDir?: string }): string {
   const dir = opts?.charterDir ?? 'arsenal-charter';
-  return `# 章程门禁（由军火库导出 · 2026-10-04）
-# 项目：${opts?.projectName ?? '（未指定）'}
-# 判负口径读 ${dir}/*.json 的 policy 段，**不在本文件写死** —— 那是团队自己的决定。
-# 改 policy 只需改那份 JSON，本文件不用动。
+  return `# ═══════════════════════════════════════════════════════════════════════
+# 章程门禁 · GitHub Actions（由军火库 /charter 页「导出 CI 片段」生成）
+#
+# 怎么用（三步；每一步的说明与建议见 docs/项目章程-CI落地指南.md）：
+#   1) 本仓先有一份章程：arsenal-charter/<项目>.json
+#      —— 没有就先去军火库 /charter 页导一份。没有章程，PR 门只能跑 L0 基线，
+#         约等于「只查公共规范、不查本项目自己的规矩」。
+#   2) 把本片段存成 .github/workflows/charter-gate.yml，直接提交。
+#   3) 军火库要能被 CI 拿到：下面用 git clone 放到 .arsenal/arsenal
+#      —— 建议把 .arsenal/ 加进 .gitignore（它是 CI 现场生成物，本地不必提交）。
+#      私有库请换成带 token 的 clone，或改用 actions/checkout 的 repository 字段。
+#
+# 两个 job 为什么必须分开：
+#   · pr-gate     每次 PR 跑，**只判本次 diff 触及的文件** × 已生效条款，命中
+#                 MUST/NEVER 就红。存量违规不在这里拦 —— 第一次跑就报 300 条红，
+#                 第二次就没人愿意用了。
+#   · debt-audit  每周一 03:17 扫全仓出债务账，**永远不阻断**。
+#                 这页的 KPI 是数字下降，不是零。
+#
+# 判负口径（例外到期要不要红、孤儿例外拦不拦）**不在本文件写死**：
+# 它读 ${dir}/*.json 的 policy 段。改口径改那份 JSON，这个文件一个字都不用动。
 name: 章程门禁
 
 on:
@@ -826,16 +843,23 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
+          # 建议：必须完整历史。PR 门靠 git diff 算「本次改了哪些文件」，
+          # 浅克隆会拿到空 diff —— 那是**门禁静默失效**，不是「本次没违规」。
           fetch-depth: 0
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-      - name: 检出本次改动
+      - name: ① 取军火库（判定执行器 + 规则池 + 章程都在里面）
+        run: |
+          git clone --depth 1 https://github.com/<你的账号>/arsenal.git .arsenal/arsenal
+      - name: ② 先看一眼本次改了哪些文件（门禁只判这些）
         run: git diff --name-only origin/\${{ github.base_ref }}...HEAD
-      - name: 导出章程门禁配置
-        run: node arsenal-server/scripts/export-charter-ci.mjs --mode pr --out .arsenal/ci
-      - name: 按配置校验（判负口径来自章程 policy）
-        run: npx arsenal-lint --config .arsenal/ci --mode pr
+      - name: ③ 导出判定配置（规则正则 + 已生效条款 + 例外台账 + 判负口径 + 上面那份文件清单）
+        # 建议：清单在导出阶段就算定，判定阶段不再碰 git ——
+        #         否则「diff 算空了」会伪装成「本次没有违规」。
+        run: node .arsenal/arsenal/arsenal-server/scripts/charter-ci.mjs export --mode pr --out .arsenal/ci --base origin/\${{ github.base_ref }}
+      - name: ④ 按配置判定（判负口径来自章程 policy，不来自本文件）
+        run: node .arsenal/ci/charter-ci.mjs lint --config .arsenal/ci --mode pr
 
   debt-audit:
     # 全仓存量，只出债务账不阻断。KPI 是「数字下降」，不是零。
@@ -845,14 +869,19 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-      - name: 导出全量配置
-        run: node arsenal-server/scripts/export-charter-ci.mjs --mode audit --out .arsenal/ci
-      - name: 生成债务账
-        run: npx arsenal-lint --config .arsenal/ci --mode audit --report debt.md
-      - uses: actions/upload-artifact@v4
+      - name: ① 取军火库（同上）
+        run: |
+          git clone --depth 1 https://github.com/<你的账号>/arsenal.git .arsenal/arsenal
+      - name: ② 导出全量配置（不裁文件清单，判定范围由 scan 的 include/exclude 决定）
+        run: node .arsenal/arsenal/arsenal-server/scripts/charter-ci.mjs export --mode audit --out .arsenal/ci
+      - name: ③ 生成债务账（存量只记账不阻断）
+        run: node .arsenal/ci/charter-ci.mjs lint --config .arsenal/ci --mode audit --report debt.md
+      - name: ④ 把债务账留成产物（建议保留 30 天，方便对比「这周降了多少」）
+        uses: actions/upload-artifact@v4
         with:
           name: charter-debt
           path: debt.md
+          retention-days: 30
 `;
 }
 

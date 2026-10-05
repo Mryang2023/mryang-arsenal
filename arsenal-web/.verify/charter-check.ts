@@ -19,9 +19,10 @@ import url from 'node:url';
 
 import { validateCharter, CHARTER_DIAGNOSTIC_CODE } from '../scripts/lib/validate-charter.mjs';
 import { resolveCharterDir, readProfileCharterDir } from '../scripts/lib/charter-dir.mjs';
+import * as ciLint from '../../arsenal-server/scripts/charter-ci.mjs';
 import * as charterLib from '@/lib/charter';
 import { rules as l0Rules } from '@/lib/rules';
-import { lint } from '@/lib/engine';
+import { lint, globToRegExp } from '@/lib/engine';
 import type { CharterDoc, CharterException } from '@/lib/charter';
 import { check, finish } from './lib/report';
 
@@ -1083,6 +1084,160 @@ check('断言层读的目录 == 按当前 env/档案解析出的目录（不许�
 check('本层实际生效的章程目录来源已打印在案（换机器跑时一眼能看出读的是哪份）',
   typeof charterDirSource === 'string' && charterDirSource.length > 0 && charterDirTier >= 1,
   `${charterDirSource}（tier ${charterDirTier}）→ ${charterDir.replace(/\\/g, '/')}`);
+}
+
+// 【15】CI 执行器 —— 2026-10-05 补。CI 片段原本引用 `npx arsenal-lint`，
+// 那是个**并不存在的包**（连同它旁边的 export-charter-ci.mjs 一起缺）。
+// 现在执行器是 `arsenal-server/scripts/charter-ci.mjs`：export 模式跑在军火库里，
+// 产出自包含的 .arsenal/ci/{config.json, charter-ci.mjs}；lint 模式在业务仓 CI 里
+// 零 import 跑判定。下面全部用**纯函数**断言（不起子进程 —— 本环境 spawnSync
+// 嵌套 spawn 会被沙箱拦成 EBUSY，端到端另在 shell 手测并记进记忆）。
+{
+const today = charterLib.todayOf();
+const doc = primaryCharterDoc();
+console.log('\n【15】CI 执行器：跨实现一致 / 例外双条件 / 判负口径');
+
+const executorPath = path.join(repoRoot, 'arsenal-server', 'scripts', 'charter-ci.mjs');
+check('CI 执行器文件在（片段引用的是它，不是不存在的 npm 包）',
+  fs.existsSync(executorPath),
+  executorPath.replace(/\\/g, '/'));
+
+// ① ★ 跨实现一致性 —— 本仓最忌讳「同一规矩两份实现」。执行器是 .mjs、引擎是 .ts，
+//    这里不 import 引擎（跨语言边界更脆），改成**同一批规则、同一批样本，两边跑出来的
+//    (规则, 文件, 行) 三元组必须逐条相同**。改了一边而另一边没改 → 这里立刻红。
+const rxRules = l0Rules.filter((r) => (r.check as any)?.regex?.pattern);
+const sampleOf = (r: any): string => {
+  const b = r?.bad;
+  if (typeof b === 'string') return b;
+  return String((b && (b.code ?? b.content)) || '');
+};
+const goodOf = (r: any): string => {
+  const g = r?.good;
+  if (typeof g === 'string') return g;
+  return String((g && (g.code ?? g.content)) || '');
+};
+const samples = [
+  { name: 'Probe.java', content: rxRules.slice(0, 12).map(sampleOf).join('\n\n') },
+  { name: 'Svc.java', content: rxRules.slice(12, 30).map(sampleOf).join('\n\n') },
+  { name: 'application.yml', content: rxRules.slice(0, 6).map(sampleOf).join('\n') },
+  { name: 'Clean.java', content: rxRules.slice(0, 8).map(goodOf).join('\n\n') },
+];
+const key3 = (v: { ruleId: string; file: string; line: number }) => `${v.ruleId}|${v.file}|${v.line}`;
+const engineKeys = lint(samples as any, l0Rules).violations.map(key3).sort();
+const ciKeys = ciLint
+  .lintFiles(samples as any, l0Rules as any[], { today })
+  .violations.map(key3).sort();
+
+check('样本确实触发了命中（否则上面那条一致性断言是恒真的 —— 恒真断言和没断言长得一样）',
+  engineKeys.length > 0 && ciKeys.length > 0,
+  `engine ${engineKeys.length} 条 / 执行器 ${ciKeys.length} 条`);
+check('★ 跨实现一致：engine.ts 与 charter-ci.mjs 判出的 (规则,文件,行) 逐条相同',
+  engineKeys.length === ciKeys.length && engineKeys.every((k, i) => k === ciKeys[i]),
+  `engine ${engineKeys.length} 条 vs 执行器 ${ciKeys.length} 条`
+  + (engineKeys.length === ciKeys.length
+    ? `；首处不同：${engineKeys.find((k, i) => k !== ciKeys[i]) || '（无）'}`
+    : ''));
+check('反证：喂 good 示例的那份文件不产生命中（否则一致性可能只是「都在报同一堆假阳性」）',
+  engineKeys.filter((k) => k.startsWith('Clean.java|')).length === 0
+  && ciKeys.filter((k) => k.startsWith('Clean.java|')).length === 0,
+  `Clean.java 上 engine ${engineKeys.filter((k) => k.startsWith('Clean.java|')).length} 条 / 执行器 ${ciKeys.filter((k) => k.startsWith('Clean.java|')).length} 条`);
+
+// ② glob → RegExp 与引擎同义（`**` 零层目录、`{a,b}`、大小写不敏感）
+const globProbes = ['**/*.java', 'src/**/domain/**', 'a/{b,c}/d.txt', '*.yml', '**/target/**'];
+const globPaths = ['A.java', 'src/main/java/x/domain/Y.java', 'a/b/d.txt', 'a/e/d.txt', 'README.md', 'src/target/z.class'];
+const globSame = globProbes.every((g) => {
+  const a = globToRegExp(g);
+  const b = ciLint.globToRegExp(g);
+  return globPaths.every((p) => a.test(p) === b.test(p));
+});
+check('glob→RegExp 与引擎逐例一致（改一边就红）', globSame,
+  globProbes.map((g) => `${g}:${globPaths.map((p) => (globToRegExp(g).test(p) ? '1' : '0')).join('')}`).join(' '));
+
+// ③ 例外**双条件**豁免（拍板项 ③ 的落点）：clauseId 对 + 路径也在 glob 内才放行
+const excSample = [{
+  id: 'EXC-TEST-1', clauseId: 'PJX-SVC-001', pathGlob: 'src/main/java/com/x/**',
+  reason: '测试用例外', approver: 'tester', owner: 'tester',
+  grantedAt: '2026-01-01', expiresAt: '2099-12-31', ticket: 'T-1', status: 'active',
+}];
+check('例外放行：条款对 + 路径在 glob 内 → 豁免',
+  ciLint.exceptionCovered(excSample, 'PJX-SVC-001', 'src/main/java/com/x/A.java').ok === true);
+check('例外不放行：条款对但路径不在 glob 内（只按 clauseId 豁免 = 一行 JSON 让 MUST 全仓失效）',
+  ciLint.exceptionCovered(excSample, 'PJX-SVC-001', 'src/main/java/com/y/A.java').ok === false);
+check('例外不放行：非 active 状态的例外不生效（已销账 / 已过期 / 孤儿都不算数）',
+  ciLint.exceptionCovered([{ ...excSample[0], status: 'repaid' }], 'PJX-SVC-001', 'src/main/java/com/x/A.java').ok === false);
+
+// ④ override：relax 在该路径忽略该规则；replace 不自动执行（如实进 skipped）
+const relaxed = ciLint.overrideGateFor(
+  { id: 'COL-GIT-002', overrides: [{ ruleId: 'COL-GIT-002', action: 'relax', approver: 'mryang', expiresAt: '2026-12-31', pathGlob: 'legacy/**' }] },
+  'legacy/A.java');
+check('override relax：该路径下忽略该规则（放宽 = 不必遵守，但仍要有人批准 + 有到期日）',
+  relaxed.ignored === true && String(relaxed.note).includes('relax'), relaxed.note || '');
+check('override relax：路径不匹配时不生效（放宽也是限定范围的）',
+  ciLint.overrideGateFor(
+    { id: 'COL-GIT-002', overrides: [{ ruleId: 'COL-GIT-002', action: 'relax', approver: 'mryang', expiresAt: '2026-12-31', pathGlob: 'legacy/**' }] },
+    'src/A.java').ignored === false);
+const replaced = ciLint.overrideGateFor(
+  { id: 'X-1', overrides: [{ ruleId: 'X-1', action: 'replace', replacement: '改用 MapStruct' }] }, 'src/A.java');
+check('override replace：不自动替换、明说检不了（契约里 replacement 是文字描述不是可执行正则）',
+  replaced.ignored === false && String(replaced.note).includes('不自动替换'), replaced.note || '');
+
+// ⑤ 冻结线：未生效条款不进 PR 门，且如实说明为什么没判
+const futureRule = {
+  id: 'PJX-FUTURE-1', title: '未来条款', severity: 'MUST', status: 'active', source: 'charter',
+  effectiveFrom: '2099-01-01', pathGlob: '**/*.java',
+  check: { regex: { pattern: 'System\\.out\\.print', expect: 'absent' } },
+};
+const futureRun = ciLint.lintFiles([{ name: 'A.java', content: 'System.out.println("x");' }], [futureRule], { today });
+check('冻结线：effectiveFrom 晚于判定日的条款不判（存量与未来都不该被这次 PR 拦住）',
+  futureRun.violations.length === 0
+  && futureRun.skipped.some((s) => s.ruleId === 'PJX-FUTURE-1' && String(s.reason).includes('冻结线')),
+  futureRun.skipped.map((s) => s.reason).join(' / ') || '（既没判也没说明 —— 那才是问题）');
+
+// ⑥ 例外台账处置三档：口径读 policy，执行器不写死
+const overdueEx = [{ id: 'EXC-OLD', clauseId: 'PJX-SVC-001', status: 'active', expiresAt: '2020-01-01', owner: 'mryang' }];
+const lvl = (p: any) => ciLint.auditExceptions(overdueEx, p, today)[0].level;
+check('例外到期按 policy 判负：error → error / warn → warn / ignore → ignore',
+  lvl({ overdueException: 'error' }) === 'error'
+  && lvl({ overdueException: 'warn' }) === 'warn'
+  && lvl({ overdueException: 'ignore' }) === 'ignore',
+  `error→${lvl({ overdueException: 'error' })} warn→${lvl({ overdueException: 'warn' })} ignore→${lvl({ overdueException: 'ignore' })}`);
+check('ignore 档仍留痕（不静默：静默 = 三个月后没人知道曾经有这条豁免）',
+  ciLint.auditExceptions(overdueEx, { overdueException: 'ignore' }, today)[0].policyTag === 'policy.ignore');
+const orphanEx = [{ id: 'EXC-ORPH', clauseId: 'PJX-SVC-001', status: 'orphaned', expiresAt: '2099-01-01', owner: '离职者' }];
+const orphanLevel = (p: any) => ciLint.auditExceptions(orphanEx, p, today)[0].level;
+check('孤儿例外按 policy.orphanBlocks 判负（独立于到期口径 —— 欠决定 vs 欠一个人是两回事）',
+  orphanLevel({ orphanBlocks: 'error' }) === 'error' && orphanLevel({ orphanBlocks: 'warn' }) === 'warn',
+  `error→${orphanLevel({ orphanBlocks: 'error' })} warn→${orphanLevel({ orphanBlocks: 'warn' })}`);
+
+// ⑦ CI 片段引用的路径必须真的存在（片段曾引用两个不存在的命令）
+const ciYaml = charterLib.buildCharterCI({ projectName: doc.name });
+// 片段里两类路径要分开看：
+//   · `.arsenal/arsenal/...`  前半段是**CI 现场 clone 出来的军火库**，本仓没有，
+//     该验的是后半段那个脚本路径在军火库里真实存在；
+//   · `.arsenal/ci/...`        是 export 阶段**生成**的执行器副本，运行时才有 ——
+//     它的来源就是军火库里那个脚本，所以映射回同一路径去验。
+// 片段曾引用 `npx arsenal-lint` 与 `arsenal-server/scripts/export-charter-ci.mjs`，
+// 两个都不存在 —— 这条判据就是为了钉住「片段引用的东西必须真存在」。
+const scriptOfRun = (raw: string) => {
+  const p = raw.replace(/\\\$\{\{[^}]+\}\}/g, 'x').trim();
+  if (p.startsWith('.arsenal/arsenal/')) return p.replace(/^\.arsenal\/arsenal\//, '');
+  if (p.startsWith('.arsenal/ci/')) return 'arsenal-server/scripts/charter-ci.mjs';
+  return p;
+};
+const runPaths = [...ciYaml.matchAll(/run:\s*node\s+(\S+)/g)]
+  .map((m) => scriptOfRun(m[1]))
+  .filter((p) => !p.startsWith('<'));
+const missingPaths = runPaths.filter((p) => !fs.existsSync(path.resolve(repoRoot, p)));
+check('CI 片段里 node 后面跟的脚本都真实存在（曾引用 npx arsenal-lint 与 export-charter-ci.mjs，两个都不存在）',
+  missingPaths.length === 0,
+  `片段引用 ${runPaths.length} 条：${runPaths.join(' / ')}${missingPaths.length ? ` —— 缺：${missingPaths.join('、')}` : ''}`);
+check('CI 片段不再出现 npx arsenal-lint（那是编出来的包名）',
+  !ciYaml.includes('npx arsenal-lint') && !ciYaml.includes('export-charter-ci.mjs'));
+const stepNames = [...ciYaml.matchAll(/- name: (.+)/g)].map((m) => m[1].trim());
+const runSteps = [...ciYaml.matchAll(/^\s*run:/gm)].length;
+check('CI 片段每一步都有可读的名字（使用说明要能照着跑，一句没解释的 run 等于没有）',
+  stepNames.length >= runSteps && runSteps > 0,
+  `${stepNames.length} 个 name / ${runSteps} 个 run`);
 }
 
 process.exit(finish('charter'));
