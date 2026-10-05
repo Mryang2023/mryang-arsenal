@@ -76,11 +76,20 @@ export const LAYER_NAMES: Record<string, string> = {
   archify: 'Archify 链路',
   scan: '代码扫描',
   scaffold: '脚手架生成链路',
+  // 章程层（2026-10-03 新增）：项目章程的治理机制是否真的生效。
+  //
+  // ⚠️ 为什么它**必须独立成层**，不能挂在 scaffold 里（设计稿初稿写的是「并入第十一层」，
+  //    实测发现那条判断是错的）：
+  //    `finish(layer)` 用 layer 字符串决定两件事 —— 状态文件名 `layer-<key>.json`
+  //    与档案查表用的层名。两个脚本都 `finish('scaffold')` 时**后写的覆盖先写的**，
+  //    于是先跑的那 17 项被静默吞掉，报告上只看得见后跑的那层。
+  //    这正是本仓反复治的「静默丢失」，不能在自己新加的层上重犯一次。
+  charter: '项目章程',
   topology: '部署形态动画',
   visual: '视觉断言',
   // ⚠️ `meta` **不是 `verifyChain` 的成员** —— 它是链尾的元核对层：
-  // 专门读其它十层写出的 `layer-<key>.json` 去比对声明值，所以自己既没有声明项数
-  // （`declaredCount('meta')` 会返回 null）、也不参与「十层项数合计」。
+  // 专门读其它各层写出的 `layer-<key>.json` 去比对声明值，所以自己既没有声明项数
+  // （`declaredCount('meta')` 会返回 null）、也不参与层数合计。
   meta: '元核对',
 };
 
@@ -291,7 +300,7 @@ export function finish(layer: string, noteText?: string): 0 | 1 | 2 {
   }
   if (declaredMismatch) {
     // 本层自己的账都对不上档案 —— 当场判负（与断言失败同为退出码 1）。
-    // 链尾 verify:meta 会再报一次同样的两个数字（那里能一次看到九层全貌）。
+    // 链尾 verify:meta 会再报一次同样的两个数字（那里能一次看到各层全貌）。
     console.log(
       `  \u2717 本层项数对不上档案：声明 ${declaredMismatch.declared} / 实测 ${declaredMismatch.total}`
         + `${s.skip > 0 ? `（其中 ${s.skip} 项未执行）` : ''}`

@@ -12,6 +12,7 @@ import {
   type RemoteViolation,
 } from '@/lib/arsenal-api';
 import { SAMPLES } from '@/lib/samples';
+import CharterCheckPanel from './CharterCheckPanel';
 import { CATEGORY_THEME, CHECK_LAYER_THEME, SEVERITY_ORDER, SEVERITY_THEME } from '@/lib/theme';
 import type { Severity } from '@/lib/types';
 
@@ -277,6 +278,10 @@ export default function CheckConsole() {
       ) : (
         <ReportView report={report} />
       )}
+
+      {/* 项目模式：章程条款并入本地正则层。**放在报告分支之外** ——
+          报告为空时也该能看到「本项目额外查了什么」，否则它一粘代码就消失。 */}
+      <CharterCheckPanel files={files} />
 
       {/* ── 后端深检（点击按钮才会出现，本地结论永远在上、原样保留） ── */}
       {remote.kind !== 'idle' && (

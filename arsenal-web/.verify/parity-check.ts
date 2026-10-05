@@ -27,7 +27,7 @@
  *   【6】AstProbe 实跑 —— 编译并执行 arsenal-server/.verify/AstProbe.java，
  *        断言 15 个 AST 语法层检查器全部产生带行号违规、5 条类型依赖规则诚实留 skipped。
  *        在此之前该探针 0 引用、从未编译执行，AstEngine 改坏多少这层都看不见。
- *   【7】MCP 探针实跑 —— spawn arsenal-server/scripts/mcp-probe.mjs（27 项协议断言：
+ *   【7】MCP 探针实跑 —— spawn arsenal-server/scripts/mcp-probe.mjs（**40 项**协议断言（现读探针汇总行，不写死）：
  *        版本协商 / 4 工具 / resources / prompts / 错误码 / 通知静默）。
  *        在此之前 MCP 改坏多少这层都看不见 —— 它的回归此前全靠手工喂 JSON-RPC。
  *
@@ -502,7 +502,7 @@ function runAstGate(): void {
 // ═══════════════════════════════════════════════════════════════
 // 【7】MCP 层守门（mcp-probe.mjs 实跑）—— mcp-stdio.mjs 是独立 stdio 进程，
 //       上面的导出比对与探针都碰不到它。这一组 spawn 回归探针，断言：
-//         · 27 项协议断言全过（版本协商 / 4 工具 / resources / prompts /
+//         · 40 项协议断言全过（版本协商 / **7 工具**（含章程层 get_charter /
 //           错误码 -32601·-32602·-32603 / 通知静默）；
 //         · 汇总行真实存在且「0 败」（防「退出 0 却没跑几条断言」的假绿，
 //           断言总数低于 20 也判红 —— 守卫不许被悄悄掏空）。
@@ -516,7 +516,7 @@ function runMcpGate(): void {
   if (!fs.existsSync(mcpProbeScript)) {
     // 守门人不在岗 —— 仓库自身的坏，记 fail，不算环境缺件。
     check('MCP 守门组件就位（mcp-probe.mjs）', false, `缺 ${mcpProbeScript}`);
-    skip('MCP 探针实跑（27 项协议断言）', '守门组件缺失，无法实跑');
+    skip('MCP 探针实跑（协议断言，现读探针汇总行）', '守门组件缺失，无法实跑');
     return;
   }
 
@@ -531,14 +531,14 @@ function runMcpGate(): void {
 
   if (mcp.error) {
     const why = `MCP 探针无法启动：${(mcp.error as Error).message}`;
-    skip('MCP 探针实跑（27 项协议断言）', why);
+    skip('MCP 探针实跑（协议断言，现读探针汇总行）', why);
     skip('MCP 探针判定全过（N 过 / 0 败）', '探针未启动，无判定可核');
     return;
   }
 
   const summary = out.match(/MCP 探针：(\d+) 过 \/ (\d+) 败（共 (\d+) 项断言）/);
   const ok = mcp.status === 0 && summary !== null && Number(summary[2]) === 0 && Number(summary[3]) >= 20;
-  check('MCP 探针实跑（27 项协议断言）', ok,
+  check('MCP 探针实跑（协议断言，项数现读探针汇总行）', ok,
     `退出码 ${mcp.status}${summary ? `，汇总 ${summary[1]} 过 / ${summary[2]} 败 / 共 ${summary[3]} 项` : '，汇总行缺失'}\n${out.trim().split('\n').slice(-6).join('\n')}`);
   check('MCP 探针判定全过（N 过 / 0 败）', summary !== null && Number(summary[2]) === 0,
     summary ? `${summary[1]} 过 / ${summary[2]} 败 / 共 ${summary[3]} 项断言` : '汇总行缺失，无判定可核');

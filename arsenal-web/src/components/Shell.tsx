@@ -8,6 +8,7 @@ import { casesStats } from '@/lib/case-cases';
 import { dimensions } from '@/lib/stack';
 import { iconStats } from '@/lib/icon-assets';
 import { isNavActive } from '@/lib/nav-active';
+import { charterTotals } from '@/lib/charter';
 
 /**
  * 侧边栏。
@@ -53,6 +54,7 @@ const NAV: NavItem[] = [
   { href: '/icons', label: '图标库', glyph: '❖', count: iconStats.total },
   { href: '/archify', label: '出图服务', glyph: '⚒', count: 0 },
   { href: '/check', label: '校验台', glyph: '⛨', count: 0 },
+  { href: '/charter', label: '项目章程', glyph: '§', count: charterTotals.clauses },
   { href: '/export', label: '导出中心', glyph: '⎘', count: 0 },
 ];
 

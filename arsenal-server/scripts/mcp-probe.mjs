@@ -13,11 +13,16 @@
  */
 
 import { spawn } from 'node:child_process';
+import { readFileSync, readdirSync, existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import { dirname, join } from 'node:path';
+import { dirname, join, resolve as resolvePath } from 'node:path';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const SERVER = join(__dirname, 'mcp-stdio.mjs');
+/** 仓库根。用于现读 mcp-tools.json 与 arsenal-charter/*.json —— 事实源不手抄。 */
+const REPO_ROOT = join(__dirname, '..', '..');
+/** 探针的判定日。**必须显式给**，不能让服务端读系统时钟 —— 「条款生效了没」「豁免到期了没」会随运行时刻变，探针就无法稳定复现。 */
+const PROBE_TODAY = process.env.ARSENAL_TODAY ?? '2026-10-04';
 const TIMEOUT_MS = 10_000;
 
 // 实测口径（改规则集后同步这里，探针红就是提醒你重算）：
@@ -147,14 +152,26 @@ try {
   const pong = await request('ping');
   check('ping 返回空对象', JSON.stringify(pong.result) === '{}' && !pong.error, `实际 ${fmt(pong.result ?? pong.error)}`);
 
-  // 【5】tools/list：4 个工具、inputSchema 非空
+  // 【5】tools/list：工具数与名称**从 mcp-tools.json 现读**，不写死。
+  //
+  // 写死过（`names.length === 4` + 四个名字的数组），后果是 2026-10-04 加了三个章程工具后
+  // 探针报「返回 4 个工具」而实际 7 个 —— **它本该在加工具的那一刻提醒我改它**，
+  // 实际却成了要我自己想起来改的地方。这就是「手抄数字」的标准形态。
+  //
+  // 现在改成从事实源读：新增工具不用改探针，**漏实现一个 handler 才会红**。
+  const EXPECTED_TOOLS = JSON.parse(
+    readFileSync(join(REPO_ROOT, 'arsenal-rules', 'mcp-tools.json'), 'utf8')
+  ).tools.map((t) => t.name);
+
   const tl = await request('tools/list');
   const tools = tl.result?.tools ?? [];
   const names = tools.map((t) => t.name);
   check(
-    'tools/list 返回 4 个工具，名称与 mcp-tools.json 一致',
-    names.length === 4 && ['search_rules', 'get_rule', 'lint_code', 'get_prompt'].every((n) => names.includes(n)),
-    `实际 ${fmt(names)}`
+    `tools/list 返回 ${EXPECTED_TOOLS.length} 个工具，名称与 mcp-tools.json 一致（现读，不写死）`,
+    names.length === EXPECTED_TOOLS.length && EXPECTED_TOOLS.every((n) => names.includes(n)),
+    `声明 ${EXPECTED_TOOLS.length} / 实际 ${names.length}；差集 ${fmt(
+      EXPECTED_TOOLS.filter((n) => !names.includes(n)),
+    )} / ${fmt(names.filter((n) => !EXPECTED_TOOLS.includes(n)))}`
   );
   const schemaBad = tools.filter(
     (t) => t.inputSchema?.type !== 'object' || Object.keys(t.inputSchema?.properties ?? {}).length === 0
@@ -346,6 +363,139 @@ try {
     unexpected.length === 0,
     unexpected.slice(0, 3).join(' | ')
   );
+
+
+  // ══════════════════════════════════════════════════════════════
+  // 【11】项目章程层（2026-10-04）：get_charter / list_exceptions / check_clause
+  //
+  // 这三个工具读的是**另一个数据源**（arsenal-charter/*.json，手写、不经生成器），
+  // 所以它们是「另一条链」而不是 search_rules 的分支 —— 光断言 tools/list 里有名字不够，
+  // 必须真的调、真的看返回内容。
+  // ══════════════════════════════════════════════════════════════
+
+  // 11a. get_charter 返回本项目章程，且带齐四个协作字段
+  const gc = await request('tools/call', {
+    name: 'get_charter',
+    arguments: { today: PROBE_TODAY },
+  });
+  const gcText = gc.result?.content?.[0]?.text ?? '';
+  const charterDir = resolvePath(REPO_ROOT, 'arsenal-charter');
+  const charterFiles = existsSync(charterDir)
+    ? readdirSync(charterDir).filter((f) => f.endsWith('.json'))
+    : [];
+  const charterDoc = charterFiles.length
+    ? JSON.parse(readFileSync(resolvePath(charterDir, charterFiles.sort()[0]), 'utf8'))
+    : null;
+
+  check('get_charter 返回内容非空', gcText.trim().length > 0, `${gcText.length} 字符`);
+  if (charterDoc) {
+    check(
+      'get_charter 报出章程名与基线版本',
+      gcText.includes(charterDoc.name) && gcText.includes(charterDoc.extends),
+      `${charterDoc.name} / ${charterDoc.extends}`
+    );
+    const ids = (charterDoc.clauses ?? []).map((c) => c.id);
+    check(
+      `get_charter 返回全部 ${ids.length} 条条款（一条都不少）`,
+      ids.every((id) => gcText.includes(id)),
+      `缺：${fmt(ids.filter((id) => !gcText.includes(id)))}`
+    );
+    // 四个协作字段必须出现在输出里 —— 它们正是章程层存在的理由
+    check(
+      'get_charter 每条条款带齐四个协作字段（归谁管/依据/生效日/作用域）',
+      ['归谁管', '依据', '生效日', '作用域'].every((k) => gcText.includes(k)),
+      ''
+    );
+  } else {
+    check('（跳过）arsenal-charter/ 下无文件，不做内容断言', true, '目录为空');
+  }
+
+  // 11b. get_charter 的 scope 过滤真的过滤（不是装饰参数）
+  if (charterDoc && (charterDoc.clauses ?? []).length > 1) {
+    const one = charterDoc.clauses[0];
+    const scoped = await request('tools/call', {
+      name: 'get_charter',
+      arguments: { today: PROBE_TODAY, scope: one.pathGlob },
+    });
+    const scopedText = scoped.result?.content?.[0]?.text ?? '';
+    check(
+      'get_charter 的 scope 过滤生效（给了某条款的作用域，只返回它）',
+      scopedText.includes(one.id),
+      `含 ${one.id}；其余 ${(charterDoc.clauses ?? [])
+        .filter((c) => c.id !== one.id)
+        .filter((c) => scopedText.includes(c.id))
+        .length} 条不该出现却出现了`
+    );
+  }
+
+  // 11c. list_exceptions 把「先查再申请」这条路给出来
+  const le = await request('tools/call', {
+    name: 'list_exceptions',
+    arguments: { today: PROBE_TODAY },
+  });
+  const leText = le.result?.content?.[0]?.text ?? '';
+  check('list_exceptions 返回内容非空', leText.trim().length > 0, `${leText.length} 字符`);
+  if (charterDoc) {
+    const excs = charterDoc.exceptions ?? [];
+    check(
+      `list_exceptions 返回全部 ${excs.length} 笔豁免`,
+      excs.every((e) => leText.includes(e.id)),
+      `缺：${fmt(excs.filter((e) => !leText.includes(e.id)).map((e) => e.id))}`
+    );
+    check(
+      '每笔豁免带「覆盖范围 + 还债人 + 到期日 + 工单号」',
+      excs.every((e) => leText.includes(e.pathGlob) && leText.includes(e.expiresAt) && leText.includes(e.owner)),
+      ''
+    );
+  }
+
+  // 11d. check_clause 端到端：喂条款的 bad 示例，必须报出命中 + 行号
+  if (charterDoc) {
+    const reClause = (charterDoc.clauses ?? []).find((c) => c.check?.regex?.pattern);
+    if (!reClause) {
+      check('（跳过）本章程无正则层条款，check_clause 无端到端用例', true, '');
+    } else {
+      const cc = await request('tools/call', {
+        name: 'check_clause',
+        arguments: {
+          clauseId: reClause.id,
+          files: [{ name: 'com/example/Probe.java', content: reClause.bad }],
+        },
+      });
+      const ccText = cc.result?.content?.[0]?.text ?? '';
+      check('check_clause 报出命中', ccText.includes('命中'), ccText.slice(0, 60).replace(/\n/g, ' '));
+      check('check_clause 命中带行号', /:\d+/.test(ccText), (ccText.match(/:\d+/) ?? ['无'])[0]);
+      check('check_clause 回显条款归谁管（写代码的人要知道找谁）', ccText.includes(reClause.clauseOwner), '');
+
+      // 反证：喂 good 示例不该报命中 —— 否则「命中」只是恒真
+      const ccGood = await request('tools/call', {
+        name: 'check_clause',
+        arguments: {
+          clauseId: reClause.id,
+          files: [{ name: 'com/example/Probe.java', content: reClause.good }],
+        },
+      });
+      const ccGoodText = ccGood.result?.content?.[0]?.text ?? '';
+      check(
+        '反证：喂该条款的 good 示例 → 不报命中（否则「命中」是恒真断言）',
+        !ccGoodText.includes('**命中'),
+        ccGoodText.slice(0, 60).replace(/\n/g, ' ')
+      );
+    }
+  }
+
+  // 11e. 查一个不存在的条款 → 必须**指名说没有并列出真实 ID**，不是空字符串也不是报错
+  const ccMiss = await request('tools/call', {
+    name: 'check_clause',
+    arguments: { clauseId: 'PJX-NOT-EXIST-999', files: [{ name: 'a.java', content: 'x' }] },
+  });
+  const ccMissText = ccMiss.result?.content?.[0]?.text ?? '';
+  check(
+    'check_clause 查不存在的条款 → 明确说没有并列出真实 ID（不是静默空结果）',
+    ccMissText.includes('没有条款') && (charterDoc ? (charterDoc.clauses ?? []).some((c) => ccMissText.includes(c.id)) : true),
+    ccMissText.slice(0, 60).replace(/\n/g, ' ')
+  );
+
 } catch (e) {
   failed += 1;
   console.log(`FAIL  场景中断：${e.message}`);

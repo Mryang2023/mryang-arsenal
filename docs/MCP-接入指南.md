@@ -15,7 +15,7 @@
 - 直接 `node` 运行，不装任何 npm 包（只用 `fs` / `path` / `url` 内置模块）；
 - 启动时读 `arsenal-rules/**/*.json`（与前端、后端导出器同一份数据源），规则集实测 **69 条**
   （MUST 37 / NEVER 13 / SHOULD 18 / MAY 1），其中 **35 条**正则可本地执行；
-- 对 AI 客户端暴露 **4 个工具 + 2 个资源方法 + 1 组 prompt**（见 §三）；
+- 对 AI 客户端暴露 **7 个工具 + 2 个资源方法 + 1 组 prompt**（见 §三）；
 - 协议：JSON-RPC 2.0 over stdio（每行一条消息），支持 MCP `2024-11-05` /
   `2025-03-26` / `2025-06-18` 三个协议版本的协商（见 §四）。
 
@@ -58,7 +58,7 @@ $ node arsenal-server/scripts/mcp-install.mjs
 下一步：
   1. 把选中片段合入客户端配置（是合入 mcpServers，不是整文件覆盖）；
   2. 接入步骤、能力清单、常见问题：docs/MCP-接入指南.md；
-  3. 装好后验证：node arsenal-server/scripts/mcp-probe.mjs（27 项断言，exit 0 即通）。
+  3. 装好后验证：node arsenal-server/scripts/mcp-probe.mjs（40 项断言，exit 0 即通）。
 ```
 
 片段是标准 `mcpServers` 形状（Claude Desktop 与 Cursor 的配置都用这一形状）；
@@ -85,7 +85,7 @@ $ node arsenal-server/scripts/mcp-install.mjs
 
 随后按协议发一条通知 `notifications/initialized`（服务器静默，不回包）。
 
-### 3.1 工具（tools，4 个）
+### 3.1 工具（tools，7 个）
 
 工具定义读自 `arsenal-rules/mcp-tools.json`，与前端/后端导出器同一份，`tools/list` 与导出产物天然不漂移。
 
@@ -95,6 +95,27 @@ $ node arsenal-server/scripts/mcp-install.mjs
 | `get_rule` | 按 ID 取单条规则完整定义（含来源、反例、正例、检查方式） | `id`（必填） |
 | `lint_code` | 提交代码**后**自检：违规清单（带行号）+ 合规分 | `filename`、`content`（必填） |
 | `get_prompt` | 取整份约束提示词注入会话 | `severity`（可选，如 `"MUST,NEVER"`） |
+| `get_charter` | **本项目**工程章程条款（在基线之上额外定下的规矩） | `scope`（pathGlob 片段）、`severity` |
+| `list_exceptions` | **列现成豁免** —— 觉得要破例时**先查这个**，别直接申请 | `pathGlob`、`includeExpired` |
+| `check_clause` | 定向校验**一条**条款（只跑正则层，其余层明说跑不了） | `clauseId`（必填）、`files`（必填） |
+
+#### 后三个：项目章程层（2026-10-04 新增）
+
+这三个读的是**另一个数据源** `arsenal-charter/<id>.json`（手写事实源，不经 Python 生成器），
+目录由 `ARSENAL_CHARTER_DIR` 指定（缺省 `<repo>/arsenal-charter`）。**没有章程时它们会明说
+「本仓库还没有项目章程」而不是返回空结果** —— 空结果会被读成「查过了，没有问题」。
+
+`list_exceptions` 值得单独说一句：它存在的意义是让 AI 在「觉得自己要违反某条条款」时
+**先看有没有现成豁免**，而不是直接申请一条新的。不查就申请是例外台账膨胀的头号原因。
+
+三条共同纪律（都写进了代码注释）：
+
+- **不做合格性判断**，只读取与格式化 —— 合格性由构建期那道闸负责（已过）。
+  混用会出现「构建期说合格、运行期报违规」而无人知道原因。
+- **不自己取 `new Date()`** —— 到期与生效都靠日期，自己取就意味着同一份代码
+  两次调用结论可能不同。`today` 由调用方传。
+- **遇到本机跑不了的检测层要明说**（`check_clause` 对 ast/llm/manual 条款如此），
+  不许说「通过」—— 前者诚实，后者撒谎。
 
 **search_rules 实测**（query=`线程池`，命中 6 条，节选前 2 条）：
 
@@ -213,7 +234,7 @@ initialize 时客户端带来的 `protocolVersion`：**认识就原样回它，�
 | 方法 | 行为 |
 |---|---|
 | `initialize` / `ping` | 握手 / 探活（ping 回 `{}`） |
-| `tools/list` / `tools/call` | 4 个工具 |
+| `tools/list` / `tools/call` | 7 个工具 |
 | `resources/list` / `resources/read` | 69 条规则资源 |
 | `prompts/list` / `prompts/get` | 1 个 prompt 定义 |
 | `notifications/*` | 一律静默（不回包、不崩）；`notifications/initialized` 走这条通道 |
@@ -244,7 +265,7 @@ launcher 数据读自 `arsenal-rules/mcp-tools.json`（唯一事实源），写�
 **Q1：需要先启动后端（3011）吗？**
 不需要。MCP 是独立的 stdio 子进程，启动时直接读 `arsenal-rules/**/*.json`，
 与 3011 上的 Spring 服务没有任何调用关系（`mcp-stdio.mjs` 里 0 处 http/fetch 引用，可 grep 验证；
-回归探针 27 项断言全程不发生网络请求）。stdio 模式下客户端拉起的就是这个 node 进程本身。
+回归探针 40 项断言全程不发生网络请求）。stdio 模式下客户端拉起的就是这个 node 进程本身。
 
 **Q2：`ARSENAL_RULES_DIR` 指错会怎样？**
 进程直接起不来，不会带病上线。实测：
@@ -258,20 +279,26 @@ $ ARSENAL_RULES_DIR=D:/nonexistent-rules-xyz node arsenal-server/scripts/mcp-std
 
 - **服务端侧**（不依赖任何客户端）：`node arsenal-server/scripts/mcp-probe.mjs`。
   它 spawn 一个真实的 mcp-stdio.mjs 子进程、逐条喂 JSON-RPC 并断言**内容**（不是「有响应就算过」）。
-  实测 27 项断言全绿、exit 0：
+  实测 **40 项**断言全绿、exit 0（节选前 8 条；章程层 13 条在后面）：
 
   ```
   PASS  initialize 版本协商：客户端 2025-06-18 → 回 2025-06-18
-  PASS  tools/list 返回 4 个工具，名称与 mcp-tools.json 一致
+  PASS  tools/list 返回 7 个工具，名称与 mcp-tools.json 一致（现读，不写死）
   PASS  search_rules「线程池」命中 > 0（实测 6 条）
   PASS  get_prompt severity=NEVER 返回 13 条
   PASS  违规样例被真实扣分（score=81 < 100，违规 4 条 > 0）
   PASS  resources/list 返回 69 条资源
   PASS  prompts/get severity=NEVER 返回 13 条片段（messages[0].content.text）
   PASS  未知方法 no/such/method → -32601
+  …（中间 12 条略）
+  PASS  get_charter 返回全部 2 条条款（一条都不少）
+  PASS  get_charter 每条条款带齐四个协作字段（归谁管/依据/生效日/作用域）
+  PASS  list_exceptions 每笔豁免带「覆盖范围 + 还债人 + 到期日 + 工单号」
+  PASS  check_clause 命中带行号
+  PASS  反证：喂该条款的 good 示例 → 不报命中（否则「命中」是恒真断言）
   PASS  tools/call 缺 params.name → -32602
   ……（共 27 项）
-  ═══ MCP 探针：27 过 / 0 败（共 27 项断言）═══
+  ═══ MCP 探针：40 过 / 0 败（共 40 项断言）═══
   ```
 
   它还替你守着两条回归：`get_rule` 与 `resources/read` 取同一条规则必须同一份 JSON；

@@ -355,11 +355,212 @@ function getPrompt({ severity }) {
   );
 }
 
+// ──────────────────────────────────────────────── 项目章程层（2026-10-04）
+//
+// 读的是**另一个数据源** `arsenal-charter/<id>.json` —— 手写事实源，不经 Python 生成器，
+// 目录由 ARSENAL_CHARTER_DIR 指定（缺省 <repo>/arsenal-charter）。
+//
+// 为什么不用 validate-charter.mjs 做判定：那个是**构建期**的闸门（失败即中断），
+// 而这里是**运行期**的查询服务。混用会出现「构建期说合格、运行期报违规」而无人知道原因。
+// 这里只做**读取与格式化**，不做合格性判断 —— 合格性由构建期那一层负责，且已过。
+//
+// 为什么今天不读 new Date()：例外是否到期、条款是否生效都靠日期。
+// 这里刻意**不自己取** —— 宁可少给一个「是否已到期」的结论，也不给一个会变的：
+// 需要时由调用方传 today，或在输出里标明「判定日由调用方给出」。
+
+const CHARTER_DIR = process.env.ARSENAL_CHARTER_DIR
+  ? resolve(process.env.ARSENAL_CHARTER_DIR)
+  : join(REPO_ROOT, 'arsenal-charter');
+
+let CHARTERS = [];
+
+/** 加载全部章程。目录不存在是**合法起点**（章程由各项目自带），返回空数组。 */
+function loadCharters() {
+  CHARTERS = [];
+  if (!existsSync(CHARTER_DIR)) return;
+  for (const f of readdirSync(CHARTER_DIR).filter((x) => x.endsWith('.json')).sort()) {
+    try {
+      const doc = JSON.parse(readFileSync(join(CHARTER_DIR, f), 'utf8'));
+      if (doc && typeof doc === 'object' && Array.isArray(doc.clauses)) {
+        CHARTERS.push({ file: `arsenal-charter/${f}`, doc });
+      }
+    } catch {
+      // 坏 JSON 跳过而不是整体崩：章程由各团队手写，坏一份不该让整服务起不来。
+      // 它的不合格由构建期那一层拦（sync 链会硬失败），不靠运行期。
+    }
+  }
+}
+
+function todayOrNull(today) {
+  return typeof today === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(today) ? today : null;
+}
+
+/** get_charter —— 取本项目章程条款。 */
+function getCharter({ scope, severity, today } = {}) {
+  loadCharters();
+  if (CHARTERS.length === 0) {
+    return (
+      '本仓库还没有项目章程（目录 arsenal-charter/ 下没有 *.json）。\n' +
+      '这是合法起点 —— 章程由各项目自己带，军火库只提供 schema、校验器与页面。\n' +
+      '基线规范仍可用 search_rules / get_rule 查询。'
+    );
+  }
+  const t = todayOrNull(today);
+  const wantSev = typeof severity === 'string' ? severity.split(',').map((x) => x.trim()) : null;
+  const scopeRe = scope ? globToRegExp(normalizePath(scope)) : null;
+
+  const out = [];
+  for (const { doc } of CHARTERS) {
+    out.push(`# ${doc.name}（${doc.id} v${doc.version}）`);
+    out.push(`基线 ${doc.extends}｜负责人 ${doc.owner}｜批准于 ${doc.ratifiedAt}｜团队 ${doc.team.length} 人`);
+    if (t) out.push(`判定日（today）：${t} —— 未生效的条款会被标注`);
+    out.push('');
+
+    for (const cl of doc.clauses ?? []) {
+      if (wantSev && !wantSev.includes(cl.severity)) continue;
+      if (scopeRe && !scopeRe.test(normalizePath(cl.pathGlob))) continue;
+      const inForce = t ? cl.effectiveFrom <= t : null;
+      out.push(`## ${cl.id}　[${cl.severity}]${inForce === false ? '　（尚未生效）' : ''}`);
+      out.push(cl.title);
+      out.push(`归谁管：${cl.clauseOwner}｜依据：${cl.decidedBy}｜生效日：${cl.effectiveFrom}`);
+      out.push(`作用域：${cl.pathGlob}`);
+      out.push(`为什么：${cl.rationale}`);
+      out.push(`禁止：${cl.bad.replace(/\n/g, ' ')}`);
+      out.push(`正解：${cl.good.replace(/\n/g, ' ')}`);
+      out.push(`注入 AI：${cl.promptFragment}`);
+      out.push('');
+    }
+  }
+  const n = out.filter((l) => l.startsWith('## ')).length;
+  if (n === 0) {
+    return (
+      '没有条款命中当前筛选条件。\n' +
+      `（可用 scope=pathGlob 片段 或 severity=MUST,NEVER 放宽；共 ${CHARTERS.reduce((a, c) => a + (c.doc.clauses?.length ?? 0), 0)} 条条款）`
+    );
+  }
+  return out.join('\n');
+}
+
+/** list_exceptions —— 例外登记簿。这个工具的价值在于「先查再申请」。 */
+function listExceptions({ pathGlob, includeExpired, today } = {}) {
+  loadCharters();
+  if (CHARTERS.length === 0) {
+    return '本仓库还没有项目章程，因此没有例外台账。若确有需要破例的条款，先由项目团队建立章程。';
+  }
+  const t = todayOrNull(today);
+  const pathRe = pathGlob ? globToRegExp(normalizePath(pathGlob)) : null;
+  const lines = [];
+
+  for (const { doc } of CHARTERS) {
+    const rows = [];
+    for (const ex of doc.exceptions ?? []) {
+      const overdue = t ? ex.expiresAt <= t && ex.status !== 'repaid' : false;
+      if (!includeExpired && overdue) continue;
+      if (pathRe && !pathRe.test(normalizePath(ex.pathGlob))) continue;
+      const by = doc.team.includes(ex.owner) ? ex.owner : `${ex.owner}（已不在 team）`;
+      rows.push(
+        [
+          `  ${ex.id}　${ex.clauseId}　状态 ${ex.status}${overdue ? '（已到期未销账）' : ''}`,
+          `    覆盖：${ex.pathGlob}`,
+          `    理由：${ex.reason}`,
+          `    批准 ${ex.approver}｜还债人 ${by}｜到期 ${ex.expiresAt}${ex.ticket ? `｜工单 ${ex.ticket}` : ''}`,
+        ].join('\n'),
+      );
+    }
+    if (rows.length > 0) {
+      lines.push(`# ${doc.name} —— 合法豁免（${rows.length} 笔）`);
+      lines.push(...rows);
+      lines.push('');
+    }
+  }
+  if (lines.length === 0) {
+    return (
+      '当前范围内没有生效中的豁免。\n' +
+      '也就是说：代码要偏离某条章程条款时，**没有现成许可**，应先申请或改代码。'
+    );
+  }
+  if (!t) {
+    lines.push('（本次未传 today，故未判定是否到期。要看陈年旧账请传 today=YYYY-MM-DD 与 includeExpired=true）');
+  }
+  return lines.join('\n');
+}
+
+/** check_clause —— 定向校验某一条条款。只跑它的 regex 层，其余层如实说「本工具跑不了」。 */
+function checkClause({ clauseId, files } = {}) {
+  loadCharters();
+  const list = Array.isArray(files) ? files : [];
+  if (!clauseId) return '缺少 clauseId（条款 ID，PJX- 前缀，如 PJX-SVC-001）';
+  if (list.length === 0) return '缺少 files（要检查的文件数组）';
+
+  let found = null;
+  let owner = null;
+  for (const { doc } of CHARTERS) {
+    const cl = (doc.clauses ?? []).find((c) => c.id === clauseId);
+    if (cl) {
+      found = cl;
+      owner = doc;
+      break;
+    }
+  }
+  if (!found) {
+    const all = CHARTERS.flatMap((c) => (c.doc.clauses ?? []).map((x) => x.id));
+    return (
+      `本项目章程里没有条款 ${clauseId}。\n` +
+      (all.length ? `现有条款：${all.join('、')}` : '（本项目章程条款列表为空）')
+    );
+  }
+
+  const layer = found.check?.regex ? 'regex' : found.check?.ast ? 'ast' : found.check?.llm ? 'llm' : 'manual';
+  const head = [
+    `条款 ${found.id}　[${found.severity}]`,
+    found.title,
+    `归谁管 ${found.clauseOwner}｜依据 ${found.decidedBy}｜生效日 ${found.effectiveFrom}｜作用域 ${found.pathGlob}`,
+    `检测方式：${layer}`,
+    '',
+  ];
+
+  if (layer !== 'regex') {
+    return (
+      head.join('\n') +
+      `本工具只跑**正则层**，这条条款的检测方式是 ${layer} —— 不能在这里判定。\n` +
+      '（ast 层要后端编译器、llm 层尚未启动。说「没跑」而不是「通过」：前者是诚实，后者是撒谎。）'
+    );
+  }
+
+  const fileRe = found.check.regex.targetGlob ? globToRegExp(normalizePath(found.check.regex.targetGlob)) : null;
+  const expectAbsent = (found.check.regex.expect ?? 'absent') !== 'present';
+  const re = new RegExp(found.check.regex.pattern, found.check.regex.flags ?? 'g');
+
+  const hits = [];
+  for (const f of list) {
+    const name = normalizePath(String(f?.name ?? 'untitled.java'));
+    if (fileRe && !fileRe.test(name)) continue;
+    const lines = String(f?.content ?? '').split(/\r?\n/);
+    lines.forEach((line, i) => {
+      re.lastIndex = 0;
+      if (re.test(line) === expectAbsent) {
+        hits.push(`  ${name}:${i + 1}　${line.trim().slice(0, 100)}`);
+      }
+    });
+  }
+
+  if (hits.length === 0) {
+    return head.join('\n') + `检查了 ${list.length} 个文件，**无命中**。\n正解：${found.good.replace(/\n/g, ' ')}`;
+  }
+  return (
+    head.join('\n') +
+    `**命中 ${hits.length} 处：**\n${hits.join('\n')}\n正解：${found.good.replace(/\n/g, ' ')}`
+  );
+}
+
 const HANDLERS = {
   search_rules: searchRules,
   get_rule: getRule,
   lint_code: lintCode,
   get_prompt: getPrompt,
+  get_charter: getCharter,
+  list_exceptions: listExceptions,
+  check_clause: checkClause,
 };
 
 // ──────────────────────────────────────────────── JSON-RPC stdio 循环

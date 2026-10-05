@@ -829,3 +829,193 @@ console.log(
   `[arsenal] 已同步部署形态机理剧本 → src/generated/topology-flows.json\n` +
   `         ${flowCount} 个形态剧本 / ${sceneCount} 个场景（三问齐备、引用与端点全部命中）`
 );
+
+/* ══════════════════════════════════════════════════════════════
+   项目章程（2026-10-03 新增）
+   ══════════════════════════════════════════════════════════════ */
+
+/**
+ * 为什么章程校验挂在**同步脚本**里，而不只活在 `verify:charter` 那一层：
+ *
+ * 契约的价值全在「构建期硬失败」五个字上。而 `next build` 的 prebuild 钩子跑的是
+ * sync —— 只挂 verify 的话，`npm run build` 一路绿灯，直到某人在 CI 上跑 verify
+ * 才发现章程写坏了。**一道闸如果可以绕过，它就不是闸。**
+ *
+ * 失败即中断，与本脚本其它段落同一口径（`fail()` 直接 process.exit(1)）。
+ */
+{
+  const { validateCharter, formatCharterDiagnostics } = await import('./lib/validate-charter.mjs');
+
+  // L0 规则 ID 集合：用于「override 指向不存在的规则」这条判据。
+  // 走 meta.json 的 categories[] 发现文件而不是列目录 —— 与 sync-rules.mjs 同一口径。
+  const rulesRootCharter = path.resolve(webRoot, '..', 'arsenal-rules');
+  const rulesMetaCharter = JSON.parse(fs.readFileSync(path.join(rulesRootCharter, 'meta.json'), 'utf8'));
+  const ruleIds = new Set();
+  for (const cat of rulesMetaCharter.categories ?? []) {
+    const dir = path.join(rulesRootCharter, cat.dir);
+    if (!fs.existsSync(dir)) continue;
+    for (const f of fs.readdirSync(dir).filter((x) => x.endsWith('.json'))) {
+      const doc = JSON.parse(fs.readFileSync(path.join(dir, f), 'utf8'));
+      for (const r of doc.rules ?? []) ruleIds.add(r.id);
+    }
+  }
+
+  // ADR 清单：章程的 `decidedBy` 指向决策记录，而决策记录本仓还没有（P0 不造）。
+  // 所以传 null 表示「不查」—— 判据在校验器里是可选参数，给了就查。
+  // 为什么不把「没登记 ADR」当错误：P0 阶段条款都写 ADR-001/002，指过去必然全红。
+  // ADR 落地后（P1+）把这里换成真清单即可，判据本身不用动。
+  const adrs = null;
+
+  // 章程目录**可配**，三档优先级（后者覆盖前者）：
+  //   1. 默认 <repo>/arsenal-charter        —— 本仓自带一份
+  //   2. 配置文件 arsenal.json 的 project.charterDir —— 事实源里声明，不进环境变量
+  //   3. 环境变量 ARSENAL_CHARTER_DIR        —— CI / 业务仓场景（各项目把章程放自己仓里）
+  //
+  // 为什么要有第 2 档：待拍板项 ①「章程放本仓还是业务仓」的答案是「两者都要支持」——
+  // 事实源里声明一次（可提交、可评审），比每个开发机各配一个环境变量可靠。
+  // 为什么要有第 3 档：业务仓场景下 CI runner 只需要一个变量指过去。
+  const profilePath = path.join(webRoot, '..', 'arsenal-profiles', 'arsenal.json');
+  let profileCharterDir = null;
+  try {
+    profileCharterDir = JSON.parse(fs.readFileSync(profilePath, 'utf8'))?.project?.charterDir ?? null;
+  } catch { /* 档案读不到就退回默认值 —— 下面会打印实际用了哪个 */ }
+  const charterDir = path.resolve(
+    webRoot,
+    '..',
+    process.env.ARSENAL_CHARTER_DIR ?? profileCharterDir ?? 'arsenal-charter',
+  );
+  const charterDirSource = process.env.ARSENAL_CHARTER_DIR
+    ? '环境变量 ARSENAL_CHARTER_DIR'
+    : profileCharterDir ? 'arsenal.json#project.charterDir' : '内置默认';
+  const charterFiles = fs.existsSync(charterDir)
+    ? fs.readdirSync(charterDir).filter((f) => f.endsWith('.json')).sort()
+    : [];
+
+  // 目录里没有文件是合法起点（章程由各项目自带，本仓只提供工具），
+  // 但**必须显式说明**而不是静默跳过 —— 与「例外登记簿可为空数组」同一条道理。
+  if (charterFiles.length === 0) {
+    console.log(
+      `[arsenal] 项目章程：${charterDirSource} 指向的目录下暂无文件（合法起点 —— 章程由各项目自己带）\n` +
+      `         实际路径：${charterDir.replace(/\\/g, '/')}\n` +
+      '         校验器与政策闸门已就位，新增章程后此处在构建期把关',
+    );
+  }
+
+  // ★ today 注入：读系统时钟会让「例外到期」这条判据随构建时刻变，
+  // 同一天不同时间构建可能一个绿一个红。可用 ARSENAL_TODAY 覆盖（测试/复现用）。
+  // 提到 for 循环外：写快照那段在循环之后，写在循环内就是「只在第一次迭代有值」。
+  const today = process.env.ARSENAL_TODAY ?? new Date().toISOString().slice(0, 10);
+
+  const charterProblems = [];
+  const charterStats = [];
+  for (const f of charterFiles) {
+    const relPath = `arsenal-charter/${f}`;
+    const doc = JSON.parse(fs.readFileSync(path.join(charterDir, f), 'utf8'));
+    // L0 侧的两个数从 meta.json 现读（不是常量）：
+    //   l0MustCount = L0 实际 MUST+NEVER 条数
+    //   l0MustLimit = L0 的 mustHardLimit
+    // 两者只在 policy.budgetScope === 'shared' 时被用到，但**无条件传入** ——
+    // 传了不用没成本，不传则 shared 政策下会报「无法判定」。
+    let l0MustCount = 0;
+    {
+      // 逐文件重算 MUST+NEVER：meta.json#budget.mustCurrent 是**声明值**，
+      // 而实测才是判定依据（本仓铁律「手抄的数字必须由机器守住」）。两者相等时
+      // 用哪个都对，但用声明值就等于放弃了对「声明值过期」这件事的检查。
+      for (const cat of rulesMetaCharter.categories ?? []) {
+        const d2 = path.join(rulesRootCharter, cat.dir);
+        if (!fs.existsSync(d2)) continue;
+        for (const f2 of fs.readdirSync(d2).filter((x) => x.endsWith('.json'))) {
+          const j2 = JSON.parse(fs.readFileSync(path.join(d2, f2), 'utf8'));
+          for (const r2 of j2.rules ?? []) {
+            if (r2.severity === 'MUST' || r2.severity === 'NEVER') l0MustCount += 1;
+          }
+        }
+      }
+    }
+    const l0MustLimit = Number(rulesMetaCharter.budget?.mustHardLimit);
+    const r = validateCharter({
+      relPath, doc, knownRuleIds: ruleIds, knownAdrs: adrs, today,
+      l0MustCount, l0MustLimit: Number.isFinite(l0MustLimit) ? l0MustLimit : null,
+    });
+    if (r.warnings.length > 0) {
+      console.warn(`\n[arsenal] 章程警告 ${relPath}（${r.warnings.length} 条）：\n  - ${formatCharterDiagnostics(r.warnings)}\n`);
+    }
+    if (r.errors.length > 0) {
+      charterProblems.push(`${relPath}：${r.errors.length} 个问题\n      ` + formatCharterDiagnostics(r.errors));
+    }
+    // ★ 快照带完整 doc（不只是统计）。理由：P1 的 /charter 页面要渲染条款与例外全文，
+    //   而章程是**手写**源（不经 Python 生成器）—— 所以前端拿不到别的副本，
+    //   `src/generated/charter.json` 就是它唯一的编译期入口。
+    //   只放统计的话页面只能渲染数字，条款的正文/理由/正反例全看不到 ——
+    //   而「写不出 bad/good 就不收录」是这份数据的核心价值，页面上看不到等于没有。
+    charterStats.push({ id: doc.id, ...r.stats, doc });
+  }
+  if (charterProblems.length > 0) {
+    fail(
+      `项目章程契约校验未通过，共 ${charterProblems.length} 份文件有问题：\n  - ` +
+      charterProblems.join('\n  - ') +
+      `\n\n  契约的唯一来源是 arsenal-rules/_schema/charter-contract.mjs。` +
+      `\n  常见处置：缺 clauseOwner/decidedBy/effectiveFrom/pathGlob → 补齐四个协作字段；` +
+      `\n  例外缺 expiresAt → 补到期日（不接受「永久豁免」）；例外到期未销账 → 改 status=repaid 或续期。`,
+    );
+  }
+
+  if (charterFiles.length > 0) {
+    const totals = charterStats.reduce(
+      (n, s2) => ({
+        clauses: n.clauses + s2.clauses,
+        must: n.must + s2.mustClauses,
+        exceptions: n.exceptions + s2.exceptions,
+        overrides: n.overrides + s2.overrides,
+        orphaned: n.orphaned + s2.orphaned,
+      }),
+      { clauses: 0, must: 0, exceptions: 0, overrides: 0, orphaned: 0 },
+    );
+    // L0 侧的两个数一并写进快照。**为什么必须在这里写**：页面是静态导出，
+    // 渲染时拿不到文件系统 —— 而 shared 口径要显示「L0 实测 N + 章程 M / 上限」，
+    // 拿不到就显示 0% 那是一个**看起来正常的假数字**。
+    // 写成字面量更糟：L0 加一条 MUST 时它会静默过期，而没有任何东西会报错。
+    let l0Must = 0;
+    for (const cat of rulesMetaCharter.categories ?? []) {
+      const d3 = path.join(rulesRootCharter, cat.dir);
+      if (!fs.existsSync(d3)) continue;
+      for (const f3 of fs.readdirSync(d3).filter((x) => x.endsWith('.json'))) {
+        const j3 = JSON.parse(fs.readFileSync(path.join(d3, f3), 'utf8'));
+        for (const r3 of j3.rules ?? []) {
+          if (r3.severity === 'MUST' || r3.severity === 'NEVER') l0Must += 1;
+        }
+      }
+    }
+    fs.writeFileSync(
+      path.join(outDir, 'charter.json'),
+      JSON.stringify(
+        {
+          generatedAt: new Date().toISOString(),
+          charters: charterStats,
+          totals,
+          // l0Must 用**实测**（逐文件重算），不用 meta.json#budget.mustCurrent ——
+          // 那个是声明值，用它就放弃了对「声明值过期」的检查（本仓铁律）。
+          l0: {
+            must: l0Must,
+            limit: Number(rulesMetaCharter.budget?.mustHardLimit),
+            hardLimitDeclared: rulesMetaCharter.budget?.mustCurrent ?? null,
+          },
+          // today 也由构建期写入。**为什么**：页面上「条款生效了没」「例外到期了没」
+          // 全部靠这个日期，而读 `new Date()` 会让静态导出页面的内容**随构建时刻变** ——
+          // 截图对不上、断言不可复现、今天红了明天自己又绿了。
+          // 同一个值也喂给上面的 validateCharter(today)，保证「构建期判的」与「页面显示的」是同一天。
+          today,
+        },
+        null,
+        2,
+      ) + '\n',
+      'utf8',
+    );
+    console.log(
+      `[arsenal] 已同步项目章程 ${charterFiles.length} 份 → src/generated/charter.json\n` +
+      `         条款 ${totals.clauses}（MUST ${totals.must}）/ 例外 ${totals.exceptions}（孤儿 ${totals.orphaned}）/ override ${totals.overrides}\n` +
+      `         五道闸门全过：到期必销账、债主离队已转 orphaned\n` +
+      `         章程目录来自${charterDirSource}：${charterDir.replace(/\\/g, '/')}`,
+    );
+  }
+}

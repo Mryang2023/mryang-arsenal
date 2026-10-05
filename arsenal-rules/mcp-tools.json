@@ -1,21 +1,20 @@
 {
-  "$comment": "MCP 适配层的工具定义 —— 这里是唯一一份。前端导出中心、后端导出器、MCP Server 三处都读它。早先这份 inputSchema 在前端 exporters.ts 里硬编码，后端只能给一个 _tools 字符串数组，于是「两端不一致」被写进注释当成刻意的妥协；把定义变成数据之后，两端读同一份，不一致就没了存在的理由。改这里之后要重建数据：python tools/build-content.py 不需要动，但 npm run sync:rules 必须跑（prebuild 钩子会自动跑）。",
-
+  "$comment": "MCP 适配层的工具定义 —— 这里是唯一一份。前端导出中心、后端导出器、MCP Server 三处都读它。早先这份 inputSchema 在前端 exporters.ts 里硬编码，后端只能给一个 _tools 字符串数组，于是「两端不一致」被写进注释当成刻意的妥协；把定义变成数据之后，两端读同一份，不一致就没了存在的理由。改这里之后要重建数据：python tools/build-content.py 不需要动，但 npm run sync:rules 必须跑（prebuild 钩子会自动跑）。\n\n## 项目章程层（2026-10-04 新增三个）\nget_charter / list_exceptions / check_clause 读的是**另一个数据源**`arsenal-charter/<id>.json`（手写事实源，不经 Python 生成器），目录由 ARSENAL_CHARTER_DIR 指定（缺省 `<repo>/arsenal-charter`）。\n注意 `list_exceptions` 的存在意义：它让 AI 在「觉得自己要破例」时先看有没有现成豁免 —— 不查就申请新豁免是这套机制最常见的浪费。加这三个后工具总数是 7，`scripts/mcp-probe.mjs` 里原先写死 4 的断言要同步。",
   "server": {
     "name": "arsenal",
     "description": "杨先生的军火库 · 代码规范查询服务。写代码前用它查约束，写完用它验合规。",
     "transport": "stdio",
     "protocolVersion": "2024-11-05"
   },
-
   "launcher": {
     "command": "node",
-    "args": ["__ARSENAL_HOME__/arsenal-server/scripts/mcp-stdio.mjs"],
+    "args": [
+      "__ARSENAL_HOME__/arsenal-server/scripts/mcp-stdio.mjs"
+    ],
     "env": {
       "ARSENAL_RULES_DIR": "__ARSENAL_HOME__/arsenal-rules"
     }
   },
-
   "tools": [
     {
       "name": "search_rules",
@@ -29,7 +28,12 @@
           },
           "severity": {
             "type": "string",
-            "enum": ["MUST", "NEVER", "SHOULD", "MAY"],
+            "enum": [
+              "MUST",
+              "NEVER",
+              "SHOULD",
+              "MAY"
+            ],
             "description": "可选，限定级别"
           },
           "category": {
@@ -37,7 +41,9 @@
             "description": "可选，限定分类"
           }
         },
-        "required": ["query"]
+        "required": [
+          "query"
+        ]
       }
     },
     {
@@ -51,7 +57,9 @@
             "description": "规则 ID，如 WEB-CTRL-002"
           }
         },
-        "required": ["id"]
+        "required": [
+          "id"
+        ]
       }
     },
     {
@@ -69,7 +77,10 @@
             "description": "文件内容"
           }
         },
-        "required": ["filename", "content"]
+        "required": [
+          "filename",
+          "content"
+        ]
       }
     },
     {
@@ -83,6 +94,84 @@
             "description": "可选，如 \"MUST,NEVER\""
           }
         }
+      }
+    },
+    {
+      "name": "get_charter",
+      "description": "取本项目的工程章程（L1 规则）：在行业基线之上本项目额外定下的规矩，含「谁定的、为什么、什么时候生效、管哪些路径」。写代码前先调它 —— 基线管通用规范，章程管本项目的特殊约定。",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "scope": {
+            "type": "string",
+            "description": "可选，pathGlob 片段。只有作用域命中时才返回该条，例如 scope=\"controller/**\""
+          },
+          "severity": {
+            "type": "string",
+            "description": "可选，限定级别",
+            "enum": [
+              "MUST",
+              "NEVER",
+              "SHOULD",
+              "MAY"
+            ]
+          }
+        }
+      }
+    },
+    {
+      "name": "list_exceptions",
+      "description": "列本项目章程的合法破例台账：谁批的、谁还债、什么时候到期、覆盖哪个路径。★ 写代码前如果觉得自己要违反某条条款，先调这个 —— 也许已经有合法豁免，照着豁免范围写就不必申请新的。（不调就申请新豁免，是这套机制最常见的浪费。）",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "pathGlob": {
+            "type": "string",
+            "description": "可选，按路径过滤。只返回与该路径相关的豁免"
+          },
+          "includeExpired": {
+            "type": "boolean",
+            "description": "可选，默认 false。true 时连已到期未销账的一起返回 —— 要知道自己踩的是不是一笔陈年旧账时用"
+          }
+        }
+      }
+    },
+    {
+      "name": "check_clause",
+      "description": "按 ID 定向校验若干文件是否违反某一条具体条款，返回带行号的命中。与 lint_code 的区别：那个跑全规则池，这个只查一条 —— 在「我怀疑只有这一条有问题」时更快，也能把结论说得更具体。",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "clauseId": {
+            "type": "string",
+            "description": "条款 ID，PJX- 前缀，如 PJX-SVC-001"
+          },
+          "files": {
+            "type": "array",
+            "description": "要检查的文件",
+            "items": {
+              "type": "object",
+              "properties": {
+                "name": {
+                  "type": "string",
+                  "description": "完整包路径，如 com/example/Svc.java —— 填裸文件名匹配率会低很多"
+                },
+                "content": {
+                  "type": "string",
+                  "description": "源码全文"
+                }
+              },
+              "required": [
+                "name",
+                "content"
+              ]
+            }
+          }
+        },
+        "required": [
+          "clauseId",
+          "files"
+        ]
       }
     }
   ]

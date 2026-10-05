@@ -1,0 +1,134 @@
+{
+  "id": "arsenal-self",
+  "name": "军火库自身 · 工程章程",
+  "version": "0.1.0",
+  "owner": "mryang",
+  "ratifiedAt": "2026-10-03",
+  "team": [
+    "mryang"
+  ],
+  "extends": "arsenal-rules@0.1.0",
+  "budget": {
+    "mustLimit": 15
+  },
+  "policy": {
+    "overdueException": "error",
+    "orphanBlocks": "warn",
+    "requireTicket": "required",
+    "budgetScope": "separate"
+  },
+  "overrides": [
+    {
+      "ruleId": "COL-GIT-002",
+      "action": "tighten",
+      "pathGlob": "**"
+    }
+  ],
+  "clauses": [
+    {
+      "id": "PJX-SVC-001",
+      "category": "service",
+      "subcategory": "inter-call",
+      "title": "服务间调用必须走声明式客户端，禁止裸 RestTemplate",
+      "severity": "MUST",
+      "sources": [
+        {
+          "ref": "ADR-001",
+          "type": "project-decision",
+          "quote": "三个同类接口三个不同超时值"
+        }
+      ],
+      "rationale": "裸 RestTemplate 的超时与重试各调用点各写一遍，线上出现过同类接口三种超时值，排查时无法从代码看出哪个是约定值。",
+      "appliesTo": {
+        "scope": "server"
+      },
+      "bad": "restTemplate.getForObject(url + \"/x/\" + id, XxxDTO.class);",
+      "good": "XxxClient.fetch(id);   // 声明式，超时/重试在 client 统一配置",
+      "check": {
+        "regex": {
+          "pattern": "restTemplate\\.",
+          "targetGlob": "**/*.java",
+          "expect": "absent"
+        }
+      },
+      "promptFragment": "服务间调用一律走声明式客户端，禁止直接使用 RestTemplate；超时与重试必须在客户端统一配置。",
+      "status": "active",
+      "version": 1,
+      "tags": [
+        "http",
+        "p0"
+      ],
+      "decidedBy": "ADR-001",
+      "effectiveFrom": "2026-10-03",
+      "pathGlob": "src/main/java/**/service/**",
+      "clauseOwner": "mryang"
+    },
+    {
+      "id": "PJX-CFG-001",
+      "category": "skeleton",
+      "subcategory": "config",
+      "title": "新增配置项必须落在 application.yml，禁止 @Value 散落在代码里",
+      "severity": "SHOULD",
+      "sources": [
+        {
+          "ref": "ADR-002",
+          "type": "project-decision"
+        }
+      ],
+      "rationale": "@Value 散落时「这个配置能不能改、在哪改」需要全局搜索才能回答，而配置本该有一个集中清单。",
+      "appliesTo": {
+        "scope": "server"
+      },
+      "bad": "@Value(\"${retry.times:3}\") private int retryTimes;",
+      "good": "// 值集中在 application.yml 的 retry.times，代码里用 @ConfigurationProperties 绑定",
+      "check": {
+        "regex": {
+          "pattern": "@Value\\(",
+          "targetGlob": "**/*.java",
+          "expect": "absent"
+        }
+      },
+      "promptFragment": "新增配置项必须写在 application.yml，用 @ConfigurationProperties 绑定，禁止 @Value 散落在代码里。",
+      "status": "active",
+      "version": 1,
+      "clauseOwner": "mryang",
+      "decidedBy": "ADR-002",
+      "effectiveFrom": "2026-10-03",
+      "pathGlob": "src/main/java/**"
+    }
+  ],
+  "exceptions": [
+    {
+      "id": "EXC-0001",
+      "clauseId": "PJX-SVC-001",
+      "pathGlob": "src/main/java/com/arsenal/archify/**",
+      "reason": "出图服务走外部 Node 进程，无法用声明式客户端；已登记 TODO，待外部接口稳定后统一收口。",
+      "approver": "mryang",
+      "owner": "mryang",
+      "grantedAt": "2026-10-03",
+      "expiresAt": "2026-12-31",
+      "ticket": "TASK-0001",
+      "status": "active"
+    }
+  ],
+  "consistency": [
+    {
+      "id": "CONS-NAME-001",
+      "concept": "架构",
+      "canonical": [
+        "Arch",
+        "Architecture"
+      ],
+      "forbidden": [
+        "Structure",
+        "Layout"
+      ],
+      "scope": "src/main/java/**/archify/**",
+      "check": {
+        "type": "identifier",
+        "minVariants": 1,
+        "report": "drift"
+      }
+    }
+  ]
+}

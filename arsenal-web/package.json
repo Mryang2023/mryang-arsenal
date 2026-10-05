@@ -23,6 +23,7 @@
     "verify:graph": "tsx .verify/graph-check.ts",
     "verify:project": "tsx .verify/project-check.ts",
     "verify:scaffold": "tsx .verify/scaffold-check.ts",
+    "verify:charter": "tsx .verify/charter-check.ts",
     "verify:engine": "tsx .verify/run.ts",
     "verify:parity": "tsx .verify/parity-check.ts",
     "verify:archify": "tsx .verify/archify-check.ts",
