@@ -60,6 +60,13 @@ const SELF = url.fileURLToPath(import.meta.url);
 const ARSENAL_ROOT = path.resolve(path.dirname(SELF), '..', '..');
 const CONFIG_NAME = 'config.json';
 const EXECUTOR_NAME = 'charter-ci.mjs';
+/** 一致性引擎副本名（P3 第五层）。与执行器一起落进 `.arsenal/ci/`，让 lint 保持零依赖。 */
+const ENGINE_NAME = 'consistency-engine.mjs';
+/**
+ * 引擎源码在军火库里的位置。**CI 侧不会去读它** —— export 阶段会把它的内容
+ * 复制一份到 `.arsenal/ci/`（顺带注入 glob 实现），所以业务仓跑 lint 时读的是副本。
+ */
+const ENGINE_SRC_PATH = path.join(ARSENAL_ROOT, 'arsenal-web', 'scripts', 'lib', 'consistency-engine.mjs');
 
 const MAX_HITS_PER_RULE_PER_FILE = 200;   // 与 engine.ts 同值：防 pathological 正则
 const MAX_REPORTED_PER_RULE_PER_FILE = 5;  // 同上：同一规则同文件最多报 5 条，其余折叠计数
@@ -517,6 +524,8 @@ async function runExport(argv) {
 
   const exceptions = docs.flatMap((d) => (d.exceptions || []).map((e) => ({ ...e, charterId: d.id })));
   const overrides = docs.flatMap((d) => (d.overrides || []).map((o) => ({ ...o, charterId: d.id })));
+  // P3 一致性检查项（第五层）：与条款/例外同批进 config，判定时才能一起用。
+  const consistency = docs.flatMap((d) => (d.consistency || []).map((c) => ({ ...c, charterId: d.id })));
   const policy = docs[0].policy || {};
 
   // 冻结线在**导出时**裁一次：只把 today 已生效的条款带进 config。
@@ -551,6 +560,7 @@ async function runExport(argv) {
       clausesNotYet: notYet.map((c) => ({ id: c.id, effectiveFrom: c.effectiveFrom })),
       exceptions,
       overrides,
+      consistency,
     },
     rules,
     files,
@@ -568,12 +578,21 @@ async function runExport(argv) {
   fs.mkdirSync(outDir, { recursive: true });
   fs.writeFileSync(path.join(outDir, CONFIG_NAME), JSON.stringify(config, null, 2) + '\n', 'utf8');
   fs.copyFileSync(SELF, path.join(outDir, EXECUTOR_NAME));
+  // 一致性引擎副本：让 lint 在业务仓里也能跑第五层，且不破坏「零依赖」。
+  // 拿不到源码不阻断导出 —— 门禁的规则判定不依赖它，但必须说出来（否则会以为扫过了）。
+  let engineCopied = false;
+  try {
+    fs.writeFileSync(path.join(outDir, ENGINE_NAME), buildEngineCopy(), 'utf8');
+    engineCopied = true;
+  } catch (e) {
+    console.error(`⚠ 一致性引擎副本没写出（第五层在 CI 里跑不了，其余门禁不受影响）：${String(e && e.message ? e.message : e)}`);
+  }
 
   console.log(`[charter-ci] 已导出判定配置 → ${outDir.replace(/\\/g, '/')}`);
   console.log(`         模式 ${a.mode} · 判定日 ${a.today} · 章程来自${charterDirSource}`);
   console.log(`         L0 规则 ${rules.length} 条 / 生效条款 ${inForce.length} 条`
     + (notYet.length ? `（未生效 ${notYet.length} 条：${notYet.map((c) => c.id).join('、')}）` : ''));
-  console.log(`         例外 ${exceptions.length} 条 · override ${overrides.length} 条 · 判负口径 ${JSON.stringify(policy)}`);
+  console.log(`         例外 ${exceptions.length} 条 · override ${overrides.length} 条 · 一致性检查项 ${consistency.length} 条 · 判负口径 ${JSON.stringify(policy)}`);
   if (a.mode === 'pr') {
     console.log(`         本次 diff 触及 ${files.length} 个文件 —— PR 门只判这些，存量走 audit 账`);
   } else {
@@ -585,6 +604,42 @@ async function runExport(argv) {
 /* ═══════════════════════════════════════════════════════════════════════
    三、lint 模式（业务仓 CI 侧，零 import）
    ═══════════════════════════════════════════════════════════════════════ */
+
+/**
+ * 摘出本文件里某个顶层函数的完整源码（从签名行到下一个顶格 `}`）。
+ *
+ * 用途：给一致性引擎副本注入 glob 实现。**不复制源码、只 import** 是更干净的做法，
+ * 但业务仓里没有军火库目录可 import；而把 glob 再抄一遍就是本仓最反感的
+ * 「同一规矩两份实现」。所以取第三条路：副本由源码拼出来，glob 仍然只有一处定义。
+ *
+ * @param {string} src
+ * @param {string} signature
+ * @returns {string}
+ */
+function extractFunction(src, signature) {
+  const i = src.indexOf(signature);
+  if (i === -1) throw new Error(`在 charter-ci.mjs 里找不到 ${signature} —— 改名了要同步这里`);
+  const end = src.indexOf('\n}\n', i);
+  if (end === -1) throw new Error(`${signature} 的结束位置定位不到（函数体里有顶格的 } ？）`);
+  return src.slice(i, end + 3);
+}
+
+/**
+ * 生成自包含的一致性引擎副本。
+ * @returns {string}
+ */
+export function buildEngineCopy() {
+  const selfSrc = fs.readFileSync(SELF, 'utf8');
+  const helpers = `${extractFunction(selfSrc, 'function escapeLiteral')}\n${extractFunction(selfSrc, 'export function globToRegExp')}`;
+  const engineSrc = fs.readFileSync(ENGINE_SRC_PATH, 'utf8');
+  // ⚠️ 替换值必须用**函数**形式：`escapeLiteral` 的源码里含 `$&`，
+  // 用字符串形式会被当成「替换模式」解释，把 import 那行插进函数体中间（刚踩到）。
+  const out = engineSrc.replace(/^import \{ globToRegExp \} from '[^']*';[ \t]*\r?\n/m, () => `${helpers}\n`);
+  if (out === engineSrc) {
+    throw new Error('引擎副本注入失败：没找到那行 import —— 引擎改了 import 形态要同步这里');
+  }
+  return out;
+}
 
 /** @param {string} dir @returns {string[]} */
 function walkScan(dir, scan) {
@@ -615,7 +670,7 @@ function walkScan(dir, scan) {
 /**
  * @param {string[]} argv @returns {number}
  */
-function runLint(argv) {
+async function runLint(argv) {
   const a = parseArgs(argv);
   // --config 既可指目录（.arsenal/ci）也可指文件（.arsenal/ci/config.json）。
   // 判据：路径存在且是文件 → 用它；否则当目录、补上 config.json。
@@ -657,6 +712,35 @@ function runLint(argv) {
   });
   const exRows = auditExceptions((cfg.charter && cfg.charter.exceptions) || [], (cfg.charter && cfg.charter.policy) || {}, cfg.today);
 
+  // ── 第五层：命名一致性（跨文件聚合，前四层单文件判定都看不见的那类问题）──
+  //
+  // 引擎读的是**副本**（export 阶段写进 .arsenal/ci/ 的自包含文件），不是军火库源码 ——
+  // 这样业务仓 CI 依旧零依赖，而判据仍与构建期/页面共用同一份（没有第二份实现）。
+  const consItems = (cfg.charter && cfg.charter.consistency) || [];
+  /** @type {null | {items:any[], totals:any}} */
+  let cons = null;
+  /** @type {null | any} */
+  let consMod = null;
+  if (consItems.length && files.length === 0) {
+    // PR 模式 diff 为空时不能扫：扫了会得出「范围没匹配到文件」，而那句在本场景是假的
+    // （有文件、只是这次没改动）。**没扫就是没扫**，不能借用「摆设」这个结论。
+    console.log('· 命名一致性：本次没有任何文件进入判定，跳过（不是「一致」，是没有观察对象）。');
+  } else if (consItems.length) {
+    const enginePath = path.join(path.dirname(configPath), ENGINE_NAME);
+    if (!fs.existsSync(enginePath)) {
+      console.error(`⚠ 一致性引擎副本缺失（${ENGINE_NAME}）—— 第五层本次没跑。其余门禁不受影响，`
+        + '但**不会**把它显示成「一致」：没扫过和没漂移是两件事。');
+    } else {
+      try {
+        consMod = await import(url.pathToFileURL(enginePath).href);
+        cons = consMod.scanConsistency(consItems, files.map((x) => ({ path: x.name, content: x.content })));
+      } catch (e) {
+        console.error(`⚠ 一致性引擎加载失败（第五层本次没跑）：${String(e && e.message ? e.message : e)}`);
+      }
+    }
+  }
+  const consBlocking = cons ? cons.items.filter((r) => r.blocking) : [];
+
   const blocking = result.violations.filter((v) => failOn.includes(v.severity));
   const advisory = result.violations.filter((v) => !failOn.includes(v.severity));
   const exError = exRows.filter((r) => r.level === 'error');
@@ -691,6 +775,24 @@ function runLint(argv) {
     console.log(`· 提示项 ${advisory.length} 条（不阻断，severity ∈ ${[...new Set(advisory.map((v) => v.severity))].join('/')}）`);
     for (const v of advisory.slice(0, 10)) console.log(`  ${v.file}:${v.line}  [${v.severity}] ${v.ruleId} ${v.title}`);
     if (advisory.length > 10) console.log(`  …… 另有 ${advisory.length - 10} 条`);
+  }
+
+  if (cons) {
+    console.log('');
+    console.log(`命名一致性（第五层）${cons.items.length} 项：漂移 ${cons.totals.drift}`
+      + ` · 命中禁用写法 ${cons.totals.forbiddenHit} · 一致 ${cons.totals.clean}`
+      + ` · 范围没扫到文件 ${cons.totals.noFiles}`);
+    // no-files 也要点名：它是「这条检查没在检查任何东西」，静默等于让它永远摆着
+    for (const r of cons.items) {
+      if (r.status === 'clean') continue;
+      const where = r.variants.slice(0, 6)
+        .map((v) => `${v.variant}×${v.count}${v.kind === 'forbidden' ? '（禁用）' : ''}`).join('、');
+      console.log(`  ${r.status === 'no-files' ? '⚠' : '✗'} ${r.id} ${r.concept} → ${r.status}`
+        + `（${r.matchedFiles} 文件 / ${r.variantCount} 种写法，上限 ${r.minVariants}）${where ? `：${where}` : ''}`);
+    }
+    if (consBlocking.length) {
+      console.log(`  其中 ${consBlocking.length} 项配置为 block —— 计入判负`);
+    }
   }
 
   if (result.waived.length) {
@@ -755,6 +857,10 @@ function runLint(argv) {
       '|---|---|---|---|---|---|',
       ...exRows.map((r) => `| \`${r.id}\` | \`${r.clauseId}\` | ${r.state} | ${r.expiresAt || '-'} | ${r.owner || '-'} | ${r.level} |`),
       '',
+      // 第五层：命名一致性。存量账里必须有它 —— 漂移是团队级现象，只靠 PR 门看不见全貌
+      ...(cons && consMod && typeof consMod.renderConsistencyMarkdown === 'function'
+        ? consMod.renderConsistencyMarkdown(cons)
+        : ['## 命名一致性（第五层）', '', '本次没跑（引擎副本缺失或加载失败）—— **不写成「一致」**：没扫过和没漂移是两件事。', '']),
     ].join('\n');
     fs.writeFileSync(path.resolve(repo, reportPath), md, 'utf8');
     console.log(`债务账已写出：${path.resolve(repo, reportPath).replace(/\\/g, '/')}`);
@@ -803,9 +909,10 @@ function runLint(argv) {
     console.log('audit 模式不阻断（--mode audit 的存在意义就是让存量账先跑起来）。');
     return 0;
   }
-  if (blocking.length || exError.length) {
+  if (blocking.length || exError.length || consBlocking.length) {
     console.log('');
     console.log(`判负：${blocking.length} 条阻断违规${exError.length ? ` + ${exError.length} 条例外台账 error` : ''}`
+      + `${consBlocking.length ? ` + ${consBlocking.length} 条一致性漂移（配置为 block）` : ''}`
       + `（口径来自章程 policy 与 --fail-on，不是本工具写死的）`);
     return 1;
   }
@@ -836,7 +943,7 @@ async function main() {
     return 0;
   }
   if (cmd === 'export') return runExport(rest);
-  if (cmd === 'lint') return runLint(rest);
+  if (cmd === 'lint') return await runLint(rest);
   console.error(`未知子命令：${cmd}（只认 export / lint）`);
   return 2;
 }

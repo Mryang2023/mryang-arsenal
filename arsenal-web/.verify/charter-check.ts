@@ -23,6 +23,9 @@ import * as ciLint from '../../arsenal-server/scripts/charter-ci.mjs';
 import * as charterLib from '@/lib/charter';
 import * as stdLib from '@/lib/standards';
 import * as rosterLib from '@/lib/roster';
+import * as consistencyEngine from '../scripts/lib/consistency-engine.mjs';
+import * as consistencyLib from '@/lib/consistency';
+import type { ConsistencyItemReport } from '@/lib/consistency';
 import { rules as l0Rules } from '@/lib/rules';
 import { lint, globToRegExp } from '@/lib/engine';
 import type { CharterDoc, CharterException } from '@/lib/charter';
@@ -1551,7 +1554,7 @@ if (ci && ci.status === 'ok') {
     && (ci.byMode?.audit === undefined || ci.byMode.audit.blockedRuns === 0),
     `pr=${JSON.stringify(ci.byMode?.pr)} audit=${JSON.stringify(ci.byMode?.audit)}`);
   check('趋势序列按时间升序（画趋势最怕顺序反了）',
-    (ci.series ?? []).every((r, i) => i === 0 || (ci.series[i - 1].at <= r.at)),
+    (ci.series ?? []).every((r: { at: number }, i: number) => i === 0 || (ci.series[i - 1].at <= r.at)),
     `${ci.series?.length ?? 0} 条`);
 } else {
   check('无记录时：status=empty 且带原因（页面据此明说「尚无判罚记录」）',
@@ -1573,6 +1576,198 @@ if (fs.existsSync(jsonl) && ci && ci.status === 'ok') {
   check('产物 total == jsonl 里读得出来的行数（少一条就说明汇总漏了）',
     ci.total === parseable, `产物 ${ci.total} vs jsonl ${parseable}（共 ${lines.length} 行）`);
 }
+}
+
+// 【20】一致性引擎（第五层）—— 2026-10-06
+//
+// 设计稿把 P3 押后，理由是「最有价值也最脏，硬塞进第一版大概率做成摆设」。
+// 这一节的判据就盯着**摆设的三种常见形态**：
+//   ① 摆设形态一：只渲染配置、不真扫  → 用 fixture 仓库真报漂移
+//   ② 摆设形态二：扫了零文件却显示「一致」→ no-files 必须是一种独立状态
+//   ③ 摆设形态三：只要配了就报       → 词形（复数/时态）不许被算成新写法
+console.log('\n【20】一致性引擎：五套命名真报漂移 · 扫到零文件 ≠ 通过 · 词形不算新写法');
+{
+type Item = Record<string, unknown>;
+const mkItem = (over: Partial<Item> = {}): Item => ({
+  id: 'CONS-FIX-001',
+  concept: '订单',
+  canonical: ['Order'],
+  forbidden: ['Bill', 'Invoice'],
+  scope: 'src/**',
+  check: { type: 'identifier', minVariants: 1, report: 'drift' },
+  ...over,
+});
+const f = (p: string, content: string) => ({ path: p, content });
+const one = (items: Item[], files: { path: string; content: string }[]) =>
+  consistencyEngine.scanConsistency(items, files).items[0];
+
+// ① 摆设形态一：五套命名必须真报出来（这是设计稿给 P3 的原始判据）
+const five = one([mkItem()], [
+  f('src/a/OrderService.java', 'class OrderService { void place(Order o) {} }'),
+  f('src/b/Ord.java', 'class Ord {}'),
+  f('src/c/Bill.java', 'class Bill {}'),
+  f('src/d/Invoice.java', 'class Invoice {}'),
+]);
+check('★ 五套命名（Order / Ord / Bill / Invoice）→ 报出 4 种写法，不是「都合规」',
+  five.variantCount === 4 && five.status === 'forbidden-hit',
+  `variantCount=${five.variantCount} status=${five.status}`);
+check('禁用写法被单列出来（Bill / Invoice 各一条，且带出现位置）',
+  five.variants.filter((v: { kind: string }) => v.kind === 'forbidden').length === 2
+  && five.variants.every((v: { samples: unknown[] }) => v.samples.length > 0),
+  five.variants.map((v: { variant: string; kind: string }) => `${v.variant}:${v.kind}`).join('、'));
+
+// ② 摆设形态二：scope 没扫到任何文件 ≠ 通过
+const none = one([mkItem({ scope: 'src/main/java/**' })], [f('web/a.ts', 'let Order = 1;')]);
+check('★ 扫到零文件时 status = no-files（不是 clean —— 那是「这条检查没在检查任何东西」）',
+  none.status === 'no-files' && none.matchedFiles === 0,
+  `status=${none.status} matched=${none.matchedFiles}`);
+const noFilesReport: ConsistencyItemReport = {
+  id: 'CONS-FIX-001', concept: '订单', type: 'identifier', report: 'drift',
+  scope: 'src/main/java/x/**', minVariants: 1, matchedFiles: 0, scannedFiles: 0,
+  variantCount: 0, variants: [], forbiddenCount: 0, status: 'no-files', blocking: false,
+};
+const noFilesText = consistencyLib.consistencyConclusion(noFilesReport);
+check('no-files 的结论句里必须说清「没在检查」，不能出现「一致」',
+  noFilesText.includes('没有在检查') && !noFilesText.includes('一致'), noFilesText);
+
+// ③ 摆设形态三：词形（复数 / 时态）不许被算成新写法
+const infl = one([mkItem({
+  concept: '规则', canonical: ['Rule'], forbidden: [], scope: 'src/**',
+  check: { type: 'identifier', minVariants: 1, report: 'drift' },
+})], [f('src/a.ts', 'let rule = 1; let rules = 2; let Rule = 3; let ruled = 4;')]);
+check('★ rule / rules / Rule / ruled → 归并成 1 种写法（复数与过去式不是新命名）',
+  infl.variantCount === 1 && infl.status === 'clean',
+  `variantCount=${infl.variantCount} status=${infl.status} → ${infl.variants.map((v: { variant: string }) => v.variant).join('、')}`);
+check('屈折还原不误伤 class / status（以 ss / us 结尾不是复数）',
+  consistencyEngine.stem('class') === 'class' && consistencyEngine.stem('status') === 'status'
+  && consistencyEngine.stem('rules') === 'rule',
+  `${consistencyEngine.stem('class')} / ${consistencyEngine.stem('status')} / ${consistencyEngine.stem('rules')}`);
+
+// ④ 近义容差：派生词是另一个词，不是「同一概念的又一种写法」
+const near = one([mkItem({
+  concept: '校验', canonical: ['Check'], forbidden: [], scope: 'src/**',
+  check: { type: 'identifier', minVariants: 1, report: 'drift' },
+})], [f('src/a.ts', 'let check = 1; let checker = 2; let checkout = 3; let checksum = 4;')]);
+check('checker 收得进来（差 2），checkout / checksum 收不进来（差 3 —— 它们是另一个词）',
+  near.variants.map((v: { variant: string }) => v.variant.toLowerCase()).sort().join(',') === 'check,checker',
+  near.variants.map((v: { variant: string }) => v.variant).join('、'));
+
+// ④' 两个不同的近义变体必须各占一格（曾经因为 variant 分支漏了 key，全部挤成同一格 ——
+//     症状是「明明有多种写法，变体数却恒为 2」，且不报任何错）
+const twoVariants = one([mkItem({
+  concept: '架构', canonical: ['Arch'], forbidden: [], scope: 'src/**',
+  check: { type: 'identifier', minVariants: 1, report: 'drift' },
+})], [f('src/a.ts', 'let Arch = 1; let Archi = 2; let Archy = 3;')]);
+check('★ 多个近义变体各占一格（不许被并成一条）',
+  twoVariants.variantCount === 3,
+  `variantCount=${twoVariants.variantCount} → ${twoVariants.variants.map((v: { variant: string }) => v.variant).join('、')}`);
+
+// ⑤ 判据方向：不该红的时候不许红
+const clean = one([mkItem({ canonical: ['Order'], forbidden: [], check: { type: 'identifier', minVariants: 2, report: 'drift' } })],
+  [f('src/a.ts', 'let Order = 1;'), f('src/b.ts', 'let OrderItem = 2;')]);
+check('只有 1 种写法且未超上限 → clean（「配了就报」是摆设的第三种形态）',
+  clean.status === 'clean', `status=${clean.status} variantCount=${clean.variantCount}`);
+
+const forbidOnly = one([mkItem({ canonical: ['Order'], forbidden: ['Bill'], check: { type: 'identifier', minVariants: 99, report: 'drift' } })],
+  [f('src/a.ts', 'let Order = 1; let Bill = 2;')]);
+check('禁用写法命中即报（哪怕没超过 minVariants —— 禁用的事没有「次数够多才算」）',
+  forbidOnly.status === 'forbidden-hit', `status=${forbidOnly.status} 上限=${forbidOnly.minVariants}`);
+
+// ⑥ scope 之外不参与（跨目录误报会让这项检查没人敢配）
+const scoped = one([mkItem({ scope: 'src/main/**' })],
+  [f('src/main/a.ts', 'let Order = 1;'), f('src/test/b.ts', 'let Bill = 2;')]);
+check('scope 之外的文件不参与判定',
+  scoped.matchedFiles === 1 && scoped.variantCount === 1 && scoped.status === 'clean',
+  `matched=${scoped.matchedFiles} variants=${scoped.variants.map((v: { variant: string }) => v.variant).join('、')}`);
+
+// ⑦ 四种比对对象都要真能跑（契约允许四种，跑不了的必须炸而不是静默通过）
+const types: [string, string][] = [
+  ['package', 'package com.example.order;\nimport com.example.bill.Bill;\n'],
+  ['table', 'select * from order_info join bill on 1=1;\n'],
+  ['interface', 'class X { void placeOrder() {} void payBill() {} }\n'],
+];
+for (const [t, body] of types) {
+  const r = one([mkItem({ check: { type: t, minVariants: 1, report: 'drift' } })], [f('src/a.java', body)]);
+  check(`type=${t} 能抽出写法（不是恒为 0 的假绿）`, r.variantCount >= 1,
+    `variantCount=${r.variantCount} → ${r.variants.map((v: { variant: string }) => v.variant).join('、')}`);
+}
+let threw = false;
+try {
+  consistencyEngine.scanConsistency([mkItem({ check: { type: 'nope', minVariants: 1, report: 'drift' } })], [f('src/a.ts', 'let x = 1;')]);
+} catch { threw = true; }
+check('未知 type 抛错而不是静默通过（0 变体 = 假绿，比报错危险得多）', threw, '');
+
+// ⑧ 产物与链的登记（漏登记 = 别人 fresh clone 构建就挂，且没有任何东西会报）
+const pkgText = fs.readFileSync(path.join(here, '..', 'package.json'), 'utf8');
+check('sync 链挂了 calc-consistency（否则 fresh clone 的页面 import 不到产物）',
+  /"sync":\s*"[^"]*calc-consistency\.mjs/.test(pkgText) && /"sync:consistency":\s*"node scripts\/calc-consistency\.mjs"/.test(pkgText),
+  pkgText.split('\n').find((l) => l.includes('"sync":'))?.trim().slice(0, 120) ?? '未找到');
+
+const cPath = path.join(here, '..', 'src', 'generated', 'consistency.json');
+const cProd = fs.existsSync(cPath) ? JSON.parse(fs.readFileSync(cPath, 'utf8')) : null;
+check('扫描产物存在且 schema 对得上（页面据此区分「没扫过」与「扫了但没配」）',
+  cProd?.schema === 'arsenal-consistency/1' && Array.isArray(cProd?.items),
+  cProd ? `schema=${cProd.schema} items=${cProd.items?.length}` : `缺 ${cPath.replace(/\\/g, '/')}`);
+if (cProd && Array.isArray(cProd.items)) {
+  const declared = (charterLib.charters ?? []).reduce((n: number, c: { doc?: { consistency?: unknown[] } }) => n + (c.doc?.consistency?.length ?? 0), 0);
+  check('产物条目数 == 章程里配的条目数（少一条就说明有检查项没被扫）',
+    cProd.items.length === declared, `产物 ${cProd.items.length} vs 章程 ${declared}`);
+  check('本仓没有「摆设检查项」（每条的 scope 都真扫到了文件）',
+    cProd.items.every((r: { matchedFiles: number }) => r.matchedFiles > 0),
+    cProd.items.filter((r: { matchedFiles: number }) => r.matchedFiles === 0)
+      .map((r: { id: string; scope: string }) => `${r.id}(${r.scope})`).join('、') || '全部有命中文件');
+  check('totals 与 items 自洽（页面读 totals，算错就是错的结论）',
+    cProd.totals.clean + cProd.totals.drift + cProd.totals.forbiddenHit + cProd.totals.noFiles === cProd.items.length,
+    JSON.stringify(cProd.totals));
+}
+
+// ⑨ 只有一份实现：引擎若被复制成两份，CI 与页面就会判出不同结论
+const engineHits = ['arsenal-web/src', 'arsenal-web/scripts', 'arsenal-server/scripts']
+  .flatMap((d) => {
+    const base = path.join(repoRoot, d);
+    if (!fs.existsSync(base)) return [] as string[];
+    const walkDir = (p: string): string[] => fs.readdirSync(p, { withFileTypes: true }).flatMap((e) => {
+      const q = path.join(p, e.name);
+      if (e.isDirectory()) return e.name === 'node_modules' || e.name.startsWith('.') ? [] : walkDir(q);
+      return /\.(ts|tsx|mjs|js)$/.test(e.name) ? [q] : [];
+    });
+    return walkDir(base);
+  })
+  .filter((p) => /export function scanConsistency\b/.test(fs.readFileSync(p, 'utf8')));
+check('scanConsistency 全仓只有一处定义（CI 与构建期共用同一份判据）',
+  engineHits.length === 1, engineHits.map((p) => p.replace(/\\/g, '/')).join('、'));
+
+// ⑩ 页面真的消费了结论（只 import 不渲染 = 仍然是摆设）
+const panelsSrc = fs.readFileSync(path.join(here, '..', 'src', 'app', 'charter', 'CharterPanels.tsx'), 'utf8');
+check('一致性屏渲染扫描结论（status 徽标 + 结论句 + 写法清单都在）',
+  /consistencyFor\(/.test(panelsSrc) && /consistencyStatusLabel\(/.test(panelsSrc)
+  && /consistencyConclusion\(/.test(panelsSrc) && /consistencyAvailable\(/.test(panelsSrc),
+  '缺一个就说明页面还在只渲染配置');
+// ⑪ CI 侧也要能跑 —— 引擎只活在页面上就等于「只有看的人才知道漂移了」
+const ciSrc = fs.readFileSync(path.join(repoRoot, 'arsenal-server', 'scripts', 'charter-ci.mjs'), 'utf8');
+check('export 把一致性检查项写进 config（不写进 config，CI 里就没有东西可扫）',
+  /const consistency = docs\.flatMap/.test(ciSrc) && /\n      consistency,\n/.test(ciSrc),
+  'config 里没有 consistency 字段');
+check('lint 会跑第五层，且 report=block 的漂移计入判负',
+  /scanConsistency\(/.test(ciSrc) && /consBlocking\.length/.test(ciSrc),
+  '要么没扫，要么扫了不判负 —— 两种都等于没接');
+check('★ 引擎副本自包含（含 glob 实现、不残留 import —— 业务仓没有军火库目录可 import）',
+  (() => {
+    try {
+      const copy = (ciLint as unknown as { buildEngineCopy(): string }).buildEngineCopy();
+      return /export function globToRegExp/.test(copy) && /function escapeLiteral/.test(copy)
+        && !/^import /m.test(copy) && !/arsenal-server[/\\]scripts/.test(copy);
+    } catch (e) {
+      return false;
+    }
+  })(),
+  '副本里若残留 import，业务仓 CI 一跑就 MODULE_NOT_FOUND');
+check('反证：副本注入用**函数形式**的 replace（用字符串形式会让 escapeLiteral 里的 $& 被当替换模式）',
+  /\.replace\([^,]+,\s*\(\)\s*=>/.test(ciSrc),
+  '改成字符串形式会把 import 那行插进函数体中间，且不报错');
+check('PR 模式 diff 为空时跳过一致性扫描（那时「范围零文件」是假的，不能借用「摆设」这个结论）',
+  /files\.length === 0/.test(ciSrc) && /没有观察对象/.test(ciSrc),
+  '');
 }
 
 process.exit(finish('charter'));

@@ -280,6 +280,57 @@ node .arsenal/ci/charter-ci.mjs lint --config .arsenal/ci --mode pr
 
 ---
 
+## 8.5 命名一致性（第五层 · 全仓聚合）
+
+前四层都是**单文件**判定：每个文件单独看都合规，合起来却可能是「同一个概念五种写法」。
+第五层补的就是这个洞 —— 它在 CI 里**默认跟着跑**（不需要额外开关）。
+
+```jsonc
+{
+  "id": "CONS-NAME-001",
+  "concept": "校验",                       // 人读的那一层
+  "canonical": ["Verify", "Check"],        // 认可的写法（至少一个）
+  "forbidden": ["Validate"],               // 明令不许的
+  "scope": "src/main/java/**",             // 检查范围（pathGlob）
+  "check": { "type": "identifier", "minVariants": 2, "report": "drift" }
+}
+```
+
+| 字段 | 取值 | 说明 |
+|---|---|---|
+| `type` | `identifier` / `package` / `table` / `interface` | 比对对象：类名与字段名 / 包名 / SQL 表名 / 方法名 |
+| `minVariants` | ≥ 1 | 出现**超过**这个数量的写法就报。**写 0 等于关掉这项检查** |
+| `report` | `drift`（默认）/ `block` | `drift` 只报不改（漂移是团队级现象，不该由一个人扛）；`block` 计入判负、会让 exit 1 |
+
+输出长这样（`lint` 中段）：
+
+```
+命名一致性（第五层）2 项：漂移 0 · 命中禁用写法 2 · 一致 0 · 范围没扫到文件 0
+  ✗ CONS-NAME-001 校验 → forbidden-hit（163 文件 / 3 种写法，上限 2）：validate×8（禁用）、Check×267、verify×91
+```
+
+四种结论里**只有一种是「通过」**，别把另外三种读岔了：
+
+| 结论 | 含义 | 该做什么 |
+|---|---|---|
+| `clean` | 写法数在上限内，且没有禁用写法 | 不用管 |
+| `drift` | 同一个概念正在分裂 | 团队层面统一，`report: block` 时可让它拦住新代码 |
+| `forbidden-hit` | 明令不许的写法出现了 | 逐个改掉；**命中即报，不看有没有超过 `minVariants`** |
+| ⚠ `no-files` | `scope` 没匹配到任何文件 | **这条检查当前没在检查任何东西** —— 修 `scope`，它不是通过 |
+
+**两条边界**（别高估它）：
+
+1. 只认得**配置里列出**的写法及其近义变体（`Arch` → `Archi`）。写了 `Framework` 而配置里只有 `Arch`，它发现不了 ——
+   「哪些词算同一个概念」是人的判断，机器替代不了。
+2. 复数与过去式不算新写法（`rules` 归到 `rule`），但 `checkout` / `checksum` 这类**派生词**也不算 ——
+   它们只是恰好以同一个词开头，不是同一概念的另一种叫法。想让某个派生词参与比对，就把它显式写进 `canonical` / `forbidden`。
+
+> 引擎源码在军火库里只有**一份**（`arsenal-web/scripts/lib/consistency-engine.mjs`）。
+> `export` 会把它连 glob 实现一起复制成自包含的 `.arsenal/ci/consistency-engine.mjs`，
+> 所以业务仓跑 `lint` 时仍然零依赖 —— 不会出现「CI 里判的和页面上显示的不一样」。
+
+---
+
 ## 9. 这套门禁**检不了**什么（重要）
 
 | 内容 | 为什么检不了 | 怎么办 |
@@ -287,7 +338,8 @@ node .arsenal/ci/charter-ci.mjs lint --config .arsenal/ci --mode pr
 | AST 层规则（如「必须用 try-with-resources」） | CI 门禁只跑正则层 | 在校验台点「后端深检」，或写进 code review 检查项 |
 | 语义层规则（如「命名是否表达业务含义」） | 需要 LLM 判定 | 人看。章程里照样可以写，它会出现在「检不了的清单」里提醒你 |
 | `override.replace` 的替换物 | 契约里是文字描述，不是可执行正则 | 人工确认后直接改 `check.regex.pattern` |
-| 跨文件命名一致性（P3 一致性检查器） | 引擎还没实现 | 契约与判据已就位，`consistency[]` 配了不会误报成「通过」 |
+| 配置里**没列过**的同义词（如只配了 `Arch`，代码里却写 `Framework`） | 「哪些词算同一个概念」只有人知道 | 把真实存在的写法补进 `canonical` / `forbidden`；引擎只盯着**已列出**的写法有没有同时扩散 |
+| 跨包引用的等价命名（不同包里同一个类的两个名字） | 需要类型解析，不是文本比对 | 人工过目 |
 
 **建议**：把「检不了的清单」当成**待办队列**贴在 review 模板里。
 一个团队如果长期不看这张清单，说明它已经变成装饰了。

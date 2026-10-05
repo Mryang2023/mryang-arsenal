@@ -1,6 +1,16 @@
 'use client';
 
 import { consistencyMode, l0DeclarationDrift, l0View, overrideView } from '@/lib/charter';
+import {
+  consistencyAvailable,
+  consistencyConclusion,
+  consistencyFor,
+  consistencyKindLabel,
+  consistencyScan,
+  consistencyStatusClass,
+  consistencyStatusLabel,
+  consistencyVariantClass,
+} from '@/lib/consistency';
 import type { CharterDoc, OverduePolicy } from '@/lib/charter';
 
 /**
@@ -77,6 +87,7 @@ function OverridePanel({ doc, today }: { doc: CharterDoc; today: string }) {
 /* ── 一致性检查项 ───────────────────────────────────────── */
 
 function ConsistencyPanel({ doc }: { doc: CharterDoc }) {
+  const hasScan = consistencyAvailable();
   return (
     <section className="mt-6 border-t border-line pt-5">
       <h2 className="text-sm text-fg">命名一致性</h2>
@@ -84,6 +95,13 @@ function ConsistencyPanel({ doc }: { doc: CharterDoc }) {
         前四层检查（正则 / 语法树 / 语义 / 人工）全是<b>单文件</b>判定。这一项是<b>全仓聚合</b>的：
         同一个概念在不同文件里出现多种写法时，每个文件单独看都合规，合起来是一套漂移的代码。
       </p>
+
+      {!hasScan && (
+        <p className="mt-3 rounded-lg border border-brass/50 bg-brass/5 px-3 py-2 text-xs text-brass">
+          还没有扫描结论 —— 跑一次 <code>npm run sync:consistency</code> 才会扫全仓。
+          这里<b>不</b>把「没扫过」画成「一致」：没有数据来源时，零漂移和没检查长得一模一样。
+        </p>
+      )}
 
       {doc.consistency.length === 0 ? (
         <p className="mt-3 rounded-lg border border-dashed border-line bg-surface px-3 py-4 text-center text-xs text-fgFaint">
@@ -94,16 +112,27 @@ function ConsistencyPanel({ doc }: { doc: CharterDoc }) {
         <ul className="mt-3 space-y-2">
           {doc.consistency.map((c) => {
             const m = consistencyMode(c);
+            const r = consistencyFor(c.id);
             return (
               <li key={c.id} className="rounded-lg border border-line bg-surface px-3 py-2.5">
                 <div className="flex flex-wrap items-baseline gap-x-2.5 gap-y-1">
                   <span className="font-mono text-xs text-fgFaint">{c.id}</span>
                   <span className="text-sm text-fg">{c.concept}</span>
+                  {r ? (
+                    <span className={`rounded px-1.5 py-0.5 text-[11px] ${consistencyStatusClass(r.status)}`}>
+                      {consistencyStatusLabel(r.status)}
+                    </span>
+                  ) : (
+                    <span className="rounded bg-surfaceHi px-1.5 py-0.5 text-[11px] text-fgMuted">
+                      {hasScan ? '本次扫描没覆盖到它' : '未扫描'}
+                    </span>
+                  )}
                   <span className={m.tone === 'error' ? 'text-xs text-rust' : 'text-xs text-brass'}>
                     {m.label}
                   </span>
                   <span className="font-mono text-[11px] text-fgFaint">{c.check.type}</span>
                 </div>
+
                 <div className="mt-1.5 flex flex-wrap gap-1.5 text-[11px]">
                   {c.canonical.map((w) => (
                     <span key={`ok-${w}`} className="rounded bg-olive/15 px-1.5 py-0.5 text-olive">
@@ -116,18 +145,63 @@ function ConsistencyPanel({ doc }: { doc: CharterDoc }) {
                     </span>
                   ))}
                 </div>
-                <p className="mt-1.5 text-[11px] text-fgFaint">
-                  范围 <span className="font-mono">{c.scope}</span>
-                  {' · '}出现超过 {c.check.minVariants} 种写法就报
-                  {c.check.report === 'drift' && '（只报不改 —— 漂移是团队级现象，不该由一个人扛）'}
-                </p>
+
+                {r ? (
+                  <>
+                    <p className="mt-1.5 text-[11px] text-fgFaint">{consistencyConclusion(r)}</p>
+                    {r.variants.length > 0 && (
+                      <ul className="mt-1.5 space-y-1">
+                        {r.variants.slice(0, 8).map((v) => (
+                          <li key={v.variant} className="flex flex-wrap items-baseline gap-x-2 text-[11px]">
+                            <span className={`rounded px-1.5 py-0.5 ${consistencyVariantClass(v.kind)}`}>
+                              {consistencyKindLabel(v.kind)}
+                            </span>
+                            <span className="font-mono text-fg">{v.variant}</span>
+                            <span className="text-fgFaint">{v.count} 处 / {v.files} 个文件</span>
+                            {v.samples[0] && (
+                              <span className="font-mono text-fgFaint">
+                                {shortPath(v.samples[0].file)}:{v.samples[0].line}
+                              </span>
+                            )}
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                    <p className="mt-1.5 text-[11px] text-fgFaint">
+                      范围 <span className="font-mono">{r.scope}</span>
+                      {' · '}命中 {r.matchedFiles} 个文件
+                      {r.report === 'block' ? ' · 配置为阻断' : ' · 只报不改'}
+                    </p>
+                  </>
+                ) : (
+                  <p className="mt-1.5 text-[11px] text-fgFaint">
+                    范围 <span className="font-mono">{c.scope}</span>
+                    {' · '}出现超过 {c.check.minVariants} 种写法就报
+                    {c.check.report === 'drift' && '（只报不改 —— 漂移是团队级现象，不该由一个人扛）'}
+                  </p>
+                )}
               </li>
             );
           })}
         </ul>
       )}
+
+      {hasScan && doc.consistency.length > 0 && (
+        <p className="mt-3 text-[11px] text-fgFaint">
+          扫描 {consistencyScan.scan.candidateFiles} 个文件 /
+          {consistencyScan.scan.elapsedMs}ms · 生成于 {consistencyScan.generatedAt.slice(0, 10)}。
+          引擎只认得配置里列出的写法及其近义变体 —— <b>没列过的全新同义词它发现不了</b>，
+          「哪些词算同一个概念」仍然要人写进章程。
+        </p>
+      )}
     </section>
   );
+}
+
+/** 路径太长会挤掉右侧的列，只留末两段（前面的目录对定位没用）。 */
+function shortPath(p: string): string {
+  const parts = p.split('/');
+  return parts.length > 3 ? `…/${parts.slice(-2).join('/')}` : p;
 }
 
 /* ── L0 声明值漂移提示 ───────────────────────────────────── */

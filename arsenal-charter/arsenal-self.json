@@ -114,19 +114,35 @@
   "consistency": [
     {
       "id": "CONS-NAME-001",
-      "concept": "架构",
+      "concept": "校验",
       "canonical": [
-        "Arch",
-        "Architecture"
+        "Verify",
+        "Check"
       ],
       "forbidden": [
-        "Structure",
-        "Layout"
+        "Validate"
       ],
-      "scope": "src/main/java/**/archify/**",
+      "scope": "arsenal-web/src/**",
       "check": {
         "type": "identifier",
-        "minVariants": 1,
+        "minVariants": 2,
+        "report": "drift"
+      }
+    },
+    {
+      "id": "CONS-NAME-002",
+      "concept": "校验（后端）",
+      "canonical": [
+        "Verify",
+        "Check"
+      ],
+      "forbidden": [
+        "Validate"
+      ],
+      "scope": "arsenal-server/src/**",
+      "check": {
+        "type": "identifier",
+        "minVariants": 2,
         "report": "drift"
       }
     }
