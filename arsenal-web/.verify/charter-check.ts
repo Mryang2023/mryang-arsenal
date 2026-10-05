@@ -1479,4 +1479,52 @@ check('名册产物里不留 email / 头像（最小暴露，不进 Git 的是�
   '名册产物里出现了邮箱或头像字段');
 }
 
+// 【18】teamRef（章程属于哪支中枢团队）—— 2026-10-05
+//
+// 为什么它是可选而不是必填：不接中枢的项目不该被逼着编一个团队 id。
+// 「配置项存在只为了满足校验器，于是所有人往里填假值」是本仓最反感的形态。
+console.log('\n【18】teamRef：可选、形状受校验、缺 teamId 会被构建期拦住');
+{
+const today = charterLib.todayOf();
+const doc = primaryCharterDoc();
+
+// ① 不配是合法状态（本仓现状就是不配）
+check('teamRef 不配时校验器不报红（不接中枢的项目必须能过关）',
+  (() => {
+    const noRef = { ...doc };
+    delete (noRef as any).teamRef;
+    const r = run({ ...noRef }, today);
+    return r.errors.filter((e) => String(e.path || '').includes('teamRef')).length === 0;
+  })(), '');
+
+// ② 配了就必须有 system 与 teamId（必填项漏一个都要报出来）
+const withRef = { ...doc, teamRef: { system: 'command-center', teamId: 1, teamName: '平台组' } };
+const okRef = run(withRef, today);
+check('teamRef 形状完整时校验通过', okRef.errors.filter((e) => String(e.path || '').includes('teamRef')).length === 0,
+  okRef.errors.filter((e) => String(e.path || '').includes('teamRef')).map((e) => `${e.path} ${e.code}`).join('; ') || '无 teamRef 诊断');
+
+const missingId = run({ ...doc, teamRef: { system: 'command-center' } }, today);
+check('★ 反证：teamRef 缺 teamId（必填）→ 校验器报出且指向 teamRef.teamId',
+  missingId.errors.some((e) => String(e.path || '').includes('teamRef.teamId')),
+  missingId.errors.map((e) => `${e.path || '?'}:${e.code}`).slice(0, 3).join('; ') || '（一条都没报 —— 必填没守住）');
+
+const badId = run({ ...doc, teamRef: { system: 'command-center', teamId: 0 } }, today);
+check('反证：teamId = 0（minimum 1）→ 报出', badId.errors.some((e) => String(e.path || '').includes('teamRef.teamId')), '');
+
+// ③ 契约里 teamRef 确实是「可选」而不是「必填」——把它改成必填会让不接中枢的项目编造数据
+const contractSrc = fs.readFileSync(path.join(repoRoot, 'arsenal-rules', '_schema', 'charter-contract.mjs'), 'utf8');
+check('契约把 teamRef 声明为可选（外壳层没有把它列进必填）',
+  /teamRef: obj\(/.test(contractSrc) && !/CHARTER_REQUIRED[\s\S]{0,400}teamRef/.test(contractSrc),
+  '若 teamRef 进了 CHARTER_REQUIRED，不接中枢的项目就得编一个团队 id');
+
+// ④ sync 的 teamId 回退：产物的 teamId 必须要么来自 env、要么来自章程 teamRef（不能是别的东西）
+const rosterPath = path.join(here, '..', 'src', 'generated', 'roster.json');
+const rosterRaw = fs.existsSync(rosterPath) ? JSON.parse(fs.readFileSync(rosterPath, 'utf8')) : null;
+const expectTeam = doc.teamRef ? Number(doc.teamRef.teamId) : null;
+check('名册产物的 teamId 与章程 teamRef 一致（不配 teamRef 时应为 null 而不是猜一个）',
+  !doc.teamRef ? (rosterRaw?.teamId ?? null) === null
+    : rosterRaw?.teamId === expectTeam,
+  `产物 teamId=${rosterRaw?.teamId} 章程 teamRef=${expectTeam}`);
+}
+
 process.exit(finish('charter'));

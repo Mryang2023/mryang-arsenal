@@ -39,7 +39,34 @@ const outPath = path.join(webRoot, 'src', 'generated', 'roster.json');
 
 const BASE = (process.env.ARSENAL_CC_BASE_URL || '').replace(/\/+$/, '');
 const KEY = process.env.ARSENAL_CC_API_KEY || '';
-const TEAM = process.env.ARSENAL_CC_TEAM_ID || '';
+
+/**
+ * 拉哪支团队：**env > 章程的 teamRef > 未配置**。
+ *
+ * 为什么要有章程这一档：`team` 名单是手写的、必然过期，而名册要拉「哪支队」是
+ * 章程自己的属性，不该只存在于某个开发机的环境变量里。env 仍能覆盖 —— 那是
+ * 「同一份章程在多支团队上各拉一次」的场景（一份规范、多个仓库）。
+ */
+function teamIdFromCharter() {
+  const dir = process.env.ARSENAL_CHARTER_DIR
+    ? path.resolve(process.env.ARSENAL_CHARTER_DIR)
+    : path.resolve(here, '..', '..', 'arsenal-charter');
+  try {
+    for (const f of fs.readdirSync(dir).filter((x) => x.endsWith('.json')).sort()) {
+      const doc = JSON.parse(fs.readFileSync(path.join(dir, f), 'utf8'));
+      const t = doc && doc.teamRef;
+      if (t && t.system === 'command-center' && Number.isFinite(Number(t.teamId)) && Number(t.teamId) > 0) {
+        return { id: String(t.teamId), name: t.teamName || null, from: `${f}#teamRef` };
+      }
+    }
+  } catch {
+    // 章程目录读不到不算失败：下面统一按「未配置」处理并打印原因
+  }
+  return null;
+}
+
+const FROM_CHARTER = process.env.ARSENAL_CC_TEAM_ID ? null : teamIdFromCharter();
+const TEAM = process.env.ARSENAL_CC_TEAM_ID || (FROM_CHARTER ? FROM_CHARTER.id : '');
 
 /** 统一写盘：任何路径都要留下一个可读的产物（哪怕是「没拉到」）——不留文件等于让页面猜。 */
 function write(status, extra = {}) {
@@ -68,6 +95,10 @@ if (!BASE || !KEY || !TEAM) {
     error: `未配置 ${missing.join(' / ')} —— 离队判定本次仍用章程手写的 team 名单`,
   });
   console.log(`[roster] 未配置（${missing.join(' / ')}）→ 写 not-configured，页面会显示「本次未校验名册」`);
+  if (!process.env.ARSENAL_CC_TEAM_ID && !FROM_CHARTER) {
+    console.log('         提示：在章程里加 "teamRef": { "system": "command-center", "teamId": N }，'
+      + '就不用每次配环境变量了（env 仍可覆盖）');
+  }
   console.log(`         ${p.error}`);
   process.exit(0);
 }
@@ -116,7 +147,9 @@ try {
     memberCount: members.length,
     error: null,
   });
+  const via = process.env.ARSENAL_CC_TEAM_ID ? '环境变量' : `章程 ${FROM_CHARTER.from}`;
   console.log(`[roster] 名册已同步 · 团队「${p.teamName ?? TEAM}」· ${members.length} 人 · 来自 ${p.fetchedAt}`);
+  console.log(`         团队 id ${TEAM} 取自${via}${FROM_CHARTER?.name ? `（章程记的名字：${FROM_CHARTER.name}）` : ''}`);
   console.log(`         角色分布：${JSON.stringify(members.reduce((a, m) => ({ ...a, [m.role]: (a[m.role] || 0) + 1 }), {}))}`);
   process.exit(0);
 } catch (e) {

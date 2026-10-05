@@ -93,6 +93,13 @@ export interface CharterPolicy {
   budgetScope: 'separate' | 'shared';
 }
 
+/** 本章程属于哪支团队（可选，2026-10-05）。不接中枢的项目可以不写。 */
+export interface CharterTeamRef {
+  system: string;
+  teamId: number;
+  teamName?: string;
+}
+
 export interface CharterDoc {
   id: string;
   name: string;
@@ -100,6 +107,8 @@ export interface CharterDoc {
   owner: string;
   ratifiedAt: string;
   team: string[];
+  /** 中枢团队指针；不给就是「本项目不接中枢」—— 不设默认值，否则会被迫编造 */
+  teamRef?: CharterTeamRef;
   extends: string;
   budget: { mustLimit: number };
   policy: CharterPolicy;

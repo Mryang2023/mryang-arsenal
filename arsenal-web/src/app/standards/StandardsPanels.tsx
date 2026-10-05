@@ -323,6 +323,21 @@ export function RosterPanel({ doc }: { doc: CharterDoc }) {
         忘了更新就永远发现不了孤儿债。这里把两侧摆在一起对照，并标明当前判定用的是哪一份。
       </p>
 
+      {/* 本章程属于哪支团队（teamRef，2026-10-05 加）。不配也合法 ——
+          不接中枢的项目不该被逼着编一个团队 id。 */}
+      <p className="mt-1.5 text-[11px] text-fgFaint">
+        本章程归属：{' '}
+        {doc.teamRef ? (
+          <b className="font-mono text-fgMuted">
+            {doc.teamRef.system} team#{doc.teamRef.teamId}
+            {doc.teamRef.teamName ? `（${doc.teamRef.teamName}）` : ''}
+          </b>
+        ) : (
+          <>未指定中枢团队（<code>teamRef</code> 没写）—— 名册同步会用环境变量{' '}
+            <code>ARSENAL_CC_TEAM_ID</code> 指定的团队</>
+        )}
+      </p>
+
       <div className="mt-3 flex flex-wrap gap-x-6 gap-y-1 text-xs">
         <span className="text-fgMuted">
           当前判定口径{' '}
