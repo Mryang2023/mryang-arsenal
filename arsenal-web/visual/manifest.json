@@ -1,7 +1,7 @@
 {
   "generator": "arsenal-web/visual/shoot.mjs",
-  "generatedAt": "2026-10-05T08:11:51.008Z",
-  "baseUrl": "http://127.0.0.1:3033",
+  "generatedAt": "2026-10-05T13:36:03.475Z",
+  "baseUrl": "http://127.0.0.1:3034",
   "fullPage": false,
   "captureMode": "viewport",
   "discovery": {
@@ -266,7 +266,7 @@
       "width": 1440,
       "height": 900,
       "bytes": 215561,
-      "durationMs": 2907,
+      "durationMs": 2298,
       "ok": true,
       "error": null,
       "metrics": {
@@ -288,17 +288,32 @@
       "consoleErrors": [],
       "requestFailures": [
         {
-          "url": "http://127.0.0.1:3033/stack/step/project/index.txt?_rsc=19zvn",
+          "url": "http://127.0.0.1:3034/stack/step/theme/index.txt?_rsc=19zvn",
           "method": "GET",
           "errorText": "net::ERR_ABORTED"
         },
         {
-          "url": "http://127.0.0.1:3033/stack/run/index.txt?_rsc=19zvn",
+          "url": "http://127.0.0.1:3034/stack/delivery/index.txt?_rsc=19zvn",
           "method": "GET",
           "errorText": "net::ERR_ABORTED"
         },
         {
-          "url": "http://127.0.0.1:3033/standards/index.txt?_rsc=19zvn",
+          "url": "http://127.0.0.1:3034/stack/step/delivery/index.txt?_rsc=19zvn",
+          "method": "GET",
+          "errorText": "net::ERR_ABORTED"
+        },
+        {
+          "url": "http://127.0.0.1:3034/arch/index.txt?_rsc=19zvn",
+          "method": "GET",
+          "errorText": "net::ERR_ABORTED"
+        },
+        {
+          "url": "http://127.0.0.1:3034/icons/index.txt?_rsc=19zvn",
+          "method": "GET",
+          "errorText": "net::ERR_ABORTED"
+        },
+        {
+          "url": "http://127.0.0.1:3034/archify/index.txt?_rsc=19zvn",
           "method": "GET",
           "errorText": "net::ERR_ABORTED"
         }
@@ -314,7 +329,7 @@
       "width": 1024,
       "height": 768,
       "bytes": 168702,
-      "durationMs": 1527,
+      "durationMs": 1670,
       "ok": true,
       "error": null,
       "metrics": {
@@ -336,12 +351,27 @@
       "consoleErrors": [],
       "requestFailures": [
         {
-          "url": "http://127.0.0.1:3033/stack/step/theme/index.txt?_rsc=19zvn",
+          "url": "http://127.0.0.1:3034/rules/index.txt?_rsc=19zvn",
           "method": "GET",
           "errorText": "net::ERR_ABORTED"
         },
         {
-          "url": "http://127.0.0.1:3033/stack/delivery/index.txt?_rsc=19zvn",
+          "url": "http://127.0.0.1:3034/stack/step/theme/index.txt?_rsc=19zvn",
+          "method": "GET",
+          "errorText": "net::ERR_ABORTED"
+        },
+        {
+          "url": "http://127.0.0.1:3034/stack/step/layers/index.txt?_rsc=19zvn",
+          "method": "GET",
+          "errorText": "net::ERR_ABORTED"
+        },
+        {
+          "url": "http://127.0.0.1:3034/stack/env/index.txt?_rsc=19zvn",
+          "method": "GET",
+          "errorText": "net::ERR_ABORTED"
+        },
+        {
+          "url": "http://127.0.0.1:3034/stack/step/frontend/index.txt?_rsc=19zvn",
           "method": "GET",
           "errorText": "net::ERR_ABORTED"
         }
@@ -357,7 +387,7 @@
       "width": 390,
       "height": 844,
       "bytes": 109619,
-      "durationMs": 1526,
+      "durationMs": 1722,
       "ok": true,
       "error": null,
       "metrics": {
@@ -379,7 +409,7 @@
       "consoleErrors": [],
       "requestFailures": [
         {
-          "url": "http://127.0.0.1:3033/icons/index.txt?_rsc=19zvn",
+          "url": "http://127.0.0.1:3034/standards/index.txt?_rsc=19zvn",
           "method": "GET",
           "errorText": "net::ERR_ABORTED"
         }
@@ -394,8 +424,8 @@
       "viewport": "desktop",
       "width": 1440,
       "height": 900,
-      "bytes": 156614,
-      "durationMs": 2085,
+      "bytes": 156549,
+      "durationMs": 1557,
       "ok": true,
       "error": null,
       "metrics": {
@@ -417,42 +447,17 @@
       "consoleErrors": [],
       "requestFailures": [
         {
-          "url": "http://127.0.0.1:3033/stack/step/theme/index.txt?_rsc=1bg04",
+          "url": "http://127.0.0.1:3034/stack/step/layers/index.txt?_rsc=1bg04",
           "method": "GET",
           "errorText": "net::ERR_ABORTED"
         },
         {
-          "url": "http://127.0.0.1:3033/stack/step/layers/index.txt?_rsc=1bg04",
+          "url": "http://127.0.0.1:3034/stack/env/index.txt?_rsc=1bg04",
           "method": "GET",
           "errorText": "net::ERR_ABORTED"
         },
         {
-          "url": "http://127.0.0.1:3033/stack/step/topology/index.txt?_rsc=1bg04",
-          "method": "GET",
-          "errorText": "net::ERR_ABORTED"
-        },
-        {
-          "url": "http://127.0.0.1:3033/stack/delivery/index.txt?_rsc=1bg04",
-          "method": "GET",
-          "errorText": "net::ERR_ABORTED"
-        },
-        {
-          "url": "http://127.0.0.1:3033/icons/index.txt?_rsc=1bg04",
-          "method": "GET",
-          "errorText": "net::ERR_ABORTED"
-        },
-        {
-          "url": "http://127.0.0.1:3033/archify/index.txt?_rsc=1bg04",
-          "method": "GET",
-          "errorText": "net::ERR_ABORTED"
-        },
-        {
-          "url": "http://127.0.0.1:3033/check/index.txt?_rsc=1bg04",
-          "method": "GET",
-          "errorText": "net::ERR_ABORTED"
-        },
-        {
-          "url": "http://127.0.0.1:3033/standards/index.txt?_rsc=1bg04",
+          "url": "http://127.0.0.1:3034/stack/step/frontend/index.txt?_rsc=1bg04",
           "method": "GET",
           "errorText": "net::ERR_ABORTED"
         }
@@ -467,8 +472,8 @@
       "viewport": "tablet",
       "width": 1024,
       "height": 768,
-      "bytes": 112091,
-      "durationMs": 1743,
+      "bytes": 112026,
+      "durationMs": 1476,
       "ok": true,
       "error": null,
       "metrics": {
@@ -490,22 +495,12 @@
       "consoleErrors": [],
       "requestFailures": [
         {
-          "url": "http://127.0.0.1:3033/index.txt?_rsc=1bg04",
+          "url": "http://127.0.0.1:3034/rules/index.txt?_rsc=1bg04",
           "method": "GET",
           "errorText": "net::ERR_ABORTED"
         },
         {
-          "url": "http://127.0.0.1:3033/rules/index.txt?_rsc=1bg04",
-          "method": "GET",
-          "errorText": "net::ERR_ABORTED"
-        },
-        {
-          "url": "http://127.0.0.1:3033/stack/delivery/index.txt?_rsc=1bg04",
-          "method": "GET",
-          "errorText": "net::ERR_ABORTED"
-        },
-        {
-          "url": "http://127.0.0.1:3033/check/index.txt?_rsc=1bg04",
+          "url": "http://127.0.0.1:3034/stack/step/delivery/index.txt?_rsc=1bg04",
           "method": "GET",
           "errorText": "net::ERR_ABORTED"
         }
@@ -520,8 +515,8 @@
       "viewport": "mobile",
       "width": 390,
       "height": 844,
-      "bytes": 48905,
-      "durationMs": 1550,
+      "bytes": 48844,
+      "durationMs": 1255,
       "ok": true,
       "error": null,
       "metrics": {
@@ -543,22 +538,12 @@
       "consoleErrors": [],
       "requestFailures": [
         {
-          "url": "http://127.0.0.1:3033/index.txt?_rsc=1bg04",
+          "url": "http://127.0.0.1:3034/rules/index.txt?_rsc=1bg04",
           "method": "GET",
           "errorText": "net::ERR_ABORTED"
         },
         {
-          "url": "http://127.0.0.1:3033/rules/index.txt?_rsc=1bg04",
-          "method": "GET",
-          "errorText": "net::ERR_ABORTED"
-        },
-        {
-          "url": "http://127.0.0.1:3033/blueprints/index.txt?_rsc=1bg04",
-          "method": "GET",
-          "errorText": "net::ERR_ABORTED"
-        },
-        {
-          "url": "http://127.0.0.1:3033/cases/index.txt?_rsc=1bg04",
+          "url": "http://127.0.0.1:3034/archify/index.txt?_rsc=1bg04",
           "method": "GET",
           "errorText": "net::ERR_ABORTED"
         }
@@ -574,7 +559,7 @@
       "width": 1440,
       "height": 900,
       "bytes": 142634,
-      "durationMs": 1804,
+      "durationMs": 1368,
       "ok": true,
       "error": null,
       "metrics": {
@@ -595,8 +580,8 @@
       "pageErrors": [],
       "consoleErrors": [
         {
-          "text": "Access to fetch at 'http://localhost:3011/api/archify' from origin 'http://127.0.0.1:3033' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource.",
-          "url": "http://127.0.0.1:3033/archify/",
+          "text": "Access to fetch at 'http://localhost:3011/api/archify' from origin 'http://127.0.0.1:3034' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource.",
+          "url": "http://127.0.0.1:3034/archify/",
           "lineNumber": 0
         },
         {
@@ -610,6 +595,21 @@
           "url": "http://localhost:3011/api/archify",
           "method": "GET",
           "errorText": "net::ERR_FAILED"
+        },
+        {
+          "url": "http://127.0.0.1:3034/stack/step/base/index.txt?_rsc=uu39s",
+          "method": "GET",
+          "errorText": "net::ERR_ABORTED"
+        },
+        {
+          "url": "http://127.0.0.1:3034/stack/step/layers/index.txt?_rsc=uu39s",
+          "method": "GET",
+          "errorText": "net::ERR_ABORTED"
+        },
+        {
+          "url": "http://127.0.0.1:3034/stack/step/env/index.txt?_rsc=uu39s",
+          "method": "GET",
+          "errorText": "net::ERR_ABORTED"
         }
       ],
       "httpErrors": []
@@ -623,7 +623,7 @@
       "width": 1024,
       "height": 768,
       "bytes": 124416,
-      "durationMs": 1613,
+      "durationMs": 1404,
       "ok": true,
       "error": null,
       "metrics": {
@@ -644,8 +644,8 @@
       "pageErrors": [],
       "consoleErrors": [
         {
-          "text": "Access to fetch at 'http://localhost:3011/api/archify' from origin 'http://127.0.0.1:3033' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource.",
-          "url": "http://127.0.0.1:3033/archify/",
+          "text": "Access to fetch at 'http://localhost:3011/api/archify' from origin 'http://127.0.0.1:3034' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource.",
+          "url": "http://127.0.0.1:3034/archify/",
           "lineNumber": 0
         },
         {
@@ -661,22 +661,32 @@
           "errorText": "net::ERR_FAILED"
         },
         {
-          "url": "http://127.0.0.1:3033/stack/step/theme/index.txt?_rsc=uu39s",
+          "url": "http://127.0.0.1:3034/index.txt?_rsc=uu39s",
           "method": "GET",
           "errorText": "net::ERR_ABORTED"
         },
         {
-          "url": "http://127.0.0.1:3033/stack/step/layers/index.txt?_rsc=uu39s",
+          "url": "http://127.0.0.1:3034/rules/index.txt?_rsc=uu39s",
           "method": "GET",
           "errorText": "net::ERR_ABORTED"
         },
         {
-          "url": "http://127.0.0.1:3033/stack/env/index.txt?_rsc=uu39s",
+          "url": "http://127.0.0.1:3034/blueprints/index.txt?_rsc=uu39s",
           "method": "GET",
           "errorText": "net::ERR_ABORTED"
         },
         {
-          "url": "http://127.0.0.1:3033/stack/step/frontend/index.txt?_rsc=uu39s",
+          "url": "http://127.0.0.1:3034/stack/step/layers/index.txt?_rsc=uu39s",
+          "method": "GET",
+          "errorText": "net::ERR_ABORTED"
+        },
+        {
+          "url": "http://127.0.0.1:3034/stack/env/index.txt?_rsc=uu39s",
+          "method": "GET",
+          "errorText": "net::ERR_ABORTED"
+        },
+        {
+          "url": "http://127.0.0.1:3034/stack/step/frontend/index.txt?_rsc=uu39s",
           "method": "GET",
           "errorText": "net::ERR_ABORTED"
         }
@@ -692,7 +702,7 @@
       "width": 390,
       "height": 844,
       "bytes": 57295,
-      "durationMs": 1613,
+      "durationMs": 1462,
       "ok": true,
       "error": null,
       "metrics": {
@@ -713,8 +723,8 @@
       "pageErrors": [],
       "consoleErrors": [
         {
-          "text": "Access to fetch at 'http://localhost:3011/api/archify' from origin 'http://127.0.0.1:3033' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource.",
-          "url": "http://127.0.0.1:3033/archify/",
+          "text": "Access to fetch at 'http://localhost:3011/api/archify' from origin 'http://127.0.0.1:3034' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource.",
+          "url": "http://127.0.0.1:3034/archify/",
           "lineNumber": 0
         },
         {
@@ -730,22 +740,22 @@
           "errorText": "net::ERR_FAILED"
         },
         {
-          "url": "http://127.0.0.1:3033/stack/delivery/index.txt?_rsc=uu39s",
+          "url": "http://127.0.0.1:3034/stack/run/index.txt?_rsc=uu39s",
           "method": "GET",
           "errorText": "net::ERR_ABORTED"
         },
         {
-          "url": "http://127.0.0.1:3033/arch/index.txt?_rsc=uu39s",
+          "url": "http://127.0.0.1:3034/arch/index.txt?_rsc=uu39s",
           "method": "GET",
           "errorText": "net::ERR_ABORTED"
         },
         {
-          "url": "http://127.0.0.1:3033/icons/index.txt?_rsc=uu39s",
+          "url": "http://127.0.0.1:3034/icons/index.txt?_rsc=uu39s",
           "method": "GET",
           "errorText": "net::ERR_ABORTED"
         },
         {
-          "url": "http://127.0.0.1:3033/check/index.txt?_rsc=uu39s",
+          "url": "http://127.0.0.1:3034/check/index.txt?_rsc=uu39s",
           "method": "GET",
           "errorText": "net::ERR_ABORTED"
         }
@@ -761,7 +771,7 @@
       "width": 1440,
       "height": 900,
       "bytes": 180640,
-      "durationMs": 2028,
+      "durationMs": 1552,
       "ok": true,
       "error": null,
       "metrics": {
@@ -783,27 +793,42 @@
       "consoleErrors": [],
       "requestFailures": [
         {
-          "url": "http://127.0.0.1:3033/stack/step/layers/index.txt?_rsc=1f4e0",
+          "url": "http://127.0.0.1:3034/stack/step/theme/index.txt?_rsc=1f4e0",
           "method": "GET",
           "errorText": "net::ERR_ABORTED"
         },
         {
-          "url": "http://127.0.0.1:3033/stack/env/index.txt?_rsc=1f4e0",
+          "url": "http://127.0.0.1:3034/stack/step/layers/index.txt?_rsc=1f4e0",
           "method": "GET",
           "errorText": "net::ERR_ABORTED"
         },
         {
-          "url": "http://127.0.0.1:3033/stack/step/frontend/index.txt?_rsc=1f4e0",
+          "url": "http://127.0.0.1:3034/stack/env/index.txt?_rsc=1f4e0",
           "method": "GET",
           "errorText": "net::ERR_ABORTED"
         },
         {
-          "url": "http://127.0.0.1:3033/check/index.txt?_rsc=1f4e0",
+          "url": "http://127.0.0.1:3034/stack/step/frontend/index.txt?_rsc=1f4e0",
           "method": "GET",
           "errorText": "net::ERR_ABORTED"
         },
         {
-          "url": "http://127.0.0.1:3033/blueprints/local-cache/index.txt?_rsc=1f4e0",
+          "url": "http://127.0.0.1:3034/check/index.txt?_rsc=1f4e0",
+          "method": "GET",
+          "errorText": "net::ERR_ABORTED"
+        },
+        {
+          "url": "http://127.0.0.1:3034/standards/index.txt?_rsc=1f4e0",
+          "method": "GET",
+          "errorText": "net::ERR_ABORTED"
+        },
+        {
+          "url": "http://127.0.0.1:3034/export/index.txt?_rsc=1f4e0",
+          "method": "GET",
+          "errorText": "net::ERR_ABORTED"
+        },
+        {
+          "url": "http://127.0.0.1:3034/blueprints/virtual-thread/index.txt?_rsc=1f4e0",
           "method": "GET",
           "errorText": "net::ERR_ABORTED"
         }
@@ -819,7 +844,7 @@
       "width": 1024,
       "height": 768,
       "bytes": 131017,
-      "durationMs": 2159,
+      "durationMs": 1510,
       "ok": true,
       "error": null,
       "metrics": {
@@ -841,7 +866,27 @@
       "consoleErrors": [],
       "requestFailures": [
         {
-          "url": "http://127.0.0.1:3033/stack/step/delivery/index.txt?_rsc=1f4e0",
+          "url": "http://127.0.0.1:3034/stack/step/theme/index.txt?_rsc=1f4e0",
+          "method": "GET",
+          "errorText": "net::ERR_ABORTED"
+        },
+        {
+          "url": "http://127.0.0.1:3034/stack/step/layers/index.txt?_rsc=1f4e0",
+          "method": "GET",
+          "errorText": "net::ERR_ABORTED"
+        },
+        {
+          "url": "http://127.0.0.1:3034/stack/env/index.txt?_rsc=1f4e0",
+          "method": "GET",
+          "errorText": "net::ERR_ABORTED"
+        },
+        {
+          "url": "http://127.0.0.1:3034/blueprints/virtual-thread/index.txt?_rsc=1f4e0",
+          "method": "GET",
+          "errorText": "net::ERR_ABORTED"
+        },
+        {
+          "url": "http://127.0.0.1:3034/blueprints/connection-pool/index.txt?_rsc=1f4e0",
           "method": "GET",
           "errorText": "net::ERR_ABORTED"
         }
@@ -857,7 +902,7 @@
       "width": 390,
       "height": 844,
       "bytes": 59937,
-      "durationMs": 1685,
+      "durationMs": 1432,
       "ok": true,
       "error": null,
       "metrics": {
@@ -877,7 +922,23 @@
       },
       "pageErrors": [],
       "consoleErrors": [],
-      "requestFailures": [],
+      "requestFailures": [
+        {
+          "url": "http://127.0.0.1:3034/icons/index.txt?_rsc=1f4e0",
+          "method": "GET",
+          "errorText": "net::ERR_ABORTED"
+        },
+        {
+          "url": "http://127.0.0.1:3034/archify/index.txt?_rsc=1f4e0",
+          "method": "GET",
+          "errorText": "net::ERR_ABORTED"
+        },
+        {
+          "url": "http://127.0.0.1:3034/check/index.txt?_rsc=1f4e0",
+          "method": "GET",
+          "errorText": "net::ERR_ABORTED"
+        }
+      ],
       "httpErrors": []
     },
     {
@@ -889,7 +950,7 @@
       "width": 1440,
       "height": 900,
       "bytes": 219663,
-      "durationMs": 2412,
+      "durationMs": 1661,
       "ok": true,
       "error": null,
       "metrics": {
@@ -911,22 +972,32 @@
       "consoleErrors": [],
       "requestFailures": [
         {
-          "url": "http://127.0.0.1:3033/index.txt?_rsc=10qeb",
+          "url": "http://127.0.0.1:3034/stack/env/index.txt?_rsc=10qeb",
           "method": "GET",
           "errorText": "net::ERR_ABORTED"
         },
         {
-          "url": "http://127.0.0.1:3033/stack/delivery/index.txt?_rsc=10qeb",
+          "url": "http://127.0.0.1:3034/stack/step/frontend/index.txt?_rsc=10qeb",
           "method": "GET",
           "errorText": "net::ERR_ABORTED"
         },
         {
-          "url": "http://127.0.0.1:3033/icons/index.txt?_rsc=10qeb",
+          "url": "http://127.0.0.1:3034/archify/index.txt?_rsc=10qeb",
           "method": "GET",
           "errorText": "net::ERR_ABORTED"
         },
         {
-          "url": "http://127.0.0.1:3033/cases/hotspot-cache/index.txt?_rsc=10qeb",
+          "url": "http://127.0.0.1:3034/check/index.txt?_rsc=10qeb",
+          "method": "GET",
+          "errorText": "net::ERR_ABORTED"
+        },
+        {
+          "url": "http://127.0.0.1:3034/standards/index.txt?_rsc=10qeb",
+          "method": "GET",
+          "errorText": "net::ERR_ABORTED"
+        },
+        {
+          "url": "http://127.0.0.1:3034/cases/huge-rowcount-rdb/index.txt?_rsc=10qeb",
           "method": "GET",
           "errorText": "net::ERR_ABORTED"
         }
@@ -942,7 +1013,7 @@
       "width": 1024,
       "height": 768,
       "bytes": 167154,
-      "durationMs": 2023,
+      "durationMs": 1406,
       "ok": true,
       "error": null,
       "metrics": {
@@ -964,7 +1035,22 @@
       "consoleErrors": [],
       "requestFailures": [
         {
-          "url": "http://127.0.0.1:3033/stack/step/env/index.txt?_rsc=10qeb",
+          "url": "http://127.0.0.1:3034/rules/index.txt?_rsc=10qeb",
+          "method": "GET",
+          "errorText": "net::ERR_ABORTED"
+        },
+        {
+          "url": "http://127.0.0.1:3034/blueprints/index.txt?_rsc=10qeb",
+          "method": "GET",
+          "errorText": "net::ERR_ABORTED"
+        },
+        {
+          "url": "http://127.0.0.1:3034/stack/env/index.txt?_rsc=10qeb",
+          "method": "GET",
+          "errorText": "net::ERR_ABORTED"
+        },
+        {
+          "url": "http://127.0.0.1:3034/stack/step/frontend/index.txt?_rsc=10qeb",
           "method": "GET",
           "errorText": "net::ERR_ABORTED"
         }
@@ -980,7 +1066,7 @@
       "width": 390,
       "height": 844,
       "bytes": 97897,
-      "durationMs": 2088,
+      "durationMs": 1316,
       "ok": true,
       "error": null,
       "metrics": {
@@ -1002,22 +1088,12 @@
       "consoleErrors": [],
       "requestFailures": [
         {
-          "url": "http://127.0.0.1:3033/blueprints/index.txt?_rsc=10qeb",
+          "url": "http://127.0.0.1:3034/arch/index.txt?_rsc=10qeb",
           "method": "GET",
           "errorText": "net::ERR_ABORTED"
         },
         {
-          "url": "http://127.0.0.1:3033/arch/index.txt?_rsc=10qeb",
-          "method": "GET",
-          "errorText": "net::ERR_ABORTED"
-        },
-        {
-          "url": "http://127.0.0.1:3033/export/index.txt?_rsc=10qeb",
-          "method": "GET",
-          "errorText": "net::ERR_ABORTED"
-        },
-        {
-          "url": "http://127.0.0.1:3033/cases/huge-rowcount-rdb/index.txt?_rsc=10qeb",
+          "url": "http://127.0.0.1:3034/icons/index.txt?_rsc=10qeb",
           "method": "GET",
           "errorText": "net::ERR_ABORTED"
         }
@@ -1032,18 +1108,18 @@
       "viewport": "desktop",
       "width": 1440,
       "height": 900,
-      "bytes": 151457,
-      "durationMs": 2332,
+      "bytes": 149412,
+      "durationMs": 1610,
       "ok": true,
       "error": null,
       "metrics": {
         "scrollWidth": 1440,
         "clientWidth": 1440,
-        "scrollHeight": 2848,
+        "scrollHeight": 2893,
         "clientHeight": 900,
-        "bodyScrollHeight": 2848,
+        "bodyScrollHeight": 2893,
         "horizontalOverflowPx": 0,
-        "belowFoldPx": 1948,
+        "belowFoldPx": 1993,
         "imgTotal": 0,
         "failedImages": [],
         "overflowElementCount": 0,
@@ -1055,22 +1131,37 @@
       "consoleErrors": [],
       "requestFailures": [
         {
-          "url": "http://127.0.0.1:3033/index.txt?_rsc=1xjak",
+          "url": "http://127.0.0.1:3034/index.txt?_rsc=1xjak",
           "method": "GET",
           "errorText": "net::ERR_ABORTED"
         },
         {
-          "url": "http://127.0.0.1:3033/rules/index.txt?_rsc=1xjak",
+          "url": "http://127.0.0.1:3034/stack/step/project/index.txt?_rsc=1xjak",
           "method": "GET",
           "errorText": "net::ERR_ABORTED"
         },
         {
-          "url": "http://127.0.0.1:3033/stack/step/frontend/index.txt?_rsc=1xjak",
+          "url": "http://127.0.0.1:3034/stack/step/base/index.txt?_rsc=1xjak",
           "method": "GET",
           "errorText": "net::ERR_ABORTED"
         },
         {
-          "url": "http://127.0.0.1:3033/stack/step/delivery/index.txt?_rsc=1xjak",
+          "url": "http://127.0.0.1:3034/stack/step/theme/index.txt?_rsc=1xjak",
+          "method": "GET",
+          "errorText": "net::ERR_ABORTED"
+        },
+        {
+          "url": "http://127.0.0.1:3034/stack/step/layers/index.txt?_rsc=1xjak",
+          "method": "GET",
+          "errorText": "net::ERR_ABORTED"
+        },
+        {
+          "url": "http://127.0.0.1:3034/stack/step/frontend/index.txt?_rsc=1xjak",
+          "method": "GET",
+          "errorText": "net::ERR_ABORTED"
+        },
+        {
+          "url": "http://127.0.0.1:3034/check/index.txt?_rsc=1xjak",
           "method": "GET",
           "errorText": "net::ERR_ABORTED"
         }
@@ -1085,18 +1176,18 @@
       "viewport": "tablet",
       "width": 1024,
       "height": 768,
-      "bytes": 115109,
-      "durationMs": 2134,
+      "bytes": 112438,
+      "durationMs": 1736,
       "ok": true,
       "error": null,
       "metrics": {
         "scrollWidth": 1024,
         "clientWidth": 1024,
-        "scrollHeight": 3212,
+        "scrollHeight": 3274,
         "clientHeight": 768,
-        "bodyScrollHeight": 3212,
+        "bodyScrollHeight": 3274,
         "horizontalOverflowPx": 0,
-        "belowFoldPx": 2444,
+        "belowFoldPx": 2506,
         "imgTotal": 0,
         "failedImages": [],
         "overflowElementCount": 0,
@@ -1108,32 +1199,22 @@
       "consoleErrors": [],
       "requestFailures": [
         {
-          "url": "http://127.0.0.1:3033/index.txt?_rsc=1xjak",
+          "url": "http://127.0.0.1:3034/index.txt?_rsc=1xjak",
           "method": "GET",
           "errorText": "net::ERR_ABORTED"
         },
         {
-          "url": "http://127.0.0.1:3033/stack/step/layers/index.txt?_rsc=1xjak",
+          "url": "http://127.0.0.1:3034/rules/index.txt?_rsc=1xjak",
           "method": "GET",
           "errorText": "net::ERR_ABORTED"
         },
         {
-          "url": "http://127.0.0.1:3033/stack/env/index.txt?_rsc=1xjak",
+          "url": "http://127.0.0.1:3034/stack/step/theme/index.txt?_rsc=1xjak",
           "method": "GET",
           "errorText": "net::ERR_ABORTED"
         },
         {
-          "url": "http://127.0.0.1:3033/stack/step/env/index.txt?_rsc=1xjak",
-          "method": "GET",
-          "errorText": "net::ERR_ABORTED"
-        },
-        {
-          "url": "http://127.0.0.1:3033/stack/run/index.txt?_rsc=1xjak",
-          "method": "GET",
-          "errorText": "net::ERR_ABORTED"
-        },
-        {
-          "url": "http://127.0.0.1:3033/stack/step/deliverRun/index.txt?_rsc=1xjak",
+          "url": "http://127.0.0.1:3034/stack/step/layers/index.txt?_rsc=1xjak",
           "method": "GET",
           "errorText": "net::ERR_ABORTED"
         }
@@ -1148,18 +1229,18 @@
       "viewport": "mobile",
       "width": 390,
       "height": 844,
-      "bytes": 55886,
-      "durationMs": 2051,
+      "bytes": 58418,
+      "durationMs": 1789,
       "ok": true,
       "error": null,
       "metrics": {
         "scrollWidth": 390,
         "clientWidth": 390,
-        "scrollHeight": 5085,
+        "scrollHeight": 5147,
         "clientHeight": 844,
-        "bodyScrollHeight": 5085,
+        "bodyScrollHeight": 5147,
         "horizontalOverflowPx": 0,
-        "belowFoldPx": 4241,
+        "belowFoldPx": 4303,
         "imgTotal": 0,
         "failedImages": [],
         "overflowElementCount": 0,
@@ -1171,7 +1252,7 @@
       "consoleErrors": [],
       "requestFailures": [
         {
-          "url": "http://127.0.0.1:3033/arch/index.txt?_rsc=1xjak",
+          "url": "http://127.0.0.1:3034/export/index.txt?_rsc=1xjak",
           "method": "GET",
           "errorText": "net::ERR_ABORTED"
         }
@@ -1187,7 +1268,7 @@
       "width": 1440,
       "height": 900,
       "bytes": 119301,
-      "durationMs": 2133,
+      "durationMs": 1846,
       "ok": true,
       "error": null,
       "metrics": {
@@ -1209,52 +1290,17 @@
       "consoleErrors": [],
       "requestFailures": [
         {
-          "url": "http://127.0.0.1:3033/stack/step/theme/index.txt?_rsc=1u23h",
+          "url": "http://127.0.0.1:3034/stack/step/theme/index.txt?_rsc=1u23h",
           "method": "GET",
           "errorText": "net::ERR_ABORTED"
         },
         {
-          "url": "http://127.0.0.1:3033/stack/step/layers/index.txt?_rsc=1u23h",
+          "url": "http://127.0.0.1:3034/stack/step/frontend/index.txt?_rsc=1u23h",
           "method": "GET",
           "errorText": "net::ERR_ABORTED"
         },
         {
-          "url": "http://127.0.0.1:3033/stack/env/index.txt?_rsc=1u23h",
-          "method": "GET",
-          "errorText": "net::ERR_ABORTED"
-        },
-        {
-          "url": "http://127.0.0.1:3033/stack/step/frontend/index.txt?_rsc=1u23h",
-          "method": "GET",
-          "errorText": "net::ERR_ABORTED"
-        },
-        {
-          "url": "http://127.0.0.1:3033/stack/step/env/index.txt?_rsc=1u23h",
-          "method": "GET",
-          "errorText": "net::ERR_ABORTED"
-        },
-        {
-          "url": "http://127.0.0.1:3033/stack/step/deliverRun/index.txt?_rsc=1u23h",
-          "method": "GET",
-          "errorText": "net::ERR_ABORTED"
-        },
-        {
-          "url": "http://127.0.0.1:3033/arch/index.txt?_rsc=1u23h",
-          "method": "GET",
-          "errorText": "net::ERR_ABORTED"
-        },
-        {
-          "url": "http://127.0.0.1:3033/icons/index.txt?_rsc=1u23h",
-          "method": "GET",
-          "errorText": "net::ERR_ABORTED"
-        },
-        {
-          "url": "http://127.0.0.1:3033/standards/index.txt?_rsc=1u23h",
-          "method": "GET",
-          "errorText": "net::ERR_ABORTED"
-        },
-        {
-          "url": "http://127.0.0.1:3033/rules/SKEL-STRC-001/index.txt?_rsc=1u23h",
+          "url": "http://127.0.0.1:3034/stack/step/delivery/index.txt?_rsc=1u23h",
           "method": "GET",
           "errorText": "net::ERR_ABORTED"
         }
@@ -1270,7 +1316,7 @@
       "width": 1024,
       "height": 768,
       "bytes": 97516,
-      "durationMs": 1653,
+      "durationMs": 1526,
       "ok": true,
       "error": null,
       "metrics": {
@@ -1292,12 +1338,17 @@
       "consoleErrors": [],
       "requestFailures": [
         {
-          "url": "http://127.0.0.1:3033/stack/env/index.txt?_rsc=1u23h",
+          "url": "http://127.0.0.1:3034/stack/step/theme/index.txt?_rsc=1u23h",
           "method": "GET",
           "errorText": "net::ERR_ABORTED"
         },
         {
-          "url": "http://127.0.0.1:3033/stack/step/deliverRun/index.txt?_rsc=1u23h",
+          "url": "http://127.0.0.1:3034/stack/step/layers/index.txt?_rsc=1u23h",
+          "method": "GET",
+          "errorText": "net::ERR_ABORTED"
+        },
+        {
+          "url": "http://127.0.0.1:3034/stack/env/index.txt?_rsc=1u23h",
           "method": "GET",
           "errorText": "net::ERR_ABORTED"
         }
@@ -1312,8 +1363,8 @@
       "viewport": "mobile",
       "width": 390,
       "height": 844,
-      "bytes": 61729,
-      "durationMs": 1466,
+      "bytes": 61827,
+      "durationMs": 1399,
       "ok": true,
       "error": null,
       "metrics": {
@@ -1335,7 +1386,27 @@
       "consoleErrors": [],
       "requestFailures": [
         {
-          "url": "http://127.0.0.1:3033/standards/index.txt?_rsc=1u23h",
+          "url": "http://127.0.0.1:3034/stack/delivery/index.txt?_rsc=1u23h",
+          "method": "GET",
+          "errorText": "net::ERR_ABORTED"
+        },
+        {
+          "url": "http://127.0.0.1:3034/arch/index.txt?_rsc=1u23h",
+          "method": "GET",
+          "errorText": "net::ERR_ABORTED"
+        },
+        {
+          "url": "http://127.0.0.1:3034/icons/index.txt?_rsc=1u23h",
+          "method": "GET",
+          "errorText": "net::ERR_ABORTED"
+        },
+        {
+          "url": "http://127.0.0.1:3034/archify/index.txt?_rsc=1u23h",
+          "method": "GET",
+          "errorText": "net::ERR_ABORTED"
+        },
+        {
+          "url": "http://127.0.0.1:3034/standards/index.txt?_rsc=1u23h",
           "method": "GET",
           "errorText": "net::ERR_ABORTED"
         }
@@ -1351,7 +1422,7 @@
       "width": 1440,
       "height": 900,
       "bytes": 187033,
-      "durationMs": 1737,
+      "durationMs": 1494,
       "ok": true,
       "error": null,
       "metrics": {
@@ -1373,7 +1444,32 @@
       "consoleErrors": [],
       "requestFailures": [
         {
-          "url": "http://127.0.0.1:3033/arch/index.txt?_rsc=1xyc9",
+          "url": "http://127.0.0.1:3034/index.txt?_rsc=1xyc9",
+          "method": "GET",
+          "errorText": "net::ERR_ABORTED"
+        },
+        {
+          "url": "http://127.0.0.1:3034/stack/step/theme/index.txt?_rsc=1xyc9",
+          "method": "GET",
+          "errorText": "net::ERR_ABORTED"
+        },
+        {
+          "url": "http://127.0.0.1:3034/stack/step/layers/index.txt?_rsc=1xyc9",
+          "method": "GET",
+          "errorText": "net::ERR_ABORTED"
+        },
+        {
+          "url": "http://127.0.0.1:3034/stack/env/index.txt?_rsc=1xyc9",
+          "method": "GET",
+          "errorText": "net::ERR_ABORTED"
+        },
+        {
+          "url": "http://127.0.0.1:3034/stack/step/frontend/index.txt?_rsc=1xyc9",
+          "method": "GET",
+          "errorText": "net::ERR_ABORTED"
+        },
+        {
+          "url": "http://127.0.0.1:3034/archify/index.txt?_rsc=1xyc9",
           "method": "GET",
           "errorText": "net::ERR_ABORTED"
         }
@@ -1389,7 +1485,7 @@
       "width": 1024,
       "height": 768,
       "bytes": 121411,
-      "durationMs": 1826,
+      "durationMs": 1520,
       "ok": true,
       "error": null,
       "metrics": {
@@ -1411,17 +1507,12 @@
       "consoleErrors": [],
       "requestFailures": [
         {
-          "url": "http://127.0.0.1:3033/stack/step/theme/index.txt?_rsc=1xyc9",
+          "url": "http://127.0.0.1:3034/stack/step/layers/index.txt?_rsc=1xyc9",
           "method": "GET",
           "errorText": "net::ERR_ABORTED"
         },
         {
-          "url": "http://127.0.0.1:3033/stack/step/layers/index.txt?_rsc=1xyc9",
-          "method": "GET",
-          "errorText": "net::ERR_ABORTED"
-        },
-        {
-          "url": "http://127.0.0.1:3033/check/index.txt?_rsc=1xyc9",
+          "url": "http://127.0.0.1:3034/archify/index.txt?_rsc=1xyc9",
           "method": "GET",
           "errorText": "net::ERR_ABORTED"
         }
@@ -1437,7 +1528,7 @@
       "width": 390,
       "height": 844,
       "bytes": 48083,
-      "durationMs": 1802,
+      "durationMs": 1526,
       "ok": true,
       "error": null,
       "metrics": {
@@ -1459,22 +1550,22 @@
       "consoleErrors": [],
       "requestFailures": [
         {
-          "url": "http://127.0.0.1:3033/arch/index.txt?_rsc=1xyc9",
+          "url": "http://127.0.0.1:3034/arch/index.txt?_rsc=1xyc9",
           "method": "GET",
           "errorText": "net::ERR_ABORTED"
         },
         {
-          "url": "http://127.0.0.1:3033/icons/index.txt?_rsc=1xyc9",
+          "url": "http://127.0.0.1:3034/icons/index.txt?_rsc=1xyc9",
           "method": "GET",
           "errorText": "net::ERR_ABORTED"
         },
         {
-          "url": "http://127.0.0.1:3033/archify/index.txt?_rsc=1xyc9",
+          "url": "http://127.0.0.1:3034/archify/index.txt?_rsc=1xyc9",
           "method": "GET",
           "errorText": "net::ERR_ABORTED"
         },
         {
-          "url": "http://127.0.0.1:3033/check/index.txt?_rsc=1xyc9",
+          "url": "http://127.0.0.1:3034/check/index.txt?_rsc=1xyc9",
           "method": "GET",
           "errorText": "net::ERR_ABORTED"
         }
@@ -1490,7 +1581,7 @@
       "width": 1440,
       "height": 900,
       "bytes": 193244,
-      "durationMs": 1888,
+      "durationMs": 1613,
       "ok": true,
       "error": null,
       "metrics": {
@@ -1512,17 +1603,42 @@
       "consoleErrors": [],
       "requestFailures": [
         {
-          "url": "http://127.0.0.1:3033/check/index.txt?_rsc=dmwem",
+          "url": "http://127.0.0.1:3034/stack/step/theme/index.txt?_rsc=dmwem",
           "method": "GET",
           "errorText": "net::ERR_ABORTED"
         },
         {
-          "url": "http://127.0.0.1:3033/standards/index.txt?_rsc=dmwem",
+          "url": "http://127.0.0.1:3034/stack/step/layers/index.txt?_rsc=dmwem",
           "method": "GET",
           "errorText": "net::ERR_ABORTED"
         },
         {
-          "url": "http://127.0.0.1:3033/export/index.txt?_rsc=dmwem",
+          "url": "http://127.0.0.1:3034/stack/env/index.txt?_rsc=dmwem",
+          "method": "GET",
+          "errorText": "net::ERR_ABORTED"
+        },
+        {
+          "url": "http://127.0.0.1:3034/stack/step/frontend/index.txt?_rsc=dmwem",
+          "method": "GET",
+          "errorText": "net::ERR_ABORTED"
+        },
+        {
+          "url": "http://127.0.0.1:3034/stack/step/env/index.txt?_rsc=dmwem",
+          "method": "GET",
+          "errorText": "net::ERR_ABORTED"
+        },
+        {
+          "url": "http://127.0.0.1:3034/stack/step/delivery/index.txt?_rsc=dmwem",
+          "method": "GET",
+          "errorText": "net::ERR_ABORTED"
+        },
+        {
+          "url": "http://127.0.0.1:3034/arch/index.txt?_rsc=dmwem",
+          "method": "GET",
+          "errorText": "net::ERR_ABORTED"
+        },
+        {
+          "url": "http://127.0.0.1:3034/export/index.txt?_rsc=dmwem",
           "method": "GET",
           "errorText": "net::ERR_ABORTED"
         }
@@ -1538,7 +1654,7 @@
       "width": 1024,
       "height": 768,
       "bytes": 143688,
-      "durationMs": 1971,
+      "durationMs": 1541,
       "ok": true,
       "error": null,
       "metrics": {
@@ -1560,12 +1676,12 @@
       "consoleErrors": [],
       "requestFailures": [
         {
-          "url": "http://127.0.0.1:3033/stack/step/topology/index.txt?_rsc=dmwem",
+          "url": "http://127.0.0.1:3034/rules/index.txt?_rsc=dmwem",
           "method": "GET",
           "errorText": "net::ERR_ABORTED"
         },
         {
-          "url": "http://127.0.0.1:3033/arch/index.txt?_rsc=dmwem",
+          "url": "http://127.0.0.1:3034/stack/step/layers/index.txt?_rsc=dmwem",
           "method": "GET",
           "errorText": "net::ERR_ABORTED"
         }
@@ -1581,7 +1697,7 @@
       "width": 390,
       "height": 844,
       "bytes": 91718,
-      "durationMs": 1704,
+      "durationMs": 1393,
       "ok": true,
       "error": null,
       "metrics": {
@@ -1603,17 +1719,32 @@
       "consoleErrors": [],
       "requestFailures": [
         {
-          "url": "http://127.0.0.1:3033/index.txt?_rsc=dmwem",
+          "url": "http://127.0.0.1:3034/stack/run/index.txt?_rsc=dmwem",
           "method": "GET",
           "errorText": "net::ERR_ABORTED"
         },
         {
-          "url": "http://127.0.0.1:3033/archify/index.txt?_rsc=dmwem",
+          "url": "http://127.0.0.1:3034/stack/delivery/index.txt?_rsc=dmwem",
           "method": "GET",
           "errorText": "net::ERR_ABORTED"
         },
         {
-          "url": "http://127.0.0.1:3033/check/index.txt?_rsc=dmwem",
+          "url": "http://127.0.0.1:3034/arch/index.txt?_rsc=dmwem",
+          "method": "GET",
+          "errorText": "net::ERR_ABORTED"
+        },
+        {
+          "url": "http://127.0.0.1:3034/archify/index.txt?_rsc=dmwem",
+          "method": "GET",
+          "errorText": "net::ERR_ABORTED"
+        },
+        {
+          "url": "http://127.0.0.1:3034/standards/index.txt?_rsc=dmwem",
+          "method": "GET",
+          "errorText": "net::ERR_ABORTED"
+        },
+        {
+          "url": "http://127.0.0.1:3034/export/index.txt?_rsc=dmwem",
           "method": "GET",
           "errorText": "net::ERR_ABORTED"
         }
@@ -1629,7 +1760,7 @@
       "width": 1440,
       "height": 900,
       "bytes": 148885,
-      "durationMs": 1913,
+      "durationMs": 1736,
       "ok": true,
       "error": null,
       "metrics": {
@@ -1651,47 +1782,32 @@
       "consoleErrors": [],
       "requestFailures": [
         {
-          "url": "http://127.0.0.1:3033/stack/step/layers/index.txt?_rsc=4rtn5",
+          "url": "http://127.0.0.1:3034/stack/env/index.txt?_rsc=4rtn5",
           "method": "GET",
           "errorText": "net::ERR_ABORTED"
         },
         {
-          "url": "http://127.0.0.1:3033/stack/env/index.txt?_rsc=4rtn5",
+          "url": "http://127.0.0.1:3034/stack/step/frontend/index.txt?_rsc=4rtn5",
           "method": "GET",
           "errorText": "net::ERR_ABORTED"
         },
         {
-          "url": "http://127.0.0.1:3033/stack/step/frontend/index.txt?_rsc=4rtn5",
+          "url": "http://127.0.0.1:3034/archify/index.txt?_rsc=4rtn5",
           "method": "GET",
           "errorText": "net::ERR_ABORTED"
         },
         {
-          "url": "http://127.0.0.1:3033/stack/step/env/index.txt?_rsc=4rtn5",
+          "url": "http://127.0.0.1:3034/check/index.txt?_rsc=4rtn5",
           "method": "GET",
           "errorText": "net::ERR_ABORTED"
         },
         {
-          "url": "http://127.0.0.1:3033/stack/step/modules/index.txt?_rsc=4rtn5",
+          "url": "http://127.0.0.1:3034/standards/index.txt?_rsc=4rtn5",
           "method": "GET",
           "errorText": "net::ERR_ABORTED"
         },
         {
-          "url": "http://127.0.0.1:3033/stack/run/index.txt?_rsc=4rtn5",
-          "method": "GET",
-          "errorText": "net::ERR_ABORTED"
-        },
-        {
-          "url": "http://127.0.0.1:3033/stack/step/deliverRun/index.txt?_rsc=4rtn5",
-          "method": "GET",
-          "errorText": "net::ERR_ABORTED"
-        },
-        {
-          "url": "http://127.0.0.1:3033/stack/step/topology/index.txt?_rsc=4rtn5",
-          "method": "GET",
-          "errorText": "net::ERR_ABORTED"
-        },
-        {
-          "url": "http://127.0.0.1:3033/stack/delivery/index.txt?_rsc=4rtn5",
+          "url": "http://127.0.0.1:3034/export/index.txt?_rsc=4rtn5",
           "method": "GET",
           "errorText": "net::ERR_ABORTED"
         }
@@ -1707,7 +1823,7 @@
       "width": 1024,
       "height": 768,
       "bytes": 112155,
-      "durationMs": 2066,
+      "durationMs": 1461,
       "ok": true,
       "error": null,
       "metrics": {
@@ -1729,32 +1845,32 @@
       "consoleErrors": [],
       "requestFailures": [
         {
-          "url": "http://127.0.0.1:3033/index.txt?_rsc=4rtn5",
+          "url": "http://127.0.0.1:3034/stack/step/base/index.txt?_rsc=4rtn5",
           "method": "GET",
           "errorText": "net::ERR_ABORTED"
         },
         {
-          "url": "http://127.0.0.1:3033/blueprints/index.txt?_rsc=4rtn5",
+          "url": "http://127.0.0.1:3034/stack/env/index.txt?_rsc=4rtn5",
           "method": "GET",
           "errorText": "net::ERR_ABORTED"
         },
         {
-          "url": "http://127.0.0.1:3033/stack/step/deliverRun/index.txt?_rsc=4rtn5",
+          "url": "http://127.0.0.1:3034/stack/step/frontend/index.txt?_rsc=4rtn5",
           "method": "GET",
           "errorText": "net::ERR_ABORTED"
         },
         {
-          "url": "http://127.0.0.1:3033/archify/index.txt?_rsc=4rtn5",
+          "url": "http://127.0.0.1:3034/stack/step/env/index.txt?_rsc=4rtn5",
           "method": "GET",
           "errorText": "net::ERR_ABORTED"
         },
         {
-          "url": "http://127.0.0.1:3033/rules/SKEL-DEP-002/index.txt?_rsc=4rtn5",
+          "url": "http://127.0.0.1:3034/stack/step/modules/index.txt?_rsc=4rtn5",
           "method": "GET",
           "errorText": "net::ERR_ABORTED"
         },
         {
-          "url": "http://127.0.0.1:3033/rules/SKEL-DEP-003/index.txt?_rsc=4rtn5",
+          "url": "http://127.0.0.1:3034/rules/SKEL-DEP-001/index.txt?_rsc=4rtn5",
           "method": "GET",
           "errorText": "net::ERR_ABORTED"
         }
@@ -1770,7 +1886,7 @@
       "width": 390,
       "height": 844,
       "bytes": 53496,
-      "durationMs": 1963,
+      "durationMs": 1394,
       "ok": true,
       "error": null,
       "metrics": {
@@ -1792,12 +1908,37 @@
       "consoleErrors": [],
       "requestFailures": [
         {
-          "url": "http://127.0.0.1:3033/stack/delivery/index.txt?_rsc=4rtn5",
+          "url": "http://127.0.0.1:3034/index.txt?_rsc=4rtn5",
           "method": "GET",
           "errorText": "net::ERR_ABORTED"
         },
         {
-          "url": "http://127.0.0.1:3033/export/index.txt?_rsc=4rtn5",
+          "url": "http://127.0.0.1:3034/blueprints/index.txt?_rsc=4rtn5",
+          "method": "GET",
+          "errorText": "net::ERR_ABORTED"
+        },
+        {
+          "url": "http://127.0.0.1:3034/cases/index.txt?_rsc=4rtn5",
+          "method": "GET",
+          "errorText": "net::ERR_ABORTED"
+        },
+        {
+          "url": "http://127.0.0.1:3034/stack/delivery/index.txt?_rsc=4rtn5",
+          "method": "GET",
+          "errorText": "net::ERR_ABORTED"
+        },
+        {
+          "url": "http://127.0.0.1:3034/icons/index.txt?_rsc=4rtn5",
+          "method": "GET",
+          "errorText": "net::ERR_ABORTED"
+        },
+        {
+          "url": "http://127.0.0.1:3034/archify/index.txt?_rsc=4rtn5",
+          "method": "GET",
+          "errorText": "net::ERR_ABORTED"
+        },
+        {
+          "url": "http://127.0.0.1:3034/check/index.txt?_rsc=4rtn5",
           "method": "GET",
           "errorText": "net::ERR_ABORTED"
         }
@@ -1813,7 +1954,7 @@
       "width": 1440,
       "height": 900,
       "bytes": 147421,
-      "durationMs": 1847,
+      "durationMs": 1504,
       "ok": true,
       "error": null,
       "metrics": {
@@ -1835,12 +1976,7 @@
       "consoleErrors": [],
       "requestFailures": [
         {
-          "url": "http://127.0.0.1:3033/stack/step/topology/index.txt?_rsc=1hdno",
-          "method": "GET",
-          "errorText": "net::ERR_ABORTED"
-        },
-        {
-          "url": "http://127.0.0.1:3033/stack/step/delivery/index.txt?_rsc=1hdno",
+          "url": "http://127.0.0.1:3034/stack/step/layers/index.txt?_rsc=1hdno",
           "method": "GET",
           "errorText": "net::ERR_ABORTED"
         }
@@ -1856,7 +1992,7 @@
       "width": 1024,
       "height": 768,
       "bytes": 107954,
-      "durationMs": 1840,
+      "durationMs": 1600,
       "ok": true,
       "error": null,
       "metrics": {
@@ -1876,43 +2012,7 @@
       },
       "pageErrors": [],
       "consoleErrors": [],
-      "requestFailures": [
-        {
-          "url": "http://127.0.0.1:3033/index.txt?_rsc=1hdno",
-          "method": "GET",
-          "errorText": "net::ERR_ABORTED"
-        },
-        {
-          "url": "http://127.0.0.1:3033/rules/index.txt?_rsc=1hdno",
-          "method": "GET",
-          "errorText": "net::ERR_ABORTED"
-        },
-        {
-          "url": "http://127.0.0.1:3033/blueprints/index.txt?_rsc=1hdno",
-          "method": "GET",
-          "errorText": "net::ERR_ABORTED"
-        },
-        {
-          "url": "http://127.0.0.1:3033/cases/index.txt?_rsc=1hdno",
-          "method": "GET",
-          "errorText": "net::ERR_ABORTED"
-        },
-        {
-          "url": "http://127.0.0.1:3033/stack/env/index.txt?_rsc=1hdno",
-          "method": "GET",
-          "errorText": "net::ERR_ABORTED"
-        },
-        {
-          "url": "http://127.0.0.1:3033/stack/step/topology/index.txt?_rsc=1hdno",
-          "method": "GET",
-          "errorText": "net::ERR_ABORTED"
-        },
-        {
-          "url": "http://127.0.0.1:3033/arch/index.txt?_rsc=1hdno",
-          "method": "GET",
-          "errorText": "net::ERR_ABORTED"
-        }
-      ],
+      "requestFailures": [],
       "httpErrors": []
     },
     {
@@ -1924,7 +2024,7 @@
       "width": 390,
       "height": 844,
       "bytes": 53432,
-      "durationMs": 1748,
+      "durationMs": 1535,
       "ok": true,
       "error": null,
       "metrics": {
@@ -1946,7 +2046,37 @@
       "consoleErrors": [],
       "requestFailures": [
         {
-          "url": "http://127.0.0.1:3033/arch/index.txt?_rsc=1hdno",
+          "url": "http://127.0.0.1:3034/index.txt?_rsc=1hdno",
+          "method": "GET",
+          "errorText": "net::ERR_ABORTED"
+        },
+        {
+          "url": "http://127.0.0.1:3034/rules/index.txt?_rsc=1hdno",
+          "method": "GET",
+          "errorText": "net::ERR_ABORTED"
+        },
+        {
+          "url": "http://127.0.0.1:3034/blueprints/index.txt?_rsc=1hdno",
+          "method": "GET",
+          "errorText": "net::ERR_ABORTED"
+        },
+        {
+          "url": "http://127.0.0.1:3034/stack/run/index.txt?_rsc=1hdno",
+          "method": "GET",
+          "errorText": "net::ERR_ABORTED"
+        },
+        {
+          "url": "http://127.0.0.1:3034/stack/delivery/index.txt?_rsc=1hdno",
+          "method": "GET",
+          "errorText": "net::ERR_ABORTED"
+        },
+        {
+          "url": "http://127.0.0.1:3034/arch/index.txt?_rsc=1hdno",
+          "method": "GET",
+          "errorText": "net::ERR_ABORTED"
+        },
+        {
+          "url": "http://127.0.0.1:3034/icons/index.txt?_rsc=1hdno",
           "method": "GET",
           "errorText": "net::ERR_ABORTED"
         }
@@ -1961,8 +2091,8 @@
       "viewport": "desktop",
       "width": 1440,
       "height": 900,
-      "bytes": 132445,
-      "durationMs": 1867,
+      "bytes": 135847,
+      "durationMs": 1637,
       "ok": true,
       "error": null,
       "metrics": {
@@ -1984,7 +2114,22 @@
       "consoleErrors": [],
       "requestFailures": [
         {
-          "url": "http://127.0.0.1:3033/arch/index.txt?_rsc=1pbb9",
+          "url": "http://127.0.0.1:3034/index.txt?_rsc=1pbb9",
+          "method": "GET",
+          "errorText": "net::ERR_ABORTED"
+        },
+        {
+          "url": "http://127.0.0.1:3034/rules/index.txt?_rsc=1pbb9",
+          "method": "GET",
+          "errorText": "net::ERR_ABORTED"
+        },
+        {
+          "url": "http://127.0.0.1:3034/stack/step/frontend/index.txt?_rsc=1pbb9",
+          "method": "GET",
+          "errorText": "net::ERR_ABORTED"
+        },
+        {
+          "url": "http://127.0.0.1:3034/stack/step/env/index.txt?_rsc=1pbb9",
           "method": "GET",
           "errorText": "net::ERR_ABORTED"
         }
@@ -1999,18 +2144,18 @@
       "viewport": "tablet",
       "width": 1024,
       "height": 768,
-      "bytes": 88247,
-      "durationMs": 1928,
+      "bytes": 90623,
+      "durationMs": 1613,
       "ok": true,
       "error": null,
       "metrics": {
         "scrollWidth": 1024,
         "clientWidth": 1024,
-        "scrollHeight": 2088,
+        "scrollHeight": 2110,
         "clientHeight": 768,
-        "bodyScrollHeight": 2088,
+        "bodyScrollHeight": 2110,
         "horizontalOverflowPx": 0,
-        "belowFoldPx": 1320,
+        "belowFoldPx": 1342,
         "imgTotal": 0,
         "failedImages": [],
         "overflowElementCount": 0,
@@ -2022,17 +2167,12 @@
       "consoleErrors": [],
       "requestFailures": [
         {
-          "url": "http://127.0.0.1:3033/stack/step/modules/index.txt?_rsc=1pbb9",
+          "url": "http://127.0.0.1:3034/stack/step/deliverRun/index.txt?_rsc=1pbb9",
           "method": "GET",
           "errorText": "net::ERR_ABORTED"
         },
         {
-          "url": "http://127.0.0.1:3033/arch/index.txt?_rsc=1pbb9",
-          "method": "GET",
-          "errorText": "net::ERR_ABORTED"
-        },
-        {
-          "url": "http://127.0.0.1:3033/archify/index.txt?_rsc=1pbb9",
+          "url": "http://127.0.0.1:3034/check/index.txt?_rsc=1pbb9",
           "method": "GET",
           "errorText": "net::ERR_ABORTED"
         }
@@ -2047,18 +2187,18 @@
       "viewport": "mobile",
       "width": 390,
       "height": 844,
-      "bytes": 48049,
-      "durationMs": 1940,
+      "bytes": 51039,
+      "durationMs": 1341,
       "ok": true,
       "error": null,
       "metrics": {
         "scrollWidth": 390,
         "clientWidth": 390,
-        "scrollHeight": 3051,
+        "scrollHeight": 3083,
         "clientHeight": 844,
-        "bodyScrollHeight": 3051,
+        "bodyScrollHeight": 3083,
         "horizontalOverflowPx": 0,
-        "belowFoldPx": 2207,
+        "belowFoldPx": 2239,
         "imgTotal": 0,
         "failedImages": [],
         "overflowElementCount": 0,
@@ -2068,13 +2208,7 @@
       },
       "pageErrors": [],
       "consoleErrors": [],
-      "requestFailures": [
-        {
-          "url": "http://127.0.0.1:3033/stack/run/index.txt?_rsc=1pbb9",
-          "method": "GET",
-          "errorText": "net::ERR_ABORTED"
-        }
-      ],
+      "requestFailures": [],
       "httpErrors": []
     },
     {
@@ -2086,7 +2220,7 @@
       "width": 1440,
       "height": 900,
       "bytes": 123856,
-      "durationMs": 2368,
+      "durationMs": 1450,
       "ok": true,
       "error": null,
       "metrics": {
@@ -2108,12 +2242,12 @@
       "consoleErrors": [],
       "requestFailures": [
         {
-          "url": "http://127.0.0.1:3033/stack/step/base/index.txt?_rsc=vr0k3",
+          "url": "http://127.0.0.1:3034/check/index.txt?_rsc=vr0k3",
           "method": "GET",
           "errorText": "net::ERR_ABORTED"
         },
         {
-          "url": "http://127.0.0.1:3033/stack/step/theme/index.txt?_rsc=vr0k3",
+          "url": "http://127.0.0.1:3034/export/index.txt?_rsc=vr0k3",
           "method": "GET",
           "errorText": "net::ERR_ABORTED"
         }
@@ -2129,7 +2263,7 @@
       "width": 1024,
       "height": 768,
       "bytes": 105717,
-      "durationMs": 2467,
+      "durationMs": 1366,
       "ok": true,
       "error": null,
       "metrics": {
@@ -2151,7 +2285,17 @@
       "consoleErrors": [],
       "requestFailures": [
         {
-          "url": "http://127.0.0.1:3033/stack/step/frontend/index.txt?_rsc=vr0k3",
+          "url": "http://127.0.0.1:3034/stack/step/env/index.txt?_rsc=vr0k3",
+          "method": "GET",
+          "errorText": "net::ERR_ABORTED"
+        },
+        {
+          "url": "http://127.0.0.1:3034/stack/step/modules/index.txt?_rsc=vr0k3",
+          "method": "GET",
+          "errorText": "net::ERR_ABORTED"
+        },
+        {
+          "url": "http://127.0.0.1:3034/stack/run/index.txt?_rsc=vr0k3",
           "method": "GET",
           "errorText": "net::ERR_ABORTED"
         }
@@ -2167,7 +2311,7 @@
       "width": 390,
       "height": 844,
       "bytes": 52056,
-      "durationMs": 1908,
+      "durationMs": 1313,
       "ok": true,
       "error": null,
       "metrics": {
@@ -2187,7 +2331,18 @@
       },
       "pageErrors": [],
       "consoleErrors": [],
-      "requestFailures": [],
+      "requestFailures": [
+        {
+          "url": "http://127.0.0.1:3034/icons/index.txt?_rsc=vr0k3",
+          "method": "GET",
+          "errorText": "net::ERR_ABORTED"
+        },
+        {
+          "url": "http://127.0.0.1:3034/standards/index.txt?_rsc=vr0k3",
+          "method": "GET",
+          "errorText": "net::ERR_ABORTED"
+        }
+      ],
       "httpErrors": []
     },
     {
@@ -2199,7 +2354,7 @@
       "width": 1440,
       "height": 900,
       "bytes": 167076,
-      "durationMs": 1563,
+      "durationMs": 1682,
       "ok": true,
       "error": null,
       "metrics": {
@@ -2219,18 +2374,7 @@
       },
       "pageErrors": [],
       "consoleErrors": [],
-      "requestFailures": [
-        {
-          "url": "http://127.0.0.1:3033/standards/index.txt?_rsc=1vw1w",
-          "method": "GET",
-          "errorText": "net::ERR_ABORTED"
-        },
-        {
-          "url": "http://127.0.0.1:3033/export/index.txt?_rsc=1vw1w",
-          "method": "GET",
-          "errorText": "net::ERR_ABORTED"
-        }
-      ],
+      "requestFailures": [],
       "httpErrors": []
     },
     {
@@ -2242,7 +2386,7 @@
       "width": 1024,
       "height": 768,
       "bytes": 115505,
-      "durationMs": 1969,
+      "durationMs": 1680,
       "ok": true,
       "error": null,
       "metrics": {
@@ -2262,13 +2406,7 @@
       },
       "pageErrors": [],
       "consoleErrors": [],
-      "requestFailures": [
-        {
-          "url": "http://127.0.0.1:3033/stack/delivery/index.txt?_rsc=1vw1w",
-          "method": "GET",
-          "errorText": "net::ERR_ABORTED"
-        }
-      ],
+      "requestFailures": [],
       "httpErrors": []
     },
     {
@@ -2280,7 +2418,7 @@
       "width": 390,
       "height": 844,
       "bytes": 58438,
-      "durationMs": 2104,
+      "durationMs": 1692,
       "ok": true,
       "error": null,
       "metrics": {
@@ -2302,12 +2440,12 @@
       "consoleErrors": [],
       "requestFailures": [
         {
-          "url": "http://127.0.0.1:3033/arch/index.txt?_rsc=1vw1w",
+          "url": "http://127.0.0.1:3034/archify/index.txt?_rsc=1vw1w",
           "method": "GET",
           "errorText": "net::ERR_ABORTED"
         },
         {
-          "url": "http://127.0.0.1:3033/export/index.txt?_rsc=1vw1w",
+          "url": "http://127.0.0.1:3034/check/index.txt?_rsc=1vw1w",
           "method": "GET",
           "errorText": "net::ERR_ABORTED"
         }
@@ -2323,7 +2461,7 @@
       "width": 1440,
       "height": 900,
       "bytes": 144033,
-      "durationMs": 2081,
+      "durationMs": 1606,
       "ok": true,
       "error": null,
       "metrics": {
@@ -2345,42 +2483,17 @@
       "consoleErrors": [],
       "requestFailures": [
         {
-          "url": "http://127.0.0.1:3033/blueprints/index.txt?_rsc=1b192",
+          "url": "http://127.0.0.1:3034/stack/step/layers/index.txt?_rsc=1b192",
           "method": "GET",
           "errorText": "net::ERR_ABORTED"
         },
         {
-          "url": "http://127.0.0.1:3033/stack/step/project/index.txt?_rsc=1b192",
+          "url": "http://127.0.0.1:3034/stack/env/index.txt?_rsc=1b192",
           "method": "GET",
           "errorText": "net::ERR_ABORTED"
         },
         {
-          "url": "http://127.0.0.1:3033/stack/step/theme/index.txt?_rsc=1b192",
-          "method": "GET",
-          "errorText": "net::ERR_ABORTED"
-        },
-        {
-          "url": "http://127.0.0.1:3033/stack/env/index.txt?_rsc=1b192",
-          "method": "GET",
-          "errorText": "net::ERR_ABORTED"
-        },
-        {
-          "url": "http://127.0.0.1:3033/stack/step/frontend/index.txt?_rsc=1b192",
-          "method": "GET",
-          "errorText": "net::ERR_ABORTED"
-        },
-        {
-          "url": "http://127.0.0.1:3033/stack/run/index.txt?_rsc=1b192",
-          "method": "GET",
-          "errorText": "net::ERR_ABORTED"
-        },
-        {
-          "url": "http://127.0.0.1:3033/stack/delivery/index.txt?_rsc=1b192",
-          "method": "GET",
-          "errorText": "net::ERR_ABORTED"
-        },
-        {
-          "url": "http://127.0.0.1:3033/arch/index.txt?_rsc=1b192",
+          "url": "http://127.0.0.1:3034/export/index.txt?_rsc=1b192",
           "method": "GET",
           "errorText": "net::ERR_ABORTED"
         }
@@ -2396,7 +2509,7 @@
       "width": 1024,
       "height": 768,
       "bytes": 107261,
-      "durationMs": 2084,
+      "durationMs": 1618,
       "ok": true,
       "error": null,
       "metrics": {
@@ -2418,22 +2531,37 @@
       "consoleErrors": [],
       "requestFailures": [
         {
-          "url": "http://127.0.0.1:3033/stack/index.txt?_rsc=1b192",
+          "url": "http://127.0.0.1:3034/stack/step/theme/index.txt?_rsc=1b192",
           "method": "GET",
           "errorText": "net::ERR_ABORTED"
         },
         {
-          "url": "http://127.0.0.1:3033/stack/step/theme/index.txt?_rsc=1b192",
+          "url": "http://127.0.0.1:3034/stack/step/layers/index.txt?_rsc=1b192",
           "method": "GET",
           "errorText": "net::ERR_ABORTED"
         },
         {
-          "url": "http://127.0.0.1:3033/stack/step/modules/index.txt?_rsc=1b192",
+          "url": "http://127.0.0.1:3034/stack/env/index.txt?_rsc=1b192",
           "method": "GET",
           "errorText": "net::ERR_ABORTED"
         },
         {
-          "url": "http://127.0.0.1:3033/stack/step/delivery/index.txt?_rsc=1b192",
+          "url": "http://127.0.0.1:3034/stack/step/frontend/index.txt?_rsc=1b192",
+          "method": "GET",
+          "errorText": "net::ERR_ABORTED"
+        },
+        {
+          "url": "http://127.0.0.1:3034/stack/step/env/index.txt?_rsc=1b192",
+          "method": "GET",
+          "errorText": "net::ERR_ABORTED"
+        },
+        {
+          "url": "http://127.0.0.1:3034/stack/step/topology/index.txt?_rsc=1b192",
+          "method": "GET",
+          "errorText": "net::ERR_ABORTED"
+        },
+        {
+          "url": "http://127.0.0.1:3034/stack/delivery/index.txt?_rsc=1b192",
           "method": "GET",
           "errorText": "net::ERR_ABORTED"
         }
@@ -2449,7 +2577,7 @@
       "width": 390,
       "height": 844,
       "bytes": 53223,
-      "durationMs": 1719,
+      "durationMs": 1443,
       "ok": true,
       "error": null,
       "metrics": {
@@ -2471,12 +2599,27 @@
       "consoleErrors": [],
       "requestFailures": [
         {
-          "url": "http://127.0.0.1:3033/index.txt?_rsc=1b192",
+          "url": "http://127.0.0.1:3034/stack/run/index.txt?_rsc=1b192",
           "method": "GET",
           "errorText": "net::ERR_ABORTED"
         },
         {
-          "url": "http://127.0.0.1:3033/blueprints/index.txt?_rsc=1b192",
+          "url": "http://127.0.0.1:3034/stack/delivery/index.txt?_rsc=1b192",
+          "method": "GET",
+          "errorText": "net::ERR_ABORTED"
+        },
+        {
+          "url": "http://127.0.0.1:3034/check/index.txt?_rsc=1b192",
+          "method": "GET",
+          "errorText": "net::ERR_ABORTED"
+        },
+        {
+          "url": "http://127.0.0.1:3034/standards/index.txt?_rsc=1b192",
+          "method": "GET",
+          "errorText": "net::ERR_ABORTED"
+        },
+        {
+          "url": "http://127.0.0.1:3034/export/index.txt?_rsc=1b192",
           "method": "GET",
           "errorText": "net::ERR_ABORTED"
         }
@@ -2492,7 +2635,7 @@
       "width": 1440,
       "height": 900,
       "bytes": 166821,
-      "durationMs": 2307,
+      "durationMs": 1570,
       "ok": true,
       "error": null,
       "metrics": {
@@ -2514,7 +2657,42 @@
       "consoleErrors": [],
       "requestFailures": [
         {
-          "url": "http://127.0.0.1:3033/check/index.txt?_rsc=1xgu3",
+          "url": "http://127.0.0.1:3034/stack/step/project/index.txt?_rsc=1xgu3",
+          "method": "GET",
+          "errorText": "net::ERR_ABORTED"
+        },
+        {
+          "url": "http://127.0.0.1:3034/stack/step/base/index.txt?_rsc=1xgu3",
+          "method": "GET",
+          "errorText": "net::ERR_ABORTED"
+        },
+        {
+          "url": "http://127.0.0.1:3034/stack/step/theme/index.txt?_rsc=1xgu3",
+          "method": "GET",
+          "errorText": "net::ERR_ABORTED"
+        },
+        {
+          "url": "http://127.0.0.1:3034/stack/step/layers/index.txt?_rsc=1xgu3",
+          "method": "GET",
+          "errorText": "net::ERR_ABORTED"
+        },
+        {
+          "url": "http://127.0.0.1:3034/stack/step/modules/index.txt?_rsc=1xgu3",
+          "method": "GET",
+          "errorText": "net::ERR_ABORTED"
+        },
+        {
+          "url": "http://127.0.0.1:3034/stack/step/topology/index.txt?_rsc=1xgu3",
+          "method": "GET",
+          "errorText": "net::ERR_ABORTED"
+        },
+        {
+          "url": "http://127.0.0.1:3034/check/index.txt?_rsc=1xgu3",
+          "method": "GET",
+          "errorText": "net::ERR_ABORTED"
+        },
+        {
+          "url": "http://127.0.0.1:3034/standards/index.txt?_rsc=1xgu3",
           "method": "GET",
           "errorText": "net::ERR_ABORTED"
         }
@@ -2530,7 +2708,7 @@
       "width": 1024,
       "height": 768,
       "bytes": 115167,
-      "durationMs": 1974,
+      "durationMs": 1522,
       "ok": true,
       "error": null,
       "metrics": {
@@ -2552,22 +2730,17 @@
       "consoleErrors": [],
       "requestFailures": [
         {
-          "url": "http://127.0.0.1:3033/stack/step/layers/index.txt?_rsc=1xgu3",
+          "url": "http://127.0.0.1:3034/index.txt?_rsc=1xgu3",
           "method": "GET",
           "errorText": "net::ERR_ABORTED"
         },
         {
-          "url": "http://127.0.0.1:3033/stack/step/env/index.txt?_rsc=1xgu3",
+          "url": "http://127.0.0.1:3034/stack/step/theme/index.txt?_rsc=1xgu3",
           "method": "GET",
           "errorText": "net::ERR_ABORTED"
         },
         {
-          "url": "http://127.0.0.1:3033/stack/step/modules/index.txt?_rsc=1xgu3",
-          "method": "GET",
-          "errorText": "net::ERR_ABORTED"
-        },
-        {
-          "url": "http://127.0.0.1:3033/stack/delivery/index.txt?_rsc=1xgu3",
+          "url": "http://127.0.0.1:3034/check/index.txt?_rsc=1xgu3",
           "method": "GET",
           "errorText": "net::ERR_ABORTED"
         }
@@ -2583,7 +2756,7 @@
       "width": 390,
       "height": 844,
       "bytes": 58026,
-      "durationMs": 1765,
+      "durationMs": 1624,
       "ok": true,
       "error": null,
       "metrics": {
@@ -2605,27 +2778,32 @@
       "consoleErrors": [],
       "requestFailures": [
         {
-          "url": "http://127.0.0.1:3033/index.txt?_rsc=1xgu3",
+          "url": "http://127.0.0.1:3034/stack/run/index.txt?_rsc=1xgu3",
           "method": "GET",
           "errorText": "net::ERR_ABORTED"
         },
         {
-          "url": "http://127.0.0.1:3033/stack/delivery/index.txt?_rsc=1xgu3",
+          "url": "http://127.0.0.1:3034/stack/delivery/index.txt?_rsc=1xgu3",
           "method": "GET",
           "errorText": "net::ERR_ABORTED"
         },
         {
-          "url": "http://127.0.0.1:3033/arch/index.txt?_rsc=1xgu3",
+          "url": "http://127.0.0.1:3034/arch/index.txt?_rsc=1xgu3",
           "method": "GET",
           "errorText": "net::ERR_ABORTED"
         },
         {
-          "url": "http://127.0.0.1:3033/icons/index.txt?_rsc=1xgu3",
+          "url": "http://127.0.0.1:3034/icons/index.txt?_rsc=1xgu3",
           "method": "GET",
           "errorText": "net::ERR_ABORTED"
         },
         {
-          "url": "http://127.0.0.1:3033/standards/index.txt?_rsc=1xgu3",
+          "url": "http://127.0.0.1:3034/standards/index.txt?_rsc=1xgu3",
+          "method": "GET",
+          "errorText": "net::ERR_ABORTED"
+        },
+        {
+          "url": "http://127.0.0.1:3034/export/index.txt?_rsc=1xgu3",
           "method": "GET",
           "errorText": "net::ERR_ABORTED"
         }
@@ -2640,8 +2818,8 @@
       "viewport": "desktop",
       "width": 1440,
       "height": 900,
-      "bytes": 132074,
-      "durationMs": 1690,
+      "bytes": 135462,
+      "durationMs": 1591,
       "ok": true,
       "error": null,
       "metrics": {
@@ -2663,7 +2841,32 @@
       "consoleErrors": [],
       "requestFailures": [
         {
-          "url": "http://127.0.0.1:3033/index.txt?_rsc=1cvjd",
+          "url": "http://127.0.0.1:3034/rules/index.txt?_rsc=1cvjd",
+          "method": "GET",
+          "errorText": "net::ERR_ABORTED"
+        },
+        {
+          "url": "http://127.0.0.1:3034/stack/step/theme/index.txt?_rsc=1cvjd",
+          "method": "GET",
+          "errorText": "net::ERR_ABORTED"
+        },
+        {
+          "url": "http://127.0.0.1:3034/stack/delivery/index.txt?_rsc=1cvjd",
+          "method": "GET",
+          "errorText": "net::ERR_ABORTED"
+        },
+        {
+          "url": "http://127.0.0.1:3034/arch/index.txt?_rsc=1cvjd",
+          "method": "GET",
+          "errorText": "net::ERR_ABORTED"
+        },
+        {
+          "url": "http://127.0.0.1:3034/standards/index.txt?_rsc=1cvjd",
+          "method": "GET",
+          "errorText": "net::ERR_ABORTED"
+        },
+        {
+          "url": "http://127.0.0.1:3034/export/index.txt?_rsc=1cvjd",
           "method": "GET",
           "errorText": "net::ERR_ABORTED"
         }
@@ -2678,18 +2881,18 @@
       "viewport": "tablet",
       "width": 1024,
       "height": 768,
-      "bytes": 88096,
-      "durationMs": 1710,
+      "bytes": 90463,
+      "durationMs": 1572,
       "ok": true,
       "error": null,
       "metrics": {
         "scrollWidth": 1024,
         "clientWidth": 1024,
-        "scrollHeight": 2088,
+        "scrollHeight": 2110,
         "clientHeight": 768,
-        "bodyScrollHeight": 2088,
+        "bodyScrollHeight": 2110,
         "horizontalOverflowPx": 0,
-        "belowFoldPx": 1320,
+        "belowFoldPx": 1342,
         "imgTotal": 0,
         "failedImages": [],
         "overflowElementCount": 0,
@@ -2701,37 +2904,12 @@
       "consoleErrors": [],
       "requestFailures": [
         {
-          "url": "http://127.0.0.1:3033/stack/step/project/index.txt?_rsc=1cvjd",
+          "url": "http://127.0.0.1:3034/rules/index.txt?_rsc=1cvjd",
           "method": "GET",
           "errorText": "net::ERR_ABORTED"
         },
         {
-          "url": "http://127.0.0.1:3033/stack/step/base/index.txt?_rsc=1cvjd",
-          "method": "GET",
-          "errorText": "net::ERR_ABORTED"
-        },
-        {
-          "url": "http://127.0.0.1:3033/stack/step/theme/index.txt?_rsc=1cvjd",
-          "method": "GET",
-          "errorText": "net::ERR_ABORTED"
-        },
-        {
-          "url": "http://127.0.0.1:3033/stack/step/deliverRun/index.txt?_rsc=1cvjd",
-          "method": "GET",
-          "errorText": "net::ERR_ABORTED"
-        },
-        {
-          "url": "http://127.0.0.1:3033/stack/step/topology/index.txt?_rsc=1cvjd",
-          "method": "GET",
-          "errorText": "net::ERR_ABORTED"
-        },
-        {
-          "url": "http://127.0.0.1:3033/stack/delivery/index.txt?_rsc=1cvjd",
-          "method": "GET",
-          "errorText": "net::ERR_ABORTED"
-        },
-        {
-          "url": "http://127.0.0.1:3033/arch/index.txt?_rsc=1cvjd",
+          "url": "http://127.0.0.1:3034/check/index.txt?_rsc=1cvjd",
           "method": "GET",
           "errorText": "net::ERR_ABORTED"
         }
@@ -2746,18 +2924,18 @@
       "viewport": "mobile",
       "width": 390,
       "height": 844,
-      "bytes": 47701,
-      "durationMs": 1731,
+      "bytes": 50681,
+      "durationMs": 1520,
       "ok": true,
       "error": null,
       "metrics": {
         "scrollWidth": 390,
         "clientWidth": 390,
-        "scrollHeight": 3051,
+        "scrollHeight": 3083,
         "clientHeight": 844,
-        "bodyScrollHeight": 3051,
+        "bodyScrollHeight": 3083,
         "horizontalOverflowPx": 0,
-        "belowFoldPx": 2207,
+        "belowFoldPx": 2239,
         "imgTotal": 0,
         "failedImages": [],
         "overflowElementCount": 0,
@@ -2769,7 +2947,12 @@
       "consoleErrors": [],
       "requestFailures": [
         {
-          "url": "http://127.0.0.1:3033/export/index.txt?_rsc=1cvjd",
+          "url": "http://127.0.0.1:3034/stack/delivery/index.txt?_rsc=1cvjd",
+          "method": "GET",
+          "errorText": "net::ERR_ABORTED"
+        },
+        {
+          "url": "http://127.0.0.1:3034/arch/index.txt?_rsc=1cvjd",
           "method": "GET",
           "errorText": "net::ERR_ABORTED"
         }
@@ -2785,7 +2968,7 @@
       "width": 1440,
       "height": 900,
       "bytes": 112413,
-      "durationMs": 1729,
+      "durationMs": 1594,
       "ok": true,
       "error": null,
       "metrics": {
@@ -2807,7 +2990,37 @@
       "consoleErrors": [],
       "requestFailures": [
         {
-          "url": "http://127.0.0.1:3033/stack/step/project/index.txt?_rsc=ty7lc",
+          "url": "http://127.0.0.1:3034/stack/step/layers/index.txt?_rsc=ty7lc",
+          "method": "GET",
+          "errorText": "net::ERR_ABORTED"
+        },
+        {
+          "url": "http://127.0.0.1:3034/stack/step/deliverRun/index.txt?_rsc=ty7lc",
+          "method": "GET",
+          "errorText": "net::ERR_ABORTED"
+        },
+        {
+          "url": "http://127.0.0.1:3034/stack/step/topology/index.txt?_rsc=ty7lc",
+          "method": "GET",
+          "errorText": "net::ERR_ABORTED"
+        },
+        {
+          "url": "http://127.0.0.1:3034/icons/index.txt?_rsc=ty7lc",
+          "method": "GET",
+          "errorText": "net::ERR_ABORTED"
+        },
+        {
+          "url": "http://127.0.0.1:3034/archify/index.txt?_rsc=ty7lc",
+          "method": "GET",
+          "errorText": "net::ERR_ABORTED"
+        },
+        {
+          "url": "http://127.0.0.1:3034/check/index.txt?_rsc=ty7lc",
+          "method": "GET",
+          "errorText": "net::ERR_ABORTED"
+        },
+        {
+          "url": "http://127.0.0.1:3034/standards/index.txt?_rsc=ty7lc",
           "method": "GET",
           "errorText": "net::ERR_ABORTED"
         }
@@ -2823,7 +3036,7 @@
       "width": 1024,
       "height": 768,
       "bytes": 99011,
-      "durationMs": 1770,
+      "durationMs": 1376,
       "ok": true,
       "error": null,
       "metrics": {
@@ -2845,27 +3058,22 @@
       "consoleErrors": [],
       "requestFailures": [
         {
-          "url": "http://127.0.0.1:3033/stack/run/index.txt?_rsc=ty7lc",
+          "url": "http://127.0.0.1:3034/index.txt?_rsc=ty7lc",
           "method": "GET",
           "errorText": "net::ERR_ABORTED"
         },
         {
-          "url": "http://127.0.0.1:3033/stack/step/deliverRun/index.txt?_rsc=ty7lc",
+          "url": "http://127.0.0.1:3034/stack/step/layers/index.txt?_rsc=ty7lc",
           "method": "GET",
           "errorText": "net::ERR_ABORTED"
         },
         {
-          "url": "http://127.0.0.1:3033/stack/step/topology/index.txt?_rsc=ty7lc",
+          "url": "http://127.0.0.1:3034/arch/index.txt?_rsc=ty7lc",
           "method": "GET",
           "errorText": "net::ERR_ABORTED"
         },
         {
-          "url": "http://127.0.0.1:3033/stack/delivery/index.txt?_rsc=ty7lc",
-          "method": "GET",
-          "errorText": "net::ERR_ABORTED"
-        },
-        {
-          "url": "http://127.0.0.1:3033/stack/step/delivery/index.txt?_rsc=ty7lc",
+          "url": "http://127.0.0.1:3034/icons/index.txt?_rsc=ty7lc",
           "method": "GET",
           "errorText": "net::ERR_ABORTED"
         }
@@ -2881,7 +3089,7 @@
       "width": 390,
       "height": 844,
       "bytes": 52634,
-      "durationMs": 2168,
+      "durationMs": 1341,
       "ok": true,
       "error": null,
       "metrics": {
@@ -2903,7 +3111,37 @@
       "consoleErrors": [],
       "requestFailures": [
         {
-          "url": "http://127.0.0.1:3033/standards/index.txt?_rsc=ty7lc",
+          "url": "http://127.0.0.1:3034/index.txt?_rsc=ty7lc",
+          "method": "GET",
+          "errorText": "net::ERR_ABORTED"
+        },
+        {
+          "url": "http://127.0.0.1:3034/stack/run/index.txt?_rsc=ty7lc",
+          "method": "GET",
+          "errorText": "net::ERR_ABORTED"
+        },
+        {
+          "url": "http://127.0.0.1:3034/stack/delivery/index.txt?_rsc=ty7lc",
+          "method": "GET",
+          "errorText": "net::ERR_ABORTED"
+        },
+        {
+          "url": "http://127.0.0.1:3034/arch/index.txt?_rsc=ty7lc",
+          "method": "GET",
+          "errorText": "net::ERR_ABORTED"
+        },
+        {
+          "url": "http://127.0.0.1:3034/icons/index.txt?_rsc=ty7lc",
+          "method": "GET",
+          "errorText": "net::ERR_ABORTED"
+        },
+        {
+          "url": "http://127.0.0.1:3034/archify/index.txt?_rsc=ty7lc",
+          "method": "GET",
+          "errorText": "net::ERR_ABORTED"
+        },
+        {
+          "url": "http://127.0.0.1:3034/standards/index.txt?_rsc=ty7lc",
           "method": "GET",
           "errorText": "net::ERR_ABORTED"
         }
@@ -2919,7 +3157,7 @@
       "width": 1440,
       "height": 900,
       "bytes": 123494,
-      "durationMs": 2612,
+      "durationMs": 1369,
       "ok": true,
       "error": null,
       "metrics": {
@@ -2941,22 +3179,22 @@
       "consoleErrors": [],
       "requestFailures": [
         {
-          "url": "http://127.0.0.1:3033/index.txt?_rsc=fsblt",
+          "url": "http://127.0.0.1:3034/stack/step/theme/index.txt?_rsc=fsblt",
           "method": "GET",
           "errorText": "net::ERR_ABORTED"
         },
         {
-          "url": "http://127.0.0.1:3033/stack/delivery/index.txt?_rsc=fsblt",
+          "url": "http://127.0.0.1:3034/stack/step/topology/index.txt?_rsc=fsblt",
           "method": "GET",
           "errorText": "net::ERR_ABORTED"
         },
         {
-          "url": "http://127.0.0.1:3033/icons/index.txt?_rsc=fsblt",
+          "url": "http://127.0.0.1:3034/arch/index.txt?_rsc=fsblt",
           "method": "GET",
           "errorText": "net::ERR_ABORTED"
         },
         {
-          "url": "http://127.0.0.1:3033/check/index.txt?_rsc=fsblt",
+          "url": "http://127.0.0.1:3034/export/index.txt?_rsc=fsblt",
           "method": "GET",
           "errorText": "net::ERR_ABORTED"
         }
@@ -2972,7 +3210,7 @@
       "width": 1024,
       "height": 768,
       "bytes": 105328,
-      "durationMs": 2667,
+      "durationMs": 1391,
       "ok": true,
       "error": null,
       "metrics": {
@@ -2994,12 +3232,42 @@
       "consoleErrors": [],
       "requestFailures": [
         {
-          "url": "http://127.0.0.1:3033/stack/index.txt?_rsc=fsblt",
+          "url": "http://127.0.0.1:3034/stack/step/base/index.txt?_rsc=fsblt",
           "method": "GET",
           "errorText": "net::ERR_ABORTED"
         },
         {
-          "url": "http://127.0.0.1:3033/arch/index.txt?_rsc=fsblt",
+          "url": "http://127.0.0.1:3034/stack/step/theme/index.txt?_rsc=fsblt",
+          "method": "GET",
+          "errorText": "net::ERR_ABORTED"
+        },
+        {
+          "url": "http://127.0.0.1:3034/stack/step/layers/index.txt?_rsc=fsblt",
+          "method": "GET",
+          "errorText": "net::ERR_ABORTED"
+        },
+        {
+          "url": "http://127.0.0.1:3034/stack/env/index.txt?_rsc=fsblt",
+          "method": "GET",
+          "errorText": "net::ERR_ABORTED"
+        },
+        {
+          "url": "http://127.0.0.1:3034/stack/step/env/index.txt?_rsc=fsblt",
+          "method": "GET",
+          "errorText": "net::ERR_ABORTED"
+        },
+        {
+          "url": "http://127.0.0.1:3034/archify/index.txt?_rsc=fsblt",
+          "method": "GET",
+          "errorText": "net::ERR_ABORTED"
+        },
+        {
+          "url": "http://127.0.0.1:3034/icons/index.txt?_rsc=fsblt",
+          "method": "GET",
+          "errorText": "net::ERR_ABORTED"
+        },
+        {
+          "url": "http://127.0.0.1:3034/check/index.txt?_rsc=fsblt",
           "method": "GET",
           "errorText": "net::ERR_ABORTED"
         }
@@ -3015,7 +3283,7 @@
       "width": 390,
       "height": 844,
       "bytes": 51544,
-      "durationMs": 1834,
+      "durationMs": 1471,
       "ok": true,
       "error": null,
       "metrics": {
@@ -3035,7 +3303,53 @@
       },
       "pageErrors": [],
       "consoleErrors": [],
-      "requestFailures": [],
+      "requestFailures": [
+        {
+          "url": "http://127.0.0.1:3034/index.txt?_rsc=fsblt",
+          "method": "GET",
+          "errorText": "net::ERR_ABORTED"
+        },
+        {
+          "url": "http://127.0.0.1:3034/rules/index.txt?_rsc=fsblt",
+          "method": "GET",
+          "errorText": "net::ERR_ABORTED"
+        },
+        {
+          "url": "http://127.0.0.1:3034/stack/env/index.txt?_rsc=fsblt",
+          "method": "GET",
+          "errorText": "net::ERR_ABORTED"
+        },
+        {
+          "url": "http://127.0.0.1:3034/stack/run/index.txt?_rsc=fsblt",
+          "method": "GET",
+          "errorText": "net::ERR_ABORTED"
+        },
+        {
+          "url": "http://127.0.0.1:3034/stack/delivery/index.txt?_rsc=fsblt",
+          "method": "GET",
+          "errorText": "net::ERR_ABORTED"
+        },
+        {
+          "url": "http://127.0.0.1:3034/arch/index.txt?_rsc=fsblt",
+          "method": "GET",
+          "errorText": "net::ERR_ABORTED"
+        },
+        {
+          "url": "http://127.0.0.1:3034/archify/index.txt?_rsc=fsblt",
+          "method": "GET",
+          "errorText": "net::ERR_ABORTED"
+        },
+        {
+          "url": "http://127.0.0.1:3034/check/index.txt?_rsc=fsblt",
+          "method": "GET",
+          "errorText": "net::ERR_ABORTED"
+        },
+        {
+          "url": "http://127.0.0.1:3034/standards/index.txt?_rsc=fsblt",
+          "method": "GET",
+          "errorText": "net::ERR_ABORTED"
+        }
+      ],
       "httpErrors": []
     },
     {
@@ -3047,7 +3361,7 @@
       "width": 1440,
       "height": 900,
       "bytes": 122686,
-      "durationMs": 2046,
+      "durationMs": 1692,
       "ok": true,
       "error": null,
       "metrics": {
@@ -3069,47 +3383,17 @@
       "consoleErrors": [],
       "requestFailures": [
         {
-          "url": "http://127.0.0.1:3033/rules/index.txt?_rsc=15swb",
+          "url": "http://127.0.0.1:3034/stack/env/index.txt?_rsc=15swb",
           "method": "GET",
           "errorText": "net::ERR_ABORTED"
         },
         {
-          "url": "http://127.0.0.1:3033/stack/step/base/index.txt?_rsc=15swb",
+          "url": "http://127.0.0.1:3034/standards/index.txt?_rsc=15swb",
           "method": "GET",
           "errorText": "net::ERR_ABORTED"
         },
         {
-          "url": "http://127.0.0.1:3033/stack/step/frontend/index.txt?_rsc=15swb",
-          "method": "GET",
-          "errorText": "net::ERR_ABORTED"
-        },
-        {
-          "url": "http://127.0.0.1:3033/stack/step/env/index.txt?_rsc=15swb",
-          "method": "GET",
-          "errorText": "net::ERR_ABORTED"
-        },
-        {
-          "url": "http://127.0.0.1:3033/stack/step/topology/index.txt?_rsc=15swb",
-          "method": "GET",
-          "errorText": "net::ERR_ABORTED"
-        },
-        {
-          "url": "http://127.0.0.1:3033/stack/step/delivery/index.txt?_rsc=15swb",
-          "method": "GET",
-          "errorText": "net::ERR_ABORTED"
-        },
-        {
-          "url": "http://127.0.0.1:3033/arch/index.txt?_rsc=15swb",
-          "method": "GET",
-          "errorText": "net::ERR_ABORTED"
-        },
-        {
-          "url": "http://127.0.0.1:3033/icons/index.txt?_rsc=15swb",
-          "method": "GET",
-          "errorText": "net::ERR_ABORTED"
-        },
-        {
-          "url": "http://127.0.0.1:3033/check/index.txt?_rsc=15swb",
+          "url": "http://127.0.0.1:3034/export/index.txt?_rsc=15swb",
           "method": "GET",
           "errorText": "net::ERR_ABORTED"
         }
@@ -3125,7 +3409,7 @@
       "width": 1024,
       "height": 768,
       "bytes": 93845,
-      "durationMs": 1948,
+      "durationMs": 1660,
       "ok": true,
       "error": null,
       "metrics": {
@@ -3147,27 +3431,12 @@
       "consoleErrors": [],
       "requestFailures": [
         {
-          "url": "http://127.0.0.1:3033/stack/step/base/index.txt?_rsc=15swb",
+          "url": "http://127.0.0.1:3034/index.txt?_rsc=15swb",
           "method": "GET",
           "errorText": "net::ERR_ABORTED"
         },
         {
-          "url": "http://127.0.0.1:3033/stack/step/topology/index.txt?_rsc=15swb",
-          "method": "GET",
-          "errorText": "net::ERR_ABORTED"
-        },
-        {
-          "url": "http://127.0.0.1:3033/stack/step/delivery/index.txt?_rsc=15swb",
-          "method": "GET",
-          "errorText": "net::ERR_ABORTED"
-        },
-        {
-          "url": "http://127.0.0.1:3033/stack/delivery/index.txt?_rsc=15swb",
-          "method": "GET",
-          "errorText": "net::ERR_ABORTED"
-        },
-        {
-          "url": "http://127.0.0.1:3033/check/index.txt?_rsc=15swb",
+          "url": "http://127.0.0.1:3034/stack/step/base/index.txt?_rsc=15swb",
           "method": "GET",
           "errorText": "net::ERR_ABORTED"
         }
@@ -3183,7 +3452,7 @@
       "width": 390,
       "height": 844,
       "bytes": 55943,
-      "durationMs": 2034,
+      "durationMs": 1532,
       "ok": true,
       "error": null,
       "metrics": {
@@ -3205,17 +3474,27 @@
       "consoleErrors": [],
       "requestFailures": [
         {
-          "url": "http://127.0.0.1:3033/rules/index.txt?_rsc=15swb",
+          "url": "http://127.0.0.1:3034/rules/index.txt?_rsc=15swb",
           "method": "GET",
           "errorText": "net::ERR_ABORTED"
         },
         {
-          "url": "http://127.0.0.1:3033/check/index.txt?_rsc=15swb",
+          "url": "http://127.0.0.1:3034/stack/delivery/index.txt?_rsc=15swb",
           "method": "GET",
           "errorText": "net::ERR_ABORTED"
         },
         {
-          "url": "http://127.0.0.1:3033/standards/index.txt?_rsc=15swb",
+          "url": "http://127.0.0.1:3034/arch/index.txt?_rsc=15swb",
+          "method": "GET",
+          "errorText": "net::ERR_ABORTED"
+        },
+        {
+          "url": "http://127.0.0.1:3034/icons/index.txt?_rsc=15swb",
+          "method": "GET",
+          "errorText": "net::ERR_ABORTED"
+        },
+        {
+          "url": "http://127.0.0.1:3034/archify/index.txt?_rsc=15swb",
           "method": "GET",
           "errorText": "net::ERR_ABORTED"
         }
@@ -3231,7 +3510,7 @@
       "width": 1440,
       "height": 900,
       "bytes": 98597,
-      "durationMs": 1704,
+      "durationMs": 1519,
       "ok": true,
       "error": null,
       "metrics": {
@@ -3253,27 +3532,22 @@
       "consoleErrors": [],
       "requestFailures": [
         {
-          "url": "http://127.0.0.1:3033/index.txt?_rsc=4jz0j",
+          "url": "http://127.0.0.1:3034/index.txt?_rsc=4jz0j",
           "method": "GET",
           "errorText": "net::ERR_ABORTED"
         },
         {
-          "url": "http://127.0.0.1:3033/stack/step/base/index.txt?_rsc=4jz0j",
+          "url": "http://127.0.0.1:3034/rules/index.txt?_rsc=4jz0j",
           "method": "GET",
           "errorText": "net::ERR_ABORTED"
         },
         {
-          "url": "http://127.0.0.1:3033/stack/step/theme/index.txt?_rsc=4jz0j",
+          "url": "http://127.0.0.1:3034/stack/step/theme/index.txt?_rsc=4jz0j",
           "method": "GET",
           "errorText": "net::ERR_ABORTED"
         },
         {
-          "url": "http://127.0.0.1:3033/stack/step/layers/index.txt?_rsc=4jz0j",
-          "method": "GET",
-          "errorText": "net::ERR_ABORTED"
-        },
-        {
-          "url": "http://127.0.0.1:3033/stack/step/deliverRun/index.txt?_rsc=4jz0j",
+          "url": "http://127.0.0.1:3034/stack/step/topology/index.txt?_rsc=4jz0j",
           "method": "GET",
           "errorText": "net::ERR_ABORTED"
         }
@@ -3289,7 +3563,7 @@
       "width": 1024,
       "height": 768,
       "bytes": 88836,
-      "durationMs": 1601,
+      "durationMs": 1319,
       "ok": true,
       "error": null,
       "metrics": {
@@ -3311,52 +3585,22 @@
       "consoleErrors": [],
       "requestFailures": [
         {
-          "url": "http://127.0.0.1:3033/stack/step/base/index.txt?_rsc=4jz0j",
+          "url": "http://127.0.0.1:3034/index.txt?_rsc=4jz0j",
           "method": "GET",
           "errorText": "net::ERR_ABORTED"
         },
         {
-          "url": "http://127.0.0.1:3033/stack/step/theme/index.txt?_rsc=4jz0j",
+          "url": "http://127.0.0.1:3034/stack/step/theme/index.txt?_rsc=4jz0j",
           "method": "GET",
           "errorText": "net::ERR_ABORTED"
         },
         {
-          "url": "http://127.0.0.1:3033/stack/step/layers/index.txt?_rsc=4jz0j",
+          "url": "http://127.0.0.1:3034/stack/step/layers/index.txt?_rsc=4jz0j",
           "method": "GET",
           "errorText": "net::ERR_ABORTED"
         },
         {
-          "url": "http://127.0.0.1:3033/stack/env/index.txt?_rsc=4jz0j",
-          "method": "GET",
-          "errorText": "net::ERR_ABORTED"
-        },
-        {
-          "url": "http://127.0.0.1:3033/stack/step/frontend/index.txt?_rsc=4jz0j",
-          "method": "GET",
-          "errorText": "net::ERR_ABORTED"
-        },
-        {
-          "url": "http://127.0.0.1:3033/stack/step/env/index.txt?_rsc=4jz0j",
-          "method": "GET",
-          "errorText": "net::ERR_ABORTED"
-        },
-        {
-          "url": "http://127.0.0.1:3033/stack/run/index.txt?_rsc=4jz0j",
-          "method": "GET",
-          "errorText": "net::ERR_ABORTED"
-        },
-        {
-          "url": "http://127.0.0.1:3033/stack/delivery/index.txt?_rsc=4jz0j",
-          "method": "GET",
-          "errorText": "net::ERR_ABORTED"
-        },
-        {
-          "url": "http://127.0.0.1:3033/arch/index.txt?_rsc=4jz0j",
-          "method": "GET",
-          "errorText": "net::ERR_ABORTED"
-        },
-        {
-          "url": "http://127.0.0.1:3033/check/index.txt?_rsc=4jz0j",
+          "url": "http://127.0.0.1:3034/stack/env/index.txt?_rsc=4jz0j",
           "method": "GET",
           "errorText": "net::ERR_ABORTED"
         }
@@ -3372,7 +3616,7 @@
       "width": 390,
       "height": 844,
       "bytes": 55700,
-      "durationMs": 1454,
+      "durationMs": 1262,
       "ok": true,
       "error": null,
       "metrics": {
@@ -3394,47 +3638,12 @@
       "consoleErrors": [],
       "requestFailures": [
         {
-          "url": "http://127.0.0.1:3033/index.txt?_rsc=4jz0j",
+          "url": "http://127.0.0.1:3034/index.txt?_rsc=4jz0j",
           "method": "GET",
           "errorText": "net::ERR_ABORTED"
         },
         {
-          "url": "http://127.0.0.1:3033/rules/index.txt?_rsc=4jz0j",
-          "method": "GET",
-          "errorText": "net::ERR_ABORTED"
-        },
-        {
-          "url": "http://127.0.0.1:3033/blueprints/index.txt?_rsc=4jz0j",
-          "method": "GET",
-          "errorText": "net::ERR_ABORTED"
-        },
-        {
-          "url": "http://127.0.0.1:3033/stack/delivery/index.txt?_rsc=4jz0j",
-          "method": "GET",
-          "errorText": "net::ERR_ABORTED"
-        },
-        {
-          "url": "http://127.0.0.1:3033/arch/index.txt?_rsc=4jz0j",
-          "method": "GET",
-          "errorText": "net::ERR_ABORTED"
-        },
-        {
-          "url": "http://127.0.0.1:3033/icons/index.txt?_rsc=4jz0j",
-          "method": "GET",
-          "errorText": "net::ERR_ABORTED"
-        },
-        {
-          "url": "http://127.0.0.1:3033/archify/index.txt?_rsc=4jz0j",
-          "method": "GET",
-          "errorText": "net::ERR_ABORTED"
-        },
-        {
-          "url": "http://127.0.0.1:3033/standards/index.txt?_rsc=4jz0j",
-          "method": "GET",
-          "errorText": "net::ERR_ABORTED"
-        },
-        {
-          "url": "http://127.0.0.1:3033/export/index.txt?_rsc=4jz0j",
+          "url": "http://127.0.0.1:3034/export/index.txt?_rsc=4jz0j",
           "method": "GET",
           "errorText": "net::ERR_ABORTED"
         }
@@ -3450,7 +3659,7 @@
       "width": 1440,
       "height": 900,
       "bytes": 147034,
-      "durationMs": 1685,
+      "durationMs": 1608,
       "ok": true,
       "error": null,
       "metrics": {
@@ -3472,47 +3681,32 @@
       "consoleErrors": [],
       "requestFailures": [
         {
-          "url": "http://127.0.0.1:3033/rules/index.txt?_rsc=bxzof",
+          "url": "http://127.0.0.1:3034/rules/index.txt?_rsc=bxzof",
           "method": "GET",
           "errorText": "net::ERR_ABORTED"
         },
         {
-          "url": "http://127.0.0.1:3033/stack/step/layers/index.txt?_rsc=bxzof",
+          "url": "http://127.0.0.1:3034/stack/step/layers/index.txt?_rsc=bxzof",
           "method": "GET",
           "errorText": "net::ERR_ABORTED"
         },
         {
-          "url": "http://127.0.0.1:3033/stack/env/index.txt?_rsc=bxzof",
+          "url": "http://127.0.0.1:3034/stack/env/index.txt?_rsc=bxzof",
           "method": "GET",
           "errorText": "net::ERR_ABORTED"
         },
         {
-          "url": "http://127.0.0.1:3033/stack/step/frontend/index.txt?_rsc=bxzof",
+          "url": "http://127.0.0.1:3034/stack/step/frontend/index.txt?_rsc=bxzof",
           "method": "GET",
           "errorText": "net::ERR_ABORTED"
         },
         {
-          "url": "http://127.0.0.1:3033/stack/step/env/index.txt?_rsc=bxzof",
+          "url": "http://127.0.0.1:3034/arch/index.txt?_rsc=bxzof",
           "method": "GET",
           "errorText": "net::ERR_ABORTED"
         },
         {
-          "url": "http://127.0.0.1:3033/stack/step/modules/index.txt?_rsc=bxzof",
-          "method": "GET",
-          "errorText": "net::ERR_ABORTED"
-        },
-        {
-          "url": "http://127.0.0.1:3033/stack/step/deliverRun/index.txt?_rsc=bxzof",
-          "method": "GET",
-          "errorText": "net::ERR_ABORTED"
-        },
-        {
-          "url": "http://127.0.0.1:3033/check/index.txt?_rsc=bxzof",
-          "method": "GET",
-          "errorText": "net::ERR_ABORTED"
-        },
-        {
-          "url": "http://127.0.0.1:3033/export/index.txt?_rsc=bxzof",
+          "url": "http://127.0.0.1:3034/export/index.txt?_rsc=bxzof",
           "method": "GET",
           "errorText": "net::ERR_ABORTED"
         }
@@ -3528,7 +3722,7 @@
       "width": 1024,
       "height": 768,
       "bytes": 107640,
-      "durationMs": 1832,
+      "durationMs": 1554,
       "ok": true,
       "error": null,
       "metrics": {
@@ -3550,32 +3744,37 @@
       "consoleErrors": [],
       "requestFailures": [
         {
-          "url": "http://127.0.0.1:3033/index.txt?_rsc=bxzof",
+          "url": "http://127.0.0.1:3034/stack/env/index.txt?_rsc=bxzof",
           "method": "GET",
           "errorText": "net::ERR_ABORTED"
         },
         {
-          "url": "http://127.0.0.1:3033/rules/index.txt?_rsc=bxzof",
+          "url": "http://127.0.0.1:3034/stack/step/frontend/index.txt?_rsc=bxzof",
           "method": "GET",
           "errorText": "net::ERR_ABORTED"
         },
         {
-          "url": "http://127.0.0.1:3033/stack/step/topology/index.txt?_rsc=bxzof",
+          "url": "http://127.0.0.1:3034/stack/step/deliverRun/index.txt?_rsc=bxzof",
           "method": "GET",
           "errorText": "net::ERR_ABORTED"
         },
         {
-          "url": "http://127.0.0.1:3033/arch/index.txt?_rsc=bxzof",
+          "url": "http://127.0.0.1:3034/stack/step/topology/index.txt?_rsc=bxzof",
           "method": "GET",
           "errorText": "net::ERR_ABORTED"
         },
         {
-          "url": "http://127.0.0.1:3033/icons/index.txt?_rsc=bxzof",
+          "url": "http://127.0.0.1:3034/stack/delivery/index.txt?_rsc=bxzof",
           "method": "GET",
           "errorText": "net::ERR_ABORTED"
         },
         {
-          "url": "http://127.0.0.1:3033/archify/index.txt?_rsc=bxzof",
+          "url": "http://127.0.0.1:3034/stack/step/delivery/index.txt?_rsc=bxzof",
+          "method": "GET",
+          "errorText": "net::ERR_ABORTED"
+        },
+        {
+          "url": "http://127.0.0.1:3034/archify/index.txt?_rsc=bxzof",
           "method": "GET",
           "errorText": "net::ERR_ABORTED"
         }
@@ -3591,7 +3790,7 @@
       "width": 390,
       "height": 844,
       "bytes": 53096,
-      "durationMs": 1744,
+      "durationMs": 1535,
       "ok": true,
       "error": null,
       "metrics": {
@@ -3613,37 +3812,17 @@
       "consoleErrors": [],
       "requestFailures": [
         {
-          "url": "http://127.0.0.1:3033/index.txt?_rsc=bxzof",
+          "url": "http://127.0.0.1:3034/stack/delivery/index.txt?_rsc=bxzof",
           "method": "GET",
           "errorText": "net::ERR_ABORTED"
         },
         {
-          "url": "http://127.0.0.1:3033/stack/run/index.txt?_rsc=bxzof",
+          "url": "http://127.0.0.1:3034/standards/index.txt?_rsc=bxzof",
           "method": "GET",
           "errorText": "net::ERR_ABORTED"
         },
         {
-          "url": "http://127.0.0.1:3033/stack/delivery/index.txt?_rsc=bxzof",
-          "method": "GET",
-          "errorText": "net::ERR_ABORTED"
-        },
-        {
-          "url": "http://127.0.0.1:3033/arch/index.txt?_rsc=bxzof",
-          "method": "GET",
-          "errorText": "net::ERR_ABORTED"
-        },
-        {
-          "url": "http://127.0.0.1:3033/icons/index.txt?_rsc=bxzof",
-          "method": "GET",
-          "errorText": "net::ERR_ABORTED"
-        },
-        {
-          "url": "http://127.0.0.1:3033/check/index.txt?_rsc=bxzof",
-          "method": "GET",
-          "errorText": "net::ERR_ABORTED"
-        },
-        {
-          "url": "http://127.0.0.1:3033/export/index.txt?_rsc=bxzof",
+          "url": "http://127.0.0.1:3034/export/index.txt?_rsc=bxzof",
           "method": "GET",
           "errorText": "net::ERR_ABORTED"
         }
@@ -3659,7 +3838,7 @@
       "width": 1440,
       "height": 900,
       "bytes": 156986,
-      "durationMs": 1791,
+      "durationMs": 1629,
       "ok": true,
       "error": null,
       "metrics": {
@@ -3681,22 +3860,37 @@
       "consoleErrors": [],
       "requestFailures": [
         {
-          "url": "http://127.0.0.1:3033/stack/env/index.txt?_rsc=mbewt",
+          "url": "http://127.0.0.1:3034/stack/step/base/index.txt?_rsc=mbewt",
           "method": "GET",
           "errorText": "net::ERR_ABORTED"
         },
         {
-          "url": "http://127.0.0.1:3033/stack/step/modules/index.txt?_rsc=mbewt",
+          "url": "http://127.0.0.1:3034/stack/step/layers/index.txt?_rsc=mbewt",
           "method": "GET",
           "errorText": "net::ERR_ABORTED"
         },
         {
-          "url": "http://127.0.0.1:3033/stack/run/index.txt?_rsc=mbewt",
+          "url": "http://127.0.0.1:3034/stack/env/index.txt?_rsc=mbewt",
           "method": "GET",
           "errorText": "net::ERR_ABORTED"
         },
         {
-          "url": "http://127.0.0.1:3033/stack/delivery/index.txt?_rsc=mbewt",
+          "url": "http://127.0.0.1:3034/stack/step/frontend/index.txt?_rsc=mbewt",
+          "method": "GET",
+          "errorText": "net::ERR_ABORTED"
+        },
+        {
+          "url": "http://127.0.0.1:3034/stack/delivery/index.txt?_rsc=mbewt",
+          "method": "GET",
+          "errorText": "net::ERR_ABORTED"
+        },
+        {
+          "url": "http://127.0.0.1:3034/check/index.txt?_rsc=mbewt",
+          "method": "GET",
+          "errorText": "net::ERR_ABORTED"
+        },
+        {
+          "url": "http://127.0.0.1:3034/standards/index.txt?_rsc=mbewt",
           "method": "GET",
           "errorText": "net::ERR_ABORTED"
         }
@@ -3712,7 +3906,7 @@
       "width": 1024,
       "height": 768,
       "bytes": 111462,
-      "durationMs": 1626,
+      "durationMs": 1636,
       "ok": true,
       "error": null,
       "metrics": {
@@ -3734,12 +3928,17 @@
       "consoleErrors": [],
       "requestFailures": [
         {
-          "url": "http://127.0.0.1:3033/icons/index.txt?_rsc=mbewt",
+          "url": "http://127.0.0.1:3034/stack/env/index.txt?_rsc=mbewt",
           "method": "GET",
           "errorText": "net::ERR_ABORTED"
         },
         {
-          "url": "http://127.0.0.1:3033/check/index.txt?_rsc=mbewt",
+          "url": "http://127.0.0.1:3034/stack/step/topology/index.txt?_rsc=mbewt",
+          "method": "GET",
+          "errorText": "net::ERR_ABORTED"
+        },
+        {
+          "url": "http://127.0.0.1:3034/stack/delivery/index.txt?_rsc=mbewt",
           "method": "GET",
           "errorText": "net::ERR_ABORTED"
         }
@@ -3755,7 +3954,7 @@
       "width": 390,
       "height": 844,
       "bytes": 51530,
-      "durationMs": 1799,
+      "durationMs": 1571,
       "ok": true,
       "error": null,
       "metrics": {
@@ -3775,23 +3974,7 @@
       },
       "pageErrors": [],
       "consoleErrors": [],
-      "requestFailures": [
-        {
-          "url": "http://127.0.0.1:3033/arch/index.txt?_rsc=mbewt",
-          "method": "GET",
-          "errorText": "net::ERR_ABORTED"
-        },
-        {
-          "url": "http://127.0.0.1:3033/check/index.txt?_rsc=mbewt",
-          "method": "GET",
-          "errorText": "net::ERR_ABORTED"
-        },
-        {
-          "url": "http://127.0.0.1:3033/export/index.txt?_rsc=mbewt",
-          "method": "GET",
-          "errorText": "net::ERR_ABORTED"
-        }
-      ],
+      "requestFailures": [],
       "httpErrors": []
     },
     {
@@ -3803,7 +3986,7 @@
       "width": 1440,
       "height": 900,
       "bytes": 183668,
-      "durationMs": 2331,
+      "durationMs": 1605,
       "ok": true,
       "error": null,
       "metrics": {
@@ -3865,37 +4048,22 @@
       "consoleErrors": [],
       "requestFailures": [
         {
-          "url": "http://127.0.0.1:3033/blueprints/index.txt?_rsc=14652",
+          "url": "http://127.0.0.1:3034/stack/step/base/index.txt?_rsc=14652",
           "method": "GET",
           "errorText": "net::ERR_ABORTED"
         },
         {
-          "url": "http://127.0.0.1:3033/stack/step/base/index.txt?_rsc=14652",
+          "url": "http://127.0.0.1:3034/stack/step/deliverRun/index.txt?_rsc=14652",
           "method": "GET",
           "errorText": "net::ERR_ABORTED"
         },
         {
-          "url": "http://127.0.0.1:3033/stack/step/theme/index.txt?_rsc=14652",
+          "url": "http://127.0.0.1:3034/stack/delivery/index.txt?_rsc=14652",
           "method": "GET",
           "errorText": "net::ERR_ABORTED"
         },
         {
-          "url": "http://127.0.0.1:3033/stack/env/index.txt?_rsc=14652",
-          "method": "GET",
-          "errorText": "net::ERR_ABORTED"
-        },
-        {
-          "url": "http://127.0.0.1:3033/stack/step/frontend/index.txt?_rsc=14652",
-          "method": "GET",
-          "errorText": "net::ERR_ABORTED"
-        },
-        {
-          "url": "http://127.0.0.1:3033/stack/run/index.txt?_rsc=14652",
-          "method": "GET",
-          "errorText": "net::ERR_ABORTED"
-        },
-        {
-          "url": "http://127.0.0.1:3033/stack/step/deliverRun/index.txt?_rsc=14652",
+          "url": "http://127.0.0.1:3034/stack/step/delivery/index.txt?_rsc=14652",
           "method": "GET",
           "errorText": "net::ERR_ABORTED"
         }
@@ -3911,7 +4079,7 @@
       "width": 1024,
       "height": 768,
       "bytes": 108647,
-      "durationMs": 2259,
+      "durationMs": 1593,
       "ok": true,
       "error": null,
       "metrics": {
@@ -3973,12 +4141,17 @@
       "consoleErrors": [],
       "requestFailures": [
         {
-          "url": "http://127.0.0.1:3033/stack/env/index.txt?_rsc=14652",
+          "url": "http://127.0.0.1:3034/stack/step/theme/index.txt?_rsc=14652",
           "method": "GET",
           "errorText": "net::ERR_ABORTED"
         },
         {
-          "url": "http://127.0.0.1:3033/stack/delivery/index.txt?_rsc=14652",
+          "url": "http://127.0.0.1:3034/arch/index.txt?_rsc=14652",
+          "method": "GET",
+          "errorText": "net::ERR_ABORTED"
+        },
+        {
+          "url": "http://127.0.0.1:3034/icons/index.txt?_rsc=14652",
           "method": "GET",
           "errorText": "net::ERR_ABORTED"
         }
@@ -3994,7 +4167,7 @@
       "width": 390,
       "height": 844,
       "bytes": 52587,
-      "durationMs": 1971,
+      "durationMs": 1671,
       "ok": true,
       "error": null,
       "metrics": {
@@ -4056,27 +4229,7 @@
       "consoleErrors": [],
       "requestFailures": [
         {
-          "url": "http://127.0.0.1:3033/stack/delivery/index.txt?_rsc=14652",
-          "method": "GET",
-          "errorText": "net::ERR_ABORTED"
-        },
-        {
-          "url": "http://127.0.0.1:3033/arch/index.txt?_rsc=14652",
-          "method": "GET",
-          "errorText": "net::ERR_ABORTED"
-        },
-        {
-          "url": "http://127.0.0.1:3033/icons/index.txt?_rsc=14652",
-          "method": "GET",
-          "errorText": "net::ERR_ABORTED"
-        },
-        {
-          "url": "http://127.0.0.1:3033/archify/index.txt?_rsc=14652",
-          "method": "GET",
-          "errorText": "net::ERR_ABORTED"
-        },
-        {
-          "url": "http://127.0.0.1:3033/standards/index.txt?_rsc=14652",
+          "url": "http://127.0.0.1:3034/export/index.txt?_rsc=14652",
           "method": "GET",
           "errorText": "net::ERR_ABORTED"
         }
@@ -4091,18 +4244,18 @@
       "viewport": "desktop",
       "width": 1440,
       "height": 900,
-      "bytes": 151457,
-      "durationMs": 2076,
+      "bytes": 149412,
+      "durationMs": 1637,
       "ok": true,
       "error": null,
       "metrics": {
         "scrollWidth": 1440,
         "clientWidth": 1440,
-        "scrollHeight": 2848,
+        "scrollHeight": 2893,
         "clientHeight": 900,
-        "bodyScrollHeight": 2848,
+        "bodyScrollHeight": 2893,
         "horizontalOverflowPx": 0,
-        "belowFoldPx": 1948,
+        "belowFoldPx": 1993,
         "imgTotal": 0,
         "failedImages": [],
         "overflowElementCount": 0,
@@ -4114,17 +4267,37 @@
       "consoleErrors": [],
       "requestFailures": [
         {
-          "url": "http://127.0.0.1:3033/stack/step/layers/index.txt?_rsc=1xjak",
+          "url": "http://127.0.0.1:3034/stack/step/layers/index.txt?_rsc=1xjak",
           "method": "GET",
           "errorText": "net::ERR_ABORTED"
         },
         {
-          "url": "http://127.0.0.1:3033/stack/env/index.txt?_rsc=1xjak",
+          "url": "http://127.0.0.1:3034/stack/env/index.txt?_rsc=1xjak",
           "method": "GET",
           "errorText": "net::ERR_ABORTED"
         },
         {
-          "url": "http://127.0.0.1:3033/stack/step/modules/index.txt?_rsc=1xjak",
+          "url": "http://127.0.0.1:3034/stack/step/frontend/index.txt?_rsc=1xjak",
+          "method": "GET",
+          "errorText": "net::ERR_ABORTED"
+        },
+        {
+          "url": "http://127.0.0.1:3034/stack/step/modules/index.txt?_rsc=1xjak",
+          "method": "GET",
+          "errorText": "net::ERR_ABORTED"
+        },
+        {
+          "url": "http://127.0.0.1:3034/arch/index.txt?_rsc=1xjak",
+          "method": "GET",
+          "errorText": "net::ERR_ABORTED"
+        },
+        {
+          "url": "http://127.0.0.1:3034/icons/index.txt?_rsc=1xjak",
+          "method": "GET",
+          "errorText": "net::ERR_ABORTED"
+        },
+        {
+          "url": "http://127.0.0.1:3034/archify/index.txt?_rsc=1xjak",
           "method": "GET",
           "errorText": "net::ERR_ABORTED"
         }
@@ -4139,18 +4312,18 @@
       "viewport": "tablet",
       "width": 1024,
       "height": 768,
-      "bytes": 115109,
-      "durationMs": 2039,
+      "bytes": 112438,
+      "durationMs": 1539,
       "ok": true,
       "error": null,
       "metrics": {
         "scrollWidth": 1024,
         "clientWidth": 1024,
-        "scrollHeight": 3212,
+        "scrollHeight": 3274,
         "clientHeight": 768,
-        "bodyScrollHeight": 3212,
+        "bodyScrollHeight": 3274,
         "horizontalOverflowPx": 0,
-        "belowFoldPx": 2444,
+        "belowFoldPx": 2506,
         "imgTotal": 0,
         "failedImages": [],
         "overflowElementCount": 0,
@@ -4162,32 +4335,47 @@
       "consoleErrors": [],
       "requestFailures": [
         {
-          "url": "http://127.0.0.1:3033/stack/step/project/index.txt?_rsc=1xjak",
+          "url": "http://127.0.0.1:3034/index.txt?_rsc=1xjak",
           "method": "GET",
           "errorText": "net::ERR_ABORTED"
         },
         {
-          "url": "http://127.0.0.1:3033/stack/step/layers/index.txt?_rsc=1xjak",
+          "url": "http://127.0.0.1:3034/rules/index.txt?_rsc=1xjak",
           "method": "GET",
           "errorText": "net::ERR_ABORTED"
         },
         {
-          "url": "http://127.0.0.1:3033/stack/env/index.txt?_rsc=1xjak",
+          "url": "http://127.0.0.1:3034/stack/step/theme/index.txt?_rsc=1xjak",
           "method": "GET",
           "errorText": "net::ERR_ABORTED"
         },
         {
-          "url": "http://127.0.0.1:3033/arch/index.txt?_rsc=1xjak",
+          "url": "http://127.0.0.1:3034/stack/step/layers/index.txt?_rsc=1xjak",
           "method": "GET",
           "errorText": "net::ERR_ABORTED"
         },
         {
-          "url": "http://127.0.0.1:3033/icons/index.txt?_rsc=1xjak",
+          "url": "http://127.0.0.1:3034/stack/env/index.txt?_rsc=1xjak",
           "method": "GET",
           "errorText": "net::ERR_ABORTED"
         },
         {
-          "url": "http://127.0.0.1:3033/archify/index.txt?_rsc=1xjak",
+          "url": "http://127.0.0.1:3034/stack/step/frontend/index.txt?_rsc=1xjak",
+          "method": "GET",
+          "errorText": "net::ERR_ABORTED"
+        },
+        {
+          "url": "http://127.0.0.1:3034/stack/step/env/index.txt?_rsc=1xjak",
+          "method": "GET",
+          "errorText": "net::ERR_ABORTED"
+        },
+        {
+          "url": "http://127.0.0.1:3034/stack/step/modules/index.txt?_rsc=1xjak",
+          "method": "GET",
+          "errorText": "net::ERR_ABORTED"
+        },
+        {
+          "url": "http://127.0.0.1:3034/archify/index.txt?_rsc=1xjak",
           "method": "GET",
           "errorText": "net::ERR_ABORTED"
         }
@@ -4202,18 +4390,18 @@
       "viewport": "mobile",
       "width": 390,
       "height": 844,
-      "bytes": 55886,
-      "durationMs": 1869,
+      "bytes": 58418,
+      "durationMs": 1464,
       "ok": true,
       "error": null,
       "metrics": {
         "scrollWidth": 390,
         "clientWidth": 390,
-        "scrollHeight": 5085,
+        "scrollHeight": 5147,
         "clientHeight": 844,
-        "bodyScrollHeight": 5085,
+        "bodyScrollHeight": 5147,
         "horizontalOverflowPx": 0,
-        "belowFoldPx": 4241,
+        "belowFoldPx": 4303,
         "imgTotal": 0,
         "failedImages": [],
         "overflowElementCount": 0,
@@ -4225,12 +4413,32 @@
       "consoleErrors": [],
       "requestFailures": [
         {
-          "url": "http://127.0.0.1:3033/index.txt?_rsc=1xjak",
+          "url": "http://127.0.0.1:3034/index.txt?_rsc=1xjak",
           "method": "GET",
           "errorText": "net::ERR_ABORTED"
         },
         {
-          "url": "http://127.0.0.1:3033/stack/env/index.txt?_rsc=1xjak",
+          "url": "http://127.0.0.1:3034/stack/delivery/index.txt?_rsc=1xjak",
+          "method": "GET",
+          "errorText": "net::ERR_ABORTED"
+        },
+        {
+          "url": "http://127.0.0.1:3034/arch/index.txt?_rsc=1xjak",
+          "method": "GET",
+          "errorText": "net::ERR_ABORTED"
+        },
+        {
+          "url": "http://127.0.0.1:3034/icons/index.txt?_rsc=1xjak",
+          "method": "GET",
+          "errorText": "net::ERR_ABORTED"
+        },
+        {
+          "url": "http://127.0.0.1:3034/archify/index.txt?_rsc=1xjak",
+          "method": "GET",
+          "errorText": "net::ERR_ABORTED"
+        },
+        {
+          "url": "http://127.0.0.1:3034/check/index.txt?_rsc=1xjak",
           "method": "GET",
           "errorText": "net::ERR_ABORTED"
         }
@@ -4246,7 +4454,7 @@
       "width": 1440,
       "height": 900,
       "bytes": 146931,
-      "durationMs": 1803,
+      "durationMs": 1384,
       "ok": true,
       "error": null,
       "metrics": {
@@ -4268,57 +4476,47 @@
       "consoleErrors": [],
       "requestFailures": [
         {
-          "url": "http://127.0.0.1:3033/stack/step/layers/index.txt?_rsc=1q2p2",
+          "url": "http://127.0.0.1:3034/stack/step/env/index.txt?_rsc=1q2p2",
           "method": "GET",
           "errorText": "net::ERR_ABORTED"
         },
         {
-          "url": "http://127.0.0.1:3033/stack/env/index.txt?_rsc=1q2p2",
+          "url": "http://127.0.0.1:3034/stack/step/modules/index.txt?_rsc=1q2p2",
           "method": "GET",
           "errorText": "net::ERR_ABORTED"
         },
         {
-          "url": "http://127.0.0.1:3033/stack/step/frontend/index.txt?_rsc=1q2p2",
+          "url": "http://127.0.0.1:3034/stack/step/topology/index.txt?_rsc=1q2p2",
           "method": "GET",
           "errorText": "net::ERR_ABORTED"
         },
         {
-          "url": "http://127.0.0.1:3033/stack/step/env/index.txt?_rsc=1q2p2",
+          "url": "http://127.0.0.1:3034/stack/delivery/index.txt?_rsc=1q2p2",
           "method": "GET",
           "errorText": "net::ERR_ABORTED"
         },
         {
-          "url": "http://127.0.0.1:3033/stack/step/deliverRun/index.txt?_rsc=1q2p2",
+          "url": "http://127.0.0.1:3034/stack/step/delivery/index.txt?_rsc=1q2p2",
           "method": "GET",
           "errorText": "net::ERR_ABORTED"
         },
         {
-          "url": "http://127.0.0.1:3033/stack/step/topology/index.txt?_rsc=1q2p2",
+          "url": "http://127.0.0.1:3034/arch/index.txt?_rsc=1q2p2",
           "method": "GET",
           "errorText": "net::ERR_ABORTED"
         },
         {
-          "url": "http://127.0.0.1:3033/stack/delivery/index.txt?_rsc=1q2p2",
+          "url": "http://127.0.0.1:3034/icons/index.txt?_rsc=1q2p2",
           "method": "GET",
           "errorText": "net::ERR_ABORTED"
         },
         {
-          "url": "http://127.0.0.1:3033/stack/step/delivery/index.txt?_rsc=1q2p2",
+          "url": "http://127.0.0.1:3034/standards/index.txt?_rsc=1q2p2",
           "method": "GET",
           "errorText": "net::ERR_ABORTED"
         },
         {
-          "url": "http://127.0.0.1:3033/arch/index.txt?_rsc=1q2p2",
-          "method": "GET",
-          "errorText": "net::ERR_ABORTED"
-        },
-        {
-          "url": "http://127.0.0.1:3033/icons/index.txt?_rsc=1q2p2",
-          "method": "GET",
-          "errorText": "net::ERR_ABORTED"
-        },
-        {
-          "url": "http://127.0.0.1:3033/export/index.txt?_rsc=1q2p2",
+          "url": "http://127.0.0.1:3034/export/index.txt?_rsc=1q2p2",
           "method": "GET",
           "errorText": "net::ERR_ABORTED"
         }
@@ -4334,7 +4532,7 @@
       "width": 1024,
       "height": 768,
       "bytes": 120780,
-      "durationMs": 1762,
+      "durationMs": 1355,
       "ok": true,
       "error": null,
       "metrics": {
@@ -4356,17 +4554,22 @@
       "consoleErrors": [],
       "requestFailures": [
         {
-          "url": "http://127.0.0.1:3033/stack/step/base/index.txt?_rsc=1q2p2",
+          "url": "http://127.0.0.1:3034/index.txt?_rsc=1q2p2",
           "method": "GET",
           "errorText": "net::ERR_ABORTED"
         },
         {
-          "url": "http://127.0.0.1:3033/stack/step/theme/index.txt?_rsc=1q2p2",
+          "url": "http://127.0.0.1:3034/stack/step/layers/index.txt?_rsc=1q2p2",
           "method": "GET",
           "errorText": "net::ERR_ABORTED"
         },
         {
-          "url": "http://127.0.0.1:3033/stack/step/layers/index.txt?_rsc=1q2p2",
+          "url": "http://127.0.0.1:3034/stack/env/index.txt?_rsc=1q2p2",
+          "method": "GET",
+          "errorText": "net::ERR_ABORTED"
+        },
+        {
+          "url": "http://127.0.0.1:3034/stack/step/frontend/index.txt?_rsc=1q2p2",
           "method": "GET",
           "errorText": "net::ERR_ABORTED"
         }
@@ -4382,7 +4585,7 @@
       "width": 390,
       "height": 844,
       "bytes": 64071,
-      "durationMs": 1756,
+      "durationMs": 1290,
       "ok": true,
       "error": null,
       "metrics": {
@@ -4457,12 +4660,17 @@
       "consoleErrors": [],
       "requestFailures": [
         {
-          "url": "http://127.0.0.1:3033/rules/index.txt?_rsc=1q2p2",
+          "url": "http://127.0.0.1:3034/stack/delivery/index.txt?_rsc=1q2p2",
           "method": "GET",
           "errorText": "net::ERR_ABORTED"
         },
         {
-          "url": "http://127.0.0.1:3033/stack/delivery/index.txt?_rsc=1q2p2",
+          "url": "http://127.0.0.1:3034/icons/index.txt?_rsc=1q2p2",
+          "method": "GET",
+          "errorText": "net::ERR_ABORTED"
+        },
+        {
+          "url": "http://127.0.0.1:3034/archify/index.txt?_rsc=1q2p2",
           "method": "GET",
           "errorText": "net::ERR_ABORTED"
         }
@@ -4478,7 +4686,7 @@
       "width": 1440,
       "height": 900,
       "bytes": 148221,
-      "durationMs": 2033,
+      "durationMs": 1562,
       "ok": true,
       "error": null,
       "metrics": {
@@ -4500,27 +4708,37 @@
       "consoleErrors": [],
       "requestFailures": [
         {
-          "url": "http://127.0.0.1:3033/stack/step/project/index.txt?_rsc=wwjhr",
+          "url": "http://127.0.0.1:3034/stack/step/theme/index.txt?_rsc=wwjhr",
           "method": "GET",
           "errorText": "net::ERR_ABORTED"
         },
         {
-          "url": "http://127.0.0.1:3033/stack/env/index.txt?_rsc=wwjhr",
+          "url": "http://127.0.0.1:3034/stack/step/layers/index.txt?_rsc=wwjhr",
           "method": "GET",
           "errorText": "net::ERR_ABORTED"
         },
         {
-          "url": "http://127.0.0.1:3033/stack/step/frontend/index.txt?_rsc=wwjhr",
+          "url": "http://127.0.0.1:3034/stack/env/index.txt?_rsc=wwjhr",
           "method": "GET",
           "errorText": "net::ERR_ABORTED"
         },
         {
-          "url": "http://127.0.0.1:3033/stack/step/delivery/index.txt?_rsc=wwjhr",
+          "url": "http://127.0.0.1:3034/stack/step/modules/index.txt?_rsc=wwjhr",
           "method": "GET",
           "errorText": "net::ERR_ABORTED"
         },
         {
-          "url": "http://127.0.0.1:3033/arch/index.txt?_rsc=wwjhr",
+          "url": "http://127.0.0.1:3034/icons/index.txt?_rsc=wwjhr",
+          "method": "GET",
+          "errorText": "net::ERR_ABORTED"
+        },
+        {
+          "url": "http://127.0.0.1:3034/archify/index.txt?_rsc=wwjhr",
+          "method": "GET",
+          "errorText": "net::ERR_ABORTED"
+        },
+        {
+          "url": "http://127.0.0.1:3034/check/index.txt?_rsc=wwjhr",
           "method": "GET",
           "errorText": "net::ERR_ABORTED"
         }
@@ -4536,7 +4754,7 @@
       "width": 1024,
       "height": 768,
       "bytes": 125975,
-      "durationMs": 1914,
+      "durationMs": 1477,
       "ok": true,
       "error": null,
       "metrics": {
@@ -4558,32 +4776,17 @@
       "consoleErrors": [],
       "requestFailures": [
         {
-          "url": "http://127.0.0.1:3033/stack/env/index.txt?_rsc=wwjhr",
+          "url": "http://127.0.0.1:3034/index.txt?_rsc=wwjhr",
           "method": "GET",
           "errorText": "net::ERR_ABORTED"
         },
         {
-          "url": "http://127.0.0.1:3033/stack/step/frontend/index.txt?_rsc=wwjhr",
+          "url": "http://127.0.0.1:3034/stack/env/index.txt?_rsc=wwjhr",
           "method": "GET",
           "errorText": "net::ERR_ABORTED"
         },
         {
-          "url": "http://127.0.0.1:3033/stack/step/env/index.txt?_rsc=wwjhr",
-          "method": "GET",
-          "errorText": "net::ERR_ABORTED"
-        },
-        {
-          "url": "http://127.0.0.1:3033/stack/step/modules/index.txt?_rsc=wwjhr",
-          "method": "GET",
-          "errorText": "net::ERR_ABORTED"
-        },
-        {
-          "url": "http://127.0.0.1:3033/arch/index.txt?_rsc=wwjhr",
-          "method": "GET",
-          "errorText": "net::ERR_ABORTED"
-        },
-        {
-          "url": "http://127.0.0.1:3033/archify/index.txt?_rsc=wwjhr",
+          "url": "http://127.0.0.1:3034/check/index.txt?_rsc=wwjhr",
           "method": "GET",
           "errorText": "net::ERR_ABORTED"
         }
@@ -4599,7 +4802,7 @@
       "width": 390,
       "height": 844,
       "bytes": 65902,
-      "durationMs": 1888,
+      "durationMs": 1439,
       "ok": true,
       "error": null,
       "metrics": {
@@ -4672,7 +4875,33 @@
       },
       "pageErrors": [],
       "consoleErrors": [],
-      "requestFailures": [],
+      "requestFailures": [
+        {
+          "url": "http://127.0.0.1:3034/index.txt?_rsc=wwjhr",
+          "method": "GET",
+          "errorText": "net::ERR_ABORTED"
+        },
+        {
+          "url": "http://127.0.0.1:3034/stack/delivery/index.txt?_rsc=wwjhr",
+          "method": "GET",
+          "errorText": "net::ERR_ABORTED"
+        },
+        {
+          "url": "http://127.0.0.1:3034/icons/index.txt?_rsc=wwjhr",
+          "method": "GET",
+          "errorText": "net::ERR_ABORTED"
+        },
+        {
+          "url": "http://127.0.0.1:3034/archify/index.txt?_rsc=wwjhr",
+          "method": "GET",
+          "errorText": "net::ERR_ABORTED"
+        },
+        {
+          "url": "http://127.0.0.1:3034/check/index.txt?_rsc=wwjhr",
+          "method": "GET",
+          "errorText": "net::ERR_ABORTED"
+        }
+      ],
       "httpErrors": []
     },
     {
@@ -4684,7 +4913,7 @@
       "width": 1440,
       "height": 900,
       "bytes": 168313,
-      "durationMs": 2650,
+      "durationMs": 1612,
       "ok": true,
       "error": null,
       "metrics": {
@@ -4706,27 +4935,32 @@
       "consoleErrors": [],
       "requestFailures": [
         {
-          "url": "http://127.0.0.1:3033/stack/step/project/index.txt?_rsc=axu8a",
+          "url": "http://127.0.0.1:3034/index.txt?_rsc=axu8a",
           "method": "GET",
           "errorText": "net::ERR_ABORTED"
         },
         {
-          "url": "http://127.0.0.1:3033/stack/step/frontend/index.txt?_rsc=axu8a",
+          "url": "http://127.0.0.1:3034/stack/step/theme/index.txt?_rsc=axu8a",
           "method": "GET",
           "errorText": "net::ERR_ABORTED"
         },
         {
-          "url": "http://127.0.0.1:3033/stack/step/topology/index.txt?_rsc=axu8a",
+          "url": "http://127.0.0.1:3034/stack/step/layers/index.txt?_rsc=axu8a",
           "method": "GET",
           "errorText": "net::ERR_ABORTED"
         },
         {
-          "url": "http://127.0.0.1:3033/stack/delivery/index.txt?_rsc=axu8a",
+          "url": "http://127.0.0.1:3034/stack/env/index.txt?_rsc=axu8a",
           "method": "GET",
           "errorText": "net::ERR_ABORTED"
         },
         {
-          "url": "http://127.0.0.1:3033/stack/step/delivery/index.txt?_rsc=axu8a",
+          "url": "http://127.0.0.1:3034/stack/step/frontend/index.txt?_rsc=axu8a",
+          "method": "GET",
+          "errorText": "net::ERR_ABORTED"
+        },
+        {
+          "url": "http://127.0.0.1:3034/export/index.txt?_rsc=axu8a",
           "method": "GET",
           "errorText": "net::ERR_ABORTED"
         }
@@ -4742,7 +4976,7 @@
       "width": 1024,
       "height": 768,
       "bytes": 138446,
-      "durationMs": 3003,
+      "durationMs": 1546,
       "ok": true,
       "error": null,
       "metrics": {
@@ -4764,17 +4998,27 @@
       "consoleErrors": [],
       "requestFailures": [
         {
-          "url": "http://127.0.0.1:3033/stack/env/index.txt?_rsc=axu8a",
+          "url": "http://127.0.0.1:3034/stack/step/layers/index.txt?_rsc=axu8a",
           "method": "GET",
           "errorText": "net::ERR_ABORTED"
         },
         {
-          "url": "http://127.0.0.1:3033/stack/step/env/index.txt?_rsc=axu8a",
+          "url": "http://127.0.0.1:3034/stack/env/index.txt?_rsc=axu8a",
           "method": "GET",
           "errorText": "net::ERR_ABORTED"
         },
         {
-          "url": "http://127.0.0.1:3033/stack/step/deliverRun/index.txt?_rsc=axu8a",
+          "url": "http://127.0.0.1:3034/stack/step/frontend/index.txt?_rsc=axu8a",
+          "method": "GET",
+          "errorText": "net::ERR_ABORTED"
+        },
+        {
+          "url": "http://127.0.0.1:3034/stack/step/env/index.txt?_rsc=axu8a",
+          "method": "GET",
+          "errorText": "net::ERR_ABORTED"
+        },
+        {
+          "url": "http://127.0.0.1:3034/stack/step/topology/index.txt?_rsc=axu8a",
           "method": "GET",
           "errorText": "net::ERR_ABORTED"
         }
@@ -4790,7 +5034,7 @@
       "width": 390,
       "height": 844,
       "bytes": 72731,
-      "durationMs": 1938,
+      "durationMs": 1306,
       "ok": true,
       "error": null,
       "metrics": {
@@ -4878,12 +5122,22 @@
       "consoleErrors": [],
       "requestFailures": [
         {
-          "url": "http://127.0.0.1:3033/stack/delivery/index.txt?_rsc=axu8a",
+          "url": "http://127.0.0.1:3034/index.txt?_rsc=axu8a",
           "method": "GET",
           "errorText": "net::ERR_ABORTED"
         },
         {
-          "url": "http://127.0.0.1:3033/export/index.txt?_rsc=axu8a",
+          "url": "http://127.0.0.1:3034/stack/delivery/index.txt?_rsc=axu8a",
+          "method": "GET",
+          "errorText": "net::ERR_ABORTED"
+        },
+        {
+          "url": "http://127.0.0.1:3034/arch/index.txt?_rsc=axu8a",
+          "method": "GET",
+          "errorText": "net::ERR_ABORTED"
+        },
+        {
+          "url": "http://127.0.0.1:3034/icons/index.txt?_rsc=axu8a",
           "method": "GET",
           "errorText": "net::ERR_ABORTED"
         }
@@ -4899,7 +5153,7 @@
       "width": 1440,
       "height": 900,
       "bytes": 122210,
-      "durationMs": 2094,
+      "durationMs": 1405,
       "ok": true,
       "error": null,
       "metrics": {
@@ -4921,27 +5175,47 @@
       "consoleErrors": [],
       "requestFailures": [
         {
-          "url": "http://127.0.0.1:3033/stack/step/deliverRun/index.txt?_rsc=1n64j",
+          "url": "http://127.0.0.1:3034/stack/step/theme/index.txt?_rsc=1n64j",
           "method": "GET",
           "errorText": "net::ERR_ABORTED"
         },
         {
-          "url": "http://127.0.0.1:3033/stack/step/topology/index.txt?_rsc=1n64j",
+          "url": "http://127.0.0.1:3034/stack/step/layers/index.txt?_rsc=1n64j",
           "method": "GET",
           "errorText": "net::ERR_ABORTED"
         },
         {
-          "url": "http://127.0.0.1:3033/stack/delivery/index.txt?_rsc=1n64j",
+          "url": "http://127.0.0.1:3034/stack/env/index.txt?_rsc=1n64j",
           "method": "GET",
           "errorText": "net::ERR_ABORTED"
         },
         {
-          "url": "http://127.0.0.1:3033/standards/index.txt?_rsc=1n64j",
+          "url": "http://127.0.0.1:3034/stack/step/frontend/index.txt?_rsc=1n64j",
           "method": "GET",
           "errorText": "net::ERR_ABORTED"
         },
         {
-          "url": "http://127.0.0.1:3033/export/index.txt?_rsc=1n64j",
+          "url": "http://127.0.0.1:3034/stack/step/env/index.txt?_rsc=1n64j",
+          "method": "GET",
+          "errorText": "net::ERR_ABORTED"
+        },
+        {
+          "url": "http://127.0.0.1:3034/stack/step/modules/index.txt?_rsc=1n64j",
+          "method": "GET",
+          "errorText": "net::ERR_ABORTED"
+        },
+        {
+          "url": "http://127.0.0.1:3034/check/index.txt?_rsc=1n64j",
+          "method": "GET",
+          "errorText": "net::ERR_ABORTED"
+        },
+        {
+          "url": "http://127.0.0.1:3034/export/index.txt?_rsc=1n64j",
+          "method": "GET",
+          "errorText": "net::ERR_ABORTED"
+        },
+        {
+          "url": "http://127.0.0.1:3034/blueprints/connection-pool/must-return/index.txt?_rsc=1n64j",
           "method": "GET",
           "errorText": "net::ERR_ABORTED"
         }
@@ -4957,7 +5231,7 @@
       "width": 1024,
       "height": 768,
       "bytes": 90275,
-      "durationMs": 2088,
+      "durationMs": 1347,
       "ok": true,
       "error": null,
       "metrics": {
@@ -4979,12 +5253,42 @@
       "consoleErrors": [],
       "requestFailures": [
         {
-          "url": "http://127.0.0.1:3033/stack/step/project/index.txt?_rsc=1n64j",
+          "url": "http://127.0.0.1:3034/index.txt?_rsc=1n64j",
           "method": "GET",
           "errorText": "net::ERR_ABORTED"
         },
         {
-          "url": "http://127.0.0.1:3033/icons/index.txt?_rsc=1n64j",
+          "url": "http://127.0.0.1:3034/stack/step/theme/index.txt?_rsc=1n64j",
+          "method": "GET",
+          "errorText": "net::ERR_ABORTED"
+        },
+        {
+          "url": "http://127.0.0.1:3034/stack/step/layers/index.txt?_rsc=1n64j",
+          "method": "GET",
+          "errorText": "net::ERR_ABORTED"
+        },
+        {
+          "url": "http://127.0.0.1:3034/stack/env/index.txt?_rsc=1n64j",
+          "method": "GET",
+          "errorText": "net::ERR_ABORTED"
+        },
+        {
+          "url": "http://127.0.0.1:3034/stack/step/frontend/index.txt?_rsc=1n64j",
+          "method": "GET",
+          "errorText": "net::ERR_ABORTED"
+        },
+        {
+          "url": "http://127.0.0.1:3034/stack/step/env/index.txt?_rsc=1n64j",
+          "method": "GET",
+          "errorText": "net::ERR_ABORTED"
+        },
+        {
+          "url": "http://127.0.0.1:3034/stack/step/modules/index.txt?_rsc=1n64j",
+          "method": "GET",
+          "errorText": "net::ERR_ABORTED"
+        },
+        {
+          "url": "http://127.0.0.1:3034/blueprints/connection-pool/must-return/index.txt?_rsc=1n64j",
           "method": "GET",
           "errorText": "net::ERR_ABORTED"
         }
@@ -5000,7 +5304,7 @@
       "width": 390,
       "height": 844,
       "bytes": 56289,
-      "durationMs": 1636,
+      "durationMs": 1333,
       "ok": true,
       "error": null,
       "metrics": {
@@ -5022,12 +5326,37 @@
       "consoleErrors": [],
       "requestFailures": [
         {
-          "url": "http://127.0.0.1:3033/check/index.txt?_rsc=1n64j",
+          "url": "http://127.0.0.1:3034/index.txt?_rsc=1n64j",
           "method": "GET",
           "errorText": "net::ERR_ABORTED"
         },
         {
-          "url": "http://127.0.0.1:3033/archify/index.txt?_rsc=1n64j",
+          "url": "http://127.0.0.1:3034/stack/run/index.txt?_rsc=1n64j",
+          "method": "GET",
+          "errorText": "net::ERR_ABORTED"
+        },
+        {
+          "url": "http://127.0.0.1:3034/stack/delivery/index.txt?_rsc=1n64j",
+          "method": "GET",
+          "errorText": "net::ERR_ABORTED"
+        },
+        {
+          "url": "http://127.0.0.1:3034/arch/index.txt?_rsc=1n64j",
+          "method": "GET",
+          "errorText": "net::ERR_ABORTED"
+        },
+        {
+          "url": "http://127.0.0.1:3034/icons/index.txt?_rsc=1n64j",
+          "method": "GET",
+          "errorText": "net::ERR_ABORTED"
+        },
+        {
+          "url": "http://127.0.0.1:3034/archify/index.txt?_rsc=1n64j",
+          "method": "GET",
+          "errorText": "net::ERR_ABORTED"
+        },
+        {
+          "url": "http://127.0.0.1:3034/export/index.txt?_rsc=1n64j",
           "method": "GET",
           "errorText": "net::ERR_ABORTED"
         }
@@ -5043,7 +5372,7 @@
       "width": 1440,
       "height": 900,
       "bytes": 124267,
-      "durationMs": 2029,
+      "durationMs": 1471,
       "ok": true,
       "error": null,
       "metrics": {
@@ -5065,32 +5394,32 @@
       "consoleErrors": [],
       "requestFailures": [
         {
-          "url": "http://127.0.0.1:3033/index.txt?_rsc=1103u",
+          "url": "http://127.0.0.1:3034/index.txt?_rsc=1103u",
           "method": "GET",
           "errorText": "net::ERR_ABORTED"
         },
         {
-          "url": "http://127.0.0.1:3033/stack/step/theme/index.txt?_rsc=1103u",
+          "url": "http://127.0.0.1:3034/stack/step/base/index.txt?_rsc=1103u",
           "method": "GET",
           "errorText": "net::ERR_ABORTED"
         },
         {
-          "url": "http://127.0.0.1:3033/stack/step/layers/index.txt?_rsc=1103u",
+          "url": "http://127.0.0.1:3034/stack/step/frontend/index.txt?_rsc=1103u",
           "method": "GET",
           "errorText": "net::ERR_ABORTED"
         },
         {
-          "url": "http://127.0.0.1:3033/stack/env/index.txt?_rsc=1103u",
+          "url": "http://127.0.0.1:3034/stack/run/index.txt?_rsc=1103u",
           "method": "GET",
           "errorText": "net::ERR_ABORTED"
         },
         {
-          "url": "http://127.0.0.1:3033/stack/step/modules/index.txt?_rsc=1103u",
+          "url": "http://127.0.0.1:3034/stack/step/deliverRun/index.txt?_rsc=1103u",
           "method": "GET",
           "errorText": "net::ERR_ABORTED"
         },
         {
-          "url": "http://127.0.0.1:3033/standards/index.txt?_rsc=1103u",
+          "url": "http://127.0.0.1:3034/standards/index.txt?_rsc=1103u",
           "method": "GET",
           "errorText": "net::ERR_ABORTED"
         }
@@ -5106,7 +5435,7 @@
       "width": 1024,
       "height": 768,
       "bytes": 93879,
-      "durationMs": 2739,
+      "durationMs": 1404,
       "ok": true,
       "error": null,
       "metrics": {
@@ -5128,37 +5457,17 @@
       "consoleErrors": [],
       "requestFailures": [
         {
-          "url": "http://127.0.0.1:3033/stack/index.txt?_rsc=1103u",
+          "url": "http://127.0.0.1:3034/stack/delivery/index.txt?_rsc=1103u",
           "method": "GET",
           "errorText": "net::ERR_ABORTED"
         },
         {
-          "url": "http://127.0.0.1:3033/stack/step/deliverRun/index.txt?_rsc=1103u",
+          "url": "http://127.0.0.1:3034/check/index.txt?_rsc=1103u",
           "method": "GET",
           "errorText": "net::ERR_ABORTED"
         },
         {
-          "url": "http://127.0.0.1:3033/arch/index.txt?_rsc=1103u",
-          "method": "GET",
-          "errorText": "net::ERR_ABORTED"
-        },
-        {
-          "url": "http://127.0.0.1:3033/icons/index.txt?_rsc=1103u",
-          "method": "GET",
-          "errorText": "net::ERR_ABORTED"
-        },
-        {
-          "url": "http://127.0.0.1:3033/archify/index.txt?_rsc=1103u",
-          "method": "GET",
-          "errorText": "net::ERR_ABORTED"
-        },
-        {
-          "url": "http://127.0.0.1:3033/check/index.txt?_rsc=1103u",
-          "method": "GET",
-          "errorText": "net::ERR_ABORTED"
-        },
-        {
-          "url": "http://127.0.0.1:3033/blueprints/web-layer/thin-controller/index.txt?_rsc=1103u",
+          "url": "http://127.0.0.1:3034/blueprints/web-layer/thin-controller/index.txt?_rsc=1103u",
           "method": "GET",
           "errorText": "net::ERR_ABORTED"
         }
@@ -5174,7 +5483,7 @@
       "width": 390,
       "height": 844,
       "bytes": 59003,
-      "durationMs": 1668,
+      "durationMs": 1436,
       "ok": true,
       "error": null,
       "metrics": {
@@ -5194,7 +5503,23 @@
       },
       "pageErrors": [],
       "consoleErrors": [],
-      "requestFailures": [],
+      "requestFailures": [
+        {
+          "url": "http://127.0.0.1:3034/stack/delivery/index.txt?_rsc=1103u",
+          "method": "GET",
+          "errorText": "net::ERR_ABORTED"
+        },
+        {
+          "url": "http://127.0.0.1:3034/arch/index.txt?_rsc=1103u",
+          "method": "GET",
+          "errorText": "net::ERR_ABORTED"
+        },
+        {
+          "url": "http://127.0.0.1:3034/icons/index.txt?_rsc=1103u",
+          "method": "GET",
+          "errorText": "net::ERR_ABORTED"
+        }
+      ],
       "httpErrors": []
     },
     {
@@ -5206,7 +5531,7 @@
       "width": 1440,
       "height": 900,
       "bytes": 193547,
-      "durationMs": 1916,
+      "durationMs": 1773,
       "ok": true,
       "error": null,
       "metrics": {
@@ -5294,47 +5619,27 @@
       "consoleErrors": [],
       "requestFailures": [
         {
-          "url": "http://127.0.0.1:3033/stack/step/base/index.txt?_rsc=1pk8q",
+          "url": "http://127.0.0.1:3034/stack/step/theme/index.txt?_rsc=1pk8q",
           "method": "GET",
           "errorText": "net::ERR_ABORTED"
         },
         {
-          "url": "http://127.0.0.1:3033/stack/step/layers/index.txt?_rsc=1pk8q",
+          "url": "http://127.0.0.1:3034/stack/step/layers/index.txt?_rsc=1pk8q",
           "method": "GET",
           "errorText": "net::ERR_ABORTED"
         },
         {
-          "url": "http://127.0.0.1:3033/stack/env/index.txt?_rsc=1pk8q",
+          "url": "http://127.0.0.1:3034/stack/step/env/index.txt?_rsc=1pk8q",
           "method": "GET",
           "errorText": "net::ERR_ABORTED"
         },
         {
-          "url": "http://127.0.0.1:3033/stack/run/index.txt?_rsc=1pk8q",
+          "url": "http://127.0.0.1:3034/icons/index.txt?_rsc=1pk8q",
           "method": "GET",
           "errorText": "net::ERR_ABORTED"
         },
         {
-          "url": "http://127.0.0.1:3033/stack/step/delivery/index.txt?_rsc=1pk8q",
-          "method": "GET",
-          "errorText": "net::ERR_ABORTED"
-        },
-        {
-          "url": "http://127.0.0.1:3033/arch/index.txt?_rsc=1pk8q",
-          "method": "GET",
-          "errorText": "net::ERR_ABORTED"
-        },
-        {
-          "url": "http://127.0.0.1:3033/icons/index.txt?_rsc=1pk8q",
-          "method": "GET",
-          "errorText": "net::ERR_ABORTED"
-        },
-        {
-          "url": "http://127.0.0.1:3033/archify/index.txt?_rsc=1pk8q",
-          "method": "GET",
-          "errorText": "net::ERR_ABORTED"
-        },
-        {
-          "url": "http://127.0.0.1:3033/check/index.txt?_rsc=1pk8q",
+          "url": "http://127.0.0.1:3034/export/index.txt?_rsc=1pk8q",
           "method": "GET",
           "errorText": "net::ERR_ABORTED"
         }
@@ -5350,7 +5655,7 @@
       "width": 1024,
       "height": 768,
       "bytes": 116790,
-      "durationMs": 2577,
+      "durationMs": 1545,
       "ok": true,
       "error": null,
       "metrics": {
@@ -5438,27 +5743,32 @@
       "consoleErrors": [],
       "requestFailures": [
         {
-          "url": "http://127.0.0.1:3033/blueprints/index.txt?_rsc=1pk8q",
+          "url": "http://127.0.0.1:3034/stack/step/theme/index.txt?_rsc=1pk8q",
           "method": "GET",
           "errorText": "net::ERR_ABORTED"
         },
         {
-          "url": "http://127.0.0.1:3033/stack/step/frontend/index.txt?_rsc=1pk8q",
+          "url": "http://127.0.0.1:3034/stack/step/layers/index.txt?_rsc=1pk8q",
           "method": "GET",
           "errorText": "net::ERR_ABORTED"
         },
         {
-          "url": "http://127.0.0.1:3033/stack/step/deliverRun/index.txt?_rsc=1pk8q",
+          "url": "http://127.0.0.1:3034/stack/env/index.txt?_rsc=1pk8q",
           "method": "GET",
           "errorText": "net::ERR_ABORTED"
         },
         {
-          "url": "http://127.0.0.1:3033/arch/index.txt?_rsc=1pk8q",
+          "url": "http://127.0.0.1:3034/stack/step/frontend/index.txt?_rsc=1pk8q",
           "method": "GET",
           "errorText": "net::ERR_ABORTED"
         },
         {
-          "url": "http://127.0.0.1:3033/cases/high-throughput-io/index.txt?_rsc=1pk8q",
+          "url": "http://127.0.0.1:3034/stack/step/env/index.txt?_rsc=1pk8q",
+          "method": "GET",
+          "errorText": "net::ERR_ABORTED"
+        },
+        {
+          "url": "http://127.0.0.1:3034/stack/step/modules/index.txt?_rsc=1pk8q",
           "method": "GET",
           "errorText": "net::ERR_ABORTED"
         }
@@ -5474,7 +5784,7 @@
       "width": 390,
       "height": 844,
       "bytes": 62142,
-      "durationMs": 1498,
+      "durationMs": 1722,
       "ok": true,
       "error": null,
       "metrics": {
@@ -5562,17 +5872,27 @@
       "consoleErrors": [],
       "requestFailures": [
         {
-          "url": "http://127.0.0.1:3033/stack/index.txt?_rsc=1pk8q",
+          "url": "http://127.0.0.1:3034/stack/delivery/index.txt?_rsc=1pk8q",
           "method": "GET",
           "errorText": "net::ERR_ABORTED"
         },
         {
-          "url": "http://127.0.0.1:3033/check/index.txt?_rsc=1pk8q",
+          "url": "http://127.0.0.1:3034/icons/index.txt?_rsc=1pk8q",
           "method": "GET",
           "errorText": "net::ERR_ABORTED"
         },
         {
-          "url": "http://127.0.0.1:3033/standards/index.txt?_rsc=1pk8q",
+          "url": "http://127.0.0.1:3034/archify/index.txt?_rsc=1pk8q",
+          "method": "GET",
+          "errorText": "net::ERR_ABORTED"
+        },
+        {
+          "url": "http://127.0.0.1:3034/check/index.txt?_rsc=1pk8q",
+          "method": "GET",
+          "errorText": "net::ERR_ABORTED"
+        },
+        {
+          "url": "http://127.0.0.1:3034/standards/index.txt?_rsc=1pk8q",
           "method": "GET",
           "errorText": "net::ERR_ABORTED"
         }
@@ -5588,7 +5908,7 @@
       "width": 1440,
       "height": 900,
       "bytes": 176398,
-      "durationMs": 2079,
+      "durationMs": 1891,
       "ok": true,
       "error": null,
       "metrics": {
@@ -5676,52 +5996,47 @@
       "consoleErrors": [],
       "requestFailures": [
         {
-          "url": "http://127.0.0.1:3033/stack/step/project/index.txt?_rsc=kbqw2",
+          "url": "http://127.0.0.1:3034/index.txt?_rsc=kbqw2",
           "method": "GET",
           "errorText": "net::ERR_ABORTED"
         },
         {
-          "url": "http://127.0.0.1:3033/stack/step/layers/index.txt?_rsc=kbqw2",
+          "url": "http://127.0.0.1:3034/stack/step/layers/index.txt?_rsc=kbqw2",
           "method": "GET",
           "errorText": "net::ERR_ABORTED"
         },
         {
-          "url": "http://127.0.0.1:3033/stack/step/deliverRun/index.txt?_rsc=kbqw2",
+          "url": "http://127.0.0.1:3034/stack/env/index.txt?_rsc=kbqw2",
           "method": "GET",
           "errorText": "net::ERR_ABORTED"
         },
         {
-          "url": "http://127.0.0.1:3033/stack/step/topology/index.txt?_rsc=kbqw2",
+          "url": "http://127.0.0.1:3034/arch/index.txt?_rsc=kbqw2",
           "method": "GET",
           "errorText": "net::ERR_ABORTED"
         },
         {
-          "url": "http://127.0.0.1:3033/stack/delivery/index.txt?_rsc=kbqw2",
+          "url": "http://127.0.0.1:3034/icons/index.txt?_rsc=kbqw2",
           "method": "GET",
           "errorText": "net::ERR_ABORTED"
         },
         {
-          "url": "http://127.0.0.1:3033/stack/step/delivery/index.txt?_rsc=kbqw2",
+          "url": "http://127.0.0.1:3034/export/index.txt?_rsc=kbqw2",
           "method": "GET",
           "errorText": "net::ERR_ABORTED"
         },
         {
-          "url": "http://127.0.0.1:3033/arch/index.txt?_rsc=kbqw2",
+          "url": "http://127.0.0.1:3034/cases/genomic-sequence-store/index.txt?_rsc=kbqw2",
           "method": "GET",
           "errorText": "net::ERR_ABORTED"
         },
         {
-          "url": "http://127.0.0.1:3033/icons/index.txt?_rsc=kbqw2",
+          "url": "http://127.0.0.1:3034/cases/high-throughput-io/index.txt?_rsc=kbqw2",
           "method": "GET",
           "errorText": "net::ERR_ABORTED"
         },
         {
-          "url": "http://127.0.0.1:3033/check/index.txt?_rsc=kbqw2",
-          "method": "GET",
-          "errorText": "net::ERR_ABORTED"
-        },
-        {
-          "url": "http://127.0.0.1:3033/standards/index.txt?_rsc=kbqw2",
+          "url": "http://127.0.0.1:3034/cases/hotspot-cache/index.txt?_rsc=kbqw2",
           "method": "GET",
           "errorText": "net::ERR_ABORTED"
         }
@@ -5737,7 +6052,7 @@
       "width": 1024,
       "height": 768,
       "bytes": 110138,
-      "durationMs": 1932,
+      "durationMs": 1924,
       "ok": true,
       "error": null,
       "metrics": {
@@ -5825,42 +6140,22 @@
       "consoleErrors": [],
       "requestFailures": [
         {
-          "url": "http://127.0.0.1:3033/stack/step/base/index.txt?_rsc=kbqw2",
+          "url": "http://127.0.0.1:3034/stack/step/layers/index.txt?_rsc=kbqw2",
           "method": "GET",
           "errorText": "net::ERR_ABORTED"
         },
         {
-          "url": "http://127.0.0.1:3033/stack/step/layers/index.txt?_rsc=kbqw2",
+          "url": "http://127.0.0.1:3034/stack/env/index.txt?_rsc=kbqw2",
           "method": "GET",
           "errorText": "net::ERR_ABORTED"
         },
         {
-          "url": "http://127.0.0.1:3033/stack/step/frontend/index.txt?_rsc=kbqw2",
+          "url": "http://127.0.0.1:3034/cases/high-throughput-io/index.txt?_rsc=kbqw2",
           "method": "GET",
           "errorText": "net::ERR_ABORTED"
         },
         {
-          "url": "http://127.0.0.1:3033/stack/step/env/index.txt?_rsc=kbqw2",
-          "method": "GET",
-          "errorText": "net::ERR_ABORTED"
-        },
-        {
-          "url": "http://127.0.0.1:3033/stack/step/deliverRun/index.txt?_rsc=kbqw2",
-          "method": "GET",
-          "errorText": "net::ERR_ABORTED"
-        },
-        {
-          "url": "http://127.0.0.1:3033/stack/step/delivery/index.txt?_rsc=kbqw2",
-          "method": "GET",
-          "errorText": "net::ERR_ABORTED"
-        },
-        {
-          "url": "http://127.0.0.1:3033/cases/genomic-sequence-store/index.txt?_rsc=kbqw2",
-          "method": "GET",
-          "errorText": "net::ERR_ABORTED"
-        },
-        {
-          "url": "http://127.0.0.1:3033/cases/high-throughput-io/index.txt?_rsc=kbqw2",
+          "url": "http://127.0.0.1:3034/cases/hotspot-cache/index.txt?_rsc=kbqw2",
           "method": "GET",
           "errorText": "net::ERR_ABORTED"
         }
@@ -5876,7 +6171,7 @@
       "width": 390,
       "height": 844,
       "bytes": 53079,
-      "durationMs": 1558,
+      "durationMs": 1774,
       "ok": true,
       "error": null,
       "metrics": {
@@ -5964,17 +6259,22 @@
       "consoleErrors": [],
       "requestFailures": [
         {
-          "url": "http://127.0.0.1:3033/stack/run/index.txt?_rsc=kbqw2",
+          "url": "http://127.0.0.1:3034/stack/run/index.txt?_rsc=kbqw2",
           "method": "GET",
           "errorText": "net::ERR_ABORTED"
         },
         {
-          "url": "http://127.0.0.1:3033/arch/index.txt?_rsc=kbqw2",
+          "url": "http://127.0.0.1:3034/stack/delivery/index.txt?_rsc=kbqw2",
           "method": "GET",
           "errorText": "net::ERR_ABORTED"
         },
         {
-          "url": "http://127.0.0.1:3033/export/index.txt?_rsc=kbqw2",
+          "url": "http://127.0.0.1:3034/icons/index.txt?_rsc=kbqw2",
+          "method": "GET",
+          "errorText": "net::ERR_ABORTED"
+        },
+        {
+          "url": "http://127.0.0.1:3034/archify/index.txt?_rsc=kbqw2",
           "method": "GET",
           "errorText": "net::ERR_ABORTED"
         }
@@ -5990,7 +6290,7 @@
       "width": 1440,
       "height": 900,
       "bytes": 187518,
-      "durationMs": 1686,
+      "durationMs": 1824,
       "ok": true,
       "error": null,
       "metrics": {
@@ -6078,47 +6378,42 @@
       "consoleErrors": [],
       "requestFailures": [
         {
-          "url": "http://127.0.0.1:3033/stack/step/base/index.txt?_rsc=93bdx",
+          "url": "http://127.0.0.1:3034/stack/step/theme/index.txt?_rsc=93bdx",
           "method": "GET",
           "errorText": "net::ERR_ABORTED"
         },
         {
-          "url": "http://127.0.0.1:3033/stack/step/frontend/index.txt?_rsc=93bdx",
+          "url": "http://127.0.0.1:3034/stack/step/layers/index.txt?_rsc=93bdx",
           "method": "GET",
           "errorText": "net::ERR_ABORTED"
         },
         {
-          "url": "http://127.0.0.1:3033/stack/step/env/index.txt?_rsc=93bdx",
+          "url": "http://127.0.0.1:3034/stack/env/index.txt?_rsc=93bdx",
           "method": "GET",
           "errorText": "net::ERR_ABORTED"
         },
         {
-          "url": "http://127.0.0.1:3033/stack/step/modules/index.txt?_rsc=93bdx",
+          "url": "http://127.0.0.1:3034/stack/step/frontend/index.txt?_rsc=93bdx",
           "method": "GET",
           "errorText": "net::ERR_ABORTED"
         },
         {
-          "url": "http://127.0.0.1:3033/stack/run/index.txt?_rsc=93bdx",
+          "url": "http://127.0.0.1:3034/stack/step/env/index.txt?_rsc=93bdx",
           "method": "GET",
           "errorText": "net::ERR_ABORTED"
         },
         {
-          "url": "http://127.0.0.1:3033/stack/step/topology/index.txt?_rsc=93bdx",
+          "url": "http://127.0.0.1:3034/export/index.txt?_rsc=93bdx",
           "method": "GET",
           "errorText": "net::ERR_ABORTED"
         },
         {
-          "url": "http://127.0.0.1:3033/arch/index.txt?_rsc=93bdx",
+          "url": "http://127.0.0.1:3034/cases/high-throughput-io/index.txt?_rsc=93bdx",
           "method": "GET",
           "errorText": "net::ERR_ABORTED"
         },
         {
-          "url": "http://127.0.0.1:3033/standards/index.txt?_rsc=93bdx",
-          "method": "GET",
-          "errorText": "net::ERR_ABORTED"
-        },
-        {
-          "url": "http://127.0.0.1:3033/export/index.txt?_rsc=93bdx",
+          "url": "http://127.0.0.1:3034/cases/hotspot-cache/index.txt?_rsc=93bdx",
           "method": "GET",
           "errorText": "net::ERR_ABORTED"
         }
@@ -6134,7 +6429,7 @@
       "width": 1024,
       "height": 768,
       "bytes": 115364,
-      "durationMs": 2666,
+      "durationMs": 1574,
       "ok": true,
       "error": null,
       "metrics": {
@@ -6222,42 +6517,67 @@
       "consoleErrors": [],
       "requestFailures": [
         {
-          "url": "http://127.0.0.1:3033/stack/index.txt?_rsc=93bdx",
+          "url": "http://127.0.0.1:3034/index.txt?_rsc=93bdx",
           "method": "GET",
           "errorText": "net::ERR_ABORTED"
         },
         {
-          "url": "http://127.0.0.1:3033/stack/env/index.txt?_rsc=93bdx",
+          "url": "http://127.0.0.1:3034/stack/step/theme/index.txt?_rsc=93bdx",
           "method": "GET",
           "errorText": "net::ERR_ABORTED"
         },
         {
-          "url": "http://127.0.0.1:3033/stack/step/frontend/index.txt?_rsc=93bdx",
+          "url": "http://127.0.0.1:3034/stack/step/layers/index.txt?_rsc=93bdx",
           "method": "GET",
           "errorText": "net::ERR_ABORTED"
         },
         {
-          "url": "http://127.0.0.1:3033/stack/run/index.txt?_rsc=93bdx",
+          "url": "http://127.0.0.1:3034/stack/env/index.txt?_rsc=93bdx",
           "method": "GET",
           "errorText": "net::ERR_ABORTED"
         },
         {
-          "url": "http://127.0.0.1:3033/stack/step/topology/index.txt?_rsc=93bdx",
+          "url": "http://127.0.0.1:3034/stack/step/frontend/index.txt?_rsc=93bdx",
           "method": "GET",
           "errorText": "net::ERR_ABORTED"
         },
         {
-          "url": "http://127.0.0.1:3033/arch/index.txt?_rsc=93bdx",
+          "url": "http://127.0.0.1:3034/stack/step/env/index.txt?_rsc=93bdx",
           "method": "GET",
           "errorText": "net::ERR_ABORTED"
         },
         {
-          "url": "http://127.0.0.1:3033/check/index.txt?_rsc=93bdx",
+          "url": "http://127.0.0.1:3034/arch/index.txt?_rsc=93bdx",
           "method": "GET",
           "errorText": "net::ERR_ABORTED"
         },
         {
-          "url": "http://127.0.0.1:3033/cases/genomic-sequence-store/index.txt?_rsc=93bdx",
+          "url": "http://127.0.0.1:3034/icons/index.txt?_rsc=93bdx",
+          "method": "GET",
+          "errorText": "net::ERR_ABORTED"
+        },
+        {
+          "url": "http://127.0.0.1:3034/archify/index.txt?_rsc=93bdx",
+          "method": "GET",
+          "errorText": "net::ERR_ABORTED"
+        },
+        {
+          "url": "http://127.0.0.1:3034/cases/huge-rowcount-rdb/index.txt?_rsc=93bdx",
+          "method": "GET",
+          "errorText": "net::ERR_ABORTED"
+        },
+        {
+          "url": "http://127.0.0.1:3034/cases/genomic-sequence-store/index.txt?_rsc=93bdx",
+          "method": "GET",
+          "errorText": "net::ERR_ABORTED"
+        },
+        {
+          "url": "http://127.0.0.1:3034/cases/high-throughput-io/index.txt?_rsc=93bdx",
+          "method": "GET",
+          "errorText": "net::ERR_ABORTED"
+        },
+        {
+          "url": "http://127.0.0.1:3034/cases/hotspot-cache/index.txt?_rsc=93bdx",
           "method": "GET",
           "errorText": "net::ERR_ABORTED"
         }
@@ -6273,7 +6593,7 @@
       "width": 390,
       "height": 844,
       "bytes": 61518,
-      "durationMs": 1394,
+      "durationMs": 1505,
       "ok": true,
       "error": null,
       "metrics": {
@@ -6361,37 +6681,32 @@
       "consoleErrors": [],
       "requestFailures": [
         {
-          "url": "http://127.0.0.1:3033/blueprints/index.txt?_rsc=93bdx",
+          "url": "http://127.0.0.1:3034/rules/index.txt?_rsc=93bdx",
           "method": "GET",
           "errorText": "net::ERR_ABORTED"
         },
         {
-          "url": "http://127.0.0.1:3033/cases/index.txt?_rsc=93bdx",
+          "url": "http://127.0.0.1:3034/stack/run/index.txt?_rsc=93bdx",
           "method": "GET",
           "errorText": "net::ERR_ABORTED"
         },
         {
-          "url": "http://127.0.0.1:3033/stack/env/index.txt?_rsc=93bdx",
+          "url": "http://127.0.0.1:3034/stack/delivery/index.txt?_rsc=93bdx",
           "method": "GET",
           "errorText": "net::ERR_ABORTED"
         },
         {
-          "url": "http://127.0.0.1:3033/stack/run/index.txt?_rsc=93bdx",
+          "url": "http://127.0.0.1:3034/arch/index.txt?_rsc=93bdx",
           "method": "GET",
           "errorText": "net::ERR_ABORTED"
         },
         {
-          "url": "http://127.0.0.1:3033/icons/index.txt?_rsc=93bdx",
+          "url": "http://127.0.0.1:3034/icons/index.txt?_rsc=93bdx",
           "method": "GET",
           "errorText": "net::ERR_ABORTED"
         },
         {
-          "url": "http://127.0.0.1:3033/standards/index.txt?_rsc=93bdx",
-          "method": "GET",
-          "errorText": "net::ERR_ABORTED"
-        },
-        {
-          "url": "http://127.0.0.1:3033/export/index.txt?_rsc=93bdx",
+          "url": "http://127.0.0.1:3034/check/index.txt?_rsc=93bdx",
           "method": "GET",
           "errorText": "net::ERR_ABORTED"
         }
@@ -6402,7 +6717,7 @@
   "totals": {
     "pageErrors": 0,
     "consoleErrors": 6,
-    "requestFailures": 392,
+    "requestFailures": 455,
     "httpErrors": 0,
     "failedImages": 0,
     "shotsFailed": 0,
@@ -6412,21 +6727,21 @@
   "gate": {
     "ok": false,
     "strict": false,
-    "expectedShots": 96,
+    "expectedShots": 99,
     "actualShots": 99,
-    "expectedUrls": 32,
+    "expectedUrls": 33,
     "actualUrls": 33,
     "minBytes": 8192,
-    "minBytesActual": 47701,
-    "minBytesFile": "stack-step-delivery__mobile.png",
+    "minBytesActual": 48083,
+    "minBytesFile": "export__mobile.png",
     "pageErrors": 0,
     "consoleErrors": 6,
-    "requestFailures": 392,
+    "requestFailures": 455,
     "httpErrors": 0,
     "unexpected": {
       "pageErrors": 0,
       "consoleErrors": 0,
-      "requestFailures": 389,
+      "requestFailures": 452,
       "httpErrors": 0
     },
     "knownBaselineCount": 9,
@@ -6439,8 +6754,8 @@
           {
             "file": "archify__desktop.png",
             "kind": "console",
-            "url": "http://127.0.0.1:3033/archify/",
-            "text": "Access to fetch at 'http://localhost:3011/api/archify' from origin 'http://127.0.0.1:3033' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource.",
+            "url": "http://127.0.0.1:3034/archify/",
+            "text": "Access to fetch at 'http://localhost:3011/api/archify' from origin 'http://127.0.0.1:3034' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource.",
             "status": null
           },
           {
@@ -6453,8 +6768,8 @@
           {
             "file": "archify__tablet.png",
             "kind": "console",
-            "url": "http://127.0.0.1:3033/archify/",
-            "text": "Access to fetch at 'http://localhost:3011/api/archify' from origin 'http://127.0.0.1:3033' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource.",
+            "url": "http://127.0.0.1:3034/archify/",
+            "text": "Access to fetch at 'http://localhost:3011/api/archify' from origin 'http://127.0.0.1:3034' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource.",
             "status": null
           },
           {
@@ -6467,8 +6782,8 @@
           {
             "file": "archify__mobile.png",
             "kind": "console",
-            "url": "http://127.0.0.1:3033/archify/",
-            "text": "Access to fetch at 'http://localhost:3011/api/archify' from origin 'http://127.0.0.1:3033' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource.",
+            "url": "http://127.0.0.1:3034/archify/",
+            "text": "Access to fetch at 'http://localhost:3011/api/archify' from origin 'http://127.0.0.1:3034' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource.",
             "status": null
           },
           {
@@ -6503,9 +6818,7 @@
       }
     ],
     "violations": [
-      "URL 发现不符预期：URL 总数 33 ≠ 预期 32",
-      "截图数 99 ≠ 期望 96",
-      "未申报的 requestfailed 共 389 条（期望 0）"
+      "未申报的 requestfailed 共 452 条（期望 0）"
     ]
   }
 }

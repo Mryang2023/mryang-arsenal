@@ -124,7 +124,35 @@ export function PeoplePanel({ doc, today, team }: { doc: CharterDoc; today: stri
           还没有人认领任何条款或豁免。
         </p>
       ) : (
-        <div className="mt-3 overflow-x-auto">
+        <>
+        {/* 窄屏：一人一卡。表格在 375px 里会把「他要还的豁免」这类列头挤成竖排单字 ——
+            横向溢出是 0（断言 A1 抓不到），但可读性已经没了。 */}
+        <ul className="mt-3 space-y-2 md:hidden">
+          {rows.map((r) => (
+            <li key={`m-${r.name}`} className="rounded-lg border border-line bg-surface px-3 py-2.5 text-xs">
+              <div className="flex flex-wrap items-baseline gap-x-2.5">
+                <b className="text-sm text-fg">{r.name}</b>
+                {r.overdue > 0 && <span className="text-rust">逾期 {r.overdue}</span>}
+                {r.orphan > 0 && <span className="text-brass">孤儿 {r.orphan}</span>}
+              </div>
+              <dl className="mt-1.5 space-y-1">
+                <div className="flex gap-2">
+                  <dt className="w-20 shrink-0 text-fgFaint">负责条款</dt>
+                  <dd className="font-mono text-fgMuted">{r.ownsClauses.join('、') || '—'}</dd>
+                </div>
+                <div className="flex gap-2">
+                  <dt className="w-20 shrink-0 text-fgFaint">要还的豁免</dt>
+                  <dd className="font-mono text-fgMuted">{r.owesExceptions.join('、') || '—'}</dd>
+                </div>
+                <div className="flex gap-2">
+                  <dt className="w-20 shrink-0 text-fgFaint">他批的</dt>
+                  <dd className="font-mono text-fgFaint">{r.approvedExceptions.join('、') || '—'}</dd>
+                </div>
+              </dl>
+            </li>
+          ))}
+        </ul>
+        <div className="mt-3 hidden overflow-x-auto md:block">
           <table className="w-full border-collapse text-xs">
             <thead>
               <tr className="border-b border-line text-left text-fgFaint">
@@ -165,6 +193,7 @@ export function PeoplePanel({ doc, today, team }: { doc: CharterDoc; today: stri
             </tbody>
           </table>
         </div>
+        </>
       )}
 
       {outsiders.length > 0 && (
@@ -360,7 +389,7 @@ export function RosterPanel({ doc }: { doc: CharterDoc }) {
         <span className="text-fgMuted">
           当前判定口径{' '}
           <b className={diff.usedSource === 'command-center' ? 'text-olive' : 'text-brass'}>
-            {diff.usedSource === 'command-center' ? '中枢名册' : '章程手写名单（可能已过期）'}
+            {diff.usedSource === 'command-center' ? '中枢名册' : '章程手写名单'}
           </b>
         </span>
         {diff.teamName && (
