@@ -48,7 +48,15 @@ const TABS: { id: Tab; label: string; hint: string }[] = [
  * 全部派生结论都在 `lib/charter.ts` 算完再传进来，本组件只渲染 ——
  * 这样那些计算能被 `.verify/charter-check.ts` 当数据直接跑。
  */
-export default function CharterConsole() {
+/**
+ * 章程明细区。
+ *
+ * ★ 2026-10-05 起它不再独自成页：`/standards`（工程规范台）把它当「明细」内嵌。
+ * 原页面回答的是「章程里有什么」，而用户要的是「多人开发时该管什么」——
+ * 后者需要按人 / 现状 / 时间 / 执行重排，那一层在 `lib/standards.ts` + `app/standards/`。
+ * 这里的**内容一处没删**，只是从「整页」降级为「明细区」。
+ */
+export default function CharterConsole({ embedded = false }: { embedded?: boolean } = {}) {
   const [tab, setTab] = useState<Tab>('clauses');
   const [owner, setOwner] = useState('');
   const today = todayOf();
@@ -99,37 +107,44 @@ export default function CharterConsole() {
   }
 
   return (
-    <main className="flex-1 px-5 py-8 md:px-8">
-      {/* ── 抬头：章程身份 ───────────────────────────────── */}
-      <header className="flex flex-wrap items-baseline gap-x-4 gap-y-1">
-        <h1 className="text-xl font-medium text-fg">{doc.name}</h1>
-        <span className="font-mono text-xs text-fgFaint">
-          {doc.id} · v{doc.version} · 批准于 {doc.ratifiedAt}
-        </span>
-      </header>
+    // embedded：被 /standards（工程规范台）当作「明细区」内嵌。
+    // 那种情况下抬头与外层 <main> 由治理台提供，这里只出内容 —— 嵌一个 <main>
+    // 进去是 HTML 违规，而 h1 重复两遍会破视觉层的「每页 h1 唯一」判据。
+    <div className={embedded ? '' : 'flex-1 px-5 py-8 md:px-8'}>
+      {!embedded && (
+        <>
+          {/* ── 抬头：章程身份 ───────────────────────────────── */}
+          <header className="flex flex-wrap items-baseline gap-x-4 gap-y-1">
+            <h1 className="text-xl font-medium text-fg">{doc.name}</h1>
+            <span className="font-mono text-xs text-fgFaint">
+              {doc.id} · v{doc.version} · 批准于 {doc.ratifiedAt}
+            </span>
+          </header>
 
-      <dl className="mt-3 flex flex-wrap gap-x-6 gap-y-1 text-xs text-fgMuted">
-        <MetaBit label="章程负责人" value={doc.owner} />
-        <MetaBit label="基线" value={doc.extends} mono />
-        <MetaBit label="团队" value={`${doc.team.length} 人`} />
-        <MetaBit label="快照" value={formatStamp(charterSnapshotAt)} mono />
-        {charters.length > 1 && (
-          <label className="flex items-center gap-1.5">
-            <span className="text-fgFaint">切换</span>
-            <select
-              value={charterId}
-              onChange={(ev) => setCharterId(ev.target.value)}
-              className="rounded border border-line bg-surface px-1.5 py-0.5 text-fg"
-            >
-              {charters.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.doc.name}
-                </option>
-              ))}
-            </select>
-          </label>
-        )}
-      </dl>
+          <dl className="mt-3 flex flex-wrap gap-x-6 gap-y-1 text-xs text-fgMuted">
+            <MetaBit label="章程负责人" value={doc.owner} />
+            <MetaBit label="基线" value={doc.extends} mono />
+            <MetaBit label="团队" value={`${doc.team.length} 人`} />
+            <MetaBit label="快照" value={formatStamp(charterSnapshotAt)} mono />
+            {charters.length > 1 && (
+              <label className="flex items-center gap-1.5">
+                <span className="text-fgFaint">切换</span>
+                <select
+                  value={charterId}
+                  onChange={(ev) => setCharterId(ev.target.value)}
+                  className="rounded border border-line bg-surface px-1.5 py-0.5 text-fg"
+                >
+                  {charters.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.doc.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            )}
+          </dl>
+        </>
+      )}
 
       {/* ── 政策条：四条拍板口径在这一行里，全部来自 policy ── */}
       <PolicyStrip />
@@ -215,7 +230,7 @@ export default function CharterConsole() {
           校验在构建期跑：<code>node scripts/sync-content.mjs</code>（五道闸门任一不过即中断）。
         </span>
       </footer>
-    </main>
+    </div>
   );
 }
 

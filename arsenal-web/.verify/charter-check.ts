@@ -21,6 +21,7 @@ import { validateCharter, CHARTER_DIAGNOSTIC_CODE } from '../scripts/lib/validat
 import { resolveCharterDir, readProfileCharterDir } from '../scripts/lib/charter-dir.mjs';
 import * as ciLint from '../../arsenal-server/scripts/charter-ci.mjs';
 import * as charterLib from '@/lib/charter';
+import * as stdLib from '@/lib/standards';
 import { rules as l0Rules } from '@/lib/rules';
 import { lint, globToRegExp } from '@/lib/engine';
 import type { CharterDoc, CharterException } from '@/lib/charter';
@@ -863,9 +864,11 @@ interface CharterExceptionLike {
     ['page.tsx', 'CharterConsole.tsx', 'CharterPanels.tsx'].filter((f) => !fs.existsSync(path.join(appDir, f))).join(',') || '三件齐');
 
   const shell = fs.readFileSync(path.join(repoRoot, 'arsenal-web', 'src', 'components', 'Shell.tsx'), 'utf8');
-  check('侧栏 NAV 挂上 /charter（页面不在导航里就等于不存在）',
-    /href:\s*'\/charter'/.test(shell),
-    "NAV 里没有 href: '/charter'");
+  // 2026-10-05：侧栏入口从 /charter 迁到 /standards（工程规范台）。判据跟着改路由 ——
+  // 页面不在导航里就等于不存在，而「存在」指的是**读者能点到的那一个**。
+  check('侧栏 NAV 挂上 /standards（页面不在导航里就等于不存在）',
+    /href:\s*'\/standards'/.test(shell),
+    "NAV 里没有 href: '/standards'");
   check('侧栏图标有（glyph 不缺 —— 缺了导航行会空一格）',
     shell.includes("glyph: '§'") || /label:\s*'项目章程'/.test(shell),
     '未找到项目章程的 glyph');
@@ -1238,6 +1241,153 @@ const runSteps = [...ciYaml.matchAll(/^\s*run:/gm)].length;
 check('CI 片段每一步都有可读的名字（使用说明要能照着跑，一句没解释的 run 等于没有）',
   stepNames.length >= runSteps && runSteps > 0,
   `${stepNames.length} 个 name / ${runSteps} 个 run`);
+}
+
+
+// 【16】工程规范台（/standards）—— 2026-10-05 重定位后新增。
+//
+// 重定位的缘由：原来那页的三个页签都以**条款**为中心，是「审章程」的视角；
+// 用户要的是「多人开发同一个项目时的规范管理」，主轴是人 / 现状 / 时间 / 执行。
+// 数据一个字没加（章程 JSON 仍是同一份），新增的全是**聚合**——
+// 而聚合必须能被当数据跑，否则页面上那些数字只是「看起来对」。
+console.log('\n【16】工程规范台：聚合守恒 / 口径一致 / 迁移页与入口');
+{
+const today = charterLib.todayOf();
+const doc = primaryCharterDoc();
+const webAppDir = path.join(here, '..', 'src', 'app');
+const fourFiles = [
+  'app/standards/page.tsx',
+  'app/standards/StandardsConsole.tsx',
+  'app/standards/StandardsPanels.tsx',
+  'lib/standards.ts',
+];
+const missingFiles = fourFiles.filter((f) => !fs.existsSync(path.join(here, '..', 'src', ...f.split('/'))));
+check('治理台三件页面 + 纯函数层 standards.ts 都在', missingFiles.length === 0,
+  missingFiles.join(', ') || '四件齐');
+
+// 迁移页：静态导出下 next.config 的 redirects 不生成任何东西，
+// 所以必须是一张**真的会跳**的页子，而不是「声称已重定向」。
+const movedSrc = fs.readFileSync(path.join(webAppDir, 'charter', 'page.tsx'), 'utf8');
+check('/charter 是迁移页：带 meta refresh 且指向 /standards/',
+  /httpEquiv="refresh"/.test(movedSrc) && movedSrc.includes('/standards/'),
+  '静态导出模式没有真重定向，这页必须自己跳');
+check('迁移页不再渲染旧的整页（章程抬头已移入治理台，避免两处 h1）',
+  !movedSrc.includes('CharterConsole'), '旧 page 若还渲染 CharterConsole，/charter 与 /standards 会各有一个 h1');
+
+const shellSrc = fs.readFileSync(path.join(here, '..', 'src', 'components', 'Shell.tsx'), 'utf8');
+check('侧栏入口指向 /standards 且标签是「工程规范」',
+  /href: '\/standards'/.test(shellSrc) && /label: '工程规范'/.test(shellSrc),
+  shellSrc.includes("href: '/charter'") ? '侧栏还指着旧路由 /charter' : '');
+check('侧栏不再有指向 /charter 的入口（否则两个入口、两个心智模型）',
+  !/href: '\/charter'/.test(shellSrc), '');
+
+// ── 聚合守恒：byKind 各档之和必须等于总数，否则「漏算」在页面上看不出来 ──
+const items = stdLib.actionItems(doc, today);
+const sum = stdLib.actionSummary(items);
+const kindSum = Object.values(sum.byKind).reduce((a, b) => a + b, 0);
+check('待办汇总守恒：五类之和 == 总数', kindSum === sum.total && sum.total === items.length,
+  `total=${sum.total} kindSum=${kindSum}`);
+check('待办分级之和 == 总数', sum.p0 + sum.p1 + sum.p2 === sum.total,
+  `p0=${sum.p0} p1=${sum.p1} p2=${sum.p2} total=${sum.total}`);
+
+// 两次调用逐项相同（id 稳定）—— 页面每次渲染都会重算，抖动会让「待办在变」变成噪音
+const again = stdLib.actionItems(doc, today);
+check('待办清单两次调用逐项相同（id 稳定，不许随渲染抖动）',
+  items.length === again.length && items.every((it, i) => it.id === again[i].id && it.level === again[i].level),
+  `${items.length} vs ${again.length}`);
+
+// 不重不漏：每条「到期未销账」的例外恰好一条 overdue 待办；已销账的一条都不产生
+const overdueExIds = doc.exceptions.filter((e) => stdLib.exState(e, doc, today) === 'expired').map((e) => e.id);
+const repaidExIds = doc.exceptions.filter((e) => stdLib.exState(e, doc, today) === 'repaid').map((e) => e.id);
+const overdueItems = items.filter((i) => i.kind === 'overdue-exception').map((i) => String(i.target));
+const repaidItems = items.filter((i) => repaidExIds.includes(String(i.target))).map((i) => i.id);
+check('不重不漏：每条到期未销账的例外恰好一条待办',
+  overdueItems.length === overdueExIds.length && overdueExIds.every((id) => overdueItems.includes(id)),
+  `到期 ${overdueExIds.join('、') || '（无）'} vs 待办 ${overdueItems.join('、') || '（无）'}`);
+check('已销账的例外不产生任何待办（销账就该真的销掉）',
+  repaidItems.length === 0, `已销账 ${repaidExIds.join('、') || '（无）'} 却仍出现在待办里`);
+
+// 级别由 policy 决定：同一份数据，policy 一改，级别必须跟着改
+const p0n = items.filter((i) => i.level === 'P0').length;
+const expectP0 = doc.policy.overdueException === 'error' ? overdueExIds.length : 0;
+check('待办级别读 policy（overdue=error 才把到期算 P0）', p0n === expectP0,
+  `P0=${p0n}，按 policy.${doc.policy.overdueException} 应为 ${expectP0}`);
+
+// ★ exState 与 exceptionDisposition 必须逐条一致 —— 两个出口各算各的，
+//   分叉的后果是页面上「到期」与「孤儿」两栏数字对不上而没人说得清为什么。
+const labelToState = (l: string): string =>
+  l === '已销账' ? 'repaid'
+    : l === '孤儿例外' ? 'orphaned'
+      : l.startsWith('已到期') ? 'expired'
+        : 'active';
+const stateMismatches = doc.exceptions
+  .map((e) => {
+    const mine = stdLib.exState(e, doc, today);
+    const theirs = labelToState(charterLib.exceptionDisposition(e, doc, today).label);
+    return mine === theirs ? null : `${e.id}: 我的=${mine} 处置=${theirs}`;
+  })
+  .filter(Boolean) as string[];
+check('★ exState 与 exceptionDisposition 逐条一致（两个出口不许各算各的）',
+  stateMismatches.length === 0, stateMismatches.join('; ') || `${doc.exceptions.length} 笔例外全部一致`);
+
+// 反证：把一条生效条款改成**语义层** → 人工待办 +1、就绪度报出阻塞项。
+// （第一版这里注入的是 AST 层，结果 0 → 0 假红 —— 顺着它查出了真问题：
+//  `isClauseMachineCheckable` 认为 AST「机器可判」是对的（校验台有后端深检），
+//  而 CI 执行器只跑正则层。两套口径必须分开数，否则会得出「门禁已覆盖全部条款」的结论。）
+const firstClause = doc.clauses[0];
+const gReal = stdLib.gateReadiness(doc, today);
+const asManual = {
+  ...doc,
+  clauses: doc.clauses.map((c) => (c.id === firstClause.id ? { ...c, check: { llm: { prompt: 'x' } } } : c)),
+};
+const gManual = stdLib.gateReadiness(asManual as CharterDoc, today);
+const itemsManual = stdLib.actionItems(asManual as CharterDoc, today);
+const realManualItems = items.filter((i) => i.kind === 'not-machine-checkable').length;
+check('反证：把条款改成语义层 → 「只能人 review」+1 且就绪度报出阻塞项',
+  gManual.manualOnly === gReal.manualOnly + 1
+  && gManual.blockers.some((b) => b.includes('人 review'))
+  && itemsManual.filter((i) => i.kind === 'not-machine-checkable').length === realManualItems + 1,
+  `manualOnly ${gReal.manualOnly} → ${gManual.manualOnly}；人工待办 ${realManualItems} → ${itemsManual.filter((i) => i.kind === 'not-machine-checkable').length}`);
+
+const asAst = {
+  ...doc,
+  clauses: doc.clauses.map((c) => (c.id === firstClause.id ? { ...c, check: { ast: { query: 'x' } } } : c)),
+};
+const gAst = stdLib.gateReadiness(asAst as CharterDoc, today);
+check('AST 层：不混进「人 review」待办（校验台能深检），但**必须**在就绪度里被点名',
+  gAst.ciRunnable === gReal.ciRunnable - 1
+  && gAst.astOnly === gReal.astOnly + 1
+  && gAst.blockers.some((b) => b.includes('AST')),
+  `ciRunnable ${gReal.ciRunnable} → ${gAst.ciRunnable}；astOnly ${gReal.astOnly} → ${gAst.astOnly}`);
+check('两套口径不许混：机器能判（校验台）== CI 能判 + AST 层',
+  gReal.machineCheckable === gReal.ciRunnable + gReal.astOnly
+  && gReal.machineCheckable === doc.clauses.filter((c) => charterLib.isClauseInForce(c, today) && charterLib.isClauseMachineCheckable(c)).length,
+  `machineCheckable=${gReal.machineCheckable} ciRunnable=${gReal.ciRunnable} astOnly=${gReal.astOnly}`);
+check('就绪度自洽：ready 恒等于 blockers 为空',
+  gReal.ready === (gReal.blockers.length === 0), `${gReal.blockers.length} 条 blocker`);
+
+// 人维度：守恒 + 离队的人必须被单独列出来（那是最该被看见的信号）
+const pv = stdLib.peopleView(doc, today);
+const owedCount = pv.rows.reduce((n, r) => n + r.owesExceptions.length, 0)
+  + pv.outsiders.reduce((n, r) => n + r.owesExceptions.length, 0)
+  + pv.unassigned.clauseExceptions.length;
+check('责任人矩阵守恒：每笔豁免恰好落在一个人名下（或「无还债人」）',
+  owedCount === doc.exceptions.length, `${owedCount} vs ${doc.exceptions.length}`);
+check('离队的人单列在 outsiders，且不在在册 rows 里',
+  pv.outsiders.every((o) => !o.active && !pv.rows.some((r) => r.name === o.name)),
+  `outsiders ${pv.outsiders.map((o) => o.name).join('、') || '（无）'}`);
+
+// 现状：前两级聚合不许把不同路径吞成同一格（不同前缀必须分开）
+const areas = stdLib.areaRiskView(doc, today);
+const areaOf = (g: string | undefined) => {
+  if (!g) return '（全项目）';
+  const parts = g.replace(/\*\*.*$/, '').split('/').filter(Boolean);
+  return parts.slice(0, 2).join('/') || '（根目录）';
+};
+const expectAreas = new Set([...doc.clauses.map((c) => areaOf(c.pathGlob)), ...doc.exceptions.map((e) => areaOf(e.pathGlob))]);
+check('模块风险：路径前两级的每个取值都单独成格（不同模块不许被合并）',
+  expectAreas.size === areas.length && [...expectAreas].every((a) => areas.some((x) => x.area === a)),
+  `期望 ${[...expectAreas].join(' / ')}；实得 ${areas.map((a) => a.area).join(' / ')}`);
 }
 
 process.exit(finish('charter'));
