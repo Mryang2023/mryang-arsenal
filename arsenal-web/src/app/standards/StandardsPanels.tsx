@@ -196,7 +196,24 @@ export function AreaRiskPanel({ doc, today }: { doc: CharterDoc; today: string }
         那是制度问题（规矩定得不现实），不是执行问题。
       </p>
 
-      {areas.length === 0 ? (
+      {areas.length === 1 ? (
+        // ★ 只有一个模块时**不画条**：满格会被读成「很严重」，而实际上
+        // 「全仓只有一个模块」这件事跟「这里破例很多」毫无关系。
+        // 比例只在**有得比**的时候才有意义 —— 这与「组件风险用前两级聚合」同源：
+        // 聚合是为了可比，样本只有一条时可比性为零。
+        <div className="mt-3 rounded-lg border border-line bg-surface px-3 py-3 text-xs">
+          <p className="text-fg">
+            当前只有 <b className="font-mono">{areas[0].area}</b> 一个范围：
+            未销账豁免 <b className="font-mono">{areas[0].openExceptions}</b> · 条款{' '}
+            <b className="font-mono">{areas[0].clauses}</b> · 豁免{' '}
+            <b className="font-mono">{areas[0].exceptions}</b>
+          </p>
+          <p className="mt-1 text-[11px] text-fgFaint">
+            只有一个范围时条形图没有对比意义（永远是满格），所以这里不画。
+            等范围多起来（接入中枢名册、或者章程覆盖多个模块）它才会长出来。
+          </p>
+        </div>
+      ) : areas.length === 0 ? (
         <p className="mt-3 rounded-lg border border-dashed border-line bg-surface px-3 py-4 text-center text-xs text-fgFaint">
           还没有条款与豁免 —— 无从分布。
         </p>
