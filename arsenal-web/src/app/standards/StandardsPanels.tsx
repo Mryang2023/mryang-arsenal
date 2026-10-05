@@ -34,6 +34,7 @@ import {
 import type { ActionItem, ActionKind } from '@/lib/standards';
 import type { CharterDoc } from '@/lib/charter';
 import rosterRaw from '@/generated/roster.json';
+import ciHistoryRaw from '@/generated/ci-history.json';
 import { rosterDiff, activeTeam } from '@/lib/roster';
 import type { RosterFile } from '@/lib/roster';
 
@@ -385,6 +386,121 @@ export function RosterPanel({ doc }: { doc: CharterDoc }) {
   );
 }
 
+
+/* ══ 判罚历史（门禁真的在跑吗）══════════════════════════════════════ */
+
+interface CiRow {
+  at: string; mode: string; files: number; blocking: number;
+  advisory: number; waived: number; exitCode: number;
+}
+interface CiHistory {
+  status: 'ok' | 'empty';
+  reason?: string;
+  generatedAt?: string;
+  total?: number;
+  badLines?: number;
+  firstAt?: string;
+  latest?: CiRow | null;
+  byMode?: Record<string, { runs: number; blocking: number; blockedRuns: number; waived: number }>;
+  series?: CiRow[];
+}
+
+export function GateHistoryPanel() {
+  const h = ciHistoryRaw as unknown as CiHistory;
+  if (!h || h.status !== 'ok' || !h.latest) {
+    return (
+      <section className="mt-6 border-t border-line pt-5">
+        <h2 className="text-sm text-fg">门禁判罚记录</h2>
+        <p className="mt-2 rounded-lg border border-dashed border-line bg-surface px-3 py-4 text-xs text-fgMuted">
+          <b>尚无判罚记录</b> —— 上面那块显示的是「能不能接」，这一块回答的是「到底跑了没有」。
+          <br />
+          跑一次就会有了：<code>charter-ci.mjs lint … --history arsenal-standards/ci-history.jsonl</code>
+          （导出的 CI 片段里加这一句即可）。<b>这里不会画成 0</b> —— 没有记录与跑了 0 条是两件事。
+        </p>
+      </section>
+    );
+  }
+
+  const pr = h.byMode?.pr;
+  const au = h.byMode?.audit;
+  const series = (h.series ?? []).slice(-12);
+  const max = Math.max(1, ...series.map((r) => r.blocking));
+
+  return (
+    <section className="mt-6 border-t border-line pt-5">
+      <h2 className="text-sm text-fg">门禁判罚记录</h2>
+      <p className="mt-1 text-xs text-fgMuted">
+        「就绪度」回答能不能接，这一块回答<b>到底跑了没、判了多少</b>。
+        每次判定由执行器追加一行 jsonl（<code>--history</code>），构建期汇总成这一屏。
+        <b>不是实时的</b> —— 它随仓库里的 jsonl 走，跑一次门禁就要提交一次历史。
+      </p>
+
+      <div className="mt-3 rounded-lg border border-line bg-surface px-3 py-2.5 text-xs">
+        <div className="flex flex-wrap items-baseline gap-x-4 gap-y-1">
+          <span className="text-fgMuted">
+            最近一次 <b className="font-mono text-fg">{h.latest.at.slice(0, 19).replace('T', ' ')}</b>
+          </span>
+          <span className="rounded bg-line/40 px-1.5 py-0.5 text-[11px] text-fg">
+            {h.latest.mode === 'pr' ? 'PR 门' : '存量账'}
+          </span>
+          <span className="text-fgMuted">
+            判 <b className={h.latest.blocking ? 'text-rust' : 'text-olive'}>{h.latest.blocking}</b> 条阻断
+            {h.latest.advisory > 0 && <span className="text-fgFaint"> · {h.latest.advisory} 条提示</span>}
+            {h.latest.waived > 0 && <span className="text-fgFaint"> · 放行 {h.latest.waived} 处</span>}
+          </span>
+          <span className="text-fgMuted">
+            判了 <b className="font-mono text-fg">{h.latest.files}</b> 个文件
+          </span>
+          <span className={h.latest.exitCode !== 0 ? 'text-rust' : 'text-olive'}>
+            {h.latest.exitCode !== 0 ? '⛔ 拦下了' : '✓ 放行'}
+          </span>
+        </div>
+      </div>
+
+      <div className="mt-2.5 flex flex-wrap gap-x-6 gap-y-1 text-xs text-fgMuted">
+        <span>
+          PR 门：跑 <b className="font-mono text-fg">{pr?.runs ?? 0}</b> 次 · 拦下{' '}
+          <b className="font-mono text-fg">{pr?.blockedRuns ?? 0}</b> 次 · 累计判负{' '}
+          <b className="font-mono text-fg">{pr?.blocking ?? 0}</b>
+        </span>
+        <span>
+          存量账：跑 <b className="font-mono text-fg">{au?.runs ?? 0}</b> 次（<b>从不阻断</b>，只记账）
+        </span>
+        <span className="text-fgFaint">
+          共 {h.total} 次记录{h.badLines ? ` · ⚠ ${h.badLines} 行读不出来` : ''}
+          {h.firstAt ? ` · 最早 ${h.firstAt.slice(0, 10)}` : ''}
+        </span>
+      </div>
+
+      {series.length > 0 && (
+        <ul className="mt-3 space-y-1">
+          {series.map((r) => (
+            <li key={r.at + r.mode} className="flex flex-wrap items-baseline gap-x-2.5 gap-y-0.5">
+              <span className="w-32 shrink-0 font-mono text-[11px] text-fgFaint">
+                {r.at.slice(5, 16).replace('T', ' ')}
+              </span>
+              <span className="w-12 shrink-0 text-[11px] text-fgFaint">{r.mode === 'pr' ? 'PR 门' : '存量'}</span>
+              <span className="h-2 w-40 overflow-hidden rounded-sm bg-line/40">
+                <span
+                  className={`block h-2 rounded-sm ${r.blocking ? 'bg-rust/70' : 'bg-olive/50'}`}
+                  style={{ width: `${Math.round((r.blocking / max) * 100)}%` }}
+                />
+              </span>
+              <span className="font-mono text-[11px] text-fgMuted">
+                判负 {r.blocking} · {r.files} 文件
+              </span>
+            </li>
+          ))}
+        </ul>
+      )}
+      <p className="mt-2 text-[11px] text-fgFaint">
+        条形长度表示判负条数的相对高低。存量账那条通常最长 —— 它扫全仓，而 PR 门只看本次改动。
+        <b>这是正常的</b>：存量账的价值是让数字下降，不是恒为零。
+      </p>
+    </section>
+  );
+}
+
 export default function StandardsPanels({ doc, today }: { doc: CharterDoc; today: string }) {
   const team = activeTeam(rosterDiff(rosterRaw as unknown as RosterFile, doc));
   return (
@@ -395,6 +511,7 @@ export default function StandardsPanels({ doc, today }: { doc: CharterDoc; today
       <AreaRiskPanel doc={doc} today={today} />
       <TimelinePanel doc={doc} today={today} />
       <GatePanel doc={doc} today={today} />
+      <GateHistoryPanel />
     </>
   );
 }

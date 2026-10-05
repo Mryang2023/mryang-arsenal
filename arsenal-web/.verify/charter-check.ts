@@ -1527,4 +1527,52 @@ check('名册产物的 teamId 与章程 teamRef 一致（不配 teamRef 时应�
   `产物 teamId=${rosterRaw?.teamId} 章程 teamRef=${expectTeam}`);
 }
 
+// 【19】门禁判罚历史 —— 2026-10-05
+//
+// 「就绪度」回答能不能接；这一节回答「到底跑了没、判了多少」。
+// **没有记录时必须明说没有，不许画成 0** —— 没有数据来源的 0 是看起来正常的假数字。
+console.log('\n【19】门禁判罚历史：有记录才画，没记录必须说没记录');
+{
+const ciPath = path.join(here, '..', 'src', 'generated', 'ci-history.json');
+check('判罚历史产物存在（calc-ci-history 跑过）', fs.existsSync(ciPath), ciPath.replace(/\\/g, '/'));
+const ci = fs.existsSync(ciPath) ? JSON.parse(fs.readFileSync(ciPath, 'utf8')) : null;
+
+if (ci && ci.status === 'ok') {
+  check('有记录时：latest 存在且带时间 / 模式 / 判负数',
+    ci.latest && typeof ci.latest.at === 'string' && ['pr', 'audit'].includes(ci.latest.mode)
+    && Number.isFinite(ci.latest.blocking),
+    JSON.stringify(ci.latest ?? {}).slice(0, 90));
+  check('★ latest 的判负数与退出码自洽（有阻断必拦下，audit 必不拦）',
+    (ci.latest.blocking > 0 && ci.latest.mode === 'pr') ? ci.latest.exitCode !== 0
+      : ci.latest.mode === 'audit' ? ci.latest.exitCode === 0 : true,
+    `blocking=${ci.latest?.blocking} mode=${ci.latest?.mode} exit=${ci.latest?.exitCode}`);
+  check('byMode 两档分开计数（PR 门会拦、存量账从不拦，混在一起就看不出差别）',
+    (ci.byMode?.pr === undefined || ci.byMode.pr.blockedRuns <= ci.byMode.pr.runs)
+    && (ci.byMode?.audit === undefined || ci.byMode.audit.blockedRuns === 0),
+    `pr=${JSON.stringify(ci.byMode?.pr)} audit=${JSON.stringify(ci.byMode?.audit)}`);
+  check('趋势序列按时间升序（画趋势最怕顺序反了）',
+    (ci.series ?? []).every((r, i) => i === 0 || (ci.series[i - 1].at <= r.at)),
+    `${ci.series?.length ?? 0} 条`);
+} else {
+  check('无记录时：status=empty 且带原因（页面据此明说「尚无判罚记录」）',
+    ci?.status === 'empty' && typeof ci?.reason === 'string' && ci.reason.length > 0,
+    ci?.reason ?? '(产物不存在)');
+}
+
+// jsonl 与产物必须对得上：产物是构建期从 jsonl 汇总的，两者不一致 = 页面在撒谎
+const jsonl = path.join(here, '..', '..', 'arsenal-standards', 'ci-history.jsonl');
+if (fs.existsSync(jsonl) && ci && ci.status === 'ok') {
+  const lines = fs.readFileSync(jsonl, 'utf8').split(/\r?\n/).filter((l) => l.trim());
+  let parseable = 0;
+  for (const l of lines) {
+    try {
+      const r = JSON.parse(l);
+      if (r && typeof r.at === 'string' && (r.mode === 'pr' || r.mode === 'audit')) parseable += 1;
+    } catch { /* 坏行由汇总脚本计数，这里不重复报 */ }
+  }
+  check('产物 total == jsonl 里读得出来的行数（少一条就说明汇总漏了）',
+    ci.total === parseable, `产物 ${ci.total} vs jsonl ${parseable}（共 ${lines.length} 行）`);
+}
+}
+
 process.exit(finish('charter'));

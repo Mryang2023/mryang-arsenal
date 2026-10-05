@@ -399,7 +399,7 @@ function parseArgs(argv) {
   const a = {
     mode: 'pr', out: '.arsenal/ci', base: null, repo: process.cwd(),
     today: process.env.ARSENAL_TODAY || new Date().toISOString().slice(0, 10),
-    filesFrom: null, failOn: DEFAULT_FAIL_ON, report: null,
+    filesFrom: null, failOn: DEFAULT_FAIL_ON, report: null, history: null,
   };
   for (let i = 0; i < argv.length; i++) {
     const k = argv[i];
@@ -411,6 +411,7 @@ function parseArgs(argv) {
     else if (k === '--today') a.today = argv[++i];
     else if (k === '--files-from') a.filesFrom = argv[++i];
     else if (k === '--report') a.report = argv[++i];
+    else if (k === '--history') a.history = argv[++i];
     else if (k === '--fail-on') a.failOn = String(argv[++i] || '').split(',').map((s) => s.trim()).filter(Boolean);
   }
   return /** @type {any} */ (a);
@@ -759,6 +760,45 @@ function runLint(argv) {
     console.log(`债务账已写出：${path.resolve(repo, reportPath).replace(/\\/g, '/')}`);
   }
 
+  // ── 判罚历史：每次判定留一行 jsonl ────────────────────────────────
+  //
+  // 为什么要有：「工程规范台」要回答「门禁真的在跑吗、判了多少、放过了多少」。
+  // 没有这条记录，那个问题只能靠人回忆 CI 页面 —— 而**没有数据来源时画 0
+  // 就是看起来正常的假数字**（本仓为这件事红过好几次）。
+  //
+  // 落成 jsonl 而不是单文件：追加写不用重读整个历史，CI 并发跑也不会互相覆盖。
+  if (a.history) {
+    const row = {
+      at: new Date().toISOString(),
+      mode,
+      project: (cfg.repo && cfg.repo.name) || null,
+      charterId: (cfg.charter && cfg.charter.id) || null,
+      charterName: (cfg.charter && cfg.charter.name) || null,
+      today: cfg.today,
+      files: files.length,
+      rules: rules.length,
+      blocking: blocking.length,
+      advisory: advisory.length,
+      waived: result.waived.length,
+      exceptionsError: exError.length,
+      exceptionsWarn: exWarn.length,
+      notCheckable: result.skipped.length,
+      failOn: failOn.join('/'),
+      durationMs: Number(process.env.CHARTIER_CI_DURATION_MS || 0) || undefined,
+      exitCode: mode === 'audit' ? 0 : (blocking.length || exError.length ? 1 : 0),
+    };
+    try {
+      const target = path.resolve(repo, a.history);
+      fs.mkdirSync(path.dirname(target), { recursive: true });
+      fs.appendFileSync(target, JSON.stringify(row) + '\n', 'utf8');
+      console.log(`判罚历史已追加：${target.replace(/\\/g, '/')}`);
+    } catch (e) {
+      // 写历史失败**不改变判定结论** —— 门禁不能因为「记账本没写上」而误报失败。
+      // 但要说出来：静默丢记录等于下一个人以为「那天没跑过」。
+      console.error(`⚠ 判罚历史写入失败（不影响本次判定结论）：${String(e && e.message ? e.message : e)}`);
+    }
+  }
+
   if (mode === 'audit') {
     console.log('audit 模式不阻断（--mode audit 的存在意义就是让存量账先跑起来）。');
     return 0;
@@ -787,6 +827,7 @@ async function main() {
 
   lint（跑在业务仓 CI 里，只读配置、零依赖）
     node charter-ci.mjs lint --config <目录> [--mode pr|audit] [--repo <路径>] [--report debt.md]
+                                  [--history <jsonl 路径>]   # 每次判定追加一行，供 /standards 画趋势
 
 说明
   · 判负口径读章程 policy，本工具不写死
