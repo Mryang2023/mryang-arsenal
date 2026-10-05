@@ -20,9 +20,11 @@ import {
   FLOWS,
   PAGE_OF_STEP,
   STEP_BY_ID,
+  STEP_ROUTES,
   flowFilled,
   flowOfLane,
   stepOfDim,
+  type StepId,
 } from './wizard';
 import { TONE, INK, toneAt, gloss } from './palette';
 
@@ -36,8 +38,8 @@ import { TONE, INK, toneAt, gloss } from './palette';
  * `/stack` 就是选型台本体，**不重定向** —— 恢复出来的步骤若不在本页，
  * 由 `useStackChannel` 把那一步拉回本页首步。
  */
-export default function StackSoftware() {
-  const ch = useStackChannel('software');
+export default function StackSoftware({ pinnedStep }: { pinnedStep?: StepId }) {
+  const ch = useStackChannel('software', pinnedStep);
   const router = useRouter();
   const {
     picks, baseId, setBaseId, activeDim, setActiveDim, audit, hazardsByDim, dimFlags,
@@ -63,7 +65,10 @@ export default function StackSoftware() {
       benchRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     });
     const home = PAGE_OF_STEP[target];
-    if (home !== '/stack') router.push(home);
+    // 跨页直达落到**步骤路由**（/stack/step/<id>）而不是页路由：新页把这一步钉死，
+    // 侧边栏细分子项也正好点亮那一步。目标在本页时不 push —— push 会重挂载，
+    // 台面聚焦 / 搜索词 / 撤销栈这些瞬时态全丢（所以同页一律就地 setStep）。
+    if (home !== '/stack') router.push(STEP_ROUTES[target]);
   }
 
   /** 本页四步的渲染内容 */

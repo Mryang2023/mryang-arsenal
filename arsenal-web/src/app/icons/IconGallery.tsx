@@ -105,7 +105,9 @@ export default function IconGallery() {
     `flat vector icon, software architecture diagram symbol, thin uniform 2px stroke, single accent color ${categoryMeta(a.category).accent}, plain white background, centered, no text, no letters, no numbers, minimal, technical, 512x512 — subject: ${a.subject}`;
 
   return (
-    <div className="space-y-5">
+    // pb-24：底部对比条是 fixed，只有选中过图标才出现。没有这层留白，
+    // 最后一排卡片会被压住 —— 表现为「点最下面一排的图标点不准 / 浮出层钻到条下面」。
+    <div className={`space-y-5 ${picked.length > 0 ? 'pb-24' : ''}`}>
       {/* ── 工具条 ─────────────────────────────────────────── */}
       <div className="flex flex-wrap items-center gap-2">
         <div className="relative min-w-[240px] flex-1">
@@ -248,9 +250,13 @@ export default function IconGallery() {
                       </span>
                     </button>
 
-                    {/* 悬停浮出的两行信息与两个动作 */}
+                    {/* 悬停浮出的两行信息与两个动作。
+                        z-30 是必须的：这张卡是 absolute 定位但默认 z-index:auto，
+                        grid 里排在后面的兄弟卡片会按文档顺序画在它上面，把浮出层盖掉
+                        （表现就是「选中后卡片下方的信息被下面一排图标压住」）。
+                        取 30 而不是 20：底部对比条是 fixed z-20，最后一排的浮出层要压过它。 */}
                     <div
-                      className="pointer-events-none absolute inset-x-0 bottom-0 translate-y-full rounded-b-lg border border-t-0 border-line bg-surfaceHi px-3 py-2 opacity-0 transition-opacity group-hover:pointer-events-auto group-hover:opacity-100"
+                      className="pointer-events-none absolute inset-x-0 bottom-0 z-30 translate-y-full rounded-b-lg border border-t-0 border-line bg-surfaceHi px-3 py-2 opacity-0 transition-opacity group-hover:pointer-events-auto group-hover:opacity-100"
                       style={{ borderColor: '#243029' }}
                     >
                       <div className="truncate text-2xs text-fgMuted">{a.en}</div>

@@ -81,6 +81,90 @@ BITMAPS = {
     'rollback': 'delivery/rollback.png',
     'replica': 'topology/replica.png',
     'sharding': 'topology/sharding.png',
+
+    # ── 第 2 批 · 10-03 补齐剩余 63 张（位图至此 81/81 全量）────
+    # 流程：生图 1024（prompt 以 key 开头）→ icons-rasterize.mjs --size 512 → 登记这里
+    #      → build-content.py → sync-content.mjs。空串从此清零，别再新增。
+    # ── actor 8 ────────────────────────────────────────────
+    'operator': 'actor/operator.png',
+    'auditor': 'actor/auditor.png',
+    'mobile': 'actor/mobile.png',
+    'bigscreen': 'actor/bigscreen.png',
+    'thirdparty': 'actor/thirdparty.png',
+    'legacy': 'actor/legacy.png',
+    'ai': 'actor/ai.png',
+    'devops': 'actor/devops.png',
+
+    # ── compute 9 ──────────────────────────────────────────
+    'vm': 'compute/vm.png',
+    'baremetal': 'compute/baremetal.png',
+    'serverless': 'compute/serverless.png',
+    'edge': 'compute/edge.png',
+    'gpu': 'compute/gpu.png',
+    'batch': 'compute/batch.png',
+    'rack': 'compute/rack.png',
+    'zone': 'compute/zone.png',
+    'autoscale': 'compute/autoscale.png',
+
+    # ── network 9 ──────────────────────────────────────────
+    'dns': 'network/dns.png',
+    'reverseproxy': 'network/reverseproxy.png',
+    'firewall': 'network/firewall.png',
+    'vpc': 'network/vpc.png',
+    'subnet': 'network/subnet.png',
+    'secgroup': 'network/secgroup.png',
+    'privateline': 'network/privateline.png',
+    'anycast': 'network/anycast.png',
+    'apmproxy': 'network/apmproxy.png',
+
+    # ── storage 7 ──────────────────────────────────────────
+    'timeseries': 'storage/timeseries.png',
+    'graphdb': 'storage/graphdb.png',
+    'columnar': 'storage/columnar.png',
+    'fileshare': 'storage/fileshare.png',
+    'datalake': 'storage/datalake.png',
+    'archive': 'storage/archive.png',
+    'catalog': 'storage/catalog.png',
+
+    # ── middleware 4 ───────────────────────────────────────
+    'servicemesh': 'middleware/servicemesh.png',
+    'configsync': 'middleware/configsync.png',
+    'streampipeline': 'middleware/streampipeline.png',
+    'idgen': 'middleware/idgen.png',
+
+    # ── observe 7 ──────────────────────────────────────────
+    'logcollector': 'observe/logcollector.png',
+    'traceui': 'observe/traceui.png',
+    'audit': 'observe/audit.png',
+    'backup': 'observe/backup.png',
+    'healthcheck': 'observe/healthcheck.png',
+    'slo': 'observe/slo.png',
+    'profiling': 'observe/profiling.png',
+
+    # ── security 7 ─────────────────────────────────────────
+    'secret': 'security/secret.png',
+    'cert': 'security/cert.png',
+    'iam': 'security/iam.png',
+    'bastion': 'security/bastion.png',
+    'siem': 'security/siem.png',
+    'auditlog': 'security/auditlog.png',
+    'oauth': 'security/oauth.png',
+
+    # ── delivery 6 ─────────────────────────────────────────
+    'imagerepo': 'delivery/imagerepo.png',
+    'artifactrepo': 'delivery/artifactrepo.png',
+    'iac': 'delivery/iac.png',
+    'configmgmt': 'delivery/configmgmt.png',
+    'canary': 'delivery/canary.png',
+    'bluegreen': 'delivery/bluegreen.png',
+
+    # ── topology 6 ─────────────────────────────────────────
+    'single': 'topology/single.png',
+    'master-slave': 'topology/master-slave.png',
+    'readonly-replica': 'topology/readonly-replica.png',
+    'multiaz': 'topology/multiaz.png',
+    'active-active': 'topology/active-active.png',
+    'cold-standby': 'topology/cold-standby.png',
 }
 
 

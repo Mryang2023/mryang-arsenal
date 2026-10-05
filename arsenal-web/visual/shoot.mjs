@@ -46,7 +46,10 @@ const EXPECTED = {
   // 装配台拆页（2026-09-29 P0）：/stack 由单页拆成四页，stack 子树整棵计入固定页
   // （10 → 13），矩阵随之 17 URL → 20 URL、51 张 → 60 张。
   // 项目章程页（2026-10-03 夜跑）：/charter 上线，固定页 13 → 14，矩阵 21 → 22 URL、63 → 66 张。
-  fixedPages: 14,
+  // 装配台步骤路由（2026-10-05）：/stack/step/<id> 十条上线（侧边栏拆细菜单的直达路由，
+  // 仍是静态路由不是动态实例，discoverUrls 对 stack 子树整棵放行），固定页 14 → 24，
+  // 矩阵 22 → 32 URL、66 → 96 张。
+  fixedPages: 24,
   rulePicks: 3,
   // 2026-09-29 修正：上面这句「只剩 1 个」早就过期了 —— 蓝图主题已回到 6 个
   // （connection-pool / local-cache / retry-timeout / untrusted-data / web-layer +
@@ -59,8 +62,8 @@ const EXPECTED = {
   // 那时池子非空后这里的 slicePicks 必须改成 2（首/末），脚本会当场报警。
   casePicks: 3,
   slicePicks: 0,
-  urls: 22,
-  shots: 66,
+  urls: 32,
+  shots: 96,
   minBytes: 8 * 1024,
 };
 

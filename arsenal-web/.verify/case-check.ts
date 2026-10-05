@@ -385,8 +385,17 @@ console.log('\n【11】页面契约：三层路由（L1/L2）、NAV 入口，以
   // 下面两条与 project-check【13】① ② 同源 —— 这是方案断言 10 第 3 条所说的
   // 「【13】契约通过」。在这里再跑一遍是有意的：verify:cases 单独跑时也应该能抓到
   // 「NAV 有项但页面没建」这类错，而不是必须等整条链跑到 project-check 才知道。
+  // 2026-10-05 拆细菜单：「装配台」的页→步两级菜单数据（STACK_NAV）与十条步骤
+  // 路由住在 wizard.ts、Shell 只消费 —— 地址同样要从两处收集，只扫 Shell 会把
+  // /stack 误判成孤儿（实测：verify:cases 单独跑时当场抓到）。
+  const wizardNav = fs.readFileSync(path.join(webRoot, 'src', 'app', 'stack', 'wizard.ts'), 'utf8');
   const appDir = path.join(webRoot, 'src', 'app');
-  const navHrefs = [...shell.matchAll(/\{\s*href:\s*'([^']+)'/g)].map((m) => m[1]);
+  const navHrefs = [
+    ...new Set([
+      ...[...shell.matchAll(/\{\s*href:\s*'([^']+)'/g)].map((m) => m[1]),
+      ...[...wizardNav.matchAll(/\broute:\s*'([^']+)'/g)].map((m) => m[1]),
+    ]),
+  ];
   const dangling = navHrefs.filter(
     (h) => h !== '/' && !fs.existsSync(path.join(appDir, h.replace(/^\//, ''), 'page.tsx'))
   );
@@ -397,7 +406,10 @@ console.log('\n【11】页面契约：三层路由（L1/L2）、NAV 入口，以
     .readdirSync(appDir, { withFileTypes: true })
     .filter((d) => d.isDirectory() && !d.name.startsWith('_') && !d.name.includes('['))
     .map((d) => `/${d.name}`)
-    .filter((h) => !navHrefs.includes(h));
+    // /charter 是 /standards 重定向后的迁移页（2026-10-05）：有意不进导航。
+    // 与 project-check【13】② 的 ORPHAN_OK 同一份口径 —— 两层判据不许各留一份白名单，
+    // 否则「加一个迁移页」这种动作在两层里的结论会不一样。
+    .filter((h) => !navHrefs.includes(h) && h !== '/charter');
   check('【13】② 口径：没有孤儿页面（页面存在但导航里没有入口）', orphans.length === 0,
     `孤儿：${orphans.join('、')}`);
 

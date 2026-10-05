@@ -9,7 +9,7 @@ import StackDeck from './StackDeck';
 import JourneyBar from './JourneyBar';
 import StepRail from './StepRail';
 import useStackChannel from './useStackChannel';
-import { PAGE_OF_STEP, stepOfDim } from './wizard';
+import { PAGE_OF_STEP, STEP_ROUTES, stepOfDim, type StepId } from './wizard';
 
 /**
  * ② 环境与模块 —— `/stack/env`。
@@ -18,9 +18,9 @@ import { PAGE_OF_STEP, stepOfDim } from './wizard';
  * 「我连什么、带什么」。这一步之前代码架构已经在选型台定完，
  * 这里只回答它跑在哪个环境上、带哪些现成模块。
  */
-export default function StackEnv() {
+export default function StackEnv({ pinnedStep }: { pinnedStep?: StepId }) {
   const router = useRouter();
-  const ch = useStackChannel('env');
+  const ch = useStackChannel('env', pinnedStep);
   const {
     picks, activeDim, audit, dotFlags, issueDots, step, stepSummary, stepIssues, nameOk,
     feBase, setFeBase, feUi, setFeUi, scaffoldForms, setScaffoldEnv, setScaffoldSecrets, allEnvValues,
@@ -34,7 +34,8 @@ export default function StackEnv() {
     ch.setStep(target);
     ch.setActiveDim(dimId);
     const home = PAGE_OF_STEP[target];
-    if (home !== '/stack/env') router.push(home);
+    // 跨页直达步骤路由（钉死那一步）；同页不 push —— 重挂载会丢瞬时态
+    if (home !== '/stack/env') router.push(STEP_ROUTES[target]);
   }
 
   /** 本页三步的渲染内容 */
@@ -101,6 +102,7 @@ export default function StackEnv() {
       case 'modules':
         return (
           <ModulesStep
+            pickedIds={moduleIds}
             selectedIds={moduleResolution.selected.map((m) => m.id)}
             warnings={moduleResolution.warnings}
             onToggle={(id) => {

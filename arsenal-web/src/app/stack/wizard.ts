@@ -39,6 +39,13 @@ export type StepSection = 'software' | 'frontend-env' | 'delivery-run';
 
 export interface StepSpec {
   id: StepId;
+  /**
+   * 步骤级路由（2026-10-05 拆细菜单）：每步一条**真实静态路由** `/stack/step/<id>`。
+   * 侧边栏「装配台」的步骤子项与跨页直达都指它 —— 导航契约（verify 【13】①）
+   * 要求每个菜单地址都指向真实 page.tsx，所以这里必须是字面量路由，
+   * 不能是 `?step=` 查询串（页面已存在性检查与高亮判定都只认路径）。
+   */
+  route: string;
   glyph: string;
   /** 步骤条上的短名 */
   name: string;
@@ -52,6 +59,7 @@ export interface StepSpec {
 export const STEPS: StepSpec[] = [
   {
     id: 'project',
+    route: '/stack/step/project',
     section: 'software',
     glyph: '◈',
     name: '项目定义',
@@ -60,6 +68,7 @@ export const STEPS: StepSpec[] = [
   },
   {
     id: 'base',
+    route: '/stack/step/base',
     section: 'software',
     glyph: '◇',
     name: '技术栈基底',
@@ -68,6 +77,7 @@ export const STEPS: StepSpec[] = [
   },
   {
     id: 'theme',
+    route: '/stack/step/theme',
     section: 'software',
     glyph: '▦',
     name: '主题框架',
@@ -76,6 +86,7 @@ export const STEPS: StepSpec[] = [
   },
   {
     id: 'layers',
+    route: '/stack/step/layers',
     section: 'software',
     glyph: '⊞',
     name: '分层装配',
@@ -84,6 +95,7 @@ export const STEPS: StepSpec[] = [
   },
   {
     id: 'frontend',
+    route: '/stack/step/frontend',
     section: 'frontend-env',
     glyph: '❖',
     name: '前端技术栈',
@@ -92,6 +104,7 @@ export const STEPS: StepSpec[] = [
   },
   {
     id: 'env',
+    route: '/stack/step/env',
     section: 'frontend-env',
     glyph: '⌁',
     name: '环境与连接',
@@ -100,14 +113,16 @@ export const STEPS: StepSpec[] = [
   },
   {
     id: 'modules',
+    route: '/stack/step/modules',
     section: 'frontend-env',
     glyph: '⛁',
     name: '功能模块',
     question: '要把哪些现成功能模块搭进去？',
-    feeds: '每个模块 = 后端接口 + 前端管理页 + 建表种子 SQL（admin/admin123）。勾「角色权限 / 菜单管理」自动带上「用户管理」；与选型冲突的组合会标黄并给修复建议。',
+    feeds: '每个模块 = 后端接口 + 前端管理页 + 建表种子 SQL（admin/admin123）。依赖随勾选自动装上（清单里标「自动带上」）；与选型冲突的组合会标黄并给修复建议。',
   },
   {
     id: 'deliverRun',
+    route: '/stack/step/deliverRun',
     section: 'delivery-run',
     glyph: '⬢',
     name: '交付与运行',
@@ -116,6 +131,7 @@ export const STEPS: StepSpec[] = [
   },
   {
     id: 'topology',
+    route: '/stack/step/topology',
     section: 'delivery-run',
     glyph: '⋮',
     name: '部署形态',
@@ -124,6 +140,7 @@ export const STEPS: StepSpec[] = [
   },
   {
     id: 'delivery',
+    route: '/stack/step/delivery',
     section: 'delivery-run',
     glyph: '⇩',
     name: '交付',
@@ -133,6 +150,11 @@ export const STEPS: StepSpec[] = [
 ];
 
 export const STEP_BY_ID = new Map(STEPS.map((s) => [s.id, s]));
+
+/** 步骤 id → 它的静态路由。菜单 / 跨页直达 / 步骤页共用这一份，不许再拼第二处 */
+export const STEP_ROUTES: Record<StepId, string> = Object.fromEntries(
+  STEPS.map((s) => [s.id, s.route])
+) as Record<StepId, string>;
 
 /**
  * 步骤在 `STEPS` 里的下标（**0 起**，就是 `findIndex` 的返回值；找不到返回 -1）。
@@ -502,3 +524,38 @@ export const SECTION_ROUTE: Record<StepSection, string> = Object.fromEntries(
       STACK_PAGES[0]).route,
   ])
 ) as Record<StepSection, string>;
+
+// ─────────────────────────────────────────────────────────────
+// 侧边栏「装配台」的细分菜单（2026-10-05）
+//
+// 反馈：四项太少，要拆细。拆的颗粒度是**步骤** —— 十步本来就是装配台真实
+// 的工作单元（页内 StepRail 一直在按步导航），菜单补上的正是这一层：
+// 四页各留一条（粗粒度入口），页下再挂本页各步一条（细粒度直达）。
+//
+// 出处仍然是 STACK_PAGES + STEPS，不在这里另排一张表 —— Shell 只消费；
+// 每个步骤子项的 href 是 StepSpec.route 的**字面量**（真实静态路由，
+// 导航契约 verify 【13】①③ 把它们连 wizard.ts 一起当数据跑）。
+// ─────────────────────────────────────────────────────────────
+
+/** 十步的全局序号（①—⑩）：步骤菜单的 glyph 与步骤页标题共用 */
+export const STEP_NO = ['①', '②', '③', '④', '⑤', '⑥', '⑦', '⑧', '⑨', '⑩'] as const;
+
+export interface StackNavEntry {
+  href: string;
+  label: string;
+  glyph: string;
+  count: number;
+  children?: StackNavEntry[];
+}
+
+/** 「装配台」分组的菜单孩子：四页各一条，页下再挂本页各步（/stack/step/<id>） */
+export const STACK_NAV: StackNavEntry[] = STACK_PAGES.map((p) => ({
+  href: p.route,
+  label: p.name,
+  glyph: p.glyph,
+  count: 0,
+  children: p.steps.map((id) => {
+    const s = STEP_BY_ID.get(id)!;
+    return { href: s.route, label: s.name, glyph: STEP_NO[stepIndex(id)], count: 0 };
+  }),
+}));

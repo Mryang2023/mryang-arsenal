@@ -120,6 +120,7 @@ export default function FrontendStep({
 
 const STEP_SPEC = {
   id: 'frontend',
+  route: '/stack/step/frontend',
   glyph: '❖',
   name: '前端技术栈',
   section: 'frontend-env',

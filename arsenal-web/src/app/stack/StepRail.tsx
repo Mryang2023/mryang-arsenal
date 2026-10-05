@@ -5,6 +5,7 @@ import {
   PAGE_OF_STEP,
   STACK_PAGES,
   STEP_BY_ID,
+  STEP_ROUTES,
   STEPS,
   stepIndex,
   type StackPageId,
@@ -57,10 +58,12 @@ export default function StepRail({
   // 预渲染直接 Cannot read properties of undefined。按 id 取就不会有这个 off-by-one。
   const pageSteps = pageSpec.steps.map((id) => STEP_BY_ID.get(id)).filter((s): s is (typeof STEPS)[number] => !!s);
 
-  /** 切步骤：落在别的页就同时换页（十步是一条路，不因拆页而断） */
+  /** 切步骤：落在别的页就同时换页（十步是一条路，不因拆页而断）。
+   *  跨页落到**步骤路由**（/stack/step/<id>）—— 新页把这一步钉死，侧边栏
+   *  细分子项也点亮那一步；本页的步只就地 setStep，不做任何导航。 */
   function go(id: StepId) {
     const home = PAGE_OF_STEP[id];
-    if (home !== pageSpec.route) router.push(home);
+    if (home !== pageSpec.route) router.push(STEP_ROUTES[id]);
     onStep(id);
   }
 

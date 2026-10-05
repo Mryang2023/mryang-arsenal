@@ -15,7 +15,7 @@ import ProductOutline from './ProductOutline';
 import JourneyBar from './JourneyBar';
 import StepRail from './StepRail';
 import useStackChannel from './useStackChannel';
-import { PAGE_OF_STEP, stepOfDim } from './wizard';
+import { PAGE_OF_STEP, STEP_ROUTES, stepOfDim, type StepId } from './wizard';
 import { TONE, INK, toneAt } from './palette';
 
 /**
@@ -46,9 +46,9 @@ interface TabSpec {
   count?: number;
 }
 
-export default function StackDelivery() {
+export default function StackDelivery({ pinnedStep }: { pinnedStep?: StepId }) {
   const router = useRouter();
-  const ch = useStackChannel('delivery');
+  const ch = useStackChannel('delivery', pinnedStep);
   const {
     picks, meta, baseId, audit, composed, scale, plan, projectName,
     artifacts, demoMode, moduleResolution, scaffoldForms, allEnvValues, feLabel,
@@ -98,7 +98,8 @@ export default function StackDelivery() {
     ch.setStep(target);
     ch.setActiveDim(dimId);
     const home = PAGE_OF_STEP[target];
-    if (home !== '/stack/delivery') router.push(home);
+    // 跨页直达步骤路由（钉死那一步）；同页不 push —— 重挂载会丢瞬时态
+    if (home !== '/stack/delivery') router.push(STEP_ROUTES[target]);
   }
 
   /**

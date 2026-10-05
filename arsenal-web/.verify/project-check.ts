@@ -1098,9 +1098,20 @@ console.log('\n【13】导航与页签契约');
       .replace(/\/\*[\s\S]*?\*\//g, '')
       .replace(/^[ \t]*\/\/.*$/gm, '');
 
-  // ① 导航 ↔ 路由：NAV 里指过去的每个地址都得真有一个页面
+  // ① 导航 ↔ 路由：NAV 里指过去的每个地址都得真有一个页面。
+  // 2026-10-05 拆细菜单后，「装配台」的页→步两级菜单数据（STACK_NAV）与
+  // 十条步骤路由（StepSpec.route）都住在 wizard.ts，Shell 只消费 ——
+  // 地址要从两处收集，只扫 Shell 会把十条步骤路由漏在契约外面。
   const shell = code('components/Shell.tsx');
-  const navHrefs = [...shell.matchAll(/\{\s*href:\s*'([^']+)'/g)].map((m) => m[1]);
+  const wizardSrc = code('app/stack/wizard.ts');
+  // wizard 的 STACK_PAGES 页路由与 Shell 的 href 重复 → 必须去重，
+  // 否则 ③ 的高亮表会把同一条路由点亮两次（hits.length !== 1 假红）。
+  const navHrefs = [
+    ...new Set([
+      ...[...shell.matchAll(/\{\s*href:\s*'([^']+)'/g)].map((m) => m[1]),
+      ...[...wizardSrc.matchAll(/\broute:\s*'([^']+)'/g)].map((m) => m[1]),
+    ]),
+  ];
   const pageExists = (href: string) =>
     href === '/'
       ? fs.existsSync(path.resolve(here, '../src/app/page.tsx'))
@@ -1109,7 +1120,15 @@ console.log('\n【13】导航与页签契约');
   check(`导航：${navHrefs.length} 个入口都指向真实页面`, dangling.length === 0, `指向空地址: ${dangling.join('、')}`);
 
   // ② 反向：页面目录不许成为孤儿（动态段与「有意不进导航」的除外）
-  const ORPHAN_OK = new Set<string>([]);
+  //
+  // ORPHAN_OK = **有意**不进导航的页面，逐条写出来并写明理由。
+  // 白名单存在的意义：删掉这条豁免时会红（说明那个页面真需要入口了），
+  // 而新增一个「反正没人从导航点它」的页面时不会红（那才是要防的事）。
+  const ORPHAN_OK = new Set<string>([
+    // /charter → /standards 重定向后的迁移页（2026-10-05）。它只给旧书签跳转用，
+    // 侧栏留两个入口等于两个心智模型。有 meta refresh，不靠人点。
+    '/charter',
+  ]);
   const appDir = path.resolve(here, '../src/app');
   const orphans = fs
     .readdirSync(appDir, { withFileTypes: true })
@@ -1149,6 +1168,27 @@ console.log('\n【13】导航与页签契约');
     `导航高亮：${navRoutes.length} 个路由各恰好点亮 1 项`,
     wrongHit.length === 0,
     wrongHit.map((w) => `${w.route} → ${w.hits.length} 项（${w.hits.join('、') || '无'}）`).join('；')
+  );
+
+  // ③′ 步骤路由 ↔ 页容器（2026-10-05 拆细菜单）：十条 /stack/step/<id> 页面
+  // 各自把「路由对应的步」钉进容器 —— 复制粘贴错一个 id，菜单点进去就是
+  // 别人的步骤，而且不报任何错。判据：page.tsx 里 stepPageMeta 与 <StepPage id=
+  // 用的是同一个 id，且目录名就是那个 id（路径即路由）。
+  const STEP_ROUTE_IDS = [
+    'project', 'base', 'theme', 'layers',
+    'frontend', 'env', 'modules',
+    'deliverRun', 'topology', 'delivery',
+  ];
+  const stepPageBad = STEP_ROUTE_IDS.filter((id) => {
+    const p = path.resolve(here, '../src/app/stack/step', id, 'page.tsx');
+    if (!fs.existsSync(p)) return true;
+    const s = fs.readFileSync(p, 'utf8');
+    return !s.includes(`stepPageMeta('${id}')`) || !s.includes(`id="${id}"`);
+  });
+  check(
+    `步骤路由：${STEP_ROUTE_IDS.length} 个 /stack/step/<id> 页面各自钉住自己的步`,
+    stepPageBad.length === 0,
+    `钉错步或缺文件: ${stepPageBad.join('、')}`
   );
 
   // ④ 装配台页签三处必须同时成立：TabId 类型、页签条数组、渲染分支
@@ -2243,7 +2283,9 @@ console.log('\n【18】装配台 P1 第二组（S1-4 / S1-5 / S2-7）');
     wrongSeg.length === 0,
     wrongSeg.map((p) => `${p.file} 的步骤归属不对`).join('；')
   );
-  const selfDecl = PAGE_OWNERS.filter((p) => !pageSrc[p.page].includes(`useStackChannel('${p.page}')`));
+  // 2026-10-05 步骤路由：容器多了第二个参数 pinnedStep（步骤页把那一步钉死），
+  // 声明判据改按**前缀**匹配 —— `useStackChannel('env'` 就算声明过页面 id。
+  const selfDecl = PAGE_OWNERS.filter((p) => !pageSrc[p.page].includes(`useStackChannel('${p.page}'`));
   check(
     'P0 拆页：每个容器都声明自己的页面 id（useStackChannel(\'<page>\')）',
     selfDecl.length === 0,
@@ -2730,7 +2772,7 @@ console.log('\n【21】README 正文里的项数口径');
   // ── 两位数口径（2026-09-27 补）────────────────────────────────────────
   // 09-26 有 4 处张数漂移（45→42→…）就是趁「两位数没人守」溜过去的。这里收窄守卫：
   // 只守**当前规模**的断言（「N 张截图矩阵 / N 张矩阵 / 跑 N 张」「N 路由」），
-  // 数据源是 visual/shoot.mjs 的 EXPECTED 声明值（63 张 = 21 路由 × 3 视口，
+  // 数据源是 visual/shoot.mjs 的 EXPECTED 声明值（96 张 = 32 路由 × 3 视口，
   // visual 层拿它对账、shoot.mjs 截图数对不上它自己会红）——README 跟它对齐即闭环。
   // 刻意不守（真值不在机器源里，硬守只会教会人写假数字）：
   //   · 历史叙事：「由 45 张同步为 42 张」是过去式，不是当前规模的断言；

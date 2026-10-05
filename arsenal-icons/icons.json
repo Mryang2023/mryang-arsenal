@@ -61,7 +61,7 @@
     }
   ],
   "count": 81,
-  "bitmapCount": 18,
+  "bitmapCount": 81,
   "icons": [
     {
       "key": "user",
@@ -102,7 +102,7 @@
         "值班"
       ],
       "vector": "operator",
-      "bitmap": "",
+      "bitmap": "actor/operator.png",
       "subject": "a person bust beside a small gear"
     },
     {
@@ -116,7 +116,7 @@
         "合规"
       ],
       "vector": "auditor",
-      "bitmap": "",
+      "bitmap": "actor/auditor.png",
       "subject": "a clipboard with a check mark"
     },
     {
@@ -130,7 +130,7 @@
         "APP"
       ],
       "vector": "mobile",
-      "bitmap": "",
+      "bitmap": "actor/mobile.png",
       "subject": "a smartphone in portrait"
     },
     {
@@ -144,7 +144,7 @@
         "看板"
       ],
       "vector": "bigscreen",
-      "bitmap": "",
+      "bitmap": "actor/bigscreen.png",
       "subject": "a large wall-mounted screen with a chart"
     },
     {
@@ -158,7 +158,7 @@
         "接口"
       ],
       "vector": "thirdparty",
-      "bitmap": "",
+      "bitmap": "actor/thirdparty.png",
       "subject": "a server box with an outgoing arrow"
     },
     {
@@ -172,7 +172,7 @@
         "老系统"
       ],
       "vector": "legacy",
-      "bitmap": "",
+      "bitmap": "actor/legacy.png",
       "subject": "an old tower computer case"
     },
     {
@@ -186,7 +186,7 @@
         "模型"
       ],
       "vector": "ai",
-      "bitmap": "",
+      "bitmap": "actor/ai.png",
       "subject": "a microchip with radiating pins"
     },
     {
@@ -200,7 +200,7 @@
         "协作"
       ],
       "vector": "devops",
-      "bitmap": "",
+      "bitmap": "actor/devops.png",
       "subject": "a ring with two opposite arrows"
     },
     {
@@ -214,7 +214,7 @@
         "宿主"
       ],
       "vector": "vm",
-      "bitmap": "",
+      "bitmap": "compute/vm.png",
       "subject": "two stacked server trays"
     },
     {
@@ -228,7 +228,7 @@
         "宿主机"
       ],
       "vector": "baremetal",
-      "bitmap": "",
+      "bitmap": "compute/baremetal.png",
       "subject": "a tall tower server with slots"
     },
     {
@@ -256,7 +256,7 @@
         "FaaS"
       ],
       "vector": "serverless",
-      "bitmap": "",
+      "bitmap": "compute/serverless.png",
       "subject": "a lambda symbol over a dashed line"
     },
     {
@@ -270,7 +270,7 @@
         "就近"
       ],
       "vector": "edge",
-      "bitmap": "",
+      "bitmap": "compute/edge.png",
       "subject": "a globe with a horizontal band"
     },
     {
@@ -284,7 +284,7 @@
         "算力"
       ],
       "vector": "gpu",
-      "bitmap": "",
+      "bitmap": "compute/gpu.png",
       "subject": "a card with cooling fins"
     },
     {
@@ -298,7 +298,7 @@
         "离线"
       ],
       "vector": "batch",
-      "bitmap": "",
+      "bitmap": "compute/batch.png",
       "subject": "queued blocks moving right through a gate"
     },
     {
@@ -326,7 +326,7 @@
         "机房"
       ],
       "vector": "rack",
-      "bitmap": "",
+      "bitmap": "compute/rack.png",
       "subject": "a tall rack cabinet with shelves"
     },
     {
@@ -340,7 +340,7 @@
         "AZ"
       ],
       "vector": "zone",
-      "bitmap": "",
+      "bitmap": "compute/zone.png",
       "subject": "two dashed circles side by side"
     },
     {
@@ -354,7 +354,7 @@
         "扩容"
       ],
       "vector": "autoscale",
-      "bitmap": "",
+      "bitmap": "compute/autoscale.png",
       "subject": "a block with up and down arrows"
     },
     {
@@ -396,7 +396,7 @@
         "解析"
       ],
       "vector": "dns",
-      "bitmap": "",
+      "bitmap": "network/dns.png",
       "subject": "a name box linked to an address box"
     },
     {
@@ -410,7 +410,7 @@
         "转发"
       ],
       "vector": "reverseproxy",
-      "bitmap": "",
+      "bitmap": "network/reverseproxy.png",
       "subject": "two bars with opposite arrows between them"
     },
     {
@@ -424,7 +424,7 @@
         "边界"
       ],
       "vector": "firewall",
-      "bitmap": "",
+      "bitmap": "network/firewall.png",
       "subject": "a brick wall with staggered joints"
     },
     {
@@ -438,7 +438,7 @@
         "隔离"
       ],
       "vector": "vpc",
-      "bitmap": "",
+      "bitmap": "network/vpc.png",
       "subject": "a big rounded box with two small boxes inside"
     },
     {
@@ -452,7 +452,7 @@
         "网段"
       ],
       "vector": "subnet",
-      "bitmap": "",
+      "bitmap": "network/subnet.png",
       "subject": "a dashed box with three connected dots"
     },
     {
@@ -466,7 +466,7 @@
         "策略"
       ],
       "vector": "secgroup",
-      "bitmap": "",
+      "bitmap": "network/secgroup.png",
       "subject": "a shield containing three small dots"
     },
     {
@@ -480,7 +480,7 @@
         "直连"
       ],
       "vector": "privateline",
-      "bitmap": "",
+      "bitmap": "network/privateline.png",
       "subject": "two endpoints joined by a thick straight line"
     },
     {
@@ -494,7 +494,7 @@
         "就近"
       ],
       "vector": "anycast",
-      "bitmap": "",
+      "bitmap": "network/anycast.png",
       "subject": "one source dot splitting to three targets"
     },
     {
@@ -508,7 +508,7 @@
         "旁路"
       ],
       "vector": "apmproxy",
-      "bitmap": "",
+      "bitmap": "network/apmproxy.png",
       "subject": "a center dot with two concentric signal arcs"
     },
     {
@@ -522,7 +522,7 @@
         "监控"
       ],
       "vector": "timeseries",
-      "bitmap": "",
+      "bitmap": "storage/timeseries.png",
       "subject": "a rising zigzag line over a baseline"
     },
     {
@@ -536,7 +536,7 @@
         "关系"
       ],
       "vector": "graphdb",
-      "bitmap": "",
+      "bitmap": "storage/graphdb.png",
       "subject": "three dots joined by three edges"
     },
     {
@@ -550,7 +550,7 @@
         "分析"
       ],
       "vector": "columnar",
-      "bitmap": "",
+      "bitmap": "storage/columnar.png",
       "subject": "three vertical bars of decreasing opacity"
     },
     {
@@ -578,7 +578,7 @@
         "共享"
       ],
       "vector": "fileshare",
-      "bitmap": "",
+      "bitmap": "storage/fileshare.png",
       "subject": "two adjacent folders"
     },
     {
@@ -606,7 +606,7 @@
         "原始"
       ],
       "vector": "datalake",
-      "bitmap": "",
+      "bitmap": "storage/datalake.png",
       "subject": "a droplet above two wave lines"
     },
     {
@@ -620,7 +620,7 @@
         "冷存"
       ],
       "vector": "archive",
-      "bitmap": "",
+      "bitmap": "storage/archive.png",
       "subject": "a storage crate with a lid line"
     },
     {
@@ -634,7 +634,7 @@
         "目录"
       ],
       "vector": "catalog",
-      "bitmap": "",
+      "bitmap": "storage/catalog.png",
       "subject": "an open book with two pages"
     },
     {
@@ -676,7 +676,7 @@
         "Sidecar"
       ],
       "vector": "servicemesh",
-      "bitmap": "",
+      "bitmap": "middleware/servicemesh.png",
       "subject": "two offset squares joined by crossing lines"
     },
     {
@@ -690,7 +690,7 @@
         "同步"
       ],
       "vector": "configsync",
-      "bitmap": "",
+      "bitmap": "middleware/configsync.png",
       "subject": "a circular arrow pair around a center"
     },
     {
@@ -704,7 +704,7 @@
         "管道"
       ],
       "vector": "streampipeline",
-      "bitmap": "",
+      "bitmap": "middleware/streampipeline.png",
       "subject": "a funnel with a stream below"
     },
     {
@@ -718,7 +718,7 @@
         "发号"
       ],
       "vector": "idgen",
-      "bitmap": "",
+      "bitmap": "middleware/idgen.png",
       "subject": "a snowflake shape"
     },
     {
@@ -732,7 +732,7 @@
         "采集"
       ],
       "vector": "logcollector",
-      "bitmap": "",
+      "bitmap": "observe/logcollector.png",
       "subject": "text lines funneling into a spout"
     },
     {
@@ -746,7 +746,7 @@
         "Trace"
       ],
       "vector": "traceui",
-      "bitmap": "",
+      "bitmap": "observe/traceui.png",
       "subject": "three staggered horizontal bars"
     },
     {
@@ -788,7 +788,7 @@
         "核查"
       ],
       "vector": "audit",
-      "bitmap": "",
+      "bitmap": "observe/audit.png",
       "subject": "a magnifier over a check mark"
     },
     {
@@ -802,7 +802,7 @@
         "恢复"
       ],
       "vector": "backup",
-      "bitmap": "",
+      "bitmap": "observe/backup.png",
       "subject": "a dashed ring with an up arrow"
     },
     {
@@ -816,7 +816,7 @@
         "心跳"
       ],
       "vector": "healthcheck",
-      "bitmap": "",
+      "bitmap": "observe/healthcheck.png",
       "subject": "an electrocardiogram line"
     },
     {
@@ -830,7 +830,7 @@
         "指标"
       ],
       "vector": "slo",
-      "bitmap": "",
+      "bitmap": "observe/slo.png",
       "subject": "a target with concentric rings"
     },
     {
@@ -844,7 +844,7 @@
         "火焰图"
       ],
       "vector": "profiling",
-      "bitmap": "",
+      "bitmap": "observe/profiling.png",
       "subject": "a flame graph of stacked bars"
     },
     {
@@ -858,7 +858,7 @@
         "凭据"
       ],
       "vector": "secret",
-      "bitmap": "",
+      "bitmap": "security/secret.png",
       "subject": "a key with a round bow"
     },
     {
@@ -886,7 +886,7 @@
         "TLS"
       ],
       "vector": "cert",
-      "bitmap": "",
+      "bitmap": "security/cert.png",
       "subject": "a document with a seal circle"
     },
     {
@@ -900,7 +900,7 @@
         "身份"
       ],
       "vector": "iam",
-      "bitmap": "",
+      "bitmap": "security/iam.png",
       "subject": "an ID card with a person silhouette"
     },
     {
@@ -928,7 +928,7 @@
         "跳板"
       ],
       "vector": "bastion",
-      "bitmap": "",
+      "bitmap": "security/bastion.png",
       "subject": "a monitor showing a terminal prompt"
     },
     {
@@ -942,7 +942,7 @@
         "分析"
       ],
       "vector": "siem",
-      "bitmap": "",
+      "bitmap": "security/siem.png",
       "subject": "a radar sweep over rings"
     },
     {
@@ -956,7 +956,7 @@
         "留痕"
       ],
       "vector": "auditlog",
-      "bitmap": "",
+      "bitmap": "security/auditlog.png",
       "subject": "a list with a small clock"
     },
     {
@@ -970,7 +970,7 @@
         "OAuth"
       ],
       "vector": "oauth",
-      "bitmap": "",
+      "bitmap": "security/oauth.png",
       "subject": "two interlocking rings"
     },
     {
@@ -998,7 +998,7 @@
         "仓库"
       ],
       "vector": "imagerepo",
-      "bitmap": "",
+      "bitmap": "delivery/imagerepo.png",
       "subject": "three stacked container layers"
     },
     {
@@ -1012,7 +1012,7 @@
         "仓库"
       ],
       "vector": "artifactrepo",
-      "bitmap": "",
+      "bitmap": "delivery/artifactrepo.png",
       "subject": "a crate with a label tab"
     },
     {
@@ -1026,7 +1026,7 @@
         "编排"
       ],
       "vector": "iac",
-      "bitmap": "",
+      "bitmap": "delivery/iac.png",
       "subject": "braces around cloud lines"
     },
     {
@@ -1040,7 +1040,7 @@
         "管理"
       ],
       "vector": "configmgmt",
-      "bitmap": "",
+      "bitmap": "delivery/configmgmt.png",
       "subject": "two sliders on parallel tracks"
     },
     {
@@ -1054,7 +1054,7 @@
         "发布"
       ],
       "vector": "canary",
-      "bitmap": "",
+      "bitmap": "delivery/canary.png",
       "subject": "a main road with a small branch"
     },
     {
@@ -1068,7 +1068,7 @@
         "切换"
       ],
       "vector": "bluegreen",
-      "bitmap": "",
+      "bitmap": "delivery/bluegreen.png",
       "subject": "a circle half filled"
     },
     {
@@ -1096,7 +1096,7 @@
         "单实例"
       ],
       "vector": "single",
-      "bitmap": "",
+      "bitmap": "topology/single.png",
       "subject": "one square with a center dot"
     },
     {
@@ -1124,7 +1124,7 @@
         "主备"
       ],
       "vector": "master-slave",
-      "bitmap": "",
+      "bitmap": "topology/master-slave.png",
       "subject": "a big block linked to a small block"
     },
     {
@@ -1152,7 +1152,7 @@
         "从库"
       ],
       "vector": "readonly-replica",
-      "bitmap": "",
+      "bitmap": "topology/readonly-replica.png",
       "subject": "a filled node fanning to two hollow nodes"
     },
     {
@@ -1166,7 +1166,7 @@
         "容灾"
       ],
       "vector": "multiaz",
-      "bitmap": "",
+      "bitmap": "topology/multiaz.png",
       "subject": "two boxes linked diagonally"
     },
     {
@@ -1180,7 +1180,7 @@
         "互备"
       ],
       "vector": "active-active",
-      "bitmap": "",
+      "bitmap": "topology/active-active.png",
       "subject": "two rings with arrows both ways"
     },
     {
@@ -1194,7 +1194,7 @@
         "待机"
       ],
       "vector": "cold-standby",
-      "bitmap": "",
+      "bitmap": "topology/cold-standby.png",
       "subject": "a solid block beside a dashed block"
     }
   ]

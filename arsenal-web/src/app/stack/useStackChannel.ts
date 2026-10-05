@@ -22,6 +22,7 @@ import type { StackPicks } from '@/lib/content-types';
 import { useStackHistory, type StackSnapshot } from './history';
 import { DRAFTS_LIMIT, draftsKey, loadDrafts, saveDrafts, type StackDraft } from './drafts';
 import { clearScaffoldDraft, loadScaffoldDraft, saveScaffoldDraft } from '@/lib/picks-store';
+import { publishStep } from './step-bus';
 import { buildExportArtifacts } from '@/lib/scaffold/artifacts';
 import type { EnvValues, TemplateVars } from '@/lib/scaffold/contracts';
 import { dbImageOf, defaultTemplateOf, defaultValues, formsFor, frontendTemplatesOf, validateEnv } from '@/lib/scaffold/env-form';
@@ -82,7 +83,7 @@ let pendingDeckFocus: 'arch' | null = null;
  */
 let pendingActiveDim: string | null = null;
 
-export default function useStackChannel(page: StackPageId = 'software') {
+export default function useStackChannel(page: StackPageId = 'software', pinnedStep?: StepId) {
   const router = useRouter();
   const [picks, setPicks] = useState<StackPicks>(() => presetPicks('standard'));
   /**
@@ -146,7 +147,19 @@ export default function useStackChannel(page: StackPageId = 'software') {
     null
   );
   // ── ① 的项目定义 ──
-  const [step, setStep] = useState<StepId>(DEFAULT_PROJECT.step);
+  // pinnedStep（2026-10-05 步骤路由）：从侧边栏细分菜单直达某一步时，路由已经说清
+  // 「要看哪一步」，该步由路由钉死 —— 不恢复 localStorage 里「上次停在哪」。
+  // 只在挂载时生效一次（pinnedStep 不进任何依赖数组），页内继续换步的语义不变。
+  const [step, setStepState] = useState<StepId>(pinnedStep ?? DEFAULT_PROJECT.step);
+  /**
+   * 换步的唯一入口：就地 setState（页内换步不做导航 —— 重挂载丢瞬时态），
+   * 同时向 step-bus 广播。侧边栏菜单树按 pathname 点亮，pathname 在页内
+   * 换步时不动，不广播它就停在上一步（2026-10-05 反馈）。
+   */
+  function setStep(id: StepId) {
+    setStepState(id);
+    publishStep(id);
+  }
   const [projectName, setProjectName] = useState<string>(DEFAULT_PROJECT.name);
   // ── ④ 流水线选择：默认「全部流水线」七泳道一屏纵览（09-28 四反馈：全部都展示，
   //    不先选流再看）；要聚焦某条流时随时切回单流视图 ──
@@ -354,7 +367,8 @@ export default function useStackChannel(page: StackPageId = 'software') {
   useEffect(() => {
     const pm = loadProjectMeta();
     setProjectName(pm.name);
-    setStep(pm.step);
+    // 步骤路由的钉死步优先于「上次停在哪」—— URL 就是用户的明确意图
+    if (!pinnedStep) setStep(pm.step);
     // S3-3：分享链接**优先于 localStorage** —— 带 #s= 的 URL 以链接里的组合为准。
     // hash 是一次性引子：恢复后立刻从地址栏抹掉，之后用户改选型、刷新，回到的
     // 是新的当前态（写入 effect 会把它落进 localStorage），而不是过期的分享态。
@@ -839,6 +853,11 @@ export default function useStackChannel(page: StackPageId = 'software') {
     pendingDeckFocus = null;
     pendingActiveDim = null;
   }, []);
+
+  // 装配台页面卸载 = 离开装配台（或换页前的旧实例）：步骤广播清零 ——
+  // 不然跳去 /rules 之类的页面，侧栏还亮着装配台的步骤。
+  // 换页场景新实例挂载后水合 effect 会立刻重新发布，高亮不断档。
+  useEffect(() => () => publishStep(null), []);
 
   return {
     // 三通道 + 项目通道

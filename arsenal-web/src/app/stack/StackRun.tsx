@@ -11,7 +11,7 @@ import JourneyBar from './JourneyBar';
 import StepRail from './StepRail';
 import TopologyPreview from './TopologyPreview';
 import useStackChannel from './useStackChannel';
-import { PAGE_OF_STEP, stepOfDim } from './wizard';
+import { PAGE_OF_STEP, STEP_ROUTES, stepOfDim, type StepId } from './wizard';
 
 /**
  * ③ 运行与部署 —— `/stack/run`。
@@ -21,9 +21,9 @@ import { PAGE_OF_STEP, stepOfDim } from './wizard';
  * 运行环境 / 入口 / 编排 / 制品库 / CI/CD / 监控 / 密钥 / 日志，
  * 再逐个给已装上的零件定副本数。
  */
-export default function StackRun() {
+export default function StackRun({ pinnedStep }: { pinnedStep?: StepId }) {
   const router = useRouter();
-  const ch = useStackChannel('run');
+  const ch = useStackChannel('run', pinnedStep);
   const { picks, meta, dimFlags, step, stepSummary, stepIssues, nameOk, pickTopology, setParam, activeDim } = ch;
   const { pick, clear, composed, projectName } = ch;
 
@@ -56,7 +56,8 @@ export default function StackRun() {
     ch.setStep(target);
     ch.setActiveDim(dimId);
     const home = PAGE_OF_STEP[target];
-    if (home !== '/stack/run') router.push(home);
+    // 跨页直达步骤路由（钉死那一步）；同页不 push —— 重挂载会丢瞬时态
+    if (home !== '/stack/run') router.push(STEP_ROUTES[target]);
   }
 
   /** 本页两步的渲染内容 */

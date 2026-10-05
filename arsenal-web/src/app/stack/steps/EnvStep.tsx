@@ -248,6 +248,7 @@ const ENV_MODES: { id: EnvMode; glyph: string; name: string; desc: string; hint:
 
 const STEP_SPEC = {
   id: 'env',
+  route: '/stack/step/env',
   glyph: '⌁',
   name: '环境与连接',
   section: 'frontend-env',
