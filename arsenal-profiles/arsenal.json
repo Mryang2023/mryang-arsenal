@@ -481,12 +481,12 @@
       {
         "name": "视觉断言",
         "count": 12,
-        "desc": "浏览器实测页面（A1–A7 七项断言 × 66 张截图矩阵（22 路由 × 3 视口，2026-10-04 项目章程页 +3）：横向溢出 / 一级子元素越界 / 图片加载 / sticky 遮挡 / WCAG 正文对比度 / h1 唯一 / 底部假高度）+ 前置与格式核对 3 项（脚本存在、out/ 已构建、汇总行数）+ 矩阵与截图台交叉核对 + findings 素材核对"
+        "desc": "浏览器实测页面（A1–A7 七项断言 × 99 张截图矩阵（33 路由 × 3 视口：2026-10-04 项目章程页 +3、2026-10-05 装配台步骤路由十条 +30、工程规范台 /standards +3）：横向溢出 / 一级子元素越界 / 图片加载 / sticky 遮挡 / WCAG 正文对比度 / h1 唯一 / 底部假高度）+ 前置与格式核对 3 项（脚本存在、out/ 已构建、汇总行数）+ 矩阵与截图台交叉核对 + findings 素材核对"
       },
       {
         "name": "脚手架生成链路",
-        "count": 17,
-        "desc": "模板目录↔bundle 逐文件一致、生成 Java import↔pom GAV 零悬空、前端 import↔package.json 零悬空、module.json 九字段、占位符白名单（非 .vue）、三包组装冒烟（全家桶四类文件/演示档/双变体/feBase=none/环境烘焙）、导出预检闸（事故同款组合 securityjwt+configcenter+jacoco 零违规 / 接管回归：切片测试 AuthInterceptor 指向模块版 / nacos·jacoco 显式版本 / 五类毒物注入全被拦：同名 bean·悬空 import·无版本依赖·yml 异类键·重复 path）"
+        "count": 21,
+        "desc": "模板目录↔bundle 逐文件一致、生成 Java import↔pom GAV 零悬空、前端 import↔package.json 零悬空、module.json 九字段、占位符白名单（非 .vue）、三包组装冒烟（全家桶四类文件/演示档/双变体/feBase=none/环境烘焙）、导出预检闸（事故同款组合 securityjwt+configcenter+jacoco 零违规 / 接管回归：切片测试 AuthInterceptor 指向模块版 / nacos·jacoco 显式版本 / 五类毒物注入全被拦：同名 bean·悬空 import·无版本依赖·yml 异类键·重复 path / jdbc+模块仓储缺实现闸（module-persistence，上下文判据）/ gradle 演示档 H2·jakarta 注入 / postgres compose 方言替换）"
       },
       {
         "name": "项目章程",
