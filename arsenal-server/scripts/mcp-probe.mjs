@@ -467,6 +467,45 @@ try {
       check('check_clause 命中带行号', /:\d+/.test(ccText), (ccText.match(/:\d+/) ?? ['无'])[0]);
       check('check_clause 回显条款归谁管（写代码的人要知道找谁）', ccText.includes(reClause.clauseOwner), '');
 
+
+      // ── list_governance_actions（中枢接治理待办的入口）────────────────
+      const gov = await request('tools/call', {
+        name: 'list_governance_actions',
+        arguments: {},
+      });
+      const govText = gov.result?.content?.[0]?.text ?? '';
+      check('list_governance_actions 返回带判定日与生成时间（不假装实时）',
+        /判定日\s*\d{4}-\d{2}-\d{2}/.test(govText) && /生成于/.test(govText),
+        govText.split('\n')[0]?.slice(0, 70) ?? '');
+      check('list_governance_actions 报出分级计数（P0/P1/P2）',
+        /P0\s*\d+\s*\/\s*P1\s*\d+\s*\/\s*P2\s*\d+/.test(govText),
+        (govText.match(/共\s*\d+\s*件[^\n]*/) ?? ['未找到计数行'])[0]);
+      check('list_governance_actions 逐项带「该谁处理」（中枢要按人派活）',
+        govText.includes('该谁处理') || govText.includes('当前没有待办'),
+        '');
+      check('list_governance_actions 0 件时明说「没有待办」而不是留空',
+        /当前没有待办|共 \d+ 件/.test(govText), '');
+
+      // 反证：按不存在的 owner 过滤 → 必须明说没匹配，不能返回空串
+      const govNone = await request('tools/call', {
+        name: 'list_governance_actions',
+        arguments: { owner: '__不存在的责任人__' },
+      });
+      const govNoneText = govNone.result?.content?.[0]?.text ?? '';
+      check('list_governance_actions 过滤无结果时明说没匹配（空结果会被中枢当成「没事」）',
+        govNoneText.includes('没有匹配') || govNoneText.includes('共 0 件') || govNoneText.includes('当前没有待办'),
+        govNoneText.slice(-80).replace(/\n/g, ' '));
+
+      // 过期提醒：staleAfterDays=0 → 无论多新鲜都该提醒重跑
+      const govStale = await request('tools/call', {
+        name: 'list_governance_actions',
+        arguments: { staleAfterDays: 0 },
+      });
+      const govStaleText = govStale.result?.content?.[0]?.text ?? '';
+      check('list_governance_actions 产物过期会提醒重跑 sync:governance（不假装实时）',
+        govStaleText.includes('sync:governance') || govStaleText.includes('刚改过章程'),
+        govStaleText.slice(-90).replace(/\n/g, ' '));
+
       // 反证：喂 good 示例不该报命中 —— 否则「命中」只是恒真
       const ccGood = await request('tools/call', {
         name: 'check_clause',

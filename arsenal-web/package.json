@@ -4,9 +4,10 @@
   "private": true,
   "description": "杨先生的军火库 · 前端。一份规则数据，三种出口：人查 / 给 AI 用 / 拿代码验。",
   "scripts": {
-    "sync": "node scripts/sync-rules.mjs && node scripts/sync-content.mjs && node scripts/build-scaffold-templates.mjs",
+    "sync": "node scripts/sync-rules.mjs && node scripts/sync-content.mjs && node scripts/build-scaffold-templates.mjs && node node_modules/tsx/dist/cli.mjs scripts/calc-governance.ts",
     "sync:rules": "node scripts/sync-rules.mjs",
     "sync:content": "node scripts/sync-content.mjs",
+    "sync:governance": "node node_modules/tsx/dist/cli.mjs scripts/calc-governance.ts",
     "sync:scaffold": "node scripts/build-scaffold-templates.mjs",
     "gen:rule-schema": "node scripts/gen-rule-schema.mjs",
     "schema:rule:check": "node scripts/gen-rule-schema.mjs --check",

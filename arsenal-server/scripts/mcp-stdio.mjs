@@ -553,6 +553,74 @@ function checkClause({ clauseId, files } = {}) {
   );
 }
 
+/**
+ * list_governance_actions —— 「现在该干什么」。
+ *
+ * 与其它七个工具的分工：它们回答**有什么规矩**（条款 / 豁免 / 某条规则），
+ * 这个回答**该处理什么**（谁欠着、谁离队了、什么到期了、什么机器判不了）。
+ * 接入方（比如智慧中枢的团队页）拿它当「治理待办」的数据源。
+ *
+ * ⚠ 为什么读构建期产物而不是现场算：聚合逻辑在 `src/lib/standards.ts`（TypeScript），
+ * 而本文件是 .mjs —— 跑在 AI 客户端进程里，没法 import .ts。在 .mjs 里重写一遍
+ * 就是本仓最忌讳的「同一规矩两份实现」（已栽三次）。所以：
+ *   · 逻辑一份（lib/standards.ts）· 在构建期算（scripts/calc-governance.ts）
+ *   · 三个出口读同一份产物（页面 / MCP / CI）
+ * 代价是**产物可能过期** —— 所以输出里必须带生成时间、判定日与过期提醒，
+ * 而不是让调用方以为看到的是实时结果。
+ */
+function listGovernanceActions({ level, owner, staleAfterDays } = {}) {
+  const genPath = join(REPO_ROOT, 'arsenal-web', 'src', 'generated', 'governance.json');
+  if (!existsSync(genPath)) {
+    return '治理台产物还没生成。军火库侧跑一次 `npm run sync:governance`（改了章程也要重跑，它会重新算待办）。';
+  }
+  let g;
+  try {
+    g = JSON.parse(readFileSync(genPath, 'utf8'));
+  } catch (e) {
+    return `治理台产物读不出来（${String(e && e.message ? e.message : e)}）。跑一次 \`npm run sync:governance\` 重建。`;
+  }
+
+  const staleDays = Number.isFinite(Number(staleAfterDays)) ? Number(staleAfterDays) : 7;
+  const ageDays = Math.floor((Date.now() - new Date(g.generatedAt || 0).getTime()) / 86400000);
+  const lines = [];
+  lines.push(`# 治理待办（判定日 ${g.today}｜生成于 ${(g.generatedAt || '').slice(0, 19).replace('T', ' ')}）`);
+  lines.push('');
+
+  let shown = 0;
+  for (const c of g.charters || []) {
+    const acts = (c.actions || []).filter((a) => {
+      if (level && a.level !== level) return false;
+      if (owner && !String(a.who || '').includes(owner)) return false;
+      return true;
+    });
+    const sum = c.summary || {};
+    lines.push(`## ${c.charterName}（${c.charterId}）—— 共 ${sum.total ?? acts.length} 件：P0 ${sum.p0 ?? 0} / P1 ${sum.p1 ?? 0} / P2 ${sum.p2 ?? 0}`);
+    if (acts.length === 0) {
+      lines.push('');
+      lines.push('  当前没有待办：例外都销了账、没人离队、条款都在机器能判的层上。');
+      continue;
+    }
+    for (const a of acts) {
+      shown += 1;
+      lines.push('');
+      lines.push(`  [${a.level}] ${a.title}`);
+      lines.push(`    该谁处理：${a.who ?? '无（不是「随便谁」）'}${a.due ? `｜到期 ${a.due}` : ''}`);
+      lines.push(`    ${a.detail}`);
+    }
+  }
+
+  // ⚠ 用 `>=` 而不是 `>`：staleAfterDays=0 的语义是「不接受任何新鲜度」，
+  // 而 `>` 在 ageDays=0 时不触发 —— 那正是「刚生成」的情况，
+  // 于是这个阈值在唯一能测出来的场景里失效。判据方向错了，测试也照样绿。
+  if (ageDays >= staleDays) {
+    lines.push('');
+    lines.push(`⚠ 这份清单生成于 ${ageDays} 天前（阈值 ${staleDays} 天）。`
+      + '刚改过章程的话跑一次 `npm run sync:governance` 再看 —— 否则你读的是上一次的结论。');
+  }
+  if (shown === 0) lines.push('', '（没有匹配 level/owner 的待办。）');
+  return lines.join('\n');
+}
+
 const HANDLERS = {
   search_rules: searchRules,
   get_rule: getRule,
@@ -561,6 +629,7 @@ const HANDLERS = {
   get_charter: getCharter,
   list_exceptions: listExceptions,
   check_clause: checkClause,
+  list_governance_actions: listGovernanceActions,
 };
 
 // ──────────────────────────────────────────────── JSON-RPC stdio 循环

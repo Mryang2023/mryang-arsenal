@@ -173,6 +173,27 @@
           "files"
         ]
       }
+    },
+    {
+      "name": "list_governance_actions",
+      "description": "列本项目**当前该处理的事**：例外到期未销账、债主离队留下的孤儿债、放宽到期失去依据、即将到期的条款、机器判不了只能人 review 的条款。每条带 P 级、该谁处理、到期日。★ 用来回答「现在该干什么」而不是「有什么规矩」—— 规矩用 get_charter。⚠ 本清单是**构建期算出的产物**（聚合逻辑在 TypeScript 纯函数层，MCP 是 .mjs 跑不了它），改了章程要跑一次 `npm run sync:governance` 才会变新；输出里会带生成时间与判定日。",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "level": {
+            "type": "string",
+            "description": "可选，只返回 P0 / P1 / P2 某一级"
+          },
+          "owner": {
+            "type": "string",
+            "description": "可选，只返回该人负责处理的事（匹配「该谁处理」字段）"
+          },
+          "staleAfterDays": {
+            "type": "number",
+            "description": "可选，产物生成超过这么多天就提醒重跑 sync:governance（默认 7）"
+          }
+        }
+      }
     }
   ]
 }
