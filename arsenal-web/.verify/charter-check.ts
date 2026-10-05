@@ -18,6 +18,7 @@ import path from 'node:path';
 import url from 'node:url';
 
 import { validateCharter, CHARTER_DIAGNOSTIC_CODE } from '../scripts/lib/validate-charter.mjs';
+import { resolveCharterDir, readProfileCharterDir } from '../scripts/lib/charter-dir.mjs';
 import * as charterLib from '@/lib/charter';
 import { rules as l0Rules } from '@/lib/rules';
 import { lint } from '@/lib/engine';
@@ -26,7 +27,13 @@ import { check, finish } from './lib/report';
 
 const here = path.dirname(url.fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(here, '..', '..');
-const charterDir = path.resolve(repoRoot, 'arsenal-charter');
+// 章程目录**不再写死**：与 sync-content.mjs 共用同一份解析（scripts/lib/charter-dir.mjs），
+// 否则业务仓用环境变量指章程时，构建期读的是 env 指的目录、断言层读的是默认目录 ——
+// 两边结论不一致，而报告全绿。见【14】。
+const { dir: charterDir, source: charterDirSource, tier: charterDirTier } = resolveCharterDir({
+  repoRoot,
+  profileCharterDir: readProfileCharterDir(path.join(repoRoot, 'arsenal-profiles', 'arsenal.json')),
+});
 const rulesDir = path.resolve(repoRoot, 'arsenal-rules');
 
 /** 全部 L0 规则 ID —— 「override 指向不存在的规则」这条判据需要它。 */
@@ -995,6 +1002,87 @@ interface CharterExceptionLike {
   check('项目档案 project.dirs 登记了 arsenal-charter/',
     profileDirs.some((p) => p.replace(/\/+$/, '') === 'arsenal-charter'),
     `现有 ${profileDirs.length} 项: ${profileDirs.join(' / ')}`);
+}
+
+// 【14】章程目录三档优先级 —— 2026-10-05 补。
+//
+// 这三档此前**零断言**：解析逻辑内联在 sync 里，断言层对着源码文本只能「看起来对」。
+// 把 `??` 顺序写反、把 env 拼成 profile，报告照样全绿 —— 而失败形态是
+// 「构建期校验了 A 目录的章程、断言层校验了 B 目录的」，两边都绿、结论相反。
+// 现在解析只有一份（scripts/lib/charter-dir.mjs），下面既验它本身，也验 sync 确实在用它。
+{
+console.log('\n【14】章程目录三档优先级（默认 / 档案 / 环境变量）');
+
+const R = (env: Record<string, string | undefined>, profile: string | null = null) =>
+  resolveCharterDir({ repoRoot, env, profileCharterDir: profile });
+
+const dEnv = R({ ARSENAL_CHARTER_DIR: 'biz-charter' }, 'profile-charter');
+const dProfile = R({}, 'profile-charter');
+const dDefault = R({}, null);
+
+check('三档：环境变量压过档案声明', dEnv.tier === 3 && dEnv.dir === path.resolve(repoRoot, 'biz-charter'),
+  `tier=${dEnv.tier} dir=${dEnv.dir}`);
+check('三档：档案声明压过内置默认', dProfile.tier === 2 && dProfile.dir === path.resolve(repoRoot, 'profile-charter'),
+  `tier=${dProfile.tier} dir=${dProfile.dir}`);
+check('三档：都没配时用内置默认 <repo>/arsenal-charter',
+  dDefault.tier === 1 && dDefault.dir === path.resolve(repoRoot, 'arsenal-charter'),
+  `tier=${dDefault.tier} dir=${dDefault.dir}`);
+
+check('三档：来源标签各说各的话（sync 打印给人看的就是它）',
+  dEnv.source === '环境变量 ARSENAL_CHARTER_DIR'
+  && dProfile.source === 'arsenal.json#project.charterDir'
+  && dDefault.source === '内置默认',
+  `${dEnv.source} / ${dProfile.source} / ${dDefault.source}`);
+
+check('三档：相对路径按 repoRoot 解析（不是按 cwd —— 否则换个目录跑就换一份章程）',
+  dProfile.dir === path.resolve(repoRoot, 'profile-charter')
+  && path.isAbsolute(dProfile.dir),
+  dProfile.dir);
+
+const absWin = 'D:\\somewhere\\charter';
+const absPosix = '/srv/charter';
+check('三档：绝对路径原样使用（业务仓放机器任意位置都能指）',
+  R({ ARSENAL_CHARTER_DIR: absWin }, null).dir === path.resolve(absWin)
+  && R({ ARSENAL_CHARTER_DIR: absPosix }, null).dir === path.resolve(absPosix),
+  `${R({ ARSENAL_CHARTER_DIR: absWin }, null).dir} / ${R({ ARSENAL_CHARTER_DIR: absPosix }, null).dir}`);
+
+// ★ 反证档：`??` 只挡 undefined 不挡 ''。CI 里 `ARSENAL_CHARTER_DIR:` 写空值极常见，
+// 而空串会让 path.resolve(repoRoot, '') = repoRoot → 章程目录变成仓库根 →
+// 读不到任何 .json → 打印「暂无文件」→ **构建期一道闸都不跑且全绿**。
+// 这三条守的就是那个静默失效。
+check('空串环境变量视作未设置（否则整条构建静默失效）',
+  R({ ARSENAL_CHARTER_DIR: '' }, 'profile-charter').tier === 2,
+  `tier=${R({ ARSENAL_CHARTER_DIR: '' }, 'profile-charter').tier}（1=退回默认，说明空串被当成了有效值）`);
+check('纯空白环境变量同样视作未设置',
+  R({ ARSENAL_CHARTER_DIR: '   ' }, 'profile-charter').tier === 2,
+  `tier=${R({ ARSENAL_CHARTER_DIR: '   ' }, 'profile-charter').tier}`);
+check('档案里 charterDir 为空串 / 空白时退回内置默认',
+  R({}, '').tier === 1 && R({}, '  ').tier === 1,
+  `空串→${R({}, '').tier} 空白→${R({}, '  ').tier}`);
+
+check('读档案：文件不存在 / 不是合法 JSON 时返回 null 而不是抛异常',
+  readProfileCharterDir(path.join(repoRoot, 'arsenal-charter', 'arsenal-self.json')) === null
+  && readProfileCharterDir(path.join(repoRoot, '不存在.json')) === null,
+  '档案读不到就当没配 —— sync 会把实际用的路径打印出来，不靠抛错表达');
+
+// 防分叉：sync 与断言层必须用同一份解析。写成源码文本断言是因为「两处各调一个函数」
+// 这种错没有任何运行时症状 —— 两边都返回合法路径，只是从此再也不会同时更新。
+const syncSrc = fs.readFileSync(path.join(here, '..', 'scripts', 'sync-content.mjs'), 'utf8');
+check('sync-content.mjs 确实调用共享解析（不内联第二份三档逻辑）',
+  syncSrc.includes("from './lib/charter-dir.mjs'")
+  && syncSrc.includes('resolveCharterDir({')
+  && !/ARSENAL_CHARTER_DIR\s*\?\?/.test(syncSrc),
+  'sync 里不该再出现 `env ?? profile ?? 默认` 的内联版本');
+
+check('断言层读的目录 == 按当前 env/档案解析出的目录（不许再写死 arsenal-charter）',
+  charterDir === resolveCharterDir({
+    repoRoot,
+    profileCharterDir: readProfileCharterDir(path.join(repoRoot, 'arsenal-profiles', 'arsenal.json')),
+  }).dir,
+  `断言层用的：${charterDir.replace(/\\/g, '/')}`);
+check('本层实际生效的章程目录来源已打印在案（换机器跑时一眼能看出读的是哪份）',
+  typeof charterDirSource === 'string' && charterDirSource.length > 0 && charterDirTier >= 1,
+  `${charterDirSource}（tier ${charterDirTier}）→ ${charterDir.replace(/\\/g, '/')}`);
 }
 
 process.exit(finish('charter'));

@@ -13,6 +13,8 @@ import fs from 'node:fs';
 import path from 'node:path';
 import url from 'node:url';
 
+import { resolveCharterDir, readProfileCharterDir } from './lib/charter-dir.mjs';
+
 const here = path.dirname(url.fileURLToPath(import.meta.url));
 const webRoot = path.resolve(here, '..');
 const root = path.resolve(webRoot, '..');
@@ -871,22 +873,13 @@ console.log(
   //   2. 配置文件 arsenal.json 的 project.charterDir —— 事实源里声明，不进环境变量
   //   3. 环境变量 ARSENAL_CHARTER_DIR        —— CI / 业务仓场景（各项目把章程放自己仓里）
   //
-  // 为什么要有第 2 档：待拍板项 ①「章程放本仓还是业务仓」的答案是「两者都要支持」——
-  // 事实源里声明一次（可提交、可评审），比每个开发机各配一个环境变量可靠。
-  // 为什么要有第 3 档：业务仓场景下 CI runner 只需要一个变量指过去。
+  // 解析逻辑**不在这里写** —— sync 与断言层共用 scripts/lib/charter-dir.mjs 一份，
+  // 理由与「空串视作未设置」见那个文件的头注释。
   const profilePath = path.join(webRoot, '..', 'arsenal-profiles', 'arsenal.json');
-  let profileCharterDir = null;
-  try {
-    profileCharterDir = JSON.parse(fs.readFileSync(profilePath, 'utf8'))?.project?.charterDir ?? null;
-  } catch { /* 档案读不到就退回默认值 —— 下面会打印实际用了哪个 */ }
-  const charterDir = path.resolve(
-    webRoot,
-    '..',
-    process.env.ARSENAL_CHARTER_DIR ?? profileCharterDir ?? 'arsenal-charter',
-  );
-  const charterDirSource = process.env.ARSENAL_CHARTER_DIR
-    ? '环境变量 ARSENAL_CHARTER_DIR'
-    : profileCharterDir ? 'arsenal.json#project.charterDir' : '内置默认';
+  const { dir: charterDir, source: charterDirSource } = resolveCharterDir({
+    repoRoot: path.resolve(webRoot, '..'),
+    profileCharterDir: readProfileCharterDir(profilePath),
+  });
   const charterFiles = fs.existsSync(charterDir)
     ? fs.readdirSync(charterDir).filter((f) => f.endsWith('.json')).sort()
     : [];
