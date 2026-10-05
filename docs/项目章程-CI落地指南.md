@@ -41,7 +41,13 @@
 
 ## 2. 第 1 步：把军火库推到远端
 
-**说明**：CI 片段里的第一步是 `git clone <军火库地址> .arsenal/arsenal`。
+**说明**：CI 片段里的第一步是 `git clone <军火库地址> .arsenal/arsenal`。你当前这台机器上军火库的远端是 **Gitee**：
+
+```bash
+git clone --depth 1 https://gitee.com/yang_huai_qiang1/mryang-arsenal.git .arsenal/arsenal
+```
+
+片段里印的是 `https://github.com/<你的账号>/arsenal.git`（占位符），要用上面这行替换。
 片段里那个 `https://github.com/<你的账号>/arsenal.git` 是**占位符**，要换成你的真实地址。
 
 **建议**：
