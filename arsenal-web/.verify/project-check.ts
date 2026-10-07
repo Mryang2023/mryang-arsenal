@@ -3037,7 +3037,7 @@ console.log('\n【24】装配台 P1 交付中心（预检闸首屏 / 方案历�
     '没有 data 落点 = 只能靠肉眼截图判红绿，回归一定漏'
   );
   check(
-    '闸门逐条 [check] message 且五类检查的人话标签齐全（duplicate-path / bean-conflict / dangling-import / pom-no-version / yml-foreign-root）',
+    '闸门逐条 [check] message 且六类检查的人话标签齐全（duplicate-path / bean-conflict / dangling-import / pom-no-version / yml-foreign-root / module-persistence）',
     gateSrc.includes('[{v.check}]') &&
       gateSrc.includes('data-gate-violation={v.check}') &&
       [
@@ -3046,6 +3046,7 @@ console.log('\n【24】装配台 P1 交付中心（预检闸首屏 / 方案历�
         'dangling-import',
         'pom-no-version',
         'yml-foreign-root',
+        'module-persistence',
       ].every((k) => gateSrc.includes(`'${k}':`)),
     '少一类标签，那一类的违规就只能以英文 id 示人'
   );
@@ -3062,18 +3063,18 @@ console.log('\n【24】装配台 P1 交付中心（预检闸首屏 / 方案历�
     '合成一个总数会让「其实能下载的那份包」跟着一起被判死'
   );
   check(
-    '下载禁用与闸门同源：三包卡 disabled={blocked}（blocked 来自 artifacts.violations），一键导出按钮同样被拦即灰',
-    /const blocked = violations\.length > 0;/.test(scaffoldSrc) &&
+    '下载禁用与闸门同源：三包卡 disabled={blocked}（blocked 来自 artifacts.violations 并上项目名合法性），一键导出按钮同样被拦即灰',
+    /const blocked = violations\.length > 0 \|\| !nameOk;/.test(scaffoldSrc) &&
       (scaffoldSrc.match(/disabled=\{blocked\}/g) ?? []).length >= 3 &&
-      /disabled=\{plan\.violations\.length > 0\}/.test(deliverySrc),
+      /disabled=\{plan\.violations\.length > 0 \|\| !nameOk\}/.test(deliverySrc),
     '卡片能点而闸门说被拦（或反过来）＝ 两套判据'
   );
   check(
-    'export-lint 五检查计算逻辑没被绕过：LintCheck 五类字面量仍在，lintExportFiles 仍是唯一出口',
-    ["'duplicate-path'", "'bean-conflict'", "'dangling-import'", "'pom-no-version'", "'yml-foreign-root'"].every(
+    'export-lint 六检查计算逻辑没被绕过：LintCheck 六类字面量仍在，lintExportFiles 仍是唯一出口',
+    ["'duplicate-path'", "'bean-conflict'", "'dangling-import'", "'pom-no-version'", "'yml-foreign-root'", "'module-persistence'"].every(
       (k) => lintSrc.includes(k)
     ) && /export function lintExportFiles\(/.test(lintSrc),
-    '五检查是本仓导出事故的最后防线，一处都不能少'
+    '六检查是本仓导出事故的最后防线，一处都不能少'
   );
 
   // ── 方案历史（拍板项③）──

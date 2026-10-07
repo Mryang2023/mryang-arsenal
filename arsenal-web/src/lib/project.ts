@@ -473,6 +473,17 @@ export function renderGradle(
     if (deps.length) blocks.push(`    // ── ${dimension.name} · ${option.name}\n${deps.join('\n')}`);
   }
 
+  // 文件头与 pom 的生成注释同源：来源、版本纪律、怎么跑 —— 三件事写在最前面，
+  // 解包的人第一眼就知道这份文件是谁给的、该守什么规矩。
+  lines.push('// ═══════════════════════════════════════════════════════════════');
+  lines.push('// 由「军火库 · 架构装配台」按当前组合生成。');
+  lines.push('// 版本纪律：业务依赖不手写版本号 —— 版本由 io.spring.dependency-management');
+  lines.push('// 导入的 spring-boot-dependencies BOM 统一管辖；BOM 管不到的（nacos 生态、');
+  lines.push('// jakarta.persistence-api 等）必须显式带版本，否则 Gradle 解析依赖直接失败。');
+  lines.push('// 注解处理器（Lombok / MapStruct）必须同时进 compileOnly 与 annotationProcessor，');
+  lines.push('// 少写后者时编译能过、生成的 getter 却是红的。');
+  lines.push(`// 启动：gradle bootRun → http://localhost:8080（Boot ${bootVersion} / Java ${javaVersion}）`);
+  lines.push('// ═══════════════════════════════════════════════════════════════');
   lines.push('plugins {');
   lines.push("    id 'java'");
   lines.push(`    id 'org.springframework.boot' version '${bootVersion}'`);

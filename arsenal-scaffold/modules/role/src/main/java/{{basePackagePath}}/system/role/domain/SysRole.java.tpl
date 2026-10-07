@@ -25,27 +25,36 @@ import java.time.LocalDateTime;
 @TableName("sys_role")
 public class SysRole {
 
+    /** 主键，数据库自增 */
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     @TableId(type = IdType.AUTO)
     private Long id;
 
+    /** 展示名 —— 页面上给人看的角色名（如「系统管理员」） */
     @Column(nullable = false, length = 64)
     private String name;
 
+    /**
+     * 角色编码，权限体系的外部标识（鉴权按它直通/判断）。
+     * 全局唯一且创建后不可改 —— 种子幂等与 auth 的 ADMIN 直通都锚在编码上。
+     */
     @Column(nullable = false, unique = true, length = 64)
     private String code;
 
+    /** 备注说明，纯展示 */
     @Column(length = 255)
     private String description;
 
-    /** 状态：0 正常 1 停用 */
+    /** 状态：0 正常 1 停用（内置 ADMIN 禁停用，守卫在 service 层） */
     @Column(nullable = false)
     private Integer status;
 
+    /** 创建时间：代码里显式赋值（原因同 user 模块 —— JPA 全字段 INSERT） */
     @Column(name = "create_time", nullable = false, updatable = false)
     private LocalDateTime createTime;
 
+    /** 更新时间：每次写操作同步刷新 */
     @Column(name = "update_time", nullable = false)
     private LocalDateTime updateTime;
 

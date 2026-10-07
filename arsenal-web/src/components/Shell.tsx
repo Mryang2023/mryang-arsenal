@@ -86,18 +86,29 @@ export default function Shell({ children }: { children: React.ReactNode }) {
   const busStep = useSyncExternalStore(subscribeStep, currentStep, () => null);
   // 判定按路径边界，不是裸前缀 —— 判据本体在 lib/nav-active.ts，
   // 那里也被校验层当数据跑（`/archify` 曾经把 `/arch` 一起点亮）。
-  const isActive = (href: string) => {
-    if (busStep && STEP_ROUTES[busStep] === href) return true;
-    return isNavActive(pathname, href);
-  };
+  const isActive = (href: string) => isNavActive(pathname, href);
+  // 步骤级子项：总线有值时它才是当前步的**唯一权威** —— 页内换步不导航、
+  // pathname 不动，旧 pathname 会把上一步继续点亮（2026-10-05 反馈的根源），
+  // 必须让位。总线为空（不在装配台 / 钉死路由刚挂载还没换过步）退回 pathname。
+  const isStepActive = (href: string) =>
+    busStep ? STEP_ROUTES[busStep] === href : isNavActive(pathname, href);
 
   const used = Math.min(100, liveStats.budgetUsedPct);
 
   return (
     <div className="mx-auto flex min-h-screen w-full max-w-[1500px] flex-col md:flex-row">
       {/* ── 侧边栏 ───────────────────────────────────────── */}
-      <aside data-bus-step={busStep ?? ''} className="shrink-0 border-line md:w-[212px] md:border-r">
-        <div className="flex flex-wrap items-center justify-between gap-y-2 px-5 py-4 md:sticky md:top-0 md:block md:py-6">
+      <aside className="shrink-0 border-line md:w-[212px] md:border-r">
+       {/* 桌面端整列钉进视口：外层 sticky + h-screen，页头固定、**菜单自己滚**。
+           2026-10-05 修「菜单滚动与正文滚动冲突」：此前菜单是 `md:sticky top-[88px]`
+           但 `overflow: visible` —— 24 个链接（拆细后多了 10 条步骤项）实测高 1268px，
+           比视口高 368px，底部 456px（配额卡 + 统计块）被钉在屏幕外永远看不到；
+           而菜单不是滚动容器，鼠标停在它上面滚滚动的全是正文（实测 window.scrollY
+           0→300）。两件事同源：菜单得自己成为滚动容器。
+           顺带干掉 `top-[88px]`：那个魔数硬编码了页头高度（实测 84px），
+           页头 padding 一改菜单就错位 —— 现在位置由 flex 布局算出来。      */}
+       <div className="md:sticky md:top-0 md:flex md:h-screen md:flex-col">
+        <div className="flex flex-wrap items-center justify-between gap-y-2 px-5 py-4 md:block md:shrink-0 md:py-6">
           <Link href="/" className="group flex items-center gap-3">
             <span
               className="flex h-9 w-9 items-center justify-center rounded border text-base"
@@ -147,8 +158,12 @@ export default function Shell({ children }: { children: React.ReactNode }) {
           </nav>
         </div>
 
-        {/* 桌面导航 */}
-        <nav className="hidden px-3 md:sticky md:top-[88px] md:block">
+        {/* 桌面导航。`min-h-0 flex-1` 是让 flex 子项能缩到内容以下（默认 min-height:auto
+            会顶着内容高度不缩），`overflow-y-auto` 才真的给出滚动条。
+            `overscroll-contain`：菜单滚到头时**不再把滚动传给正文** —— 少了它，
+            菜单只有 3 项的短页面也会「在菜单上滚滚的却是正文」。
+            `scroll-thin`：全局滚动条 10px 在 212px 窄栏里太宽。          */}
+        <nav className="scroll-thin hidden min-h-0 flex-1 overflow-y-auto overscroll-contain px-3 md:block">
           {NAV_ROWS.map((n) => {
             if (n.depth < 0) {
               return (
@@ -161,7 +176,7 @@ export default function Shell({ children }: { children: React.ReactNode }) {
                 </div>
               );
             }
-            const active = isActive(n.href);
+            const active = n.depth === 2 ? isStepActive(n.href) : isActive(n.href);
             return (
               <Link
                 key={n.href}
@@ -238,6 +253,7 @@ export default function Shell({ children }: { children: React.ReactNode }) {
             </div>
           </div>
         </nav>
+       </div>
       </aside>
 
       {/* ── 主内容 ───────────────────────────────────────── */}

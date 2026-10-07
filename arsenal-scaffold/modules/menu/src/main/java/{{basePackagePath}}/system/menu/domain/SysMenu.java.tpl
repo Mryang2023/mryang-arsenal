@@ -24,37 +24,45 @@ import java.time.LocalDateTime;
 @TableName("sys_menu")
 public class SysMenu {
 
+    /** 主键，数据库自增 */
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     @TableId(type = IdType.AUTO)
     private Long id;
 
-    /** 父菜单 id；NULL 表示根节点。 */
+    /** 父菜单 id；NULL 表示根节点。树在服务层构建（防环、按 sortNo 排序）。 */
     @Column(name = "parent_id")
     private Long parentId;
 
+    /** 菜单显示名（侧边栏与面包屑用它） */
     @Column(nullable = false, length = 64)
     private String label;
 
+    /** 前端路由路径（如 /system/user）；目录型菜单可为空 */
     @Column(length = 128)
     private String path;
 
+    /** 图标标识，前端图标库的 key */
     @Column(length = 64)
     private String icon;
 
+    /** 排序号：同层菜单按它稳定排序（服务层建树时保证） */
     @Column(name = "sort_no", nullable = false)
     private Integer sortNo;
 
+    /** 访问该菜单所需权限码（软引用 sys_permission.code，语义见类注释） */
     @Column(length = 128)
     private String permission;
 
-    /** 状态：0 正常 1 停用 */
+    /** 状态：0 正常 1 停用（停用的菜单不进树） */
     @Column(nullable = false)
     private Integer status;
 
+    /** 创建时间：代码里显式赋值（原因同 user 模块 —— JPA 全字段 INSERT） */
     @Column(name = "create_time", nullable = false, updatable = false)
     private LocalDateTime createTime;
 
+    /** 更新时间：每次写操作同步刷新 */
     @Column(name = "update_time", nullable = false)
     private LocalDateTime updateTime;
 

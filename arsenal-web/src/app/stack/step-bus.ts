@@ -24,8 +24,6 @@ const listeners = new Set<() => void>();
 export function publishStep(id: StepId | null): void {
   if (current === id) return;
   current = id;
-  (globalThis as { __arsenalStepBus?: string | null }).__arsenalStepBus = id;
-  (globalThis as { __arsenalStepBusListeners?: number }).__arsenalStepBusListeners = listeners.size;
   for (const l of listeners) l();
 }
 

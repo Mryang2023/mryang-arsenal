@@ -113,13 +113,13 @@ export default function StackDelivery({ pinnedStep }: { pinnedStep?: StepId }) {
     () => [
       {
         id: 'products',
-        label: '组合产物包（⑦ 一键导出）',
+        label: '组合产物包（⑩ 一键导出 · 选型基线，不含功能模块与连接信息）',
         files: plan.files.length,
         violations: plan.violations,
       },
       {
         id: 'scaffold',
-        label: '双包脚手架（后端 / 前端 / 全家桶）',
+        label: '双包脚手架（后端 / 前端 / 全家桶 · 含功能模块与烘入的连接信息）',
         files: artifacts.all.files.length,
         violations: artifacts.violations,
       },
@@ -143,6 +143,7 @@ export default function StackDelivery({ pinnedStep }: { pinnedStep?: StepId }) {
                   forms={scaffoldForms}
                   values={allEnvValues}
                   feLabel={feLabel}
+                  nameOk={nameOk}
                 />
               </div>
               <div className="min-w-0 xl:sticky xl:top-3 xl:self-start">
@@ -240,11 +241,12 @@ export default function StackDelivery({ pinnedStep }: { pinnedStep?: StepId }) {
               <button
                 type="button"
                 onClick={handleExport}
-                // 与首屏预检闸同一口径：这份包被拦，按钮就是灰的（点了也只会弹一份拒绝清单）
-                disabled={plan.violations.length > 0}
+                // 与首屏预检闸同一口径：这份包被拦，按钮就是灰的（点了也只会弹一份拒绝清单）。
+                // 名字不合法同理 —— 它要写进 pom 的 artifactId，侧栏直达 ⑩ 不能绕过 ① 的校验。
+                disabled={plan.violations.length > 0 || !nameOk}
                 data-export-products=""
                 className={`flex items-center gap-1.5 rounded-md border px-2.5 py-1.5 text-[11px] font-medium transition-colors ${
-                  plan.violations.length > 0 ? 'cursor-not-allowed opacity-40' : ''
+                  plan.violations.length > 0 || !nameOk ? 'cursor-not-allowed opacity-40' : ''
                 }`}
                 style={{
                   borderColor: toneAt('warn', 0.6),
@@ -252,13 +254,15 @@ export default function StackDelivery({ pinnedStep }: { pinnedStep?: StepId }) {
                   color: TONE.warn.color,
                 }}
                 title={
-                  plan.violations.length > 0
-                    ? '预检闸未通过 —— 这份包打出来跑不起来，已禁止导出（见页面顶部清单）'
-                    : `打包 ${plan.files.length} 个文件为 zip：构建文件、启动类、配置类、迁移脚本、README、隐患单、架构图与技术说明`
+                  !nameOk
+                    ? '项目名不合法（小写字母开头，点/连字符分段）—— 它要写进 pom 的 artifactId，先回 ① 改名'
+                    : plan.violations.length > 0
+                      ? '预检闸未通过 —— 这份包打出来跑不起来，已禁止导出（见页面顶部清单）'
+                      : `打包 ${plan.files.length} 个文件为 zip：构建文件、启动类、配置类、迁移脚本、README、隐患单、架构图与技术说明`
                 }
               >
                 <span className="mono text-[12px] leading-none">⇩</span>
-                一键导出项目
+                一键导出选型基线
               </button>
               <button
                 type="button"
@@ -269,6 +273,15 @@ export default function StackDelivery({ pinnedStep }: { pinnedStep?: StepId }) {
               </button>
             </div>
           </header>
+
+          {/* 这份包与双包的边界必须写在脸上：它不带功能模块、不烘连接信息 ——
+              两者都只在「交付预览」的双包面板里。不写清楚 = 用户勾了模块、填了
+              密码，从这份包拿走才发现什么都没有（货不对版）。 */}
+          <p className="border-b border-line bg-surface px-4 py-2 text-2xs leading-relaxed text-fgMuted">
+            这份包是<b className="text-fg">选型基线</b>：架构骨架 + 构建文件 + README ——
+            <b className="text-fg">不含功能模块与连接信息</b>。要带模块、连好库的包，用
+            「交付预览」里的三张下载卡（全家桶 / 后端 / 前端）。
+          </p>
 
           {/* 导出反馈：成功绿条告诉用户包里装了什么、怎么跑；被预检闸拦截时换红色清单 */}
           {exported?.blocked && (

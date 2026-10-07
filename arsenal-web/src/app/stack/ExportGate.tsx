@@ -34,13 +34,14 @@ export interface GateScope {
   violations: LintViolation[];
 }
 
-/** 五类检查的人话标签（与 export-lint.ts 的 LintCheck 一一对应，加类必须加这里） */
+/** 六类检查的人话标签（与 export-lint.ts 的 LintCheck 一一对应，加类必须加这里） */
 const CHECK_LABEL: Record<LintCheck, string> = {
   'duplicate-path': '重名文件',
   'bean-conflict': '同名 bean',
   'dangling-import': '悬空 import',
   'pom-no-version': '缺版本依赖',
   'yml-foreign-root': '异类配置键',
+  'module-persistence': '模块仓储缺实现',
 };
 
 export default function ExportGate({ scopes }: { scopes: GateScope[] }) {

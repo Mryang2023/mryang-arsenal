@@ -38,15 +38,22 @@ public class SysUserController {
     @GetMapping
     @RequirePermission("sys:user:list")
     public ApiResponse<PageResult<UserResponse>> page(UserQuery query) {
+        // 分页参数与关键字都在 UserQuery 上（page 从 1 起）；模糊匹配的范围由仓储实现决定
         return ApiResponse.ok(service.page(query));
     }
 
+    /**
+     * 新建用户。
+     * 用户名全局唯一 —— 重复时报 USERNAME_DUPLICATED，前端把错误带回到输入框；
+     * 密码在这里统一 BCrypt 加密入库，任何地方都不落明文。
+     */
     @PostMapping
     @RequirePermission("sys:user:save")
     public ApiResponse<Long> create(@Valid @RequestBody UserCreateRequest req) {
         return ApiResponse.ok(service.create(req));
     }
 
+    /** 更新资料与启停状态。内置 admin 不允许停用（服务层守卫），停用它等于系统锁死。 */
     @PutMapping("/{id}")
     @RequirePermission("sys:user:update")
     public ApiResponse<Void> update(@PathVariable Long id, @Valid @RequestBody UserUpdateRequest req) {
@@ -54,6 +61,7 @@ public class SysUserController {
         return ApiResponse.ok();
     }
 
+    /** 物理删除。内置 admin 禁删、当前登录人禁自删（守卫与原因见 SysUserServiceImpl）。 */
     @DeleteMapping("/{id}")
     @RequirePermission("sys:user:delete")
     public ApiResponse<Void> delete(@PathVariable Long id) {
@@ -61,6 +69,10 @@ public class SysUserController {
         return ApiResponse.ok();
     }
 
+    /**
+     * 管理员重置任意账号的密码（BCrypt 加密入库）。
+     * admin 自己也允许被重置 —— 这正是忘记密码时的官方自救通道。
+     */
     @PutMapping("/{id}/password")
     @RequirePermission("sys:user:resetPwd")
     public ApiResponse<Void> resetPassword(@PathVariable Long id,
@@ -69,6 +81,10 @@ public class SysUserController {
         return ApiResponse.ok();
     }
 
+    /**
+     * 给用户分配角色。语义是**全量替换**：请求里的 roleIds 就是该用户的最终角色集
+     * （前端权限页整树提交，不做追加式 diff）；去重保序，角色 id 必须真实存在。
+     */
     @PutMapping("/{id}/roles")
     @RequirePermission("sys:user:assignRole")
     public ApiResponse<Void> assignRoles(@PathVariable Long id,

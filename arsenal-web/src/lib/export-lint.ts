@@ -28,7 +28,8 @@ export type LintCheck =
   | 'bean-conflict'
   | 'dangling-import'
   | 'pom-no-version'
-  | 'yml-foreign-root';
+  | 'yml-foreign-root'
+  | 'module-persistence';
 
 export interface LintViolation {
   check: LintCheck;
@@ -145,8 +146,16 @@ function xmlTag(block: string, tag: string): string | undefined {
 /**
  * 对导出清单做终检。**必须在 path 去重之后调用**（脚手架链路的模板版优先
  * 去重是既有设计；本检查兜底「去重逻辑失效或新增 push 忘记去重」）。
+ *
+ * `context` 是只有调用方知道的组合事实（持久层选型、是否勾了模块）——
+ * 有些坑单看文件清单看不出来：jdbc 直写 + 功能模块时，模块仓储接口保留、
+ * 实现按两叉被剔除，编译能过、启动必炸。没有上下文（plan 路径、毒物注入
+ * 反验）时跳过这类检查，行为与旧签名完全兼容。
  */
-export function lintExportFiles(files: ExportFile[]): LintViolation[] {
+export function lintExportFiles(
+  files: ExportFile[],
+  context?: { persistence?: string; hasModules?: boolean },
+): LintViolation[] {
   const violations: LintViolation[] = [];
 
   // ① path 唯一性：zip 静默覆盖，重名文件后写的赢，谁也看不见
@@ -233,6 +242,25 @@ export function lintExportFiles(files: ExportFile[]): LintViolation[] {
           message: `${f.path} 顶层键「${m[1]}:」不是 Spring 配置 —— 某个选项的展示片段被误拼进了 application.yml（09-29 的 Nginx/Dockerfile 混入事故）。`,
         });
       }
+    }
+  }
+
+  // ⑥ module-persistence：jdbc 直写 + 功能模块 —— 模块仓储按
+  //    MyBatis-Plus / JPA 两叉交付，jdbc 没有对应实现：实现类被剔除后
+  //    接口还在清单里，编译能过（服务只依赖接口），启动必炸
+  //    (NoSuchBeanDefinitionException)。这正是 2026-10-05 导出审计抓出的
+  //    「九层 verify 全绿、产物照样起不来」的运行期变种 —— 靠调用方把
+  //    persistence / hasModules 传进来才判得了，单看文件清单看不出来。
+  if (context?.persistence === 'jdbc' && context.hasModules) {
+    const orphanInterfaces = files.filter(
+      (f) => f.path.endsWith('.java')
+        && /\/repository\/(?!jpa\/|mp\/)[\w/]*Repository\.java$/.test(f.path),
+    );
+    if (orphanInterfaces.length > 0) {
+      violations.push({
+        check: 'module-persistence',
+        message: `持久层为 jdbc 直写：模块仓储「${orphanInterfaces[0].path}」${orphanInterfaces.length > 1 ? `等 ${orphanInterfaces.length} 个接口` : ''}没有实现类（实现按 MyBatis-Plus / JPA 两叉交付，jdbc 没有对应实现）—— 编译能过，启动即 NoSuchBeanDefinitionException。`,
+      });
     }
   }
 

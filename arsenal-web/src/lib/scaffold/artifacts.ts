@@ -107,7 +107,16 @@ export function buildExportArtifacts(
     'shared/scripts/start-dev.bat.tpl',
   ]) {
     const rel = key.replace('shared/', '').replace(/\.tpl$/, '');
-    allFiles.push({ path: rel, content: sharedFile(key, vars), group: '部署', from: '全家桶编排' });
+    // 方言替换必须作用在**原始模板**上：swapComposeDialect 的匹配串写着
+    // {{appName}}（此时还没渲染），先渲染再换则六处 replace 全部静默失配 ——
+    // 2026-10-05 审计抓出的 postgres 全家桶事故：compose 里激活的仍是
+    // MYSQL_* 环境变量、POSTGRES 段原样注释着，容器没有密码根本起不来。
+    const raw = SCAFFOLD_FILES[key] ?? '';
+    const dialectSwapped =
+      key === 'shared/compose/docker-compose.yml.tpl' && picks.database === 'postgres'
+        ? swapComposeDialect(raw)
+        : raw;
+    allFiles.push({ path: rel, content: renderText(dialectSwapped, vars), group: '部署', from: '全家桶编排' });
   }
 
   // db 容器首次启动的初始化目录：两个方言都给，compose 按选型挂载对应目录
@@ -120,11 +129,6 @@ export function buildExportArtifacts(
     }
   }
 
-  const compose = allFiles.find((f) => f.path === 'compose/docker-compose.yml');
-  if (compose && picks.database === 'postgres') {
-    compose.content = swapComposeDialect(compose.content);
-  }
-
   const readmeAll = sharedFile('shared/README-all.md.tpl', vars);
   if (readmeAll.trim()) {
     allFiles.push({ path: 'README.md', content: readmeAll, group: '文档', from: '全家桶启动指南' });
@@ -133,7 +137,12 @@ export function buildExportArtifacts(
   const all = artifact(`${projectName}-all.zip`, allFiles);
   // 导出预检闸：后端包清单终检。违规 ≠ 抛异常（useMemo 里抛会崩页面），
   // 而是带回去让交付面板禁用下载、在台面亮清单 —— 问题看得见，包拿不走。
-  const violations = lintExportFiles(backendFiles);
+  // context 带上持久层与模块事实：jdbc+模块的「接口在、实现被剔除」只有
+  // 调用方判得了（单看文件清单是合法的）。
+  const violations = lintExportFiles(backendFiles, {
+    persistence: picks.persistence,
+    hasModules: modules.length > 0,
+  });
   return { backend, frontend, all, violations };
 }
 

@@ -208,6 +208,32 @@ const scaffoldDir = path.resolve(here, '..', '..', 'arsenal-scaffold');
       env: { values: { 'db.host': '10.0.0.5', 'db.username': 'app' }, demoMode: false },
       modules: [], feBase: 'none', vars,
     }).backend.files.find((f) => f.path.endsWith('application.yml'))!.content.includes('${DB_HOST:10.0.0.5}'));
+
+  // ── 2026-10-05 导出审计的三个回归锚点 ────────────────────────
+  // gradle 侧依赖注入（pom 有 gradle 必须也有）与 compose 方言替换时序。
+  const gradlePicks = { ...defaultPicks, build: 'gradle', persistence: 'mybatisplus',
+    database: 'mysql', migration: 'flyway', auth: 'securityjwt' } as StackPicks;
+  const gradleModules = resolveModules(['user'], gradlePicks, 'vue3-vite').selected;
+  const gradleArts = buildExportArtifacts(gradlePicks, {
+    projectName: 'demo', env: { values: {}, demoMode: true }, modules: gradleModules,
+    feBase: 'vue3-vite', vars,
+  });
+  const gradleFile = gradleArts.backend.files.find((f) => f.path === 'build.gradle')?.content ?? '';
+  check('gradle + 演示模式：build.gradle 注入 H2（pom 有 gradle 也有）',
+    gradleFile.includes("runtimeOnly 'com.h2database:h2'"));
+  check('gradle + MP + 模块：build.gradle 注入 jakarta.persistence-api（带版本）',
+    gradleFile.includes("implementation 'jakarta.persistence:jakarta.persistence-api:3.1.0'"));
+  const pgArts = buildExportArtifacts(
+    { ...defaultPicks, database: 'postgres' } as StackPicks,
+    { projectName: 'demo', env: { values: {}, demoMode: false }, modules: [], feBase: 'none', vars },
+  );
+  const pgCompose = pgArts.all.files.find((f) => f.path === 'compose/docker-compose.yml')?.content ?? '';
+  check('postgres 全家桶：compose 方言真换了（POSTGRES 段激活、MYSQL 段消失、数据源换 postgres）',
+    pgCompose.includes('POSTGRES_USER: postgres')
+      && !pgCompose.includes('MYSQL_ROOT_PASSWORD:')
+      && pgCompose.includes('jdbc:postgresql://db:5432/')
+      && pgCompose.includes('SPRING_DATASOURCE_USERNAME: postgres'),
+    '替换若仍在渲染后做，六处 replace 会静默失配 —— postgres 容器没有密码起不来');
 }
 
 // ── ⑦ 导出预检闸（export-lint）────────────────────────────────
@@ -266,6 +292,18 @@ const scaffoldDir = path.resolve(here, '..', '..', 'arsenal-scaffold');
       && lint.some((v) => v.check === 'yml-foreign-root' && v.message.includes('nginx'))
       && lint.some((v) => v.check === 'duplicate-path'),
     `命中 ${[...checks].join(',')}（${lint.length} 条）`);
+
+  // ⑥ module-persistence（2026-10-05 审计）：jdbc+模块时仓储接口保留、实现被
+  // 剔除 —— 编译能过、启动 NoSuchBeanDefinition。它需要调用方上下文才判得了，
+  // 所以毒物反验（无上下文）不触发是**正确行为**，这里单独立案验证上下文路径。
+  const orphanRepo = [{ path: 'src/main/java/com/example/system/user/repository/SysUserRepository.java', content: 'public interface SysUserRepository {\n}\n', group: '源码' }];
+  check('jdbc+模块：仓储接口无实现被闸拦下（module-persistence）',
+    lintExportFiles(orphanRepo as never, { persistence: 'jdbc', hasModules: true })
+      .some((v) => v.check === 'module-persistence' && v.message.includes('SysUserRepository'))
+      && lintExportFiles(orphanRepo as never, { persistence: 'mybatisplus', hasModules: true })
+        .every((v) => v.check !== 'module-persistence')
+      && lintExportFiles(orphanRepo as never).every((v) => v.check !== 'module-persistence'),
+    '无上下文或非 jdbc 时误报 = 闸门越权');
 }
 
 process.exit(finish('scaffold'));

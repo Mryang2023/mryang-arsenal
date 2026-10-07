@@ -42,6 +42,7 @@ export default function ScaffoldDelivery({
   forms,
   values,
   feLabel,
+  nameOk = true,
 }: {
   artifacts: ExportArtifacts;
   demoMode: boolean;
@@ -50,11 +51,17 @@ export default function ScaffoldDelivery({
   values: EnvValues;
   /** 前端摘要（「Vue3 · Naive UI · 清爽管理端」/「无前端」），前端卡上亮出选的是哪套 */
   feLabel?: string;
+  /**
+   * 项目名是否合法。名字要写进 pom 的 artifactId —— 侧栏可以直达 ⑩ 绕过
+   * 步骤条的 canAdvance，但导出不能绕：非法名解包后 Maven 解析 pom 即崩
+   *（2026-10-05 审计实测：artifactId 写成「My App!」照样出包）。
+   */
+  nameOk?: boolean;
 }) {
   const secretKeys = new Set(forms.flatMap((f) => f.fields.filter((x) => x.secret).map((x) => x.key)));
   const envRows = Object.entries(values).filter(([, v]) => v !== '');
   const violations = artifacts.violations;
-  const blocked = violations.length > 0;
+  const blocked = violations.length > 0 || !nameOk;
 
   const download = (art: { name: string; files: { path: string; content: string }[] } | undefined) => {
     if (!art || blocked) return;
@@ -77,7 +84,18 @@ export default function ScaffoldDelivery({
         </p>
       </header>
 
-      {blocked && (
+      {!nameOk && (
+        <div className="border-b border-rust/30 bg-rust/5 px-4 py-3" data-name-blocked="">
+          <p className="text-[12px] font-semibold leading-[17px] text-rust">
+            项目名不合法 —— 它要写进 pom 的 artifactId（小写字母开头，点/连字符分段）
+          </p>
+          <p className="mt-1 text-2xs leading-relaxed text-fgMuted">
+            回 ① 项目定义改个合法名字，这里会自动恢复下载。
+          </p>
+        </div>
+      )}
+
+      {blocked && violations.length > 0 && (
         <div className="border-b border-rust/30 bg-rust/5 px-4 py-3" data-export-blocked="">
           <p className="text-[12px] font-semibold leading-[17px] text-rust">
             导出被预检闸拦截 —— 当前组合打出的包跑不起来，已禁止下载

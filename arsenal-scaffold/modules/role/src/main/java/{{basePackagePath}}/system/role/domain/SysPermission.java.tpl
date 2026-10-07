@@ -25,6 +25,7 @@ import java.time.LocalDateTime;
 @TableName("sys_permission")
 public class SysPermission {
 
+    /** 主键，数据库自增 */
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     @TableId(type = IdType.AUTO)
@@ -34,12 +35,15 @@ public class SysPermission {
     @Column(nullable = false, unique = true, length = 128)
     private String code;
 
+    /** 权限显示名（权限树上给人看的那个） */
     @Column(nullable = false, length = 64)
     private String name;
 
+    /** 所属菜单 id（软引用，语义见类注释；NULL = 不挂在任何菜单下的独立权限） */
     @Column(name = "menu_id")
     private Long menuId;
 
+    /** 创建时间：种子写入，运行期只读 */
     @Column(name = "create_time", nullable = false)
     private LocalDateTime createTime;
 

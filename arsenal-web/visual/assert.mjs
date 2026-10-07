@@ -54,6 +54,8 @@ const LIMITS = {
   contrastBody: 4.5,
   contrastLarge: 3,
   bottomBlankRatio: 0.4,
+  // A8：粘性元素底部超出视口多少算「不可达」。给 2px 宽容 —— 亚像素舍入不算病。
+  stickyOverflowPx: 2,
   maxContrastSamples: 120,
 };
 
@@ -138,6 +140,7 @@ const ASSERTION_NAMES = [
   'A5 正文对比度达标',
   'A6 <h1> 唯一',
   'A7 页面底部无假高度',
+  'A8 粘性列不超出视口（菜单能滚到底）',
 ];
 
 function collectAssertions(page) {
@@ -253,7 +256,7 @@ function collectAssertions(page) {
     });
 
     // ── A4 固定/粘性元素互不遮挡 ──────────────────
-    // 判据含 sticky：站点页头与侧栏都是 `md:sticky`（Shell.tsx:35/75），
+    // 判据含 sticky：站点侧栏整列是 `md:sticky md:h-screen`（Shell.tsx 的 `<aside>` 内），
     // 只判 fixed 的话这条断言在本站**一张都判不了**（曾经 45 张全 na）。
     // sticky 的静态位置就是它在文档流里的位置，两个 sticky 相交说明版式算错了。
     const floatingEls = Array.from(document.querySelectorAll('*')).filter((el) => {
@@ -422,6 +425,60 @@ function collectAssertions(page) {
       actual: `scrollHeight ${de.scrollHeight} - 最后内容底部 ${Math.round(maxBottom)} = ${Math.round(blank)}px 空白（上限 ${Math.round(allowed)}px = ${Math.round(limits.bottomBlankRatio * 100)}vh）`,
       offenders: blank > allowed ? [`最后一个可见元素：${lastWho}`] : [],
     });
+
+    // ── A8 粘性列不超出视口（2026-10-05）────────────
+    //
+    // 背景：侧边栏原本是「页头 md:sticky top-0 + 菜单 md:sticky top-[88px]」两个独立
+    // sticky 元素，而菜单 `overflow: visible` —— 菜单项变多（拆细后 24 条）后菜单实测
+    // 高 1268px > 视口 900px，底部 456px（配额卡 + 统计块）被钉在屏幕外**永远点不到**；
+    // 同时菜单不是滚动容器，鼠标停在菜单上滚滚的全是正文（window.scrollY 0→300）。
+    // A1/A4/A7 全绿 —— 横向没溢出、sticky 之间不相交、页面底部没空白。
+    //
+    // 判据只抓「溢出且不可达」：**能自己滚（scrollHeight > clientHeight 且
+    // overflow-y 是 auto/scroll）就算通过**，因为溢出被容器吸收了。
+    // 不抓「侧栏比视口高」本身 —— 那在菜单确实是滚动容器时是正常的。
+    const stickyCols = Array.from(document.querySelectorAll('body *')).filter((el) => {
+      const cs = getComputedStyle(el);
+      if (cs.position !== 'sticky' && cs.position !== 'fixed') return false;
+      return isVisible(el);
+    });
+    const colOffenders = [];
+    let colChecked = 0;
+    for (const el of stickyCols) {
+      const cs = getComputedStyle(el);
+      const scrollable =
+        (cs.overflowY === 'auto' || cs.overflowY === 'scroll') && el.scrollHeight > el.clientHeight + 1;
+      const r = el.getBoundingClientRect();
+      // 用文档坐标判：sticky 元素滚到页面底部时才是它最低的位置
+      const bottomAtDocEnd = r.bottom + (de.scrollHeight - vh);
+      const over = Math.max(0, Math.round(bottomAtDocEnd - vh));
+      if (over <= limits.stickyOverflowPx) continue;
+      colChecked++;
+      if (scrollable) continue; // 溢出被自己的滚动容器吸收了 → 可达
+      colOffenders.push(
+        `${clsOf(el)} 底部到文档末尾时超出视口 ${over}px，`
+          + `但 overflow-y=${cs.overflowY}、scrollHeight ${el.scrollHeight} / clientHeight ${el.clientHeight}`
+          + ` → 溢出部分不可达`,
+      );
+    }
+    if (stickyCols.length === 0) {
+      out.push({ id: 'A8', na: '页面上没有可见的 sticky/fixed 元素', offenders: [] });
+    } else if (colChecked === 0) {
+      // ⚠️ 别把「这次没有可判定的目标」写成通过（见 visual-check.ts 同一条判据）。
+      // 本站在**桌面**档有 2 个粘性列，在**移动**档天然没有 —— 按视口分三态才是对的。
+      out.push({
+        id: 'A8',
+        na: `${stickyCols.length} 个粘性元素都没有溢出视口 → 无可判定目标（不是通过）`,
+        offenders: [],
+      });
+    } else {
+      out.push({
+        id: 'A8',
+        ok: colOffenders.length === 0,
+        actual: `粘性元素 ${stickyCols.length} 个，溢出且不可达 ${colOffenders.length} 个（阈值 ${limits.stickyOverflowPx}px）`,
+        offenders: colOffenders.slice(0, 4),
+      });
+    }
 
     return { assertions: out, viewport: { w: cw, h: vh } };
   }, LIMITS);

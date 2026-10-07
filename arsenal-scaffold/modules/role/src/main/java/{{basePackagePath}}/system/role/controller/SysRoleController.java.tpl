@@ -41,12 +41,17 @@ public class SysRoleController {
         return ApiResponse.ok(service.page(query));
     }
 
+    /**
+     * 新建角色。编码 ADMIN 为内置角色保留（种子幂等 + auth 直通都锚在它身上）；
+     * 编码全局唯一，冲突报 CONFLICT。
+     */
     @PostMapping
     @RequirePermission("sys:role:save")
     public ApiResponse<Long> create(@Valid @RequestBody RoleCreateRequest req) {
         return ApiResponse.ok(service.create(req));
     }
 
+    /** 更新名称 / 描述 / 启停状态。内置 ADMIN 不允许停用；编码创建后不可改（请求里根本没有它）。 */
     @PutMapping("/{id}")
     @RequirePermission("sys:role:update")
     public ApiResponse<Void> update(@PathVariable Long id, @Valid @RequestBody RoleUpdateRequest req) {
@@ -54,6 +59,7 @@ public class SysRoleController {
         return ApiResponse.ok();
     }
 
+    /** 物理删除角色。内置 ADMIN 禁删 —— 权限体系的地基（守卫与原因见 SysRoleServiceImpl）。 */
     @DeleteMapping("/{id}")
     @RequirePermission("sys:role:delete")
     public ApiResponse<Void> delete(@PathVariable Long id) {
@@ -61,12 +67,17 @@ public class SysRoleController {
         return ApiResponse.ok();
     }
 
+    /** 回显该角色已分配的权限 id 集合 —— 权限树勾选框的回显数据源。 */
     @GetMapping("/{id}/permissions")
     @RequirePermission("sys:role:list")
     public ApiResponse<List<Long>> permissions(@PathVariable Long id) {
         return ApiResponse.ok(service.listPermissionIds(id));
     }
 
+    /**
+     * 给角色分配权限。语义是**全量替换**：请求里的 permissionIds 就是该角色的
+     * 最终权限集（前端权限树整树提交）；去重保序，权限 id 必须真实存在。
+     */
     @PutMapping("/{id}/permissions")
     @RequirePermission("sys:role:assignPerm")
     public ApiResponse<Void> assignPermissions(@PathVariable Long id,

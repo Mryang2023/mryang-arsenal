@@ -21,17 +21,21 @@ import java.time.LocalDateTime;
 @TableName("sys_role_permission")
 public class RolePermissionBinding {
 
+    /** 主键，数据库自增 */
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     @TableId(type = IdType.AUTO)
     private Long id;
 
+    /** 被授权的角色 id（软引用 sys_role，分配时全量替换、不设外键级联） */
     @Column(name = "role_id", nullable = false)
     private Long roleId;
 
+    /** 授予的权限 id（软引用 sys_permission，有效性在 service 层校验） */
     @Column(name = "permission_id", nullable = false)
     private Long permissionId;
 
+    /** 绑定时间：代码里显式赋值 */
     @Column(name = "create_time", nullable = false)
     private LocalDateTime createTime;
 

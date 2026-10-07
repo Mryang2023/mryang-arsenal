@@ -28,14 +28,17 @@ import java.time.LocalDateTime;
 @TableName("sys_user")
 public class SysUser {
 
+    /** 主键，数据库自增 —— 两套持久层都用自增策略，表结构一处定义 */
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     @TableId(type = IdType.AUTO)
     private Long id;
 
+    /** 登录名，全局唯一（唯一性在 service 层先查再插，数据库唯一索引兜底） */
     @Column(nullable = false, unique = true, length = 64)
     private String username;
 
+    /** 显示名 —— 页面上优先展示它而不是 username */
     @Column(length = 64)
     private String nickname;
 
@@ -49,13 +52,15 @@ public class SysUser {
     @Column(name = "password", nullable = false, length = 100)
     private String password;
 
-    /** 状态：0 正常 1 停用 */
+    /** 状态：0 正常 1 停用（停用 = 登录被拒；内置 admin 禁停用，守卫在 service 层） */
     @Column(nullable = false)
     private Integer status;
 
+    /** 创建时间：代码里显式赋值（JPA 全字段 INSERT 会把 null 写进去，不依赖数据库默认值） */
     @Column(name = "create_time", nullable = false, updatable = false)
     private LocalDateTime createTime;
 
+    /** 更新时间：每次写操作同步刷新，两端实现行为一致 */
     @Column(name = "update_time", nullable = false)
     private LocalDateTime updateTime;
 

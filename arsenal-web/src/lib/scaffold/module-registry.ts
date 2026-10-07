@@ -15,7 +15,7 @@ export function moduleById(id: string): ModuleDef | undefined {
 
 /**
  * 解析勾选结果：
- *  - 依赖闭包（勾 role/menu 自动带上 user）；
+ *  - 依赖闭包（requires 自动展开 —— 方向以 module.json 为准，如勾 user 自动带上 role）；
  *  - 缺依赖给出 warning（UI 标黄 + 一键补）；
  *  - 与后端选型冲突的组合给出 warning（不静默生成坏代码）。
  */
@@ -66,6 +66,18 @@ export function resolveModules(
       module: 'frontend',
       reason: '已勾选功能模块但没有前端 —— 管理页面没有落点，只能裸调接口',
       remedy: '前端技术栈选 vue3-vite',
+    });
+  }
+  // 建表/种子只跟随 Flyway（追加 V1/V2）与 schema.sql（migration=none）；
+  // Liquibase 的 changelog 是 XML 索引（master 只 include 基线 001-init），
+  // 模块表不会自动进变更集 —— 静默漏建表 = 登录/菜单全 500，且导出闸查不到。
+  // sql-plan 的注释一直声称「由 module-registry 警告」，实际从来没警告过
+  //（2026-10-05 导出审计补上）
+  if (chosen.size > 0 && stackPicks.migration === 'liquibase') {
+    warnings.push({
+      module: 'migration',
+      reason: '功能模块的建表与种子 SQL 不跟随 Liquibase（changelog 是 XML 索引，不会自动追加）—— 解包后模块表建不出来',
+      remedy: '迁移改为 flyway，或 none（用 schema.sql）',
     });
   }
 

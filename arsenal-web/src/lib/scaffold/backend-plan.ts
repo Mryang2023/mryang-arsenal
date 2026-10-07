@@ -35,10 +35,23 @@ function bakeEnv(yml: string, env: EnvInput): string {
   let out = yml;
   for (const [key, name] of Object.entries(ENV_TO_PLACEHOLDER)) {
     const value = env.values[key];
-    if (value === undefined || value === '') continue;
-    out = out.replace(new RegExp(`\\$\\{${name}:[^}]*\\}`), `\${${name}:${value}}`);
+    if (value === undefined || value === '' || unsafeEnvValue(value)) continue;
+    // 替换串必须用函数形式：字符串替换里 `$&` / `` $` `` / `$'` 会被展开，
+    // 用户密码恰好带 $ 时连库密码就被改写了（2026-10-05 审计实测）。
+    out = out.replace(new RegExp(`\\$\\{${name}:[^}]*\\}`), () => `\${${name}:${value}}`);
   }
   return out;
+}
+
+/**
+ * 这三类值烘进 yml 必炸，命中时**不烘**、保留占位符原样：
+ *   `}`  —— 提前终止 Spring 的 `${NAME:默认}`，半截值变成裸 yml 文本；
+ *   换行 —— 占位符断成多行，行结构直接坏；
+ *   ` #` —— 行内注释起点，值被截断。
+ * 不烘的代价是「回到环境变量覆盖的既有通道」，比烘出一份必炸的配置强。
+ */
+function unsafeEnvValue(value: string): boolean {
+  return /[\r\n}]/.test(value) || /\s#/.test(value);
 }
 
 /** 演示档：H2 内存库。Flyway/sql.init 在 H2 MODE=MySQL 上照常工作，只换数据源 */
@@ -240,6 +253,17 @@ export function buildBackendFiles(
         + `        <dependency>\n            <groupId>com.h2database</groupId>\n            <artifactId>h2</artifactId>\n            <scope>runtime</scope>\n        </dependency>\n    </dependencies>`,
       );
     }
+    // gradle 侧同权：只给 pom 注 H2 等于让 gradle 的演示档必然起不来
+    //（application-demo.yml 在，H2 依赖不在 —— 2026-10-05 审计实测）
+    const gradle = files.find((f) => f.path === 'build.gradle');
+    if (gradle && !gradle.content.includes('com.h2database')) {
+      gradle.content = gradle.content.replace(
+        '    // 版本一律交给 Spring Boot 插件管理的 BOM，不手写版本号',
+        '    // 版本一律交给 Spring Boot 插件管理的 BOM，不手写版本号\n'
+        + '    // 演示档数据源（--spring.profiles.active=demo 时生效）\n'
+        + "    runtimeOnly 'com.h2database:h2'",
+      );
+    }
   }
 
   // ── mybatisplus + 模块：实体模板同时带 JPA 注解（单实体双叉共用），
@@ -252,6 +276,18 @@ export function buildBackendFiles(
         `        <!-- 模块实体同时标注 JPA 注解（单实体双叉共用），编译期需要它；\n`
         + `             纯 MyBatis-Plus 运行时路径不触碰这些注解 -->\n`
         + `        <dependency>\n            <groupId>jakarta.persistence</groupId>\n            <artifactId>jakarta.persistence-api</artifactId>\n            <version>3.1.0</version>\n        </dependency>\n    </dependencies>`,
+      );
+    }
+    // gradle 侧同权：jakarta.persistence-api 不在 Boot BOM 管辖内，必须带版本。
+    // 守卫认依赖坐标而不是类名片段 —— 文件头注释里也会提到 jakarta.persistence-api
+    //（版本纪律那句），拿它当守卫会把「注释提过」误判成「依赖已注入」。
+    const gradle = files.find((f) => f.path === 'build.gradle');
+    if (gradle && !gradle.content.includes('jakarta.persistence:jakarta.persistence-api')) {
+      gradle.content = gradle.content.replace(
+        '    // 版本一律交给 Spring Boot 插件管理的 BOM，不手写版本号',
+        '    // 版本一律交给 Spring Boot 插件管理的 BOM，不手写版本号\n'
+        + '    // 模块实体同时标注 JPA 注解（单实体双叉共用），编译期需要它\n'
+        + "    implementation 'jakarta.persistence:jakarta.persistence-api:3.1.0'",
       );
     }
   }
