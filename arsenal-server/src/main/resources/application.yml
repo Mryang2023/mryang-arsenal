@@ -46,6 +46,11 @@ arsenal:
   scan:
     rules-file: ${ARSENAL_SCAN_RULES:../arsenal-scan/scan_rules.json}
 
+  # 体检：观察项事实源（手写 JSON，随项目走）。读不到不许启动失败 ——
+  # 观察项只是「提醒」那一档，P0/P1 档照常出，报告里会写明「事实源不可用 + 为什么」。
+  checkups:
+    file: ${ARSENAL_CHECKUPS:../arsenal-checkups/checkups.json}
+
   # 案例执行服务：把提交的案例代码用独立 JDK 21 子进程编译运行（虚拟线程等需要 21+）。
   # 主服务仍跑 JDK 17，不改；这里只解析一个 JDK 21+ 给案例用。
   cases:
