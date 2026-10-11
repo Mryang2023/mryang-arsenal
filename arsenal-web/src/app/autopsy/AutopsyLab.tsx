@@ -9,10 +9,17 @@ import {
   type AutopsySourceTrace,
 } from '@/lib/autopsy-data';
 import type { ProjectFacts } from '@/lib/facts-arch';
-import { scanFacts, scanUpload, type ScanOutcome } from '@/lib/arsenal-api';
+import {
+  autopsyInspect,
+  scanFacts,
+  scanUpload,
+  type AutopsyReport,
+  type ScanOutcome,
+} from '@/lib/arsenal-api';
 import { scanTechName } from '@/lib/scan-rules';
 import { downloadText } from '@/lib/zip';
 import ArchPanel from './ArchPanel';
+import CheckupPanel from './CheckupPanel';
 import UnmatchedPanel from './UnmatchedPanel';
 
 /**
@@ -41,6 +48,19 @@ type Stage =
   | { kind: 'done'; facts: ProjectFacts; requested: string }
   | { kind: 'failed'; code: string; message: string; offline: boolean };
 
+/**
+ * 体检是**独立的一次请求**（/api/autopsy/inspect），与架构面板的 facts 不是同一条路。
+ *
+ * 为什么不合进一次扫描：两者要的东西不同（架构事实 vs 三档结论），后端也分两个接口；
+ * 前端若把两者合成一次「大请求」，任何一半失败都会让另一半也拿不到。
+ * 但**输入是同一个**（同一个 mode / source）—— 用户填一次地址，两个面板都能跑。
+ */
+type CheckupStage =
+  | { kind: 'idle' }
+  | { kind: 'running' }
+  | { kind: 'done'; report: AutopsyReport }
+  | { kind: 'failed'; code: string; message: string; offline: boolean };
+
 const MODES: [Mode, string, string][] = [
   ['path', '本地目录', 'D:/mryang/workspace/2026/arsenal/arsenal-server'],
   ['git', 'https git', 'https://github.com/owner/repo.git'],
@@ -52,6 +72,8 @@ export default function AutopsyLab() {
   const [source, setSource] = useState('');
   const [stage, setStage] = useState<Stage>({ kind: 'idle' });
   const [theme, setTheme] = useState<CanvasTheme>('doc');
+  const [tab, setTab] = useState<'arch' | 'checkup'>('arch');
+  const [checkup, setCheckup] = useState<CheckupStage>({ kind: 'idle' });
   const fileRef = useRef<HTMLInputElement>(null);
 
   const run = useCallback(async (what: string, requested: string, fn: () => Promise<ScanOutcome>) => {
@@ -78,6 +100,31 @@ export default function AutopsyLab() {
     // git 那条路后端一直支持（SourceResolver.fromGit），只是前端没发过 —— 这里补上
     void run(`扫描 ${value}`, value, () => scanFacts({ kind: mode === 'git' ? 'git' : 'path', value }));
   }, [mode, run, source]);
+
+  // 换输入就作废上一次体检结果 —— 留着一份「对别的目录跑出来的结论」是最危险的那种旧数据
+  const onAnalyzeCheckup = useCallback(() => {
+    if (mode === 'zip') {
+      setCheckup({
+        kind: 'failed',
+        code: 'ZIP_NOT_SUPPORTED',
+        message: '体检暂不支持 zip：/api/autopsy/inspect 只吃 path / git（上传链路是 multipart，不是同一条路）。请先解压到本地目录再体检。',
+        offline: false,
+      });
+      return;
+    }
+    const value = source.trim();
+    if (!value) return;
+    setCheckup({ kind: 'running' });
+    void autopsyInspect({ kind: mode === 'git' ? 'git' : 'path', value }).then((outcome) => {
+      if (outcome.kind === 'report') {
+        setCheckup({ kind: 'done', report: outcome.report });
+      } else if (outcome.kind === 'offline') {
+        setCheckup({ kind: 'failed', code: 'OFFLINE', message: outcome.message, offline: true });
+      } else {
+        setCheckup({ kind: 'failed', code: outcome.code, message: outcome.message, offline: false });
+      }
+    });
+  }, [mode, source]);
 
   const artifacts: AutopsyArtifacts | null = useMemo(
     () => (stage.kind === 'done' ? buildAutopsy(stage.facts, theme) : null),
@@ -196,7 +243,95 @@ export default function AutopsyLab() {
         )}
       </div>
 
-      {artifacts && trace && stage.kind === 'done' && (
+      {/* ── 页签：架构 / 体检 ── */}
+      <div className="flex items-center gap-1 self-start rounded border border-line p-0.5">
+        {(
+          [
+            ['arch', '架构面板'],
+            ['checkup', '体检报告'],
+          ] as ['arch' | 'checkup', string][]
+        ).map(([id, label]) => (
+          <button
+            key={id}
+            type="button"
+            onClick={() => setTab(id)}
+            className={
+              'rounded px-2.5 py-1 text-[11px] transition-colors ' +
+              (tab === id ? 'bg-surfaceHi text-brass' : 'text-fgMuted hover:text-fg')
+            }
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+
+      {tab === 'checkup' && (
+        <div className="space-y-3">
+          <div className="panel px-3 py-3">
+            <p className="mono text-[10px] uppercase tracking-wider text-fgFaint">
+              体检：三档结论 + 覆盖率
+            </p>
+            <div className="mt-2 flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                onClick={onAnalyzeCheckup}
+                disabled={checkup.kind === 'running' || (mode !== 'zip' && !source.trim())}
+                className="rounded border px-3 py-1 text-[11px] font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-45"
+                style={{ borderColor: 'rgba(217,164,65,0.5)', background: 'rgba(217,164,65,0.12)', color: '#D9A441' }}
+              >
+                {checkup.kind === 'running' ? '体检中…' : '一键体检'}
+              </button>
+              <span className="text-[10px] leading-[15px] text-fgFaint">
+                用上面同一个地址跑。P0/P1 复用同一套规则集（MUST+NEVER 判 P0、SHOULD 判 P1，
+                与 /check 同一台引擎）；观察项由 <span className="mono">arsenal-checkups/checkups.json</span> 驱动 —— 判据是数据不是代码。
+              </span>
+            </div>
+            {checkup.kind === 'idle' && (
+              <p className="mt-2 text-[10.5px] text-fgMuted">
+                还没跑过体检。点上面的按钮 —— 报告会明确写出「覆盖了多少条、多少条没结论」，
+                不会只报一个命中数。
+              </p>
+            )}
+            {checkup.kind === 'failed' && (
+              <div
+                className="mt-2.5 rounded border px-2.5 py-2"
+                style={{ borderColor: 'rgba(229,72,77,0.4)', background: 'rgba(229,72,77,0.08)' }}
+              >
+                <p className="text-[11px] font-semibold" style={{ color: '#E5484D' }}>
+                  {checkup.offline ? '后端连不上（:3011 没起）' : `体检被拒：${checkup.code}`}
+                </p>
+                <p className="mt-1 text-[10.5px] leading-[16px] text-fgMuted">{checkup.message}</p>
+              </div>
+            )}
+          </div>
+
+          {checkup.kind === 'done' && (
+            <>
+              <CheckupPanel report={checkup.report} />
+              <div className="panel flex flex-wrap items-center gap-2 px-3 py-2.5">
+                <button
+                  type="button"
+                  onClick={() =>
+                    downloadText(
+                      JSON.stringify(checkup.report, null, 2),
+                      `${checkup.report.root || 'project'}-checkup.json`,
+                      'application/json'
+                    )
+                  }
+                  className="rounded border border-line px-2.5 py-1 text-[11px] text-fgMuted transition-colors hover:border-lineHi hover:text-fg"
+                >
+                  下载体检 JSON
+                </button>
+                <span className="text-[10px] text-fgFaint">
+                  这份 JSON 带覆盖率与未覆盖明细 —— 留档时它才是「这次到底查了什么」的凭据
+                </span>
+              </div>
+            </>
+          )}
+        </div>
+      )}
+
+      {tab === 'arch' && artifacts && trace && stage.kind === 'done' && (
         <div className="space-y-3">
           {/* ── 扫的到底是哪儿 ── */}
           <div className="panel px-3 py-2.5">

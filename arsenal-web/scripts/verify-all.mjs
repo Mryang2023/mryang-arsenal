@@ -71,6 +71,12 @@ const LAYERS = [
   //    `layer-<key>.json`，两个脚本共用一个 key 时**后写的覆盖先写的**，
   //    先跑那层的项数被静默吞掉。设计稿初稿写的是「并入第十一层」，实测后推翻。
   { key: 'charter', name: '项目章程', script: 'verify:charter' },
+  // 体检报告（2026-10-12 新增，第 13 层）：观察项是数据不是代码 / 覆盖率带分母 /
+  // 新事实源四处登记 / 校验器反着验 / 端到端真跑 inspect。
+  //
+  // ⚠️ 独立 key `checkup`：与章程层同一条理由 —— `finish(layer)` 用 layer 字符串
+  //    同时决定状态文件名与查表层名，共用 key 时后写的覆盖先写的。
+  { key: 'checkup', name: '体检报告', script: 'verify:checkup' },
   // 部署形态动画（2026-09-27 新增，第十层）：形态图快照逐字符 + 机理剧本契约 + 播放器契约。
   // 纯源码 / 产物断言，不起浏览器 —— 排在 visual 之前，别让页面层等它。
   { key: 'topology', name: '部署形态动画', script: 'verify:topology' },

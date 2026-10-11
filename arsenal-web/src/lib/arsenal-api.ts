@@ -303,6 +303,129 @@ export async function scanUpload(file: File): Promise<ScanOutcome> {
 }
 
 // ─────────────────────────────────────────────────────────────
+// 项目体检（后端 POST /api/autopsy/inspect）
+//
+// 与扫描同形（{source:{kind,value}}），因为面对的是同一个问题。
+// 差别在回包：这里回的是三档结论 + 覆盖率，不是架构事实。
+//
+// 类型与后端 com.arsenal.autopsy.AutopsyService 的输出逐字段对齐 ——
+// 前端不自己重算任何一条结论（重算就会有两份实现，早晚各说各的）。
+// ─────────────────────────────────────────────────────────────
+
+export interface AutopsyFinding {
+  ruleId: string;
+  title: string;
+  severity: string;
+  category: string;
+  file: string;
+  line: number;
+  column: number;
+  snippet: string;
+  message: string;
+  collapsed: number;
+  /** 拼好的 `path:line`。铁律：每条结论必带证据 */
+  evidence: string;
+}
+
+export interface AutopsyCoverage {
+  /** 规则池总数（69）。分母从后端来 —— 写死的那天就是它开始撒谎的那天 */
+  total: number;
+  executed: number;
+  notRun: number;
+  batches: number;
+  decidable: boolean;
+  severityPool: Record<string, number>;
+  tierPool: { p0: number; p1: number; other: number };
+  skipped: {
+    ruleId: string;
+    title: string;
+    severity: string;
+    category: string;
+    layer: string;
+    reason: string;
+  }[];
+  skippedCount: number;
+  parseFailures: { file: string; line: number; status: string; message: string }[];
+  undecidability: string[];
+}
+
+export interface AutopsyObservation {
+  id: string;
+  level: string;
+  text: string;
+  advice: string;
+  actual: string;
+  evidence: string[];
+}
+
+export interface AutopsyReport {
+  schemaVersion: number;
+  root: string;
+  sourceKind: string;
+  elapsedMs: number;
+  scope: {
+    files: number;
+    bytes: number;
+    truncated: boolean;
+    rootName: string;
+    maxFiles: number;
+    maxTotalBytes: number;
+  };
+  coverage: AutopsyCoverage;
+  p0: AutopsyFinding[];
+  p1: AutopsyFinding[];
+  other: AutopsyFinding[];
+  obs: {
+    available: boolean;
+    source: string;
+    ruleCount: number;
+    reason?: string;
+    items: AutopsyObservation[];
+    unevaluated: { id: string; fact: string; op: string; reason: string }[];
+    firedCount: number;
+    unevaluatedCount: number;
+  };
+}
+
+export type AutopsyOutcome =
+  | { kind: 'report'; report: AutopsyReport }
+  | { kind: 'rejected'; code: string; message: string }
+  | { kind: 'offline'; message: string };
+
+/** 体检一次（本地目录 / https git）。三态与扫描同一口径 */
+export async function autopsyInspect(source: ScanSource): Promise<AutopsyOutcome> {
+  const base = arsenalApiBase();
+  let res: Response;
+  try {
+    res = await fetchWithTimeout(
+      `${base}/api/autopsy/inspect`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ source }),
+      },
+      SCAN_TIMEOUT_MS
+    );
+  } catch (e) {
+    return { kind: 'offline', message: offlineMessage(e) };
+  }
+  let body: ApiEnvelope<AutopsyReport>;
+  try {
+    body = (await res.json()) as ApiEnvelope<AutopsyReport>;
+  } catch {
+    return { kind: 'rejected', code: `HTTP_${res.status}`, message: `后端返回的不是 JSON（HTTP ${res.status}）` };
+  }
+  if (!body.success || !body.data) {
+    return {
+      kind: 'rejected',
+      code: body.code ?? `HTTP_${res.status}`,
+      message: body.message ?? `体检失败（HTTP ${res.status}）`,
+    };
+  }
+  return { kind: 'report', report: body.data };
+}
+
+// ─────────────────────────────────────────────────────────────
 // 代码校验（后端 POST /api/lint）
 //
 // 校验台的「后端深检」：把用户粘贴的源码交给后端，跑正则层之外的

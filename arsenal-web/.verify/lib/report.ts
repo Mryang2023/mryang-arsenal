@@ -85,6 +85,8 @@ export const LAYER_NAMES: Record<string, string> = {
   //    于是先跑的那 17 项被静默吞掉，报告上只看得见后跑的那层。
   //    这正是本仓反复治的「静默丢失」，不能在自己新加的层上重犯一次。
   charter: '项目章程',
+  // 体检报告（2026-10-12 新增，第 13 层）。独立 key 的理由同 verify-all.mjs 的注释。
+  checkup: '体检报告',
   topology: '部署形态动画',
   visual: '视觉断言',
   // ⚠️ `meta` **不是 `verifyChain` 的成员** —— 它是链尾的元核对层：

@@ -70,6 +70,7 @@ const CHAIN_ORDER = [
   'scan',
   'scaffold',
   'charter',
+  'checkup',
   'topology',
   'visual',
 ];
