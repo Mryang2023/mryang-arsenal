@@ -28,8 +28,16 @@ import {
   buildLayeredArch,
   buildLayeredSvg,
   buildTechArchFromFacts,
+  factsToPicks,
   summarizeFacts,
 } from '../src/lib/facts-arch';
+import {
+  autopsyCoverage,
+  autopsyUnmatched,
+  buildAutopsy,
+  traceSource,
+} from '../src/lib/autopsy-data';
+import { scanStats } from '../src/lib/scan-rules';
 import { CANVAS_THEME_OPTIONS, buildTechArchSvg } from '../src/lib/arch-canvas';
 import { archifyIrIssues, archifyIrShapeIssues } from '../src/lib/archify-ir';
 import { buildProfileDraftFromFacts } from '../src/lib/profile-draft';
@@ -81,6 +89,12 @@ type Receipt = {
   guard?: any;
 };
 
+/**
+ * 【9】解剖台那一节要用的事实。**不重新跑探针**（一次探针 4 分钟）——
+ * 【1】拿到 factsA 时存到这里，【9】直接复用。
+ */
+let factsShared: any = null;
+
 function runProbe(tag: string, actions: string[]): Receipt[] {
   const outFile = path.join(tmpDir, `${tag}.json`);
   fs.mkdirSync(tmpDir, { recursive: true });
@@ -105,6 +119,7 @@ if (!skipAll) {
     'rules:',
   ]);
   const factsA = r1.find((r) => r.kind === 'facts')?.facts;
+  factsShared = factsA ?? null; // 给【9】留一份，避免为同一份事实再跑一次探针
   const rules = r1.find((r) => r.kind === 'rules')?.rules;
 
   check('1-1 扫描成功返回 facts', !!factsA, JSON.stringify(r1).slice(0, 400));
@@ -507,6 +522,95 @@ if (!skipAll) {
       '等 180s 不现实。8-1/8-5 已断言配置项值与超期后 tick() 抛 SCAN_TIMEOUT 的 code'
     );
   }
+
+// ═══════════════════════════════════════════════════════════════
+// ── 【9】解剖台数据层（2026-10-11 夜跑棒 1）─────────────────────
+//
+// 解剖台（/autopsy）把原本写在 `CodeIntake.tsx` 里的 facts→图 链路抽成了
+// `src/lib/autopsy-data.ts`，供解剖台与「从代码生成」面板共用。
+// 抽这一类东西的风险不是抽错，而是**抽的时候顺手改了一点判据** ——
+// 那之后 /archify 与 /autopsy 会各说各的，而两边都不会报错（memory 铁律 23）。
+// 所以这一节守两件事：① 抽出来的那份与直算逐字段等价 ② 解剖台独有的三条结论
+// （未识别依赖 / 覆盖率 / 路径解析对照）不许静默丢东西。
+if (!skipAll && factsShared) {
+  section('【9】解剖台数据层（autopsy-data.ts）');
+  const factsA = factsShared;
+  const aut = buildAutopsy(factsA, 'doc');
+
+  // ① 等价性：把抽取前的实现照抄一遍逐字段对。
+  //    只比对「会进图 / 会进装配台」的那几个字段 —— 比 SVG 字节更敏感：
+  //    SVG 里改一个标题也能过，字段对不上就一定是判据变了。
+  const raw = buildTechArchFromFacts(factsA);
+  const rawLayered = buildLayeredArch(factsA, raw.arch);
+  const rawSummary = summarizeFacts(factsA);
+  const rawTitle = `${factsA.root} 技术架构图`;
+  const rawSvg = buildTechArchSvg(raw.arch, 'doc', {
+    title: rawTitle,
+    subtitle:
+      `由代码扫描生成 · ${rawSummary.files} 个文件 / ${raw.arch.nodes.length} 个节点 / ` +
+      `${raw.arch.edges.length} 条连线 · ${rawSummary.techs.length} 项技术命中`,
+  });
+  check('9-1 抽数据层没改判据：buildAutopsy 与 facts-arch 直算逐字段相等（picks/arch/layered/summary/SVG）',
+    JSON.stringify(aut.picksRes) === JSON.stringify(factsToPicks(factsA))
+    && JSON.stringify(aut.built.arch) === JSON.stringify(raw.arch)
+    && JSON.stringify(aut.layered) === JSON.stringify(rawLayered)
+    && JSON.stringify(aut.summary) === JSON.stringify(rawSummary)
+    && aut.techSvg === rawSvg
+    && aut.title === rawTitle,
+    `picks=${JSON.stringify(aut.picksRes.picks).slice(0, 160)}`);
+
+  // ② 未识别依赖：条数必须与 facts 里的 unmatched 一致（少一条 = 静默丢），
+  //    且坐标不为空 —— 空坐标在页面上会渲染成一个没有名字的条目。
+  const un = autopsyUnmatched(factsA);
+  check('9-2 未识别依赖一条不落（条数 == facts.techStack.unmatched，坐标非空）',
+    un.length === (factsA.techStack?.unmatched ?? []).length
+    && un.every((u) => u.coord.length > 0 && u.group.length > 0 && u.artifact.length > 0),
+    `实际 ${un.length} 条 / facts ${(factsA.techStack?.unmatched ?? []).length} 条`);
+
+  // ③ 路径解析对照：填 A 扫到 B 必须能被发现（后端 toRealPath 会跟着符号链接走，
+  //    而事实里只有目录名 —— 不对照的话「扫错了目录」永远没人知道）。
+  const sameName = traceSource(`D:/somewhere/${factsA.root}`, factsA);
+  const otherName = traceSource('D:/somewhere/totally-other', factsA);
+  const zipLike = traceSource('D:/somewhere/totally-other', { ...factsA, sourceKind: 'zip' });
+  check('9-3 路径解析对照：名字一致不报警、名字不一致报 diverged、zip 天然不同不误报',
+    sameName.diverged === false && otherName.diverged === true && zipLike.diverged === false,
+    JSON.stringify({ sameName: sameName.diverged, otherName: otherName.diverged, zip: zipLike.diverged }));
+
+  // ④ 覆盖率与映射表规模必须从数据读 —— 写死 108 / 47 会在补映射那天开始撒谎。
+  const cov = autopsyCoverage(factsA);
+  check('9-4 映射表规模从同步产物读（与 scanStats 相等，不是写死的常量）',
+    cov.ruleCount === scanStats().count && cov.ruleOnCanvas === scanStats().onCanvas && cov.ruleCount > 0,
+    JSON.stringify(cov));
+
+  // ⑤ 页面与数据层文件真的在 —— 「路由在、文件被删」时 /autopsy 会白屏，
+  //    而没有任何一层会说话（project-check 只管 NAV ↔ 页面目录，不管容器拆成几个文件）。
+  const autopsyFiles = [
+    'src/app/autopsy/page.tsx',
+    'src/app/autopsy/AutopsyLab.tsx',
+    'src/app/autopsy/ArchPanel.tsx',
+    'src/app/autopsy/UnmatchedPanel.tsx',
+    'src/lib/autopsy-data.ts',
+  ];
+  const missing = autopsyFiles.filter((f) => !fs.existsSync(path.join(webRoot, f)));
+  check(`9-5 解剖台 ${autopsyFiles.length} 个文件都在（页面壳 / 容器 / 两块面板 / 数据层）`,
+    missing.length === 0, `缺失: ${missing.join('、')}`);
+
+  // ⑥ 平行实现守门：解剖台不许自己再算一遍 picks —— 谁 import 了 factsToPicks
+  //    而它又不是 facts-arch / autopsy-data / 校验层本身，就说明第三份出现了。
+  const suspects = ['src/app/autopsy/AutopsyLab.tsx', 'src/app/autopsy/ArchPanel.tsx',
+    'src/app/autopsy/UnmatchedPanel.tsx', 'src/components/CodeIntake.tsx'];
+  // 去注释后再判：本仓库的注释里会写「结论来自 buildAutopsy()」这种话，
+  // 不去注释的话**任何** import 了 facts-arch 的文件都会因为注释里那句话被放过 ——
+  // 判据就变成了摆设（2026-10-11 注入试验当场抓到：注入的平行 import 没让这条变红）。
+  const stripComments = (s: string) =>
+    s.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^[ \t]*\/\/.*$/gm, '');
+  const parallel = suspects.filter((f) => {
+    const s = stripComments(fs.readFileSync(path.join(webRoot, f), 'utf8'));
+    return /from '@\/lib\/facts-arch'/.test(s) && !/buildAutopsy|autopsyUnmatched|autopsyCoverage/.test(s);
+  });
+  check('9-6 解剖台没有平行实现：四个消费方都走 autopsy-data，不各自 import facts-arch 重算',
+    parallel.length === 0, `另有: ${parallel.join('、')}`);
+}
 
 // ── 收尾清理（finally 语义，2026-09-26 终检 P2-9）────────────────
 // 本层经探针在 tmp/scan-check 下造的 fixture（many-repo 20001 个 0 字节文件、

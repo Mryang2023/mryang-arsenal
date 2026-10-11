@@ -1,23 +1,9 @@
 'use client';
 
 import { useCallback, useMemo, useRef, useState } from 'react';
-import {
-  CANVAS_THEME_OPTIONS,
-  buildTechArchSvg,
-  type CanvasTheme,
-} from '@/lib/arch-canvas';
-import {
-  buildArchifyIrFromFacts,
-  buildLayeredArch,
-  buildLayeredSvg,
-  buildTechArchFromFacts,
-  factsToPicks,
-  summarizeFacts,
-  type FactsSummary,
-  type FactsUnmatched,
-  type ProjectFacts,
-} from '@/lib/facts-arch';
-import { archifyIrIssues, archifyIrShapeIssues } from '@/lib/archify-ir';
+import { CANVAS_THEME_OPTIONS, type CanvasTheme } from '@/lib/arch-canvas';
+import { buildAutopsy, type AutopsyArtifacts } from '@/lib/autopsy-data';
+import type { FactsSummary, FactsUnmatched, ProjectFacts } from '@/lib/facts-arch';
 import { buildProfileDraftFromFacts, type ProfileDraft } from '@/lib/profile-draft';
 import type { ArchProfile } from '@/lib/arch-profile';
 import type { StackPicks } from '@/lib/content-types';
@@ -124,76 +110,14 @@ export default function CodeIntake({
     setStage({ kind: 'done', facts, offline: true });
   }, [pasteText]);
 
-  const artifacts = useMemo(() => {
+  // 派生结论不再在本组件里算 —— 与解剖台共用 `autopsy-data.ts` 那一份
+  // （抄一份就会出现「同一份 facts 两张图各说各的」，而两边都不会报错）。
+  // `draft` 是档案草稿独有的产物，只有 /arch 那条路要用，留在组件里。
+  const artifacts = useMemo<
+    (AutopsyArtifacts & { draft: ProfileDraft }) | null
+  >(() => {
     if (stage.kind !== 'done') return null;
-    const facts = stage.facts;
-    const picksRes = factsToPicks(facts);
-    const built = buildTechArchFromFacts(facts);
-    // 分层图与部署图共用同一个模型入口：数据存储那一带取的就是部署图上的节点，
-    // 两张图因此不会一个说 MySQL 一个说 Postgres
-    const layered = buildLayeredArch(facts, built.arch);
-    const summary = summarizeFacts(facts);
-    const title = `${facts.root} 技术架构图`;
-    const techSvg = buildTechArchSvg(built.arch, theme, {
-      title,
-      subtitle:
-        `由代码扫描生成 · ${summary.files} 个文件 / ${built.arch.nodes.length} 个节点 / ` +
-        `${built.arch.edges.length} 条连线 · ${summary.techs.length} 项技术命中`,
-    });
-    const layeredSvg = buildLayeredSvg(layered, theme);
-    // IR 与主题绑定：主题不只是本地配色，它同时决定后端出图用哪套版式，
-    // 否则会出现「这里看是文档风、导出的 HTML 还是蓝图」
-    const irRes = buildArchifyIrFromFacts(facts, { theme, title });
-    const ir = irRes.ir;
-    const shape = archifyIrShapeIssues(ir);
-    const issues = shape.length ? [] : archifyIrIssues(ir);
-    const draft = buildProfileDraftFromFacts(facts);
-    /**
-     * 选型出处：装配台靠它区分「扫描读出来的格子」与「人点出来的格子」。
-     *
-     * `atScan` 存的是**此刻这一份** picks —— 装配台拿它跟用户后来的改动比对，
-     * 于是「哪几格是我自己改的」是当场算出来的，不靠谁记性好。
-     */
-    const provenance: PicksProvenance = {
-      kind: 'scan',
-      root: facts.root,
-      scannedAt: facts.scannedAt ?? '',
-      fromDeps: built.detail.fromDeps.map((d) => ({
-        dim: d.dim,
-        opt: d.opt,
-        tech: d.tech,
-        path: d.evidence.path,
-        line: d.evidence.line,
-      })),
-      fromDeploy: built.detail.fromDeploy.map((d) => ({
-        dim: d.dim,
-        opt: d.opt,
-        because: d.because,
-      })),
-      conflicts: built.detail.conflicts.map((c) => ({
-        dim: c.dim,
-        kept: c.kept,
-        dropped: c.dropped,
-      })),
-      // 后端没认出来的依赖坐标条数 —— 明细留在本页，装配台只报个数
-      unmatchedCount: (facts.techStack?.unmatched ?? []).length,
-      atScan: { ...picksRes.picks },
-    };
-    return {
-      facts,
-      picksRes,
-      built,
-      layered,
-      layeredSvg,
-      summary,
-      techSvg,
-      ir,
-      shape,
-      issues,
-      title,
-      draft,
-      provenance,
-    };
+    return { ...buildAutopsy(stage.facts, theme), draft: buildProfileDraftFromFacts(stage.facts) };
   }, [stage, theme]);
 
   const safeName = artifacts ? artifacts.facts.root.replace(/[^\w.-]+/g, '-') : 'project';
