@@ -1,0 +1,105 @@
+{
+  "collection": "arsenal-checkups",
+  "version": "0.1.0",
+  "updatedAt": "2026-10-11",
+  "count": 6,
+  "note": "观察项事实源（第 9 个事实源，手写 JSON，随项目走，不进 tools/content/*.py —— 与 arsenal-charter/ 同一性质）。\n\n「观察项」与「违规」是两件事：违规是规则命中（P0/P1 档，来自 arsenal-rules 的 69 条），观察项是**从扫描事实推出来的提醒**（耦合面、CI 缺失、跨层直连…），它不评分、不判负，只是「值得看一眼」。\n\n为什么不写死在 Java 里：换一种语言就得改代码重编译，而观察项恰恰是最该随项目调的东西（有的团队不许 Nginx，有的团队 CI 门槛是 5 个 stage）。所以判据是数据，Java 侧只有一个解释器 CheckupEvaluator。",
+  "operators": [
+    ">=",
+    "<=",
+    "==",
+    "!=",
+    "contains",
+    "exists"
+  ],
+  "operatorNote": "算子只有这六个，刻意不做表达式引擎 —— 一条观察项就是一个三元条件 {fact, op, value}。要做「A 且 B」就写两条观察项，让报告里出现两条，比在一个 when 里塞 AND/OR 更好读、更好验。\n\n路径语法：点分字段，数组可按下标（deploy.ci.0.kind），末尾 .length 取长度（deploy.ci.length）。\nexists 的语义：路径能解析到节点**且非空**（null / 空数组 / 空字符串都算不存在）—— 因为「有 CI 清单但一条都没有」与「根本没有 CI」对人是一回事。",
+  "rules": [
+    {
+      "id": "CK-OBS-001",
+      "level": "obs",
+      "when": {
+        "fact": "techStack.depCount",
+        "op": ">=",
+        "value": 20
+      },
+      "text": "外部依赖 {n} 个，达到 {value} 个的提醒线 —— 依赖面偏大时，升级与排障的成本都在别人身上",
+      "advice": "按 scope 过一遍：test / provided 的不算运行时依赖；同 group 多个 starter 考虑合并",
+      "evidence": {
+        "from": "build.dependencies",
+        "limit": 3
+      }
+    },
+    {
+      "id": "CK-OBS-002",
+      "level": "obs",
+      "when": {
+        "fact": "deploy.ci.length",
+        "op": "==",
+        "value": 0
+      },
+      "text": "没有扫到任何 CI 配置（{n} 份）—— 规范再全，没人自动跑就等于没有",
+      "advice": "至少加一条流水线跑 verify；没有 CI 的项目，规则命中只能靠自觉",
+      "evidence": null
+    },
+    {
+      "id": "CK-OBS-003",
+      "level": "obs",
+      "when": {
+        "fact": "code.directCalls.length",
+        "op": ">=",
+        "value": 1
+      },
+      "text": "存在 {n} 处跨层直连（Controller 直接调到数据层），分层在这几处是断的",
+      "advice": "补一层 Service 或把这段逻辑挪进领域层；跨层直连是「后面一定会长胖」的那种口子",
+      "evidence": {
+        "from": "code.directCalls",
+        "limit": 3
+      }
+    },
+    {
+      "id": "CK-OBS-004",
+      "level": "obs",
+      "when": {
+        "fact": "techStack.unmatched.length",
+        "op": ">=",
+        "value": 1
+      },
+      "text": "{n} 个依赖没进映射表 —— 它们在架构图上没有节点，等于图没画全",
+      "advice": "去 arsenal-scan/scan_rules.json 补映射；不补就始终显示在这里，不会自己消失",
+      "evidence": {
+        "from": "techStack.unmatched",
+        "limit": 3
+      }
+    },
+    {
+      "id": "CK-OBS-005",
+      "level": "obs",
+      "when": {
+        "fact": "build.kind",
+        "op": "!=",
+        "value": "maven"
+      },
+      "text": "构建工具是「{n}」，而这套规范的正则与 AST 判据是按 Maven 工程写的 —— 适用性要人工确认",
+      "advice": "非 Maven 项目的 pom 相关规则基本不会命中，别把「0 违规」读成「合规」",
+      "evidence": {
+        "from": "build.artifacts",
+        "limit": 3
+      }
+    },
+    {
+      "id": "CK-OBS-006",
+      "level": "obs",
+      "when": {
+        "fact": "deploy.nginx",
+        "op": "exists",
+        "value": true
+      },
+      "text": "部署链路上有 Nginx（{n} 份配置）—— 多一跳就多一处超时与请求头要对齐",
+      "advice": "核对 proxy_read_timeout / X-Forwarded-* 与后端一致；超时不对齐的故障最难复现",
+      "evidence": {
+        "from": "deploy.nginx",
+        "limit": 3
+      }
+    }
+  ]
+}

@@ -1012,3 +1012,71 @@ console.log(
     );
   }
 }
+
+/* ══════════════════════════════════════════════════════════════
+   观察项事实源（2026-10-12 新增，第 9 个事实源）
+   ══════════════════════════════════════════════════════════════ */
+
+/**
+ * 与章程同一条理由挂在 sync 里：**构建期硬失败才是闸**。
+ * 只挂 verify:checkup 的话，`next build` 会一路绿灯跑完。
+ *
+ * 手写 JSON、不进 tools/content/*.py —— 观察项随项目走（有的团队不许 Nginx，
+ * 有的团队 CI 门槛更高），塞进生成器等于「别人要用得先装军火库」。
+ */
+{
+  const { validateCheckups, formatCheckupDiagnostics } = await import('./lib/validate-checkups.mjs');
+
+  const checkupsDir = path.resolve(webRoot, '..', 'arsenal-checkups');
+  const checkupsFile = path.join(checkupsDir, 'checkups.json');
+
+  if (!fs.existsSync(checkupsFile)) {
+    // 「没有这个文件」是合法状态（观察项由各项目自带），但必须显式说明 ——
+    // 静默跳过会让人以为「已经同步过了」。
+    console.log(
+      '[arsenal] 观察项事实源：arsenal-checkups/checkups.json 不存在（合法起点 —— 观察项由各项目自己带）\n' +
+      '         校验器与六算子解释器已就位，新增后在构建期把关',
+    );
+  } else {
+    const relPath = 'arsenal-checkups/checkups.json';
+    const doc = JSON.parse(fs.readFileSync(checkupsFile, 'utf8'));
+    // ★ today 注入，与章程段同一口径（可用 ARSENAL_TODAY 覆盖做复现）
+    const today = process.env.ARSENAL_TODAY ?? new Date().toISOString().slice(0, 10);
+    const r = validateCheckups({ relPath, doc, today });
+
+    if (r.errors.length > 0) {
+      fail(
+        `观察项事实源契约校验未通过：${relPath}\n  - ` +
+          formatCheckupDiagnostics(r.errors) +
+          '\n\n  观察项是数据不是代码：判据写在 arsenal-checkups/checkups.json，' +
+          'Java 侧只有一个六算子解释器（CheckupEvaluator.java）。',
+      );
+    }
+    if (r.warnings.length > 0) {
+      console.log(`[arsenal] 观察项 ${r.warnings.length} 条提醒：\n  - ${formatCheckupDiagnostics(r.warnings)}`);
+    }
+
+    fs.writeFileSync(
+      path.join(outDir, 'checkups.json'),
+      JSON.stringify(
+        {
+          collection: doc.collection,
+          version: doc.version,
+          updatedAt: doc.updatedAt,
+          count: r.stats.rules,
+          operators: doc.operators,
+          rules: doc.rules,
+          stats: r.stats,
+          validatedAt: today,
+        },
+        null,
+        2,
+      ) + '\n',
+      'utf8',
+    );
+    console.log(
+      `[arsenal] 已同步观察项事实源 → src/generated/checkups.json\n` +
+      `         ${r.stats.rules} 条观察项（六算子：${Object.keys(r.stats.byOperator).join(' / ')}），count 与实测一致`,
+    );
+  }
+}
