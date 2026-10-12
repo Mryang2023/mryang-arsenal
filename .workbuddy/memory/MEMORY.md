@@ -45,6 +45,9 @@
 24. **（10-04）MCP 工具数不许在探针里写死**：原先 `mcp-probe.mjs` 写 `names.length === 4` + 四个名字的数组 —— 它是探针，本该在加工具时提醒人改它，实际却成了「要自己想起来的地方」。改成**从 `arsenal-rules/mcp-tools.json` 现读** → 新增工具不用改探针，**漏实现 handler 才红**。工具 4 → 7（章程层 `get_charter` / `list_exceptions` / `check_clause`），探针 27 → 40 项。
 25. **（10-04）CI 片段里不许写死判负口径**：例外到期判不判负由用户章程的 `policy.overdueException` 决定 —— 片段写死等于越权。断言守着 `!ci.includes('overdueException')`。
 26. **（10-03）`meta-check` 的层数不许写死**（如「十层合计」）—— 已改为从 `chainDeclared.length` 算。层数是统计结果，字面量一定会在加层那天过期，而当时没有任何东西会报错（同「项数由实测得出」）。源码注释里的「九层/十层」若描述的是**历史**（改动之前）则保留，只改活口径。
+27. **（10-12）「跑不动」和「没跑」不许写成同一句话 —— 先探活再判断。** 10-11 夜三棒都把 `verify:visual` 记成「跳过 / EBUSY」，终检棒实测它**能跑**（130s / 102 张 / msedge 起得来），一跑就抓出两个真红：① 矩阵 102 张 vs `visual/manifest.json` 99 张（`/autopsy` 上线没同步截图台）；② A8 粘性列不可达 61/102 张（`Shell.tsx:111` `md:sticky md:top-0 md:h-screen`，既有页，被「跳过」掩盖 7 天）。棒 3 那「4 项 EBUSY」在终检时 archify 31/31、scan 93/93 全绿 → **是当时波动不是恒定**。
+    → 记「跳过」前必须**当场再跑一次**确认它真跑不动；`knowinglySkipped` 机制本身没问题，省的是探活那一步。
+    附带同类漂移源：**`visual/shoot.mjs` 的 `EXPECTED`（fixedPages / urls / shots）是手写期望值**，加路由时它不会自己红，只等人记得改（与第 26 条「层数不许写死」同源）。改路由后手动同步：`EXPECTED` 三处 + 重跑 `shoot.mjs`（**需要一个活着的静态站 `:3021`**，否则它只会把 manifest 写成 N 条空白）。
 
 ## 校验与运行
 
