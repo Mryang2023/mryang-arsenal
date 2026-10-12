@@ -26,6 +26,16 @@ arsenal-web/.verify/tmp/
 arsenal-web/.verify/shots*/
 arsenal-web/.verify/_b_*.mjs
 
+# ── 解剖台快照：别的项目的体检资料，不进军火库（2026-10-12 棒 3）──
+#    默认落在 arsenal-web/.data/autopsy/，三档目录可被
+#    arsenal.json#project.autopsyDir / env ARSENAL_AUTOPSY_DIR 移走 ——
+#    所以这里按**名字**忽略而非按固定路径，改了目录也不会失效。
+#    ⚠️ 必须带 `**/` 前缀：`.data/autopsy/` 中间有斜杠，会被锚定到仓库根，
+#    挡不住 arsenal-web/.data/autopsy/（与上面 `**/.workbuddy/_*` 同一个坑，
+#    2026-10-12 棒 3 实测：git status 里真的冒出了 `?? arsenal-web/.data/`，
+#    靠 10-2 的 git check-ignore 才抓出来 —— 别再写第三遍）。
+**/.data/autopsy/
+
 # ── 示例导出包：装配台随时可重新导出，不占仓库 ────────────────
 arsenal-demo-*.zip
 
