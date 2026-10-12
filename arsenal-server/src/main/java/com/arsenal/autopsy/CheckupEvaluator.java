@@ -1,6 +1,6 @@
 package com.arsenal.autopsy;
 
-import com.fasterxml.jackson.databind.JsonNode;
+import tools.jackson.databind.JsonNode;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -146,7 +146,7 @@ public final class CheckupEvaluator {
                 : node.isObject() ? node.size()
                 : node.isTextual() ? node.asText().length()
                 : -1;
-        return n < 0 ? null : new com.fasterxml.jackson.databind.node.IntNode(n);
+        return n < 0 ? null : new tools.jackson.databind.node.IntNode(n);
     }
 
     private static int asIndex(String s) {
@@ -272,6 +272,12 @@ public final class CheckupEvaluator {
         }
         if (actual.isTextual()) {
             return actual.asText().isEmpty() ? "（空）" : actual.asText();
+        }
+        // 容器值（数组/对象）原样紧凑 JSON 呈现。Jackson 3 里 asText() 对容器是**抛异常**
+        // 而不是旧版那种未定义行为 —— 观察项一命中数组型事实（如服务清单）整份体检报告就 500，
+        // 2026-10-12 /qa 自检本仓时踩实。展示降级好过整个功能不可用。
+        if (actual.isArray() || actual.isObject()) {
+            return actual.toString();
         }
         return actual.asText();
     }

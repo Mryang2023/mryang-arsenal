@@ -2,7 +2,7 @@ package com.arsenal.web;
 
 import com.arsenal.autopsy.AutopsyService;
 import com.arsenal.scan.SourceResolver;
-import com.fasterxml.jackson.databind.JsonNode;
+import tools.jackson.databind.JsonNode;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;

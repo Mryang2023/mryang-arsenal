@@ -1,7 +1,8 @@
 package com.arsenal.autopsy;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -76,7 +77,9 @@ public final class CheckupLoader {
                         ev == null || ev.isNull() ? 3 : Math.max(1, Math.min(10, ev.path("limit").asInt(3)))));
             }
             return new Loaded(true, file.toString(), null, List.copyOf(out), root.path("count").asInt(out.size()));
-        } catch (IOException e) {
+        } catch (IOException | JacksonException e) {
+            // Jackson 3 的 readTree 抛非受检 JacksonException —— 不兜它的话，
+            // 「事实源 JSON 坏了」会穿透「如实记录原因并继续」的设计直接上抛
             return new Loaded(false, file.toString(), "观察项事实源读不了：" + e.getMessage(), List.of(), 0);
         }
     }
