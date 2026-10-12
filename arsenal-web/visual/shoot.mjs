@@ -55,7 +55,8 @@ const EXPECTED = {
   // 项目解剖台（2026-10-11 夜跑）：/autopsy 上线，固定页 25 → 26，矩阵 33 → 34 URL、99 → 102 张。
   //   这条是终检棒补的 —— 三棒都把视觉层记成「跳过」，其实是没人跑过；
   //   跑起来后第一件事就是它红（102 vs 99）。
-  fixedPages: 26,
+  // 测试工程师（2026-10-12 M1）：/qa 上线，固定页 26 → 27，矩阵 34 → 35 URL、102 → 105 张。
+  fixedPages: 27,
   rulePicks: 3,
   // 2026-09-29 修正：上面这句「只剩 1 个」早就过期了 —— 蓝图主题已回到 6 个
   // （connection-pool / local-cache / retry-timeout / untrusted-data / web-layer +
@@ -68,8 +69,8 @@ const EXPECTED = {
   // 那时池子非空后这里的 slicePicks 必须改成 2（首/末），脚本会当场报警。
   casePicks: 3,
   slicePicks: 0,
-  urls: 34,
-  shots: 102,
+  urls: 35,
+  shots: 105,
   minBytes: 8 * 1024,
 };
 
@@ -128,6 +129,20 @@ const KNOWN_BASELINE = [
     reason:
       '静态导出站上 <Link> 预取被矩阵的快速导航中止：Next 路由器打 console.error 并回退浏览器导航，页面行为无损。基线申报而非静默 —— --strict 下照常算失败。',
     match: (e) => /Failed to fetch RSC payload/.test(String(e.text || '')),
+  },
+  {
+    // 2026-10-12：静态服补上 RSC 预取 URL 点→斜杠桥接后，预取的 RSC payload
+    // 全部 200（上一轮 547 条 console.error + 547 条 HTTP≥400 清零），但矩阵
+    // 逐页 goto 仍把更早发起的 HEAD 预取探路请求中止 —— Playwright 侧记为
+    // requestfailed(net::ERR_ABORTED)。实测证据（同轮）：47 个唯一 URL 逐一
+    // 探活全部 200；105 张截图全部 >8KB、0 横向溢出、HTTP≥400 为 0 —— 页面
+    // 渲染无损，中止是截图 harness 连续导航的固有产物，不是站点缺陷。
+    // 匹配刻意收窄到 HEAD + ERR_ABORTED：GET 类失败（如后端不在线）不归这条。
+    id: 'prefetch-head-aborted',
+    reason:
+      '静态导出站 <Link> 预取的 HEAD 探路请求被矩阵快速导航中止（net::ERR_ABORTED）：同轮实测 47 个唯一 URL 逐一探活全部 200、页面渲染无损，属截图 harness 固有产物。基线申报而非静默 —— --strict 下照常算失败。',
+    match: (e) =>
+      e.kind === 'requestfailed' && String(e.method || '') === 'HEAD' && /ERR_ABORTED/.test(String(e.errorText || '')),
   },
 ];
 
