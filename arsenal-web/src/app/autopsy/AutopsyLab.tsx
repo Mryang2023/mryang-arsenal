@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { CANVAS_THEME_OPTIONS, type CanvasTheme } from '@/lib/arch-canvas';
 import {
   buildAutopsy,
@@ -17,9 +17,21 @@ import {
   type ScanOutcome,
 } from '@/lib/arsenal-api';
 import { scanTechName } from '@/lib/scan-rules';
+import {
+  buildSnapshot,
+  deleteLocalSnapshot,
+  diffSnapshots,
+  fingerprintTrust,
+  loadLocalSnapshots,
+  projectIdOfSource,
+  saveLocalSnapshot,
+  type AutopsySnapshot,
+  type SnapshotDiff,
+} from '@/lib/autopsy-snapshot';
 import { downloadText } from '@/lib/zip';
 import ArchPanel from './ArchPanel';
 import CheckupPanel from './CheckupPanel';
+import HistoryPanel, { type DamagedEntry } from './HistoryPanel';
 import UnmatchedPanel from './UnmatchedPanel';
 
 /**
@@ -61,6 +73,20 @@ type CheckupStage =
   | { kind: 'done'; report: AutopsyReport }
   | { kind: 'failed'; code: string; message: string; offline: boolean };
 
+/**
+ * 留档有两条**不同**的路，页面上必须分清楚 —— 混在一起就是撒谎：
+ *
+ *   ① **`reusedFrom`（扫之前就复用）** —— 用户勾选「输入没变」，于是这一趟
+ *      **根本没发请求**，直接把上次那份搬出来。它成立的前提是**用户自己说没变**：
+ *      浏览器读不到目录的 mtime，我们无从校验。这条不许说成「已校验未变化」。
+ *   ② **指纹一致 → 不新增留档（扫之后才发现）** —— 真跑完了，发现新指纹与上一份
+ *      相同，于是归入已有快照、只更新 `savedAt`。这才是**校验过的**没变，
+ *      代价是这一趟已经扫过了。
+ *
+ * L2（只重扫变化的文件）**没做**：那要先重构 `CodeScanner` 的聚合方式，
+ * 页面上有专门一段写明，不许让人以为这支专栏存在。
+ */
+
 const MODES: [Mode, string, string][] = [
   ['path', '本地目录', 'D:/mryang/workspace/2026/arsenal/arsenal-server'],
   ['git', 'https git', 'https://github.com/owner/repo.git'],
@@ -72,9 +98,38 @@ export default function AutopsyLab() {
   const [source, setSource] = useState('');
   const [stage, setStage] = useState<Stage>({ kind: 'idle' });
   const [theme, setTheme] = useState<CanvasTheme>('doc');
-  const [tab, setTab] = useState<'arch' | 'checkup'>('arch');
+  const [tab, setTab] = useState<'arch' | 'checkup' | 'history'>('arch');
   const [checkup, setCheckup] = useState<CheckupStage>({ kind: 'idle' });
   const fileRef = useRef<HTMLInputElement>(null);
+
+  // ── 快照（浏览器侧 localStorage，不进军火库仓库）──
+  const [snapshots, setSnapshots] = useState<AutopsySnapshot[]>([]);
+  const [damaged, setDamaged] = useState<DamagedEntry[]>([]);
+  const [diff, setDiff] = useState<SnapshotDiff | null>(null);
+  /** 扫之前复用了哪一份（空 = 这一趟是真扫的） */
+  const [reusedFrom, setReusedFrom] = useState<string | null>(null);
+  /** 真扫完了才发现与上一份指纹一致 —— 于是没新增留档 */
+  const [foldedInto, setFoldedInto] = useState<string | null>(null);
+  const [storeNote, setStoreNote] = useState<string | null>(null);
+  /** 「输入没变就复用」默认开 —— 这是 L1 的唯一入口；关掉即强制重扫 */
+  const [reuseInput, setReuseInput] = useState(true);
+
+  const currentSource: { kind: 'path' | 'git'; value: string } | null = useMemo(() => {
+    if (mode === 'zip') return null;
+    const v = source.trim();
+    return v ? { kind: mode === 'git' ? 'git' : 'path', value: v } : null;
+  }, [mode, source]);
+
+  const reloadSnapshots = useCallback(() => {
+    const loaded = loadLocalSnapshots();
+    setDamaged(loaded.damaged);
+    const pid = currentSource ? projectIdOfSource(currentSource) : null;
+    setSnapshots(pid ? loaded.snapshots[pid] ?? [] : []);
+  }, [currentSource]);
+
+  useEffect(() => {
+    reloadSnapshots();
+  }, [reloadSnapshots]);
 
   const run = useCallback(async (what: string, requested: string, fn: () => Promise<ScanOutcome>) => {
     setStage({ kind: 'scanning', what });
@@ -102,29 +157,83 @@ export default function AutopsyLab() {
   }, [mode, run, source]);
 
   // 换输入就作废上一次体检结果 —— 留着一份「对别的目录跑出来的结论」是最危险的那种旧数据
-  const onAnalyzeCheckup = useCallback(() => {
-    if (mode === 'zip') {
-      setCheckup({
-        kind: 'failed',
-        code: 'ZIP_NOT_SUPPORTED',
-        message: '体检暂不支持 zip：/api/autopsy/inspect 只吃 path / git（上传链路是 multipart，不是同一条路）。请先解压到本地目录再体检。',
-        offline: false,
-      });
-      return;
-    }
-    const value = source.trim();
-    if (!value) return;
-    setCheckup({ kind: 'running' });
-    void autopsyInspect({ kind: mode === 'git' ? 'git' : 'path', value }).then((outcome) => {
-      if (outcome.kind === 'report') {
-        setCheckup({ kind: 'done', report: outcome.report });
-      } else if (outcome.kind === 'offline') {
-        setCheckup({ kind: 'failed', code: 'OFFLINE', message: outcome.message, offline: true });
-      } else {
-        setCheckup({ kind: 'failed', code: outcome.code, message: outcome.message, offline: false });
+  const onAnalyzeCheckup = useCallback(
+    (force = false) => {
+      if (mode === 'zip') {
+        setCheckup({
+          kind: 'failed',
+          code: 'ZIP_NOT_SUPPORTED',
+          message: '体检暂不支持 zip：/api/autopsy/inspect 只吃 path / git（上传链路是 multipart，不是同一条路）。请先解压到本地目录再体检。',
+          offline: false,
+        });
+        return;
       }
-    });
-  }, [mode, source]);
+      const value = source.trim();
+      if (!value) return;
+      const src: { kind: 'path' | 'git'; value: string } = {
+        kind: mode === 'git' ? 'git' : 'path',
+        value,
+      };
+      setReusedFrom(null);
+      setFoldedInto(null);
+      setStoreNote(null);
+
+      // ① L1：扫之前就复用。注意这一趟**没有发任何请求** —— 判定依据是「上次留档还在 +
+      //    用户说没变」，不是「校验过内容没变」（浏览器读不到目录 mtime，做不到）。
+      //    ⚠️ 上一份的指纹若本身不可信（0 文件 / 被截断），**不许复用**：
+      //      那会把「上次什么也没扫到」说成「输入没变」。
+      if (!force && reuseInput && snapshots.length > 0) {
+        const trust = fingerprintTrust(snapshots[0].report);
+        if (!trust.trustworthy) {
+          setStoreNote(`上一份（${snapshots[0].snapshotId}）的指纹不可信，这次不复用：${trust.reason}`);
+        } else {
+          setCheckup({ kind: 'done', report: snapshots[0].report });
+          setReusedFrom(snapshots[0].snapshotId);
+          setDiff(null);
+          setTab('checkup');
+          return;
+        }
+      }
+
+      setCheckup({ kind: 'running' });
+      void autopsyInspect(src).then((outcome) => {
+        if (outcome.kind === 'report') {
+          setCheckup({ kind: 'done', report: outcome.report });
+          const snap = buildSnapshot({
+            source: src,
+            report: outcome.report,
+            facts: stage.kind === 'done' ? stage.facts : null,
+          });
+          const prev = snapshots[0] ?? null;
+          const trust = fingerprintTrust(outcome.report);
+          // 指纹本身不可信（0 文件 / 被截断）时不许归入 —— 否则「两次都没扫到」
+          // 会被记成「没变化」，历史里就只剩一条永远不变的记录。
+          if (prev && trust.trustworthy && prev.fingerprint === snap.fingerprint) {
+            // ② 真扫完才发现指纹一致 → 归入已有快照，不新增一条「长得一样的历史」
+            setFoldedInto(prev.snapshotId);
+            setDiff(diffSnapshots(prev, snap));
+          } else {
+            const res = saveLocalSnapshot(snap);
+            setDiff(prev ? diffSnapshots(prev, snap) : null);
+            if (res.ok) {
+              setStoreNote(
+                res.factsOmitted ? '已留档（架构事实为省配额没存，结论完整）' : null
+              );
+              reloadSnapshots();
+            } else {
+              // 存不下来也要说 —— 「留档失败」与「没留档」在页面上长得一模一样
+              setStoreNote(`这份没存下来：${res.issues.join('；')}`);
+            }
+          }
+        } else if (outcome.kind === 'offline') {
+          setCheckup({ kind: 'failed', code: 'OFFLINE', message: outcome.message, offline: true });
+        } else {
+          setCheckup({ kind: 'failed', code: outcome.code, message: outcome.message, offline: false });
+        }
+      });
+    },
+    [mode, source, reuseInput, snapshots, stage, reloadSnapshots]
+  );
 
   const artifacts: AutopsyArtifacts | null = useMemo(
     () => (stage.kind === 'done' ? buildAutopsy(stage.facts, theme) : null),
@@ -249,7 +358,8 @@ export default function AutopsyLab() {
           [
             ['arch', '架构面板'],
             ['checkup', '体检报告'],
-          ] as ['arch' | 'checkup', string][]
+            ['history', `历史（${snapshots.length}）`],
+          ] as ['arch' | 'checkup' | 'history', string][]
         ).map(([id, label]) => (
           <button
             key={id}
@@ -274,18 +384,76 @@ export default function AutopsyLab() {
             <div className="mt-2 flex flex-wrap items-center gap-2">
               <button
                 type="button"
-                onClick={onAnalyzeCheckup}
+                onClick={() => onAnalyzeCheckup(false)}
                 disabled={checkup.kind === 'running' || (mode !== 'zip' && !source.trim())}
                 className="rounded border px-3 py-1 text-[11px] font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-45"
                 style={{ borderColor: 'rgba(217,164,65,0.5)', background: 'rgba(217,164,65,0.12)', color: '#D9A441' }}
               >
                 {checkup.kind === 'running' ? '体检中…' : '一键体检'}
               </button>
+              <button
+                type="button"
+                onClick={() => onAnalyzeCheckup(true)}
+                disabled={checkup.kind === 'running' || (mode !== 'zip' && !source.trim())}
+                className="rounded border border-line px-2.5 py-1 text-[11px] text-fgMuted transition-colors hover:border-lineHi hover:text-fg disabled:cursor-not-allowed disabled:opacity-45"
+              >
+                强制重扫（不用缓存）
+              </button>
+              <label className="flex cursor-pointer items-center gap-1.5 text-[10.5px] text-fgMuted">
+                <input
+                  type="checkbox"
+                  checked={reuseInput}
+                  onChange={(e) => setReuseInput(e.target.checked)}
+                  className="accent-brass"
+                />
+                输入没变就直接复用上次结果（<span className="mono">L1</span>，不重扫）
+              </label>
               <span className="text-[10px] leading-[15px] text-fgFaint">
                 用上面同一个地址跑。P0/P1 复用同一套规则集（MUST+NEVER 判 P0、SHOULD 判 P1，
                 与 /check 同一台引擎）；观察项由 <span className="mono">arsenal-checkups/checkups.json</span> 驱动 —— 判据是数据不是代码。
               </span>
             </div>
+
+            {reuseInput && snapshots.length === 0 && currentSource && (
+              <p className="mt-2 text-[10.5px] leading-[16px] text-fgFaint">
+                这个地址还没有留档，所以这次会真扫 —— 跑完就有一份，
+                下次点「一键体检」才会走到复用（那一趟<span className="text-fgMuted">不发任何请求</span>）。
+              </p>
+            )}
+
+            {reusedFrom && (
+              <div
+                className="mt-2.5 rounded border px-2.5 py-2"
+                style={{ borderColor: 'rgba(127,166,80,0.45)', background: 'rgba(127,166,80,0.08)' }}
+              >
+                <p className="text-[11px] font-semibold" style={{ color: '#7FA650' }}>
+                  输入未变化，复用 {reusedFrom} —— 这一趟没有重新扫描
+                </p>
+                <p className="mt-1 text-[10px] leading-[15px] text-fgMuted">
+                  依据是「<span className="mono">同一个地址 + 你勾选了输入没变</span>」，
+                  <span className="text-fg">不是校验过内容</span>：浏览器读不到目录的 mtime，
+                  做不出内容级指纹（Node 侧 <span className="mono">autopsy-fingerprint.mjs</span>
+                  有真的树指纹，本站静态导出、跑不了）。改过代码就用「强制重扫」。
+                </p>
+              </div>
+            )}
+
+            {foldedInto && (
+              <p className="mt-2 text-[10.5px] leading-[16px] text-fgMuted">
+                这次真扫了，结果与 <span className="mono text-fg">{foldedInto}</span>{' '}
+                的输入规模指纹一致 —— <span className="text-fg">归入那份快照，没有新增历史</span>
+                （省一条长得一模一样的留档）。
+              </p>
+            )}
+
+            {storeNote && (
+              <p
+                className="mt-2 text-[10.5px] leading-[16px]"
+                style={{ color: storeNote.startsWith('这份没存下来') ? '#E5484D' : '#93A39C' }}
+              >
+                {storeNote}
+              </p>
+            )}
             {checkup.kind === 'idle' && (
               <p className="mt-2 text-[10.5px] text-fgMuted">
                 还没跑过体检。点上面的按钮 —— 报告会明确写出「覆盖了多少条、多少条没结论」，
@@ -466,6 +634,20 @@ export default function AutopsyLab() {
             </div>
           </div>
         </div>
+      )}
+
+      {tab === 'history' && (
+        <HistoryPanel
+          source={currentSource}
+          snapshots={snapshots}
+          damaged={damaged}
+          diff={diff}
+          onDelete={(id) => {
+            if (currentSource) deleteLocalSnapshot(projectIdOfSource(currentSource), id);
+            setDiff(null);
+            reloadSnapshots();
+          }}
+        />
       )}
     </div>
   );
