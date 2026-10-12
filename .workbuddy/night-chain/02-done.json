@@ -1,160 +1,174 @@
 {
   "棒次": 2,
-  "任务": "/cases C1-2 参数虚胖治理（+ 富余 C1-4 改名）",
-  "方案": "docs/开发计划-2026-09-25/场景案例库升级计划-2026-09-25.md §2 C1-2 / §2 C1-4",
-  "开工": "2026-09-25T23:37:00+08:00",
-  "收工": "2026-09-26T00:12:00+08:00",
-  "状态": "完成（C1-2 三条处置全做 + 富余 C1-4 也做完；方案与记忆里的一处事实错误已修正）",
+  "任务": "体检报告",
+  "开工": "2026-10-12T01:56:00+08:00",
+  "交棒": "2026-10-12T04:06:00+08:00",
+  "前棒": "01-done.json 存在（2026-10-12T00:01 写入），正常开工",
+  "砍定范围": "见 02-running.json。砍掉：观察项只写 6 条（方案说先写 3 条能验的）、skipped 明细只给 id+标题+原因、不做表达式引擎、不做快照（棒 3 的活）",
 
   "开发": {
-    "砍定范围": "P0 构建期断言 + 真摆设处置 + sensitivity 计算 + TS 可选字段；P1 前端标注；P2 全量 47 个 sensitivity 进 JSON；富余 C1-4 改名。一项未砍。",
-    "已做完": {
-      "断言": "tools/build-content.py build_cases ⑥：每个 driver 必须被 slices[].when / conflicts / notSuitableFor 之一引用，否则构建失败（报错带 driver id）",
-      "sensitivity": "同处计算并写进产物 JSON：遍历「其它驱动组合 × 本驱动档位对」，统计命中切片集合发生变化的档位对占比（当前最大对照组 576 组，构建全程 0.4s）",
-      "inert": "同处写进产物 JSON：= 不被任何 slices[].when 引用。47 个 driver / 11 个 inert",
-      "真摆设处置": "multi-source-ingestion/growth 补一条 conflicts（年增 5 倍+ × 解析 VCF/报告 = 存储与索引爆炸）；vt/lifespan 实测已在 NOT_SUITABLE_FOR 里，无需处置（见『事实修正』）",
-      "类型": "src/lib/case-types.ts 的 Driver 加 sensitivity?: number / inert?: boolean（可选，【16】异构字段要求）",
-      "前端": "src/app/cases/CaseLab.tsx 参数卡：inert → 「⊘ 只影响矛盾告警/适用性提示/告警 · 不改变命中切片」+ ⚠ 已响/总数（与引擎共用 whenHits）；非 inert → 「影响面 NN%」+ 进度条",
-      "verify": ".verify/case-check.ts 新增【14】三条（33 → 36）",
-      "富余 C1-4": "components/CaseLab.tsx git mv → DemoRunner.tsx + BlueprintView.tsx:6,327 同步；grep -rn \"components/CaseLab\" = 0"
-    },
-    "未做完的": "无 —— C1-2 与 C1-4 的全部条目都已落地。C1-1（补 6 场景）、C1-3（症状墙筛选）不在本棒范围，未动。",
-    "偏离方案的决定": [
-      "方案说「5 个低敏感度参数显示百分比」→ 做成全部 36 个非 inert 参数都显示（理由：只看到低的几个，反而不知道哪个旋钮最有效）。已在方案文档里注明",
-      "vt/lifespan 按方案要补进 notSuitableFor —— 实测它本来就在，未重复补；改为只给 msi/growth 补 conflicts"
+    "已做完": [
+      "阶段A：arsenal-checkups/checkups.json（第 9 个事实源，手写、不进 tools/content）+ arsenal-web/scripts/lib/validate-checkups.mjs（today 必须注入，不读 new Date()）",
+      "阶段A：事实源四处登记 —— sync-content.mjs 构建期硬失败 / arsenal-profiles/arsenal.json 的 project.dirs / README 目录树 / src/generated/checkups.json 同步产物",
+      "阶段B：arsenal-server AutopsyController#POST /api/autopsy/inspect（请求体与 /api/scan/facts 同形；入参校验全在 Controller）+ AutopsyService + CheckupLoader + CheckupEvaluator（六算子解释器）",
+      "阶段C：AutopsyLab 加「架构 / 体检」页签 + CheckupPanel.tsx（三档 + 覆盖率条 + skipped 明细折叠 + 观察项档）",
+      "覆盖率分母从 LintReport.rulePool 现数，未覆盖 27 条列出；P0/P1 分级走 Severity.blocking()，不抄严重度表"
     ],
-    "事实修正（终检请核）": {
-      "错的是": "方案 §1.1 D-3 与 .workbuddy/memory/2026-09-25.md 都写「2 个彻底无用：msi/growth、vt/lifespan」",
-      "真相": "virtual_thread.py 的 NOT_SUITABLE_FOR 第 3 条就是 {'when': {'lifespan': ['long']}} —— vt/lifespan 一直在被引用。真孤儿只有 msi/growth 一个",
-      "已改": "MEMORY.md 两条相关表述已改；方案文档 §2 C1-2 加了一条修正说明"
-    }
-  },
-
-  "自检": {
-    "验收对照（方案 §2 C1-2）": {
-      "告警型 9 个：保留 + 前端标注「只影响矛盾告警 · 不改变命中切片」": "✅（实际 11 个 inert 全标注，文案按引用来源分三种：矛盾告警 / 适用性提示 / 告警）",
-      "滑块旁显示告警计数": "✅ UI 实测 0/4、0/3、0/2、0/1 → 触发后变 1/1",
-      "真摆设 2 个：补进 conflicts / notSuitableFor": "✅ 1 个（msi/growth）补了；另 1 个（vt/lifespan）实测已在 notSuitableFor，无需补",
-      "低敏感度 5 个：显示敏感度百分比": "✅（扩成全部 36 个非 inert 都显示）",
-      "新增构建期断言：driver 必须有引用": "✅ 注入两次都真红（R-1 / R-2）",
-      "验收：11 个零影响参数全部被标注或处置": "✅ 11/11",
-      "验收：断言注入测试真红": "✅",
-      "验收：verify 计数同步": "✅ 场景案例 33 → 36，九层合计 1024 → 1027，meta 53/53"
-    },
-    "存在性核验": "改动的 10 个文件逐个 git status / ls 确认在（含 R095 重命名对）",
-    "反着验": [
-      {
-        "编号": "R-1（构建期断言 · 孤儿注入）",
-        "注入": "给 tools/content/cases/virtual_thread.py 的 DRIVERS 加 probeOrphan（2 档）",
-        "打中确认": "grep -c probeOrphan = 1",
-        "结果": "build exit 1，报「virtual-thread/probeOrphan 是摆设参数：slices[].when / conflicts / notSuitableFor 三处都不引用它」",
-        "还原": "git checkout -- <file> → build exit 0，git status 该行消失"
-      },
-      {
-        "编号": "R-2（构建期断言 · 删已有引用）",
-        "注入": "删掉本棒刚给 msi/growth 补的那条 conflicts",
-        "打中确认": "grep -c \"'id': 'growth'\" = 1（driver 还在）",
-        "结果": "build exit 1，报「multi-source-ingestion/growth 是摆设参数…」",
-        "还原": "Edit 加回 → build exit 0，git diff --stat = 5 insertions"
-      },
-      {
-        "编号": "R-3（verify【14】· 伪造标注）",
-        "注入": "把 src/generated/cases.json 里 multi-source-ingestion/growth.inert 改成 false",
-        "打中确认": "回读该字段打印 inert=false",
-        "结果": "verify:cases 34 通过 / 2 失败 / exit 1 ——「inert 标记与『是否被 slice.when 引用』一致」与「sensitivity 与 inert 自洽」两条同时红",
-        "还原": "重跑 sync-content.mjs → 36 / 0 / 0"
-      }
-    ],
-    "静默失败排查": {
-      "构建期断言": "样本 = 全部 47 个 driver（8 场景逐个遍历），不是抽样式检查",
-      "verify【14】": "遍历 8 场景 × 47 driver，三段各自独立记账；R-3 证明样本非空且能红",
-      "未覆盖的一条": "build-content.py 的 MAX_COMBOS=20000 降采样分支当前跑不到（最大对照组 576）—— 记 P2-3"
-    },
-    "引用核实": "方案点名的 11 个 driver id 逐个在 arsenal-cases/*.json 里核对存在；msi/growth 的档位 id（g1x/g5x/g20x）与 parseDepth 的（meta/variant/full）核对存在后才写进 conflicts",
-    "UI 核对": "无头 chromium + node createServer 起静态站进 /cases：默认场景 2 条 inert 标注 / 4 条影响面；切 msi 后 queryQps ⚠ 0/2、growth ⚠ 0/1；把 growth 切「年增 20 倍」+ parseDepth 切「VCF + 报告」→ 顶部黄条出现、新冲突文案在场、pill 变 ⚠ 1/1；0 console 错误"
-  },
-
-  "review": {
-    "范围": "本次改动的文件（不审全仓）",
-    "P0": [],
-    "P1": [],
-    "P2": [
-      {
-        "id": "P2-1",
-        "位置": "tools/build-content.py ⑥ 降采样提示",
-        "问题": "原写法在切片后再乘 stride 反推原始组合数，数字不对",
-        "根因": "先切片再 len()",
-        "处置": "已当场修：先存 total_combos 再切片"
-      },
-      {
-        "id": "P2-2",
-        "位置": "src/app/cases/CaseLab.tsx 参数卡告警计数",
-        "问题": "conflicts 被 filter 了两遍",
-        "根因": "先拼 warnRules 再单独算 confN",
-        "处置": "已当场修：拆成 confRules / nsRules 两个常量"
-      },
-      {
-        "id": "P2-3",
-        "位置": "tools/build-content.py MAX_COMBOS 分支",
-        "问题": "降采样分支无数据覆盖（最大对照组 576）",
-        "根因": "现有场景参数空间都不够大",
-        "处置": "未修（无从注入验证）；已在代码注释与本文档点名"
-      }
+    "未做完的": [
+      "无。方案 §七 里「最后砍：页签独立化」没砍，页签做了；「其次砍 skipped 明细」也没砍，明细做了",
+      "未运行时演示的两个空态（只由源码断言守着，没造出真数据）：coverage.total = 0（规则池加载不起来）、skipped 为空列表（规则全跑得动）。真跑过的空态是「某档 0 条」（p1=0、other=0，实测）"
     ]
   },
 
-  "验证": {
-    "基线（开工，来自 01-done.json）": "九层 1024 / 结构与导出 747 / 场景案例 33",
-    "收尾全量九层": {
-      "命令": "node scripts/verify-all.mjs",
-      "实测": 1027,
-      "通过": 1027,
-      "跳过": 0,
-      "失败": 0,
-      "退出码": 0,
-      "耗时": "127.1s",
-      "分层": "架构 35 / 图交互 68 / 场景案例 36 / 结构与导出 747 / 引擎样本 17 / 前后端一致 12 / Archify 31 / 代码扫描 69 / 视觉断言 12",
-      "刻意未跑": "2 项（scan 5-4 500MB 闸门、8-6 真等 180s）",
-      "元核对": "53 / 0 / 0"
+  "自检": {
+    "反着验1_注入违规": {
+      "做法": "在 D:/tmp/arsenal-rv 建一个只有 Clean.java 的样本项目（无违规），跑 inspect",
+      "基态": "p0=0 / p1=0 / other=0，coverage 42/69、notRun 27",
+      "注入": "加一行 System.out.println(\"debug \" + a)",
+      "注入后": "p0=1，且证据是 REL-LOG-001@Clean.java:5（不是只多个数，是真定位到那一行）",
+      "还原": "cp Clean.java.bak Clean.java（不用 git checkout），回到 p0=0",
+      "结论": "真红真还原"
     },
-    "单元门禁": "tsc 0 错 · typecheck:verify 0 错 · next-run.mjs build 绿 · verify:cases 36/0/0",
-    "后端": "3011 由本棒重启（SKIP_COMPILE=1 bash arsenal-server/scripts/run.sh），parity 层 12/12 实跑通过"
+    "反着验2_观察项是数据": {
+      "做法": "从 checkups.json 删掉 CK-OBS-002（count 6→5），重启后端（CheckupLoader 构造期加载，同 scan_rules 口径）",
+      "结果": "obs 从 2/6（CK-OBS-002 + CK-OBS-005）变成 1/5，CK-OBS-002 消失；cp 还原 + 重启 → 回到 2/6",
+      "关键": "全程 Java 一行没重编译 —— 这才是「判据是数据不是代码」的真凭据",
+      "空规则表不许全过": "rules=[] → 2 条红（CHECKUP_EMPTY_RULES + CHECKUP_COUNT_MISMATCH）；删掉 rules 键 → 3 条红；today 未注入 → CHECKUP_UPDATED_AT_IN_FUTURE（不静默跳过）"
+    },
+    "空跑检查": [
+      "coverage.total = 0：页面有专门一句「规则池是 0 —— 这时下面的 0 条是一条都没查，不是一条都没违规」（源码断言守，未造真数据）",
+      "某档 0 条：实测 p1=0 / other=0，档标题仍在，并说明「仍有未覆盖的规则没有结论，所以这不是合规的结论」",
+      "skipped 空列表：0 条时渲染「没有未覆盖项 —— 规则池里的每一条都跑过了」（源码断言守，未造真数据）",
+      "观察项三种空态三句不同的话：事实源不可用 / ruleCount=0 / firedCount=0"
+    ],
+    "参考引用核实": [
+      "LintEngine.lint(LintRequest) 签名照用，未改引擎；源码读进内存后分批喂（不去改 /api/lint 那条 2MB 护栏）",
+      "Severity 实测 MUST 37 / NEVER 13 / SHOULD 18 / MAY 1 = 69，与方案 §二 一致（从 index.active() 现数，不是抄方案的数）",
+      "git 链路无命令注入：ProcessBuilder 传 argv 不拼 shell、只许 https、--config core.hooksPath=/dev/null、GIT_TERMINAL_PROMPT=0"
+    ]
+  },
+
+  "review": {
+    "[P1] AutopsyService.java:100 — 截断信号没传出来": {
+      "问题": "truncated 只按文件数算，总字节上限撑爆时仍是 false，报告会说「扫完了」而后半截没进引擎",
+      "根因": "collect() 内部的 capped[] 没往外带",
+      "处置": "改成 Collected(files, capped) 记录，两条路径（文件数 / 总字节）都算截断；已复编译通过"
+    },
+    "[P1] AutopsyService（obs.source） — 报告泄服务器绝对路径": {
+      "问题": "obs.source 原样 put 了 D:/.../arsenal-checkups/checkups.json；报告要留档、要导出",
+      "根因": "只对 scope 做了「只给目录名」，观察项出处漏了",
+      "处置": "收敛成 getFileName()；CheckupLoader 的原因串也只给文件名。补两条断言：源码钉住 Path.of(checkups.file()).getFileName() + 端到端对真跑出来的 JSON 再判一次（无盘符 / 无 /home / 无 /Users）"
+    },
+    "[P1] AutopsyService（snippet） — 凭据可能进报告": {
+      "问题": "snippet 是原始源码行，而体检专扫 yml/properties，配置里写着真密码的那一行完全可能成为证据行",
+      "根因": "扫描层 ScanGuard.redact 管的是配置项取值，管不到整行源码",
+      "处置": "加 safeSnippet()（键名口径与 ScanGuard.isSensitive 同源）。实测：private String password = \"hunter2-REAL-SECRET\" → private String password = ***，同时 SEC-DATA-002 真命中（P0）"
+    },
+    "[P1] checkup-check.ts — 断言差点写成恒真": {
+      "问题": "「不含 checkups.file()」的无锚正则会把 Path.of(checkups.file()).getFileName() 里的 checkups.file() 当命中 → 恒真",
+      "根因": "正则没锚，前缀匹配",
+      "处置": "改钉住整串；注释里写清这个坑，别让下一个人再写一遍"
+    },
+    "[P2] 无平行实现（已核实，不是问题）": {
+      "内容": "观察项判据只有 Java 一份（CheckupEvaluator）；JS 侧 validate-checkups.mjs 只校形状不做判定。前端 CheckupPanel 不重算任何结论（byFile 只是展示聚合）"
+    }
+  },
+
+  "验证": {
+    "命令": "cd arsenal-web && npm run verify",
+    "结果": "13 层合计 2127 项：通过 2114 / 跳过 13 / 失败 0（退出码 2 = 绿但有跳过）",
+    "跳过的": "视觉断言整层 13 项未执行（本机无 Chrome，既有环境限制，与开工前同）",
+    "刻意未跑": "2 项（代码扫描 5-4 造 500MB 用例、8-6 真等 180s 超时），既有，与本棒无关",
+    "体检层": "verify:checkup 79 项 / 跳过 0 / 失败 0（含端到端 9 条真跑 /api/autopsy/inspect）",
+    "后端编译": "bash arsenal-server/scripts/compile-check.sh → [OK] compiled: 62 sources -> 131 classes",
+    "前端构建": "node scripts/next-run.mjs build 通过（路由表含 /autopsy）",
+    "类型闸门": "npm run typecheck（根 0 / .verify 0）"
   },
 
   "数字同步": {
-    "四处": [
-      { "处": "arsenal-profiles/arsenal.json verifyChain 场景案例 count", "值": "33 → 36（desc 同步补「驱动参数不许是摆设」）", "状态": "✅" },
-      { "处": "README 总数句", "值": "1024 → 1027（两处）", "状态": "✅" },
-      { "处": "README 分项表 verify:cases", "值": "33 → 36，并补了三条新断言的说明", "状态": "✅" },
-      { "处": "project-check.ts 手写总数常数", "值": "09-22 已删除，由 verify:meta 兜底", "状态": "meta 53/53 ✅" }
+    "六处六件套": [
+      "arsenal-web/package.json 的 scripts.verify:checkup",
+      "arsenal-web/scripts/verify-all.mjs 的 LAYERS（独立 key `checkup`）",
+      "arsenal-web/.verify/lib/report.ts 的 LAYER_NAMES",
+      "arsenal-web/.verify/meta-check.ts 的 CHAIN_ORDER",
+      "arsenal-profiles/arsenal.json 的 project.verifyChain（12 → 13 条，count 79）",
+      "README.md 两处（分项表新增 verify:checkup 行 + 正文「十三层 / 2127 项」三处数字）"
     ],
-    "重跑 sync-content.mjs": "已跑 3 次（改名后、注入还原后、最终），工作区无额外变更（src/generated 不入库）"
+    "层数": "从 verifyChain.length 算（13），没有写死「十三层」",
+    "README 项数": "2048 → 2127（三处：正文、正文引用、口径句）",
+    "本层 count": "76 → 78（补绝对路径两条）→ 79（补凭据脱敏一条），每次都随实测走"
   },
 
-  "提交": {
-    "hash 列表": ["074f51f", "b001a91", "bed0693", "docs 修正", "memory + 状态文件"],
-    "纪律": "全程 git add <路径> + git commit -- <pathspec>；未用 git add -A / .；无 _* 产物夹带（git diff --cached --name-only | grep '/_' = 0）",
-    "插曲": "git mv 预先把重命名放进索引，批次 1 的 git diff --cached 里多出 DemoRunner.tsx —— commit 带 pathspec 未把它卷进去（git show --stat 074f51f = 10 文件，已核）"
-  },
+  "提交": [
+    "1daaea6 feat(autopsy): 观察项事实源（第 9 个）—— 判据是数据不是代码",
+    "9aae1c1 feat(autopsy): POST /api/autopsy/inspect —— 三档结论 + 覆盖率分母",
+    "5ad8602 feat(autopsy): 体检报告页签 + 第 13 层 verify:checkup（六处六件套）"
+  ],
+  "未提交": ".workbuddy/memory/2026-10-11.md（本棒日志，随后单独提交）",
 
   "清理": {
-    "_* 产物": [
-      ".workbuddy/_02_probe.py",
-      ".workbuddy/_02-{sync,sync2,sync3,build,build2,build3,cases,injectA,injectB,restoreA,restoreB,server,verifyall}.log",
-      "arsenal-web/.verify/tmp/_02-cases-ui.mjs"
-    ],
-    "状态": "已全部删除（.workbuddy/ 下仅剩前夜遗留的 _archify-view / _superseded，非本棒产物）",
-    "归档": "上一夜同名 .workbuddy/night-chain/02-done.json → 02-done.2026-09-24.json"
+    "已删": "D:/tmp/arsenal-rv 样本项目（Clean.java / Cred.java）、/tmp/rv1.mjs、/tmp/checkups.json.bak",
+    "_* 调试产物": "无（git status 里没有）"
   },
 
-  "交棒": {
-    "下一棒": "夜跑 09-25 · 第3棒 蓝图代码自证",
-    "automation id": "e71462f7-b00a-4a95-af70-0aba925a5308",
-    "动作": "scheduledAt 改为本棒收工 + 3 分钟",
-    "给终检的三条": [
-      "反着验 R-1 / R-2 / R-3 可复现，命令在 .workbuddy/memory/2026-09-26.md",
-      "重点核：方案与 09-25 记忆里「vt/lifespan 是摆设」这句是错的，本棒已修正",
-      "重点核：批次 1 的 commit 有没有把 git mv 预暂存的重命名卷进去（实测没有）"
+  "体检结论的最终数据形状": {
+    "说明": "POST /api/autopsy/inspect → { success, data }。棒 3 的快照 schema 照抄这份字段名与类型。",
+    "data": {
+      "schemaVersion": "number（当前 1）",
+      "root": "string（目录名，不是绝对路径）",
+      "sourceKind": "string（'path' | 'git'）",
+      "elapsedMs": "number",
+      "scope": {
+        "files": "number",
+        "bytes": "number",
+        "truncated": "boolean（文件数上限或总字节上限任一踩到）",
+        "rootName": "string",
+        "maxFiles": "number",
+        "maxTotalBytes": "number"
+      },
+      "coverage": {
+        "total": "number（规则池总数，实测 69）",
+        "executed": "number（这次真跑过的条数，实测 42）",
+        "notRun": "number（= total - executed，实测 27）",
+        "batches": "number",
+        "decidable": "boolean（有文件解析失败时为 false）",
+        "severityPool": "{ MUST:number, NEVER:number, SHOULD:number, MAY:number }（实测 37/13/18/1）",
+        "tierPool": "{ p0:number, p1:number, other:number }（实测 50/18/1，三者之和 == total）",
+        "skipped": "[{ ruleId:string, title:string, severity:string, category:string, layer:string, reason:string }]",
+        "skippedCount": "number",
+        "parseFailures": "[{ file:string, line:number, status:string, message:string }]",
+        "undecidability": "string[]"
+      },
+      "p0": "Finding[]（MUST + NEVER，经 Severity.blocking() 判定）",
+      "p1": "Finding[]（SHOULD）",
+      "other": "Finding[]（MAY，不判负但不静默丢弃）",
+      "obs": {
+        "available": "boolean（观察项事实源在不在）",
+        "source": "string（只给文件名，如 'checkups.json'）",
+        "ruleCount": "number（观察项分母）",
+        "reason": "string?（available=false 时才有，说明为什么读不到）",
+        "items": "[{ id:string, level:string, text:string, advice:string, actual:string, evidence:string[] }]",
+        "unevaluated": "[{ id:string, fact:string, op:string, reason:string }]",
+        "firedCount": "number",
+        "unevaluatedCount": "number"
+      }
+    },
+    "Finding": {
+      "ruleId": "string",
+      "title": "string",
+      "severity": "string（MUST / NEVER / SHOULD / MAY）",
+      "category": "string",
+      "file": "string（相对路径，用 /）",
+      "line": "number",
+      "column": "number",
+      "snippet": "string（已脱敏）",
+      "message": "string",
+      "collapsed": "number（同文件同规则被折叠的处数）",
+      "evidence": "string（拼好的 file:line，每条必有）"
+    },
+    "给棒 3 的两句话": [
+      "evidence 是拼好的 path:line，页面直接显示，别在快照里再拼一次",
+      "obs.unevaluated 与「没触发」是两件事，快照里要分开存 —— 并进「没触发」就会把「没查」显示成「没问题」"
     ]
   }
 }
