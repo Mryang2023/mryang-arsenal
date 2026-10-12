@@ -3,7 +3,7 @@ package com.arsenal.loader;
 import com.arsenal.domain.Rule;
 import com.arsenal.domain.RuleFile;
 import com.arsenal.domain.RulesetMeta;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;

@@ -3,7 +3,7 @@
 # arsenal-server 本地启动（无需 Maven）
 #
 # Why: 本机没有 mvn，但需要能真的把服务跑起来验证接口，
-# 而不只是「编译通过」。用 JDK 17 + 本地 .m2 里的 Spring Boot 3.2.5 运行时依赖
+# 而不只是「编译通过」。用 JDK 21 + 本地 .m2 里的 Spring Boot 4.1.1 运行时依赖
 # 直接 java 启动，够跑一个单体 Web 应用。
 #
 # 用法:
@@ -12,7 +12,7 @@
 #   SKIP_COMPILE=1 bash scripts/run.sh  # 跳过编译，直接启动
 #
 # 可覆盖的环境变量:
-#   JDK_HOME      JDK 17 安装目录（不含 /bin）
+#   JDK_HOME      JDK 21 安装目录（不含 /bin）
 #   M2_REPO       本地 Maven 仓库
 #   RUN_CWD       进程工作目录，默认 arsenal-server 自身
 #   SERVER_ARGS   额外传给应用的参数

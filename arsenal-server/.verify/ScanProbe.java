@@ -4,9 +4,9 @@ import com.arsenal.scan.ScanRulesLoader;
 import com.arsenal.scan.ScanContext;
 import com.arsenal.scan.ScanGuard;
 import com.arsenal.scan.SourceResolver;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.node.ArrayNode;
-import com.fasterxml.jackson.databind.node.ObjectNode;
+import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.node.ArrayNode;
+import tools.jackson.databind.node.ObjectNode;
 
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;

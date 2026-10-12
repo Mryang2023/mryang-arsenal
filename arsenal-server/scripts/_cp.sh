@@ -23,14 +23,14 @@ _jdk_candidates() {
     printf '%s\n' "$JDK_HOME"
     return
   fi
-  # 显式指定优先；否则扫 .jdks 与常见安装位置，取最高的 17
+  # 显式指定优先；否则扫 .jdks 与常见安装位置，取最高的 21
   for base in "$HOME/.jdks" "/c/Program Files/Java" "/c/Program Files/Eclipse Adoptium" \
               "/c/Program Files/Microsoft" "/c/Program Files/Amazon Corretto" "/c/Program Files/Zulu"; do
     [ -d "$base" ] || continue
-    ls -d "$base"/*17* 2>/dev/null
-    ls -d "$base"/jdk-17* 2>/dev/null
+    ls -d "$base"/*21* 2>/dev/null
+    ls -d "$base"/jdk-21* 2>/dev/null
   done
-  # 兜底：JAVA_HOME 里就是 17 的话也能用
+  # 兜底：JAVA_HOME 里就是 21 的话也能用
   [ -n "${JAVA_HOME:-}" ] && printf '%s\n' "$JAVA_HOME"
 }
 
@@ -46,7 +46,7 @@ $(_jdk_candidates)
 EOF
 
 if [ -z "$JDK_DIR" ]; then
-  echo "[FAIL] 找不到可用的 JDK 17。" >&2
+  echo "[FAIL] 找不到可用的 JDK 21。" >&2
   echo "       试过的位置：" >&2
   _jdk_candidates | sed 's/^/         - /' >&2
   echo "       指定方式：JDK_HOME=<JDK 安装目录> bash <脚本>" >&2
@@ -82,6 +82,8 @@ pick() {
 
 # 编译期真正需要的依赖。刻意不含运行期组件（tomcat 等）——
 # 静态校验要回答的是「API 用对了没」，不是「能不能跑起来」。
+# Jackson 3 起 databind/core 迁到 tools.jackson 坐标；注解包留在
+# com.fasterxml.jackson.core:jackson-annotations（3.x 配 2.21 注解线，官方安排）。
 DEPS=(
   "org/springframework/boot/spring-boot:spring-boot"
   "org/springframework/boot/spring-boot-autoconfigure:spring-boot-autoconfigure"
@@ -90,11 +92,10 @@ DEPS=(
   "org/springframework/spring-context:spring-context"
   "org/springframework/spring-aop:spring-aop"
   "org/springframework/spring-expression:spring-expression"
-  "org/springframework/spring-jcl:spring-jcl"
   "org/springframework/spring-web:spring-web"
   "org/springframework/spring-webmvc:spring-webmvc"
-  "com/fasterxml/jackson/core/jackson-databind:jackson-databind"
-  "com/fasterxml/jackson/core/jackson-core:jackson-core"
+  "tools/jackson/core/jackson-databind:jackson-databind"
+  "tools/jackson/core/jackson-core:jackson-core"
   "com/fasterxml/jackson/core/jackson-annotations:jackson-annotations"
   "jakarta/validation/jakarta.validation-api:jakarta.validation-api"
   "jakarta/annotation/jakarta.annotation-api:jakarta.annotation-api"

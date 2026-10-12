@@ -1,8 +1,8 @@
 package com.arsenal.scan;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.node.ArrayNode;
-import com.fasterxml.jackson.databind.node.ObjectNode;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.node.ArrayNode;
+import tools.jackson.databind.node.ObjectNode;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -224,7 +224,7 @@ public final class BuildScanner {
             for (String section : new String[]{"dependencies", "devDependencies", "peerDependencies"}) {
                 JsonNode deps = root.get(section);
                 if (deps == null || !deps.isObject()) continue;
-                var it = deps.fields();
+                var it = deps.properties().iterator();
                 while (it.hasNext()) {
                     var e = it.next();
                     addDep(ctx, dependencies, depsOut, "npm", "npm", e.getKey(),

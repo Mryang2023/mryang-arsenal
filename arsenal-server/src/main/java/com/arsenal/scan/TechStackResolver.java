@@ -1,8 +1,8 @@
 package com.arsenal.scan;
 
-import com.fasterxml.jackson.databind.node.ArrayNode;
-import com.fasterxml.jackson.databind.node.ObjectNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.node.ArrayNode;
+import tools.jackson.databind.node.ObjectNode;
+import tools.jackson.databind.ObjectMapper;
 
 import java.util.ArrayList;
 import java.util.Comparator;

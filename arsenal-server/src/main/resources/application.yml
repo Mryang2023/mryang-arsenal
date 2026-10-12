@@ -11,6 +11,11 @@ server:
 spring:
   application:
     name: arsenal-server
+  # 虚拟线程（JDK 21）：IO 密集的规则供给服务正合适 ——
+  # 这也是仓库里虚拟线程规则自己讲的那个示范。
+  threads:
+    virtual:
+      enabled: true
   jackson:
     serialization:
       indent-output: true
@@ -47,7 +52,10 @@ arsenal:
     rules-file: ${ARSENAL_SCAN_RULES:../arsenal-scan/scan_rules.json}
 
   # 案例执行服务：把提交的案例代码用独立 JDK 21 子进程编译运行（虚拟线程等需要 21+）。
-  # 主服务仍跑 JDK 17，不改；这里只解析一个 JDK 21+ 给案例用。
+  # 2026-10-12 主服务升到 JDK 21 后，默认直接复用主服务的 JDK；
+  # ARSENAL_CASE_JDK 仍可显式指到另一个 JDK 21+（比如要钉死某个小版本时）。
+  # cases:
+  #   jdk-home 留空 = 复用主服务 JDK；显式指到 JDK 21+ 安装目录则覆盖
   cases:
     # 留空 = 自动扫描 ~/.jdks 与常见安装目录里的 JDK 21+；也可显式指到 JDK 21+ 安装目录
     jdk-home: ${ARSENAL_CASE_JDK:}
