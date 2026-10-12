@@ -1,8 +1,8 @@
 {
   "collection": "arsenal-checkups",
   "version": "0.1.0",
-  "updatedAt": "2026-10-11",
-  "count": 6,
+  "updatedAt": "2026-10-12",
+  "count": 8,
   "note": "观察项事实源（第 9 个事实源，手写 JSON，随项目走，不进 tools/content/*.py —— 与 arsenal-charter/ 同一性质）。\n\n「观察项」与「违规」是两件事：违规是规则命中（P0/P1 档，来自 arsenal-rules 的 69 条），观察项是**从扫描事实推出来的提醒**（耦合面、CI 缺失、跨层直连…），它不评分、不判负，只是「值得看一眼」。\n\n为什么不写死在 Java 里：换一种语言就得改代码重编译，而观察项恰恰是最该随项目调的东西（有的团队不许 Nginx，有的团队 CI 门槛是 5 个 stage）。所以判据是数据，Java 侧只有一个解释器 CheckupEvaluator。",
   "operators": [
     ">=",
@@ -98,6 +98,36 @@
       "advice": "核对 proxy_read_timeout / X-Forwarded-* 与后端一致；超时不对齐的故障最难复现",
       "evidence": {
         "from": "deploy.nginx",
+        "limit": 3
+      }
+    },
+    {
+      "id": "CK-OBS-007",
+      "level": "obs",
+      "when": {
+        "fact": "code.entryPoints.length",
+        "op": ">=",
+        "value": 2
+      },
+      "text": "扫描到 {n} 个可运行入口 —— 多服务结构信号：跑起来的不止一个进程，服务间调用与部署拓扑都该按单元看",
+      "advice": "去解剖台「服务拓扑」页签看单元合成与归属；声明条数远多于入口数时，多出来的是部署视角（compose 项 / k8s 条目），不是服务视角",
+      "evidence": {
+        "from": "code.entryPoints",
+        "limit": 3
+      }
+    },
+    {
+      "id": "CK-OBS-008",
+      "level": "obs",
+      "when": {
+        "fact": "code.entryPoints.length",
+        "op": "==",
+        "value": 1
+      },
+      "text": "可运行入口只有 {n} 个 —— 单体（或部署信号不足）：服务拓扑这一档会以一个单元呈现，别把「一个单元」读成「只有一个服务在跑」",
+      "advice": "确认是不是有意为之的单体；若部署清单里明明有多个服务却只有 1 个入口，缺的通常是启动类注解或 main 方法，补上再扫",
+      "evidence": {
+        "from": "code.entryPoints",
         "limit": 3
       }
     }

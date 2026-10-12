@@ -130,6 +130,19 @@ section('【2】观察项是数据，不是代码');
     Object.keys(OPS).length === 6 && LEVELS.length === 1,
     `算子 ${Object.keys(OPS).length} 个 / 档位 ${LEVELS.length} 个`,
   );
+  // 棒 4 设计裁决（2026-10-12 计划书证伪记录）：CK-OBS-007/008 判据走**入口数**，
+  // 不是声明数。demo-repo 实测 8 条声明（compose 3 + k8s 4 + 入口 1）却只有 1 个
+  // 入口 —— 用 services.declarations.length >= 2 会把这个单体误触成「多服务结构
+  // 信号」。声明数是部署视角，入口数才是「跑起来几个进程」的硬信号。
+  // 真求值证据（同进程探针跑 CheckupLoader + CheckupEvaluator + 真 facts 回执）：
+  // services-demo 4 入口 → 007 触发、008 不触发；demo-repo 1 入口 → 008 触发、
+  // 007 不触发；两边 unevaluated 都是 0（每条规则都有结论）。
+  const svcObs = (checkupsRaw.rules ?? []).filter((r: any) => r?.id === 'CK-OBS-007' || r?.id === 'CK-OBS-008');
+  check(
+    'CK-OBS-007/008 判据走 code.entryPoints.length（入口数），不是 services.declarations.length（声明数是部署视角）',
+    svcObs.length === 2 && svcObs.every((r: any) => r.when?.fact === 'code.entryPoints.length'),
+    `实测 ${svcObs.length} 条: ${svcObs.map((r: any) => `${r.id}=${r.when?.fact}`).join(' / ')} —— 判据改成声明数会把单体误判成多服务（demo-repo：8 声明 / 1 入口）`,
+  );
 }
 
 // ═══════════════════════════════════════════════════════════════
