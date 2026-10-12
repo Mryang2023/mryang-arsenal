@@ -66,8 +66,12 @@ D:\workspace\2026\mryang-arsenal
 
 | | 端口 | 技术栈 |
 |---|---|---|
-| `arsenal-web` | 3010 | Next.js 14 App Router + TypeScript + Tailwind |
-| `arsenal-server` | 3011 | Spring Boot 3.2.5 + Java 17 |
+| `arsenal-web` | 3010 | Next.js 16 App Router + React 19 + TypeScript 5.9 + Tailwind 4 |
+| `arsenal-server` | 3011 | Spring Boot 4.1.1 + Java 21（Jackson 3） |
+
+> 2026-10-12 技术栈大规模升级：Next.js 14→16 / React 18→19 / Tailwind 3→4 / TS 5.5→5.9；
+> Spring Boot 3.2.5→4.1.1 / Java 17→21 / Jackson 2→3。方案、取舍与验收闸门见
+> `docs/升级计划-2026-10-12-技术栈大规模升级.md`。
 
 ---
 
@@ -196,7 +200,7 @@ bash scripts/run.sh                                   # 编译并启动，无需
 SERVER_ARGS="--server.port=3011" bash scripts/run.sh  # 指定端口
 ```
 
-`run.sh` 自己找 JDK 17（扫 `~/.jdks` 与 Program Files 各处，取最高的 17），并拼 `.m2` 里的运行时依赖。
+`run.sh` 自己找 JDK 21（扫 `~/.jdks` 与 Program Files 各处，取最高的 21），并拼 `.m2` 里的运行时依赖。
 JDK 装在别处时用 `JDK_HOME=<JDK 目录> bash scripts/run.sh` 指定；有 Maven 时 `mvn spring-boot:run` 也可以。
 
 只想要静态编译（不启动，只验 API 用对了没）：
@@ -375,7 +379,7 @@ verify: 实测 674 项（通过 643 / 跳过 31 / 失败 0）  → 退出码 2�
 **必须重跑**：基线在 `.verify/audit-check.ts`、`.verify/graph-check.ts`、
 `.verify/project-check.ts`、`.verify/archify-check.ts` 与 `.verify/scan-check.ts`。
 
-`verify:scan` 需要 bash + JDK 17（它要起后端扫描探针实跑）。缺一个就**明说跳过**、
+`verify:scan` 需要 bash + JDK 21（它要起后端扫描探针实跑）。缺一个就**明说跳过**、
 把本层声明的 69 项全记为「未执行」并**退出 2**（退出 0 的时代结束了）——
 那时「实测」里不含扫描断言，总账会点名「代码扫描（69 项未执行）」。
 
@@ -388,12 +392,12 @@ verify: 实测 674 项（通过 643 / 跳过 31 / 失败 0）  → 退出码 2�
 cd arsenal-web && ARCHIFY_SWEEP=1 npm run verify:archify
 ```
 
-它最后 10 项要 `bash` + JDK 17：编译并实跑后端出图服务
+它最后 10 项要 `bash` + JDK 21：编译并实跑后端出图服务
 （`arsenal-server/.verify/ArchifyProbe.java`），验的是「页面上那颗按钮真的能用」。
 上面三节走的是对方的命令行，**覆盖不到服务层** —— 找不到 node、临时文件写错、
 子进程输出没被翻译回来，IR 全绿它也照样坏。
 
-> `verify:parity` 需要 `bash` + JDK 17：它要起后端探针实跑一遍导出再逐字节比对。
+> `verify:parity` 需要 `bash` + JDK 21：它要起后端探针实跑一遍导出再逐字节比对。
 > 没有 bash 的环境这一层跑不了（报 `execvpe(/bin/bash) failed`），此时其余七层
 > 仍然有效 —— 但这一层的「未执行」不再被静默吞掉：
 > 探针起不来 → 依赖它的比对项记「未执行」；探针跑成了但没起后端 →
