@@ -35,12 +35,15 @@ import {
   autopsyCoverage,
   autopsyUnmatched,
   buildAutopsy,
+  serviceGraphOpts,
   traceSource,
 } from '../src/lib/autopsy-data';
 import { scanStats } from '../src/lib/scan-rules';
 import { CANVAS_THEME_OPTIONS, buildTechArchSvg } from '../src/lib/arch-canvas';
 import { archifyIrIssues, archifyIrShapeIssues } from '../src/lib/archify-ir';
 import { buildProfileDraftFromFacts } from '../src/lib/profile-draft';
+import { buildServiceTopo } from '../src/lib/service-topo';
+import { buildServiceGraphSvg } from '../src/lib/service-graph';
 import type { AutopsyReport } from '../src/lib/arsenal-api';
 import {
   buildSnapshot,
@@ -331,7 +334,11 @@ if (!skipAll) {
     check('3-7 软链外跳：仓库外目标文件没有被扫进来',
       !!f && !JSON.stringify(f).includes('top secret'), `实际 ${JSON.stringify(f?.config ?? [])}`);
   } else {
-    console.log('  ! 3-7 软链外跳用例跳过：本机无法创建符号链接（Windows 权限），闸门未被这一条验证');
+    // 造不出用例就**显式记跳过**，不是打一行日志了事：跳过是独立状态，进
+    // 「实测 + 跳过」与声明项数比对。静默不跑会让这台机器上实测 92 ≠ 声明 93，
+    // 换一台有权限的机器又变回 93 —— 层数账随环境漂移，而那正是记账要防的事。
+    skip('3-7 软链外跳：仓库外目标文件没有被扫进来',
+      '本机无法创建符号链接（Files.createSymbolicLink 失败：Windows 非管理员 / 未开开发者模式）—— 闸门未被这一条验证');
   }
 
   // ── 【4】三条出图链路：真实 facts → 三张图 ────────────────────
@@ -582,6 +589,17 @@ if (!skipAll && factsShared) {
     && aut.title === rawTitle,
     `picks=${JSON.stringify(aut.picksRes.picks).slice(0, 160)}`);
 
+  // ①b 服务拓扑同款：模型与图都必须能从 facts 直算复现（2026-10-12 棒 3 挂上面板）。
+  //     topoSvg 与 techSvg 一样是字符串成品 —— 直算比对防的是「面板看到的图」
+  //    与「facts 真实推导的图」静默分家。opts 走导出的 serviceGraphOpts：
+  //    比对方与产物方必须传同一份标题/副标题，否则差一个字就红，而红的原因跟判据无关。
+  const rawTopo = buildServiceTopo(factsA);
+  const rawTopoSvg = buildServiceGraphSvg(rawTopo, 'doc', serviceGraphOpts(factsA, rawTopo));
+  check('9-1b 服务拓扑产物可直算复现：topo 模型与 topoSvg 都与 facts 直算逐字节相等',
+    JSON.stringify(aut.topo) === JSON.stringify(rawTopo)
+    && aut.topoSvg === rawTopoSvg,
+    `units=${aut.topo.counts.units} svgLen=${aut.topoSvg.length}`);
+
   // ② 未识别依赖：条数必须与 facts 里的 unmatched 一致（少一条 = 静默丢），
   //    且坐标不为空 —— 空坐标在页面上会渲染成一个没有名字的条目。
   const un = autopsyUnmatched(factsA);
@@ -621,6 +639,7 @@ if (!skipAll && factsShared) {
   // ⑥ 平行实现守门：解剖台不许自己再算一遍 picks —— 谁 import 了 factsToPicks
   //    而它又不是 facts-arch / autopsy-data / 校验层本身，就说明第三份出现了。
   const suspects = ['src/app/autopsy/AutopsyLab.tsx', 'src/app/autopsy/ArchPanel.tsx',
+    'src/app/autopsy/ServicePanel.tsx',
     'src/app/autopsy/UnmatchedPanel.tsx', 'src/components/CodeIntake.tsx'];
   // 去注释后再判：本仓库的注释里会写「结论来自 buildAutopsy()」这种话，
   // 不去注释的话**任何** import 了 facts-arch 的文件都会因为注释里那句话被放过 ——
@@ -970,6 +989,258 @@ if (!skipAll && factsShared) {
 
   fs.rmSync(snapshotDir, { recursive: true, force: true });
   fs.rmSync(treeRoot, { recursive: true, force: true });
+}
+
+// ═══════════════════════════════════════════════════════════════
+// ── 【11】服务拓扑（2026-10-12 夜跑棒 2）────────────────────────
+//
+// 回答「**这个项目有几个服务**」—— 不是猜一个数字，而是每条服务声明带出处：
+// 能精确合并的合并，合不了的说清，0/1 也是结论。判定全在 TS 纯函数
+// `buildServiceTopo` 一份里（Java 侧只摊平 `facts.services.declarations`，
+// 不做任何跨源关联 —— 10-04「判定逻辑两份实现」事故的防线）。
+//
+// 五个样本，全部**探针实扫**（含一个注入副本），没有一条在 TS 里手搓 facts：
+//   ① services-demo   微服务正样本：4 compose + 3 篇 k8s 文档 + 4 入口
+//   ② ghost-injected  ①的整目录副本 + 补上 ghost-service 的启动类 → 冲突必须消失
+//   ③ demo-repo       单体（既有 fixture）→ 1 个入口说「单体特征」
+//   ④ no-signal-repo  空信号 → 0 也是结论，且说清检查过哪些信号
+//   ⑤ near-name-repo  order-service vs order-svc → 不得合并
+if (!skipAll) {
+  section('【11】服务拓扑：facts.services → 「这个项目有几个服务」');
+
+  const fixtureSvc = path.join(here, 'fixtures', 'services-demo');
+  const fixtureNear = path.join(here, 'fixtures', 'near-name-repo');
+  const fixtureNoSignal = path.join(here, 'fixtures', 'no-signal-repo');
+  const ghostRepo = path.join(tmpDir, 'ghost-injected');
+  const win = (p: string) => p.replace(/\\/g, '/');
+
+  // ② 的材料：services-demo 的**整目录副本**（只丢一个 java 文件进去是扫不出
+  //    compose/k8s 的）+ 一个 ghost-service 的启动类。tmpDir 由收尾 hook 清掉。
+  fs.rmSync(ghostRepo, { recursive: true, force: true });
+  fs.cpSync(fixtureSvc, ghostRepo, { recursive: true });
+  const ghostJava = path.join(
+    ghostRepo, 'ghost-service', 'src', 'main', 'java', 'com', 'acme', 'ghost', 'GhostApplication.java'
+  );
+  fs.mkdirSync(path.dirname(ghostJava), { recursive: true });
+  fs.writeFileSync(ghostJava, [
+    'package com.acme.ghost;',
+    '',
+    'import org.springframework.boot.SpringApplication;',
+    'import org.springframework.boot.autoconfigure.SpringBootApplication;',
+    '',
+    '/** 反向断言用：把 ghost-service 的代码补上，declared-no-code 冲突必须消失 */',
+    '@SpringBootApplication',
+    'public class GhostApplication {',
+    '    public static void main(String[] args) {',
+    '        SpringApplication.run(GhostApplication.class, args);',
+    '    }',
+    '}',
+    '',
+  ].join('\n'), 'utf8');
+
+  const svcActions = [
+    `facts:${win(fixtureSvc)}`,
+    `facts:${win(fixtureNear)}`,
+    `facts:${win(fixtureNoSignal)}`,
+    `facts:${win(ghostRepo)}`,
+    `facts:${win(fixture)}`, // demo-repo 单体
+  ];
+  let r11 = runProbe('svc-topo', svcActions);
+  if (!r11.some((r) => r.kind === 'facts' && r.action.endsWith('services-demo'))) {
+    // 与【3】同款：长跑链路里后端 JVM 会短暂停顿导致整批记录缺失。
+    // 只对「记录缺失」重试一次 —— 真回归返回的是确定的错误记录，不会进这里。
+    console.log('  ! 服务拓扑探针响应缺失（后端瞬时停顿?），2s 后重试一次');
+    Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 2000);
+    r11 = runProbe('svc-topo-retry', svcActions);
+  }
+  // 探针整体失败时 facts 退化为 {}：buildServiceTopo 不抛，断言逐条红并打出
+  // 「实际 0 条」这类可读信息（runProbe 已把探针 stdout 打过一遍）。
+  const factsOf = (tail: string): any =>
+    r11.find((r) => r.kind === 'facts' && r.action.endsWith(tail))?.facts ?? {};
+  const fSvc = factsOf('services-demo');
+  const fNear = factsOf('near-name-repo');
+  const fEmpty = factsOf('no-signal-repo');
+  const fGhost = factsOf('ghost-injected');
+  const fDemo = factsOf('demo-repo');
+
+  // ── ① 原始声明（Java 摊平层：只摊事实，不关联）────────────────
+  const decl = fSvc.services?.declarations ?? [];
+  check('11-1 摊平出 11 条声明：compose 4 / k8s 3 / code-entry 4（三源构成分开数，不合并成一个数）',
+    decl.length === 11
+    && decl.filter((d: any) => d.source === 'compose').length === 4
+    && decl.filter((d: any) => d.source === 'k8s').length === 3
+    && decl.filter((d: any) => d.source === 'code-entry').length === 4,
+    `实际 ${decl.length} 条`);
+
+  const svcDetails = (fSvc.deploy?.compose ?? [])[0]?.serviceDetails ?? [];
+  const dOrder = svcDetails.find((d: any) => d.name === 'order-service');
+  const dPay = svcDetails.find((d: any) => d.name === 'payment-service');
+  const dMysql = svcDetails.find((d: any) => d.name === 'mysql');
+  const dGhost = svcDetails.find((d: any) => d.name === 'ghost-service');
+  check('11-2 compose 逐服务详情：4 空格缩进认得全、端口取容器侧、depends_on / image / build 各带行号',
+    svcDetails.length === 4
+    && dOrder?.line === 3 && dOrder?.port === 8080 && dOrder?.build === './order-service'
+    && JSON.stringify(dOrder?.dependsOn) === JSON.stringify(['mysql'])
+    && dPay?.line === 11 && dPay?.port === 8080
+    && dMysql?.line === 14 && dMysql?.image === 'mysql:8.0' && dMysql?.port === null
+    && dGhost?.line === 16 && dGhost?.build === './ghost-service' && dGhost?.port === null,
+    JSON.stringify(svcDetails).slice(0, 400));
+
+  const k8sDocs = fSvc.deploy?.k8s ?? [];
+  const kOrder = k8sDocs.find((k: any) => k.name === 'order-service');
+  const kPay = k8sDocs.find((k: any) => k.name === 'payment-service');
+  const kSvcName = k8sDocs.find((k: any) => k.name === 'order-svc');
+  check('11-3 k8s 多文档拆分：一个 all-in-one.yml 出 3 条，行号各指各的文档（2/22/40），副本与镜像都在',
+    k8sDocs.length === 3
+    && kOrder?.kind === 'Deployment' && kOrder?.line === 2 && kOrder?.replicas === 3
+    && kOrder?.image === 'acme/order-service:1.4.0'
+    && kPay?.kind === 'Deployment' && kPay?.line === 22 && kPay?.replicas === 2
+    && kSvcName?.kind === 'Service' && kSvcName?.line === 40,
+    JSON.stringify(k8sDocs.map((k: any) => `${k.kind}/${k.name}@${k.line}`)));
+
+  const eps = fSvc.code?.entryPoints ?? [];
+  check('11-4 可运行入口 4 个：@SpringBootApplication 3 + 裸 main 1（LegacyTool），都带 file/line/pkg',
+    eps.length === 4
+    && eps.filter((e: any) => e.runtime === 'spring-boot').length === 3
+    && eps.filter((e: any) => e.runtime === 'main').length === 1
+    && eps.every((e: any) => !!e.file && e.line > 0 && !!e.package)
+    && eps.some((e: any) => e.className === 'LegacyTool' && e.runtime === 'main'),
+    JSON.stringify(eps.map((e: any) => `${e.className}/${e.runtime}`)));
+
+  // ── ② 微服务夹具：合并 / 分桶 / 边 / 冲突 ─────────────────────
+  const tSvc = buildServiceTopo(fSvc);
+  check('11-5 微服务 counts：各源分开报（compose 4 / k8s 负载 2 / 入口 4）+ 单元 5 + infra 1 + 非负载 1 + 边 2',
+    JSON.stringify(tSvc.counts) === JSON.stringify({
+      compose: 4, k8sWorkload: 2, codeEntry: 4, units: 5, infra: 1, nonWorkload: 1,
+      unnamed: 0, edges: 2, externals: 0, unresolvedTargets: 1, unattributedRoutes: 0,
+    }),
+    JSON.stringify(tSvc.counts));
+
+  const uOrder = tSvc.units.find((u: any) => u.name === 'order-service');
+  const uPay = tSvc.units.find((u: any) => u.name === 'payment-service');
+  check('11-6 order-service 单元：compose+k8s 两源合并、入口按目录名挂上、路由/Dockerfile/pom 都归属它',
+    uOrder?.matchedOn === 'dir-name' && uOrder?.codeOnly === false
+    && uOrder?.sources.map((s: any) => s.source).join('+') === 'compose+k8s'
+    && uOrder?.entries.map((e: any) => e.className).join(',') === 'OrderApplication'
+    && uOrder?.routes.length === 2
+    && JSON.stringify(uOrder?.dockerfiles) === JSON.stringify(['order-service/Dockerfile'])
+    && JSON.stringify(uOrder?.poms) === JSON.stringify(['order-service/pom.xml'])
+    && uPay?.matchedOn === 'dir-name'
+    && uPay?.sources.map((s: any) => s.source).join('+') === 'compose+k8s'
+    && uPay?.entries.map((e: any) => e.className).join(',') === 'PaymentApplication'
+    && uPay?.routes.length === 1
+    && JSON.stringify(uPay?.poms) === JSON.stringify(['payment-service/pom.xml']),
+    JSON.stringify({
+      o: uOrder?.sources.map((s: any) => s.source),
+      p: uPay?.sources.map((s: any) => s.source),
+    }));
+
+  const ghostC = tSvc.conflicts.find((c: any) => c.unit === 'ghost-service');
+  check('11-7 ghost-service（compose 声明、无代码）进冲突清单：带 file:line 证据与「归属不上」的准确措辞',
+    tSvc.conflicts.length === 1
+    && ghostC?.kind === 'declared-no-code'
+    && ghostC?.evidence.includes('docker-compose.yml:16')
+    && /没有任何可运行入口、路由或构建文件能归属到它/.test(ghostC?.detail ?? ''),
+    JSON.stringify(tSvc.conflicts));
+
+  check('11-8 分桶不混进服务数：mysql 进 infra 带证据、order-svc 是 k8s Service 进 nonWorkload，units 里都没有',
+    tSvc.infra.length === 1 && tSvc.infra[0]?.name === 'mysql'
+    && tSvc.infra[0]?.evidence === 'docker-compose.yml:14'
+    && tSvc.nonWorkload.length === 1 && tSvc.nonWorkload[0]?.name === 'order-svc'
+    && tSvc.nonWorkload[0]?.kind === 'Service'
+    && !tSvc.units.some((u: any) => u.name === 'mysql' || u.name === 'order-svc'),
+    JSON.stringify({ infra: tSvc.infra, nonWorkload: tSvc.nonWorkload }));
+
+  check('11-9 调用边两条（feign GatewayApplication→order-service、depends_on order-service→mysql）+ nginx ingress 一条',
+    tSvc.edges.length === 2
+    && tSvc.edges.some((e: any) => e.from === 'GatewayApplication' && e.to === 'order-service'
+      && e.kind === 'feign' && e.evidence === 'gateway/src/main/java/com/acme/gateway/OrderClient.java:6')
+    && tSvc.edges.some((e: any) => e.from === 'order-service' && e.to === 'mysql'
+      && e.kind === 'depends_on' && e.evidence === 'docker-compose.yml:3')
+    && tSvc.ingress.length === 1 && tSvc.ingress[0]?.unit === 'order-service'
+    && tSvc.ingress[0]?.upstream === 'order-service:8081'
+    && JSON.stringify(tSvc.ingressUnmatched) === JSON.stringify(['order_backend'])
+    && tSvc.unresolvedTargets === 1,
+    JSON.stringify({ edges: tSvc.edges, ingress: tSvc.ingress, unmatched: tSvc.ingressUnmatched }));
+
+  check('11-10 未归属桶如实计数：路由 0 条归属不上；gateway 的 Dockerfile/pom 进桶（第一段 gateway 不是单元名）',
+    tSvc.unattributed.routes.length === 0
+    && JSON.stringify(tSvc.unattributed.dockerfiles) === JSON.stringify(['gateway/Dockerfile'])
+    && JSON.stringify(tSvc.unattributed.poms) === JSON.stringify(['gateway/pom.xml']),
+    JSON.stringify(tSvc.unattributed));
+
+  check('11-11 确定性：同一份 facts 跑两次 buildServiceTopo 逐字段相等（否则面板会随机变）',
+    JSON.stringify(buildServiceTopo(fSvc)) === JSON.stringify(buildServiceTopo(fSvc)));
+
+  // ── ③ 反向断言：补上代码，冲突必须消失 ────────────────────────
+  const tGhost = buildServiceTopo(fGhost);
+  const uGhost = tGhost.units.find((u: any) => u.name === 'ghost-service');
+  check('11-12 反向断言：补上 ghost-service 的代码后冲突消失、入口按目录名挂上（冲突不是写死的常数）',
+    tGhost.conflicts.length === 0
+    && uGhost?.matchedOn === 'dir-name'
+    && uGhost?.entries.map((e: any) => e.className).join(',') === 'GhostApplication'
+    && tGhost.counts.codeEntry === 5 && tGhost.counts.units === 5,
+    JSON.stringify({ conflicts: tGhost.conflicts, entries: uGhost?.entries }));
+
+  // ── ④ 单体夹具：1 个入口也是结论 ──────────────────────────────
+  const tMono = buildServiceTopo(fDemo);
+  check('11-13 单体夹具（demo-repo）：1 个可运行入口说「单体特征」；app/demo-app/DemoApplication 三个精确名各是各的单元',
+    tMono.counts.codeEntry === 1
+    && tMono.notes.some((n: string) => n.includes('单体特征'))
+    && JSON.stringify(tMono.units.map((u: any) => u.name)) === JSON.stringify(['DemoApplication', 'app', 'demo-app'])
+    && tMono.counts.infra === 2 && tMono.counts.nonWorkload === 3
+    && tMono.units.find((u: any) => u.name === 'DemoApplication')?.routes.length === 5,
+    JSON.stringify({ units: tMono.units.map((u: any) => u.name), counts: tMono.counts }));
+
+  check('11-14 单体的部署声明也进冲突清单（app / demo-app 各一条），措辞是「归属不上」不是「仓库里找不到代码」',
+    tMono.conflicts.length === 2
+    && tMono.conflicts.every((c: any) => /没有任何可运行入口、路由或构建文件能归属到它/.test(c.detail))
+    && tMono.conflicts.map((c: any) => c.unit).sort().join(',') === 'app,demo-app',
+    JSON.stringify(tMono.conflicts.map((c: any) => `${c.unit}:${c.kind}`)));
+
+  // ── ⑤ 空信号：0 也是结论 ──────────────────────────────────────
+  const tEmpty = buildServiceTopo(fEmpty);
+  check('11-15 空信号夹具：0 个单元，且 note 说清「检查过 compose 服务 / k8s 工作负载 / 代码可运行入口」',
+    tEmpty.counts.units === 0 && tEmpty.counts.compose === 0 && tEmpty.counts.k8sWorkload === 0
+    && tEmpty.counts.codeEntry === 0 && tEmpty.conflicts.length === 0
+    && tEmpty.notes.some((n: string) => n.includes('未发现任何服务边界信号')
+      && n.includes('compose 服务') && n.includes('k8s 工作负载') && n.includes('代码可运行入口')
+      && n.includes('没有信号不等于没有服务')),
+    JSON.stringify(tEmpty.notes));
+
+  // ── ⑥ 近似名：不得合并 ────────────────────────────────────────
+  const tNear = buildServiceTopo(fNear);
+  check('11-16 近似名不合并：order-service 与 order-svc 是两个独立单元，入口各挂各的（精确匹配，不做名称归一化）',
+    tNear.counts.units === 2
+    && JSON.stringify(tNear.units.map((u: any) => u.name)) === JSON.stringify(['order-service', 'order-svc'])
+    && tNear.units.find((u: any) => u.name === 'order-service')?.entries.map((e: any) => e.className).join(',') === 'OrderApp'
+    && tNear.units.find((u: any) => u.name === 'order-svc')?.entries.map((e: any) => e.className).join(',') === 'SvcApp'
+    && tNear.conflicts.length === 0 && tNear.counts.edges === 0,
+    JSON.stringify(tNear.units.map((u: any) => u.name)));
+
+  // ⑦ 外部调用也是边（2026-10-12 棒 3 目检实测补）：demo-repo 有 0 条声明之内的边、
+  //    1 个 feign 指向声明之外的 inventory-service。三件事必须同时为真：
+  //    模型带 from（否则渲染器只能画孤立节点，看页面的人无从知道它从哪来）、
+  //    图画点线（样式即语义：depends_on 的 mysql 在本项目声明里，external 不在）、
+  //    空态文案说「读到了、目标在声明之外」——旧文案「feign / depends_on / nginx
+  //    都没读到」在这种情况下是假话（10-04 教训：视觉层验「说得对不对」）。
+  const extSvg = buildServiceGraphSvg(tMono, 'doc', serviceGraphOpts(fDemo, tMono));
+  const svcSvg = buildServiceGraphSvg(tSvc, 'doc', serviceGraphOpts(fSvc, tSvc));
+  check('11-17 外部目标带 from 且画点线：模型有出处、图有线、空态不说「都没读到」的假话',
+    tMono.externals.length === 1
+    && tMono.externals[0]?.from === 'DemoApplication'
+    && tMono.externals[0]?.target === 'inventory-service'
+    && tMono.externals[0]?.kind === 'feign'
+    && tMono.externals[0]?.evidence === 'src/main/java/com/demo/client/InventoryClient.java:6'
+    && tMono.notes.some((n: string) => n.includes('DemoApplication→inventory-service'))
+    && extSvg.includes('<title>inventory-service</title>')
+    && extSvg.includes('<title>DemoApplication</title>')
+    && extSvg.includes('stroke-dasharray="1 3"')
+    && extSvg.includes('没有调用边') && extSvg.includes('声明之外')
+    && !extSvg.includes('都没读到')
+    // 反向：没有外部目标就不许出现点线（services-demo 只有 depends_on 的 5 4 虚线）
+    && !svcSvg.includes('stroke-dasharray="1 3"') && svcSvg.includes('stroke-dasharray="5 4"'),
+    `ext=${JSON.stringify(tMono.externals)} svgLen=${extSvg.length}`);
 }
 
 // ── 收尾清理（finally 语义，2026-09-26 终检 P2-9）────────────────

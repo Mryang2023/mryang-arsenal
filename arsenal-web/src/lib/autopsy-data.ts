@@ -31,6 +31,8 @@ import {
 } from '@/lib/facts-arch';
 import { scanStats } from '@/lib/scan-rules';
 import type { PicksProvenance } from '@/lib/picks-store';
+import { buildServiceGraphSvg } from '@/lib/service-graph';
+import { buildServiceTopo, type ServiceTopo } from '@/lib/service-topo';
 
 /** 一次解剖的全部派生结论。界面拿它渲染，不许自己再算一遍 */
 export interface AutopsyArtifacts {
@@ -44,6 +46,10 @@ export interface AutopsyArtifacts {
   layeredSvg: string;
   summary: FactsSummary;
   techSvg: string;
+  /** 服务拓扑模型（「这个项目有几个服务」—— 每条声明带出处，见 service-topo.ts） */
+  topo: ServiceTopo;
+  /** 服务调用图 SVG（无证据不画边；空边集时图上明说） */
+  topoSvg: string;
   /** 交付级 IR（交给 /api/archify 出 HTML 用） */
   ir: ArchifyIr;
   /** IR 形状问题（形状不对时构图诊断没有意义，所以分开） */
@@ -52,6 +58,39 @@ export interface AutopsyArtifacts {
   title: string;
   /** 选型出处：装配台靠它区分「扫描读出来的格子」与「人点出来的格子」 */
   provenance: PicksProvenance;
+}
+
+/**
+ * 调用图的标题与副标题。
+ *
+ * 单独导出是因为 `scan-check.ts` 的 9-1b 要「与 facts 直算逐字节比对」——
+ * 比对时必须传同一份 opts，否则标题差一个字就红，而红的原因跟判据无关。
+ * 放在这里（而不是各写一份）是为了让「产物用的 opts」与「比对用的 opts」
+ * 永远不可能对不上。
+ */
+export function serviceGraphOpts(
+  facts: ProjectFacts,
+  topo: ServiceTopo
+): { title: string; subtitle: string; subtitle2?: string } {
+  // 副标题分行：结论在上、三源明细在下。有外部目标时必须走两行 ——
+  // 单行塞下「识别/声明/调用边/外部目标」在 456px 窄图上实测放不下（Edge 里
+  // 全角按 1em、半角约 0.6em，估算系数偏小直接被画布切掉半句，2026-10-12 实测）。
+  const decl =
+    `声明 ${facts.services?.declarations?.length ?? 0} 条` +
+    `（compose ${topo.counts.compose} / k8s 工作负载 ${topo.counts.k8sWorkload} / 代码入口 ${topo.counts.codeEntry}）`;
+  const edges = `调用边 ${topo.counts.edges} 条`;
+  if (topo.counts.externals === 0) {
+    // 没有外部目标：保持旧口径单行（少一行副标题，图更矮，既有字节不变）
+    return {
+      title: `${facts.root} 服务调用图`,
+      subtitle: `识别 ${topo.counts.units} 个服务单元 · ${decl} · ${edges}`,
+    };
+  }
+  return {
+    title: `${facts.root} 服务调用图`,
+    subtitle: `识别 ${topo.counts.units} 个服务单元 · ${edges} · 外部目标 ${topo.counts.externals} 个（声明之外）`,
+    subtitle2: decl,
+  };
 }
 
 /**
@@ -75,6 +114,10 @@ export function buildAutopsy(facts: ProjectFacts, theme: CanvasTheme = 'doc'): A
       `${built.arch.edges.length} 条连线 · ${summary.techs.length} 项技术命中`,
   });
   const layeredSvg = buildLayeredSvg(layered, theme);
+  // 服务拓扑：模型与图都在纯函数层（service-topo / service-graph），
+  // 与 techSvg / layeredSvg 同款 —— 面板只画，不重算
+  const topo = buildServiceTopo(facts);
+  const topoSvg = buildServiceGraphSvg(topo, theme, serviceGraphOpts(facts, topo));
   // IR 与主题绑定：主题不只是本地配色，它同时决定后端出图用哪套版式，
   // 否则会出现「这里看是文档风、导出的 HTML 还是蓝图」
   const irRes = buildArchifyIrFromFacts(facts, { theme, title });
@@ -119,6 +162,8 @@ export function buildAutopsy(facts: ProjectFacts, theme: CanvasTheme = 'doc'): A
     layeredSvg,
     summary,
     techSvg,
+    topo,
+    topoSvg,
     ir,
     shape,
     issues,

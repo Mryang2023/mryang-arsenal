@@ -32,12 +32,13 @@ import { downloadText } from '@/lib/zip';
 import ArchPanel from './ArchPanel';
 import CheckupPanel from './CheckupPanel';
 import HistoryPanel, { type DamagedEntry } from './HistoryPanel';
+import ServicePanel from './ServicePanel';
 import UnmatchedPanel from './UnmatchedPanel';
 
 /**
  * 项目解剖台。
  *
- * 一句话：给一个地址 → 出「技术栈部署图 + 应用分层图 + 未识别依赖清单」。
+ * 一句话：给一个地址 → 出「技术栈部署图 + 应用分层图 + 未识别依赖清单 + 服务拓扑」。
  *
  * 三条刻意的分工（别在页面里重写任何一条）：
  *   ① **怎么拿 facts** —— `scanFacts` / `scanUpload`（`lib/arsenal-api.ts`），
@@ -98,7 +99,7 @@ export default function AutopsyLab() {
   const [source, setSource] = useState('');
   const [stage, setStage] = useState<Stage>({ kind: 'idle' });
   const [theme, setTheme] = useState<CanvasTheme>('doc');
-  const [tab, setTab] = useState<'arch' | 'checkup' | 'history'>('arch');
+  const [tab, setTab] = useState<'arch' | 'services' | 'checkup' | 'history'>('arch');
   const [checkup, setCheckup] = useState<CheckupStage>({ kind: 'idle' });
   const fileRef = useRef<HTMLInputElement>(null);
 
@@ -250,7 +251,7 @@ export default function AutopsyLab() {
       <header>
         <h1 className="text-[14px] font-bold text-fg">项目解剖台</h1>
         <p className="mt-1 text-[11px] leading-[17px] text-fgMuted">
-          给一个项目地址，扫出技术栈部署图、应用分层图与未识别依赖清单。
+          给一个项目地址，扫出技术栈部署图、应用分层图、未识别依赖清单与服务拓扑（有几个服务、各带什么出处）。
           只读扫描、不执行仓库里的任何脚本；每条结论都带文件与行号，没认出来的一律列出来而不猜。
         </p>
       </header>
@@ -352,14 +353,15 @@ export default function AutopsyLab() {
         )}
       </div>
 
-      {/* ── 页签：架构 / 体检 ── */}
+      {/* ── 页签：架构 / 服务拓扑 / 体检 / 历史 ── */}
       <div className="flex items-center gap-1 self-start rounded border border-line p-0.5">
         {(
           [
             ['arch', '架构面板'],
+            ['services', '服务拓扑'],
             ['checkup', '体检报告'],
             ['history', `历史（${snapshots.length}）`],
-          ] as ['arch' | 'checkup' | 'history', string][]
+          ] as ['arch' | 'services' | 'checkup' | 'history', string][]
         ).map(([id, label]) => (
           <button
             key={id}
@@ -634,6 +636,10 @@ export default function AutopsyLab() {
             </div>
           </div>
         </div>
+      )}
+
+      {tab === 'services' && artifacts && stage.kind === 'done' && (
+        <ServicePanel artifacts={artifacts} safeName={safeName} />
       )}
 
       {tab === 'history' && (

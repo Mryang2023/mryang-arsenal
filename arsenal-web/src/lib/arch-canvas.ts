@@ -211,8 +211,10 @@ const CLIENT_W = 150;
 const CLIENT_H = 58;
 const TAG_H = 22;
 
-const FONT = "-apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif";
-const MONO = "'Cascadia Code','JetBrains Mono',Consolas,monospace";
+/** 全套 SVG 渲染器共用这两个字体常量 —— 导出是为了 `service-graph.ts` 复用同一处，
+ *  各渲染器各写一份字体栈，改了一处另一处的图会慢慢长得不一样（而没有任何东西会报错）。 */
+export const FONT = "-apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif";
+export const MONO = "'Cascadia Code','JetBrains Mono',Consolas,monospace";
 
 // ─────────────────────────────────────────────────────────────
 // 建模：选型 → 节点
