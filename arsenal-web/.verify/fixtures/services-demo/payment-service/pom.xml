@@ -1,0 +1,4 @@
+<project>
+  <groupId>com.acme</groupId>
+  <artifactId>payment-service</artifactId>
+</project>

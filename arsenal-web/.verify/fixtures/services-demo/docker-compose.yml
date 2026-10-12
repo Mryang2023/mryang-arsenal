@@ -1,0 +1,17 @@
+version: "3.8"
+services:
+    order-service:
+        build: ./order-service
+        ports:
+            - "8081:8080"
+        depends_on:
+            - mysql
+        environment:
+            - ORDER_URL=http://payment-service:8082
+    payment-service:
+        build: ./payment-service
+        ports: ["8082:8080"]
+    mysql:
+        image: mysql:8.0
+    ghost-service:
+        build: ./ghost-service

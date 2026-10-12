@@ -57,6 +57,7 @@ public final class CodeScanner {
         List<Route> routes = new ArrayList<>();
         List<Client> clients = new ArrayList<>();
         List<DirectCall> directCalls = new ArrayList<>();
+        List<EntryPoint> entryPoints = new ArrayList<>();
 
         for (Path p : ctx.files()) {
             ctx.tick();
@@ -69,11 +70,19 @@ public final class CodeScanner {
             List<String> classAnnotations = new ArrayList<>();
             boolean restController = false, controller = false, service = false,
                     repository = false, configuration = false;
+            boolean springBoot = false, mainFound = false;
+            int entryLine = -1;
 
             for (int i = 0; i < lines.size(); i += 1) {
                 String raw = lines.get(i);
                 String line = stripComment(raw);
                 if (line.isBlank()) continue;
+
+                // 可运行入口：main 方法（无框架 Java 应用也是入口，不只是 Spring Boot）
+                if (entryLine < 0 && line.contains("public static void main(")) {
+                    mainFound = true;
+                    entryLine = i + 1;
+                }
 
                 if (pkg == null) {
                     Matcher pm = PACKAGE.matcher(line);
@@ -98,6 +107,12 @@ public final class CodeScanner {
                         default -> {
                             // 其余只计数
                         }
+                    }
+                    // @SpringBootApplication **不进 WATCHED**（那会扰动全局注解计数），
+                    // 但它是最硬的「这是一个可运行服务」信号，单独记
+                    if (ann.equals("@SpringBootApplication")) {
+                        springBoot = true;
+                        if (entryLine < 0) entryLine = i + 1;
                     }
                 }
 
@@ -134,6 +149,13 @@ public final class CodeScanner {
             // 分层：注解优先，其次类名后缀，最后看包名
             String layer = classify(restController, controller, service, repository, configuration, className, pkg);
             if (layer != null) layers.merge(layer, 1, Integer::sum);
+
+            // 可运行入口登记：有 @SpringBootApplication 或 main 就算。
+            // 两者都有时 runtime 记 spring-boot（更具体），行号取先出现的那个
+            if (springBoot || mainFound) {
+                entryPoints.add(new EntryPoint(rel, entryLine > 0 ? entryLine : 1, pkg, className,
+                        springBoot ? "spring-boot" : "main"));
+            }
 
             // 跨带直连：Controller 里出现 *Repository / *Mapper / *Dao 类型的字段
             if ((restController || controller) && className != null) {
@@ -202,6 +224,22 @@ public final class CodeScanner {
                     n.put("from", x.from);
                     n.put("to", x.to);
                     n.put("file", x.file);
+                });
+
+        // 可运行入口（服务计数的代码侧信号）。读不到 package / 类名就写 null ——
+        // 没有入口的仓库是 0 条，那本身是个结论，不许拿别的类凑
+        ArrayNode eps = code.putArray("entryPoints");
+        entryPoints.stream()
+                .sorted((a, b) -> a.file().equals(b.file()) ? Integer.compare(a.line(), b.line()) : a.file().compareTo(b.file()))
+                .forEach(x -> {
+                    ObjectNode n = eps.addObject();
+                    n.put("file", x.file());
+                    n.put("line", x.line());
+                    if (x.pkg() != null) n.put("package", x.pkg());
+                    else n.putNull("package");
+                    if (x.className() != null) n.put("className", x.className());
+                    else n.putNull("className");
+                    n.put("runtime", x.runtime());
                 });
 
         // 去重后的客户端（同一个 kind+target 只留一条），给图上用
@@ -288,5 +326,8 @@ public final class CodeScanner {
     }
 
     private record DirectCall(String from, String to, String file) {
+    }
+
+    private record EntryPoint(String file, int line, String pkg, String className, String runtime) {
     }
 }

@@ -86,15 +86,47 @@ export interface ProjectFacts {
     plugins: { artifact: string; path: string }[];
     kind: string | null;
     counts: { modules: number; dependencies: number };
+    /** 聚合 pom 里声明的模块名（去重排序）。模块是构建单元，不是服务 —— 两者分开报 */
+    modules: string[];
   };
   config: { path: string; keys: string[]; values: Record<string, string> }[];
   deploy: {
     dockerfiles: { path: string; baseImages: string[]; exposedPorts: number[] }[];
-    compose: { path: string; services: string[] }[];
-    k8s: { path: string; kind: string; name: string; replicas: number | null }[];
+    /** services 名字数组是部署视角（保持原样）；serviceDetails 是服务视角（供 services 段摊平） */
+    compose: {
+      path: string;
+      services: string[];
+      serviceDetails: {
+        name: string;
+        line: number;
+        image: string | null;
+        build: string | null;
+        /** 容器侧端口（"8081:8080" 取 8080）。读不到是 null */
+        port: number | null;
+        dependsOn: string[];
+      }[];
+    }[];
+    /** line = kind 所在行（多文档 YAML 里能说清哪一条出自哪一篇）；name 读不到是 null */
+    k8s: { path: string; kind: string; name: string | null; line: number; image: string | null; replicas: number | null }[];
     helm: { path: string; name: string | null; replicaCount: number | null }[];
     nginx: { path: string; upstreams: string[] }[];
     ci: { path: string; stages: string[]; kind: string }[];
+  };
+  /** 服务视角：运行单元声明（compose 服务 + k8s 条目 + 代码入口）。只摊平不关联 —— 关联在 service-topo.ts */
+  services: {
+    declarations: {
+      source: 'compose' | 'k8s' | 'code-entry';
+      name: string | null;
+      path: string;
+      line: number;
+      kind: string | null;
+      port: number | null;
+      replicas: number | null;
+      image: string | null;
+      build: string | null;
+      dependsOn: string[];
+      pkg: string | null;
+    }[];
   };
   code: {
     annotations: Record<string, number>;
@@ -104,6 +136,14 @@ export interface ProjectFacts {
     clients: { kind: string; target: string | null; file: string; line: number }[];
     directCalls: { from: string; to: string; file: string }[];
     clientsUnique: { kind: string; target: string | null }[];
+    /** 可运行入口（@SpringBootApplication / main / node-start）—— 服务计数的代码侧信号 */
+    entryPoints: {
+      file: string;
+      line: number;
+      package: string | null;
+      className: string | null;
+      runtime: string;
+    }[];
   };
   frontend: { kind: string | null; deps: string[]; routes: string[] };
   techStack: {

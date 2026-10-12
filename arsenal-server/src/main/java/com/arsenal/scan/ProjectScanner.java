@@ -1,5 +1,6 @@
 package com.arsenal.scan;
 
+import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 import tools.jackson.databind.node.ArrayNode;
 import tools.jackson.databind.node.ObjectNode;
@@ -89,6 +90,10 @@ public final class ProjectScanner {
             ObjectNode code = CodeScanner.scan(ctx);
             facts.set("code", code);
 
+            // 服务视角：部署清单 + 代码入口摊平成「运行单元声明」。
+            // 放在 frontend / techStack 之前没有语义，只是顺序稳定而已
+            facts.set("services", serviceDeclarations(deploy, code));
+
             facts.set("frontend", scanFrontend(ctx, deps));
 
             ObjectNode techStack = resolver.resolve(deps, mapper);
@@ -125,6 +130,76 @@ public final class ProjectScanner {
         } catch (Exception e) {
             throw new ScanException(ScanException.BAD_REQUEST, "扫描失败：" + e.getMessage());
         }
+    }
+
+    /**
+     * 服务视角：把 compose 服务、k8s 条目、代码入口摊平成一份「运行单元声明」列表。
+     *
+     * <p><b>只摊平，不关联。</b>按名字合并、按 kind 过滤、算冲突是派生层
+     * （前端 {@code service-topo.ts}）的事 —— 关联逻辑只许有一份实现，
+     * 这里多做一步判断就多一处会漂移的地方（10-04 双实现事故的教训）。
+     * 读不到的值一律 null / 空数组，不许兜底。
+     */
+    private ObjectNode serviceDeclarations(ObjectNode deploy, ObjectNode code) {
+        ObjectNode services = mapper.createObjectNode();
+        ArrayNode decls = services.putArray("declarations");
+
+        for (JsonNode c : deploy.path("compose")) {
+            String cpath = textOrNull(c.path("path"));
+            for (JsonNode d : c.path("serviceDetails")) {
+                ObjectNode n = decls.addObject();
+                n.put("source", "compose");
+                n.put("name", textOrNull(d.path("name")));
+                n.put("path", cpath == null ? "" : cpath);
+                n.put("line", d.path("line").asInt(0));
+                n.putNull("kind");
+                if (d.path("port").isNumber()) n.put("port", d.path("port").asInt());
+                else n.putNull("port");
+                n.putNull("replicas");
+                n.put("image", textOrNull(d.path("image")));
+                n.put("build", textOrNull(d.path("build")));
+                ArrayNode dep = n.putArray("dependsOn");
+                for (JsonNode x : d.path("dependsOn")) dep.add(x.asText());
+                n.putNull("pkg");
+            }
+        }
+
+        for (JsonNode k : deploy.path("k8s")) {
+            ObjectNode n = decls.addObject();
+            n.put("source", "k8s");
+            n.put("name", textOrNull(k.path("name")));
+            n.put("path", textOrNull(k.path("path")) == null ? "" : k.path("path").asText());
+            n.put("line", k.path("line").asInt(0));
+            n.put("kind", textOrNull(k.path("kind")));
+            n.putNull("port");
+            if (k.path("replicas").isNumber()) n.put("replicas", k.path("replicas").asInt());
+            else n.putNull("replicas");
+            n.put("image", textOrNull(k.path("image")));
+            n.putNull("build");
+            n.putArray("dependsOn");
+            n.putNull("pkg");
+        }
+
+        for (JsonNode e : code.path("entryPoints")) {
+            ObjectNode n = decls.addObject();
+            n.put("source", "code-entry");
+            n.put("name", textOrNull(e.path("className")));
+            n.put("path", textOrNull(e.path("file")) == null ? "" : e.path("file").asText());
+            n.put("line", e.path("line").asInt(0));
+            n.putNull("kind");
+            n.putNull("port");
+            n.putNull("replicas");
+            n.putNull("image");
+            n.putNull("build");
+            n.putArray("dependsOn");
+            n.put("pkg", textOrNull(e.path("package")));
+        }
+
+        return services;
+    }
+
+    private static String textOrNull(JsonNode n) {
+        return n != null && n.isTextual() ? n.asText() : null;
     }
 
     /**

@@ -1,0 +1,4 @@
+<project>
+  <groupId>com.acme</groupId>
+  <artifactId>order-service</artifactId>
+</project>

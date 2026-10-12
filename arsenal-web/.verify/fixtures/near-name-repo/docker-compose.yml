@@ -1,0 +1,10 @@
+version: "3.8"
+services:
+  order-service:
+    build: ./order-service
+    ports:
+      - "8081:8080"
+  order-svc:
+    build: ./order-svc
+    ports:
+      - "8083:8080"

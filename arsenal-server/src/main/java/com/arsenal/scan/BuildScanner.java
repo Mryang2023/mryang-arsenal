@@ -8,6 +8,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.TreeSet;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -41,6 +42,7 @@ public final class BuildScanner {
         ArrayNode plugins = build.putArray("plugins");
         boolean maven = false, gradle = false, npm = false;
         int moduleCount = 0;
+        List<String> moduleNames = new ArrayList<>();
 
         for (Path p : ctx.files()) {
             ctx.tick();
@@ -49,7 +51,7 @@ public final class BuildScanner {
 
             if (name.equals("pom.xml")) {
                 maven = true;
-                moduleCount += scanPom(ctx, p, rel, artifacts, dependencies, plugins, depsOut);
+                moduleCount += scanPom(ctx, p, rel, artifacts, dependencies, plugins, depsOut, moduleNames);
             } else if (name.endsWith(".gradle") || name.endsWith(".gradle.kts")) {
                 gradle = true;
                 scanGradle(ctx, p, rel, artifacts, dependencies, plugins, depsOut);
@@ -64,6 +66,10 @@ public final class BuildScanner {
         ObjectNode counts = build.putObject("counts");
         counts.put("modules", moduleCount);
         counts.put("dependencies", dependencies.size());
+        // 模块名也记下来：只数个数的话，「哪几个模块」永远答不出来，
+        // 而模块目录名正是服务归属的常用线索。去重 + 排序保确定性
+        ArrayNode mods = build.putArray("modules");
+        new TreeSet<>(moduleNames).forEach(mods::add);
         return build;
     }
 
@@ -73,7 +79,7 @@ public final class BuildScanner {
 
     private static int scanPom(ScanContext ctx, Path p, String rel,
                                ArrayNode artifacts, ArrayNode dependencies, ArrayNode plugins,
-                               List<ScannedDep> depsOut) {
+                               List<ScannedDep> depsOut, List<String> moduleNames) {
         List<String> lines = ctx.readLines(p);
         if (lines == null) {
             ctx.warn(ScanNote.PARSE_SKIPPED, rel + " 未读取");
@@ -133,7 +139,10 @@ public final class BuildScanner {
                         if (inDeps) curScope = val;
                     }
                     case "java.version", "maven.compiler.source", "maven.compiler.release" -> javaVersion = val;
-                    case "module" -> modules += 1;
+                    case "module" -> {
+                        modules += 1;
+                        moduleNames.add(val);
+                    }
                     default -> {
                         // 其余标签不关心
                     }
