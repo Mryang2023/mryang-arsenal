@@ -32,3 +32,15 @@ export function isNavActive(pathname: string, href: string): boolean {
   if (LEAF_PARENTS.has(h)) return p === h;
   return p === h || p.startsWith(`${h}/`);
 }
+
+/**
+ * 侧栏分组的**默认展开**判定 —— 判据与高亮共用上面那一份，不另起一套。
+ *
+ * 分组折叠后子项不在 DOM 里，所以「当前页所在的那个组」必须自动展开：
+ * 人站在「环境与模块」上却看不见它自己的三个步骤，等于把入口收进了抽屉。
+ * 反过来，不相关的组默认收起 —— 装配台一个分组就占 15 行（4 页 + 10 步），
+ * 全量展开时侧栏实测 1268px，比视口高 368px（2026-10-05）。
+ */
+export function groupShouldOpen(pathname: string, hrefs: string[]): boolean {
+  return hrefs.some((h) => isNavActive(pathname, h));
+}

@@ -48,7 +48,8 @@ import { ARCH_GLYPHS } from '@/lib/arch-glyphs';
 import { svgMotionStyle } from '@/lib/arch-motion';
 import { TECH_ICONS } from '@/lib/tech-icons';
 import { ICON_CATEGORIES, iconAssets } from '@/lib/icon-assets';
-import { isNavActive } from '@/lib/nav-active';
+import { isNavActive, groupShouldOpen } from '@/lib/nav-active';
+import { STACK_NAV } from '@/app/stack/wizard';
 // 统一记账：pass / fail / **skip（独立状态，绝不计入 pass）**，退出码 0 / 2 / 1。
 import { check, finish } from './lib/report';
 
@@ -1298,6 +1299,118 @@ console.log('\n【13】导航与页签契约');
     `架构图谱：${metaIds.length} 个视图都有渲染分支`,
     uniq(metaIds).every((id) => viewIds.includes(id)),
     `缺分支: ${metaIds.filter((id) => !viewIds.includes(id)).join('、') || '无'}`
+  );
+
+  // ⑤′ 侧栏分组折叠（2026-10-12）：菜单默认不再全开，人所在的那个组自动展开
+  //
+  // 折叠本身是渲染层的事，但它有三个能被静默破坏的地方，逐条钉住：
+  //   ① 判据偷偷抄第二份 —— Shell 里自己写 `startsWith('/stack')` 的话，
+  //      上面那条「高亮判据只有一份」守的仍然是 isNavActive，折叠这条已经各走各的；
+  //   ② 折叠时把地址从菜单数据里删了 —— 十条步骤路由一旦离开 NAV_ROWS，
+  //      【13】① 与 ③ 同时失去覆盖，而菜单看起来一切正常；
+  //   ③ 移动端被一起折叠 —— 移动端的页一级入口本来就靠这张表，折叠后没入口。
+  const stackNavHrefs = [
+    ...new Set([
+      ...STACK_NAV.map((e) => e.href),
+      ...STACK_NAV.flatMap((e) => (e.children ?? []).map((c) => c.href)),
+    ]),
+  ];
+  const otherHrefs = ['/', '/rules', '/arch', '/archify', '/autopsy', '/icons', '/check', '/export'];
+  // trailingSlash: true 下 usePathname() 带尾巴，两种写法都得判对
+  const openTable = [...stackNavHrefs, ...otherHrefs, '/stack/env/', '/cases/hotspot-cache/'].map((p) => ({
+    pathname: p,
+    expect: /^\/stack(\/|$)/.test(p),
+    got: groupShouldOpen(p, stackNavHrefs),
+  }));
+  const openBad = openTable.filter((r) => r.expect !== r.got);
+  check(
+    `侧栏折叠：默认展开判定 ${openTable.length} 个路由各判对（装配台页/步开，其余收起）`,
+    openBad.length === 0,
+    `判错: ${openBad.map((b) => `${b.pathname} 应${b.expect ? '开' : '收起'}、实${b.got ? '开' : '收起'}`).join('；')}`
+  );
+  check(
+    '侧栏折叠：判定走的是同一份 isNavActive（判据只有一份）',
+    !/startsWith\(['"]\/stack/.test(shell) && shell.includes('groupShouldOpen('),
+    'Shell 自己写一份前缀判定 → 折叠态与高亮态会分叉（同一次 /archify 点亮 /arch 的事故换个位置重演）'
+  );
+  check(
+    '侧栏折叠：默认态由路由算，不是写死展开',
+    /useState<Record<string, boolean>>\(\{\}\)/.test(shell) && shell.includes('aria-expanded'),
+    '初始就把所有组标成展开 → "默认全部打开" 的老问题一个字没改；aria-expanded 缺失则读屏听不出这是可展开的'
+  );
+  check(
+    `侧栏折叠：菜单数据一个地址都没少（页 ${STACK_NAV.length} + 步 ${stackNavHrefs.length - STACK_NAV.length} 全在）`,
+    /r\.depth >= 1/.test(shell) && shell.includes('children: STACK_NAV') && /NAV_ROWS\.filter/.test(shell),
+    '折叠若改成从 NAV_ROWS 里删地址，【13】① 的"入口都指向真实页面"与 ③ 的高亮表同时失去覆盖'
+  );
+  check(
+    '侧栏折叠：移动端不受折叠影响（页一级常显）',
+    /\{NAV_ROWS\.map\(/.test(shell) && /\{desktopRows\.map\(/.test(shell),
+    '移动端只有一张导航表，折叠一滚就把 4 个装配台页面收没 —— 两块必须各自拿自己的行'
+  );
+
+  // ⑤″ 换页即时性（2026-10-12）：先切目录，再给数据
+  //
+  // 症状（生产静态站实测）：点菜单后 0.37~1.01s 里页面**什么都没动** ——
+  // 装配台每次换页都要现算能力审计、导出计划、架构图几何，这一坨阻塞渲染
+  // 和侧栏高亮压在同一次提交里。加 Redis 救不了它（数据早就在内存里），
+  // 能救的是让浏览器先画一个「算过了」的样子：App Router 的 loading.tsx
+  // 是一条 Suspense 边界，边界之外（高亮、页签、标题）立刻提交，边界之内
+  // 才等这次现算。实测边界挂上后：URL + 侧栏高亮 + 占位在 11~35ms 落地，
+  // 内容随后 54~390ms 补上。
+  //
+  // 这五条钉的是「边界会被静默拆掉」的四种方式：
+  //   ① 有人删了 loading.tsx —— 行为退回「点了没反应」，代码一行没错、类型全过；
+  //   ② 边界漏掉某条路由（比如只挂在 /stack 上而步骤路由搬走）—— 那一步又开始卡顿；
+  //   ③ 每条路由各写一份骨架 —— 文案与配色会分叉，且【26】的色值唯一出处多一处；
+  //   ④ 骨架里写「约 0.5 秒」/塞一个假标题 —— 占位变成预报，假 h1 会让视觉层数错。
+  const pending = code('components/RoutePending.tsx');
+  const boundary = code('app/stack/loading.tsx');
+  const stackSrc = path.resolve(here, '..', 'src');
+  const walkFiles = (dir: string): string[] =>
+    fs.readdirSync(dir, { withFileTypes: true }).flatMap((e) => {
+      const full = path.join(dir, e.name);
+      return e.isDirectory() ? walkFiles(full) : [full];
+    });
+  const loadingFiles = walkFiles(path.join(stackSrc, 'app'))
+    .filter((f) => /loading\.tsx$/.test(f))
+    .map((f) => path.relative(path.join(stackSrc, 'app'), f).replace(/\\/g, '/'));
+  const pendingFiles = walkFiles(stackSrc).filter((f) =>
+    /\.tsx?$/.test(f) && fs.readFileSync(f, 'utf8').includes('data-route-pending')
+  );
+  check(
+    `换页即时性：装配台 ${stackNavHrefs.length} 条路由（页 4 + 步 10）全在同一条 loading 边界之下`,
+    fs.existsSync(path.join(stackSrc, 'app/stack/loading.tsx')) &&
+      stackNavHrefs.every((h) => /^\/stack(\/|$)/.test(h)) &&
+      boundary.includes('RoutePending') &&
+      /<RoutePending/.test(boundary),
+    '删掉这条边界或把某条装配台路由搬出 /stack —— 那一步就退回"点下去 1 秒内什么都没发生"，而代码与类型都挑不出错'
+  );
+  check(
+    `换页即时性：边界只圈住现算慢的 /stack（全站 loading.tsx 恰好 ${loadingFiles.length} 份）`,
+    loadingFiles.length === 1 && loadingFiles[0] === 'stack/loading.tsx',
+    `实到: ${loadingFiles.join('、') || '无'} —— 全局边界会让每个页面首屏都闪一次骨架，规则库/案例页根本不需要`
+  );
+  check(
+    '换页即时性：占位骨架只有一份出处（components/RoutePending.tsx）',
+    pendingFiles.length === 1 && /RoutePending\.tsx$/.test(pendingFiles[0]) && pending.includes('data-route-pending'),
+    `实到 ${pendingFiles.length} 份：${pendingFiles.map((f) => path.basename(f)).join('、')} —— 每条路由自抄一份骨架，文案与配色必分叉`
+  );
+  check(
+    '换页即时性：骨架住在 components/ 而不是 app/stack/（避开【26】色值扫描范围）',
+    fs.existsSync(path.join(stackSrc, 'components/RoutePending.tsx')) &&
+      !fs.existsSync(path.join(stackSrc, 'app/stack/RoutePending.tsx')),
+    '搬进 stack/ 后【26】会把它当第二处色值出处判红，正确处置往往是把骨架里的类名换成硬编码色 —— 判定被架空'
+  );
+  // 去注释 + 去 className 之后，剩下的就是「真正会画给人看的字」
+  const pendingCopy = pending.replace(/className="[^"]*"/g, '');
+  check(
+    '换页即时性：占位是诚实的（无数字、无耗时承诺、无假 h1，带 role=status 播报）',
+    !/\d/.test(pendingCopy) &&
+      !/<h1/.test(pendingCopy) &&
+      pending.includes('role="status"') &&
+      pending.includes('aria-live="polite"'),
+    '写「约 0.5 秒」就是对没测过的环境撒谎；假 h1 会让视觉层的标题计数与读屏顺序一起错；没有 status 则视障用户听不到"还在算"'
   );
 }
 

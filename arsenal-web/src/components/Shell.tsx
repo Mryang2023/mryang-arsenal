@@ -2,13 +2,13 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { useSyncExternalStore } from 'react';
+import { useState, useSyncExternalStore } from 'react';
 import { liveStats, meta } from '@/lib/rules';
 import { cookbookStats } from '@/lib/cookbook';
 import { casesStats } from '@/lib/case-cases';
 import { dimensions } from '@/lib/stack';
 import { iconStats } from '@/lib/icon-assets';
-import { isNavActive } from '@/lib/nav-active';
+import { isNavActive, groupShouldOpen } from '@/lib/nav-active';
 import { charterTotals } from '@/lib/charter';
 import { STACK_NAV, STEP_ROUTES } from '@/app/stack/wizard';
 import { currentStep, subscribeStep } from '@/app/stack/step-bus';
@@ -26,6 +26,13 @@ import { currentStep, subscribeStep } from '@/app/stack/step-bus';
  * `app/stack/wizard.ts` 的 STACK_NAV，这里只消费）。桌面端整棵显示
  * （分组 → 页 → 步，两层缩进）；移动端只到页一级（步骤条 StepRail 本来就
  * 常驻页内，再塞十个 chip 只会把导航折成竖条）。
+ *
+ * 折叠（2026-10-12）：分组标题从**死标题**改成可点的展开/收起按钮，默认不再全开。
+ * 整棵展开时装配台一个分组占 15 行、侧栏实测 1268px —— 比视口高出一大截，
+ * 别的页面的入口被顶到屏幕外。默认态由 `lib/nav-active.ts` 的 `groupShouldOpen`
+ * 算：**人所在的那个组自动展开，其余收起**；点过标题之后该组归手动状态管，
+ * 导航切页不重置（刚手工收起的组又被弹开，等于那颗按钮是摆设）。
+ * 折叠只作用于桌面整列；移动端页一级常显，维持原样。
  */
 interface NavChild {
   href: string;
@@ -60,6 +67,7 @@ const NAV: NavItem[] = [
   },
   { href: '/arch', label: '架构图谱', glyph: '▣', count: 6 },
   { href: '/autopsy', label: '项目解剖台', glyph: '▧', count: 0 },
+  { href: '/qa', label: '测试工程师', glyph: '⚗', count: 0 },
   { href: '/icons', label: '图标库', glyph: '❖', count: iconStats.total },
   { href: '/archify', label: '出图服务', glyph: '⚒', count: 0 },
   { href: '/check', label: '校验台', glyph: '⛨', count: 0 },
@@ -67,17 +75,27 @@ const NAV: NavItem[] = [
   { href: '/export', label: '导出中心', glyph: '⎘', count: 0 },
 ];
 
-/** 渲染行：depth -1 = 分组标题（不可点），0 = 一级，1 = 装配台的页项，2 = 页下的步骤项 */
-const NAV_ROWS: { href: string; label: string; glyph: string; depth: number }[] = NAV.flatMap((n) =>
+/** 渲染行：depth -1 = 分组标题（可点，展开/收起本组），0 = 一级，1 = 装配台的页项，2 = 页下的步骤项
+ *  group = 所属分组标题（一级项为空串）—— 折叠判定按组算，判据在 `lib/nav-active.ts`。 */
+const NAV_ROWS: { href: string; label: string; glyph: string; depth: number; group: string }[] = NAV.flatMap((n) =>
   n.href
-    ? [{ href: n.href, label: n.label, glyph: n.glyph, depth: 0 }]
+    ? [{ href: n.href, label: n.label, glyph: n.glyph, depth: 0, group: '' }]
     : [
-        { href: '', label: n.label, glyph: n.glyph, depth: -1 },
+        { href: '', label: n.label, glyph: n.glyph, depth: -1, group: n.label },
         ...(n.children ?? []).flatMap((c) => [
-          { href: c.href, label: c.label, glyph: c.glyph, depth: 1 },
-          ...(c.children ?? []).map((g) => ({ href: g.href, label: g.label, glyph: g.glyph, depth: 2 })),
+          { href: c.href, label: c.label, glyph: c.glyph, depth: 1, group: n.label },
+          ...(c.children ?? []).map((g) => ({ href: g.href, label: g.label, glyph: g.glyph, depth: 2, group: n.label })),
         ]),
       ]
+);
+
+/** 分组标题 → 组内全部真实地址（页 + 步）。折叠后的默认展开判定读这一份。 */
+const GROUP_HREFS: Record<string, string[]> = NAV_ROWS.reduce(
+  (acc, r) => {
+    if (r.depth >= 1 && r.group) (acc[r.group] ??= []).push(r.href);
+    return acc;
+  },
+  {} as Record<string, string[]>
 );
 
 export default function Shell({ children }: { children: React.ReactNode }) {
@@ -93,6 +111,16 @@ export default function Shell({ children }: { children: React.ReactNode }) {
   // 必须让位。总线为空（不在装配台 / 钉死路由刚挂载还没换过步）退回 pathname。
   const isStepActive = (href: string) =>
     busStep ? STEP_ROUTES[busStep] === href : isNavActive(pathname, href);
+
+  // 分组折叠。`undefined` = 没手动干预过 → 由当前路由决定（人所在的组自动展开，
+  // 其余收起）；点过标题之后该组就归这个表管。点别的链接不重置：
+  // 刚手工收起的组又被导航弹开，等于那颗按钮是摆设。
+  const [groupOverrides, setGroupOverrides] = useState<Record<string, boolean>>({});
+  const isGroupOpen = (label: string) => groupOverrides[label] ?? groupShouldOpen(pathname, GROUP_HREFS[label] ?? []);
+  const toggleGroup = (label: string) =>
+    setGroupOverrides((s) => ({ ...s, [label]: !isGroupOpen(label) }));
+  // 移动端保持原样（页一级常显，步骤条本来就在页内），折叠只作用于桌面整列。
+  const desktopRows = NAV_ROWS.filter((r) => !r.group || r.depth < 0 || isGroupOpen(r.group));
 
   const used = Math.min(100, liveStats.budgetUsedPct);
 
@@ -165,16 +193,22 @@ export default function Shell({ children }: { children: React.ReactNode }) {
             菜单只有 3 项的短页面也会「在菜单上滚滚的却是正文」。
             `scroll-thin`：全局滚动条 10px 在 212px 窄栏里太宽。          */}
         <nav className="scroll-thin hidden min-h-0 flex-1 overflow-y-auto overscroll-contain px-3 md:block">
-          {NAV_ROWS.map((n) => {
+          {desktopRows.map((n) => {
             if (n.depth < 0) {
+              const open = isGroupOpen(n.group);
               return (
-                <div
+                <button
                   key={`g-${n.label}`}
-                  className="mb-0.5 mt-2 flex items-center gap-3 px-3 py-1 text-2xs uppercase tracking-wider text-fgFaint"
+                  type="button"
+                  onClick={() => toggleGroup(n.group)}
+                  aria-expanded={open}
+                  className="mb-0.5 mt-2 flex w-full items-center gap-3 rounded-md px-3 py-1 text-2xs uppercase tracking-wider transition-colors"
+                  style={{ color: open ? '#93A39C' : '#5E6E67' }}
                 >
                   <span className="w-4 text-center text-sm">{n.glyph}</span>
-                  {n.label}
-                </div>
+                  <span className="flex-1 text-left">{n.label}</span>
+                  <span className="mono w-3 text-center">{open ? '▾' : '▸'}</span>
+                </button>
               );
             }
             const active = n.depth === 2 ? isStepActive(n.href) : isActive(n.href);
