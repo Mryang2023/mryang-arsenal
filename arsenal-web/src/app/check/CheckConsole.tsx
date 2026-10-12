@@ -254,7 +254,7 @@ export default function CheckConsole() {
           <input
             value={cur.name}
             onChange={(e) => patchFile({ name: e.target.value })}
-            className="mono w-full rounded border border-line bg-canvas px-2.5 py-1.5 text-xs text-fgMuted focus:border-brassDim focus:outline-none"
+            className="mono w-full rounded border border-line bg-canvas px-2.5 py-1.5 text-xs text-fgMuted focus:border-brassDim focus:outline-hidden"
             placeholder="文件路径（用于匹配规则的 targetGlob，例如 src/main/java/com/x/controller/A.java）"
           />
         </div>
@@ -264,7 +264,7 @@ export default function CheckConsole() {
           onChange={(e) => patchFile({ content: e.target.value })}
           spellCheck={false}
           placeholder="在这里粘贴要检查的代码…"
-          className="mono block h-[400px] w-full resize-y bg-[#0E1312] px-3.5 py-3 text-[12.5px] leading-[1.65] text-fg placeholder:text-fgFaint focus:outline-none"
+          className="mono block h-[400px] w-full resize-y bg-[#0E1312] px-3.5 py-3 text-[12.5px] leading-[1.65] text-fg placeholder:text-fgFaint focus:outline-hidden"
         />
       </div>
 

@@ -245,7 +245,7 @@ export default function CodeIntake({
                 onChange={(e) => setPasteText(e.target.value)}
                 spellCheck={false}
                 placeholder='把后端返回的 facts JSON 粘进来（离线也能算 IR）'
-                className="mono min-h-[64px] w-full flex-1 rounded border border-line bg-transparent px-2 py-1 text-[11px] leading-[16px] text-fg outline-none placeholder:text-fgFaint focus:border-lineHi"
+                className="mono min-h-[64px] w-full flex-1 rounded border border-line bg-transparent px-2 py-1 text-[11px] leading-[16px] text-fg outline-hidden placeholder:text-fgFaint focus:border-lineHi"
               />
             ) : mode === 'zip' ? (
               <input
@@ -264,7 +264,7 @@ export default function CodeIntake({
                     ? 'https://github.com/owner/repo.git'
                     : 'D:/mryang/workspace/2026/arsenal/arsenal-server'
                 }
-                className="mono min-w-[280px] flex-1 rounded border border-line bg-transparent px-2 py-1 text-[11px] text-fg outline-none placeholder:text-fgFaint focus:border-lineHi"
+                className="mono min-w-[280px] flex-1 rounded border border-line bg-transparent px-2 py-1 text-[11px] text-fg outline-hidden placeholder:text-fgFaint focus:border-lineHi"
               />
             )}
 

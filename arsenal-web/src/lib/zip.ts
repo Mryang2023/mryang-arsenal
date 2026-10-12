@@ -48,7 +48,7 @@ function u32(value: number): Uint8Array {
   ]);
 }
 
-function concat(chunks: Uint8Array[]): Uint8Array {
+function concat(chunks: Uint8Array[]): Uint8Array<ArrayBuffer> {
   const total = chunks.reduce((n, c) => n + c.length, 0);
   const out = new Uint8Array(total);
   let at = 0;

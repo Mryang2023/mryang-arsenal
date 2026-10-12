@@ -219,7 +219,7 @@ export default function ProfilePicker({
             }}
             spellCheck={false}
             placeholder='粘贴一份项目档案 JSON（id / name / views / business / data / app / product / project）'
-            className="mono mt-2 h-[160px] w-full resize-y rounded border border-line bg-transparent px-2.5 py-2 text-[11px] leading-[17px] text-fg outline-none placeholder:text-fgFaint focus:border-lineHi"
+            className="mono mt-2 h-[160px] w-full resize-y rounded border border-line bg-transparent px-2.5 py-2 text-[11px] leading-[17px] text-fg outline-hidden placeholder:text-fgFaint focus:border-lineHi"
           />
 
           {issues.length > 0 && (

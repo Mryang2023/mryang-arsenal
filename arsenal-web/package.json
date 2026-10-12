@@ -4,7 +4,7 @@
   "private": true,
   "description": "杨先生的军火库 · 前端。一份规则数据，三种出口：人查 / 给 AI 用 / 拿代码验。",
   "scripts": {
-    "sync": "node scripts/sync-rules.mjs && node scripts/sync-content.mjs && node scripts/sync-roster.mjs && node scripts/build-scaffold-templates.mjs && node node_modules/tsx/dist/cli.mjs scripts/calc-governance.ts && node scripts/calc-ci-history.mjs && node scripts/calc-consistency.mjs",
+    "sync": "node node_modules/tsx/dist/cli.mjs scripts/gen-theme-tokens.ts && node scripts/sync-rules.mjs && node scripts/sync-content.mjs && node scripts/sync-roster.mjs && node scripts/build-scaffold-templates.mjs && node node_modules/tsx/dist/cli.mjs scripts/calc-governance.ts && node scripts/calc-ci-history.mjs && node scripts/calc-consistency.mjs",
     "sync:rules": "node scripts/sync-rules.mjs",
     "sync:content": "node scripts/sync-content.mjs",
     "sync:governance": "node node_modules/tsx/dist/cli.mjs scripts/calc-governance.ts",
@@ -13,6 +13,8 @@
     "sync:consistency": "node scripts/calc-consistency.mjs",
     "sync:scaffold": "node scripts/build-scaffold-templates.mjs",
     "gen:rule-schema": "node scripts/gen-rule-schema.mjs",
+    "gen:theme-tokens": "node node_modules/tsx/dist/cli.mjs scripts/gen-theme-tokens.ts",
+    "gen:theme-tokens:check": "node node_modules/tsx/dist/cli.mjs scripts/gen-theme-tokens.ts --check",
     "schema:rule:check": "node scripts/gen-rule-schema.mjs --check",
     "icons:rasterize": "node scripts/icons-rasterize.mjs",
     "predev": "npm run sync",
@@ -36,25 +38,24 @@
     "verify:visual": "tsx .verify/visual-check.ts",
     "verify:meta": "tsx .verify/meta-check.ts",
     "verify": "node scripts/verify-all.mjs",
-    "lint": "next lint",
     "verify:cases": "tsx .verify/case-check.ts"
   },
   "dependencies": {
-    "next": "14.2.33",
+    "next": "16.4.0",
     "prismjs": "^1.30.0",
-    "react": "18.3.1",
-    "react-dom": "18.3.1"
+    "react": "19.3.0",
+    "react-dom": "19.3.0"
   },
   "devDependencies": {
-    "@types/node": "20.14.10",
+    "@tailwindcss/postcss": "^4.3.3",
+    "@types/node": "24.19.2",
     "@types/prismjs": "^1.26.6",
-    "@types/react": "18.3.3",
-    "@types/react-dom": "18.3.0",
-    "autoprefixer": "10.4.19",
-    "playwright-core": "^1.63.0",
+    "@types/react": "19.3.0",
+    "@types/react-dom": "19.3.0",
     "postcss": "8.4.39",
-    "tailwindcss": "3.4.17",
+    "playwright-core": "^1.63.0",
+    "tailwindcss": "^4.3.3",
     "tsx": "^4.23.13",
-    "typescript": "5.5.3"
+    "typescript": "5.9.3"
   }
 }

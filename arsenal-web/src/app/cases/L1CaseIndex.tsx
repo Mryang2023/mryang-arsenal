@@ -167,7 +167,7 @@ function SymptomFinder() {
             onChange={(e) => setQ(e.target.value)}
             placeholder="比如：慢、超时、OOM、重复、雪崩、翻页越往后越慢"
             aria-label="搜索症状"
-            className="min-w-[240px] flex-1 rounded-md border border-line bg-canvas px-2.5 py-1.5 text-[12.5px] text-fg placeholder:text-fgFaint focus:border-brass/50 focus:outline-none"
+            className="min-w-[240px] flex-1 rounded-md border border-line bg-canvas px-2.5 py-1.5 text-[12.5px] text-fg placeholder:text-fgFaint focus:border-brass/50 focus:outline-hidden"
           />
           <span className="mono text-[11px] text-fgFaint">
             {kw ? `${grouped.reduce((n, g) => n + g.items.length, 0)} 条命中` : '输入后检索'}

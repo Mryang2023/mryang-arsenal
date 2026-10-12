@@ -12,8 +12,13 @@ export function generateStaticParams() {
   return rules.map((r) => ({ id: r.id }));
 }
 
-export function generateMetadata({ params }: { params: { id: string } }): Metadata {
-  const r = getRule(params.id);
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}): Promise<Metadata> {
+  const { id } = await params;
+  const r = getRule(id);
   if (!r) return { title: '未找到规则' };
   return {
     title: `${r.id} ${r.title}`,
@@ -30,8 +35,15 @@ function langOf(rule: { check?: { regex?: { targetGlob?: string } } }): string {
   return 'java';
 }
 
-export default function RuleDetailPage({ params }: { params: { id: string } }) {
-  const rule = getRule(params.id);
+// Next 15+ 起 params 是 Promise（动态 API 异步化），必须 await ——
+// 同步解构在 16 的静态导出下渲染出空壳页（实测）。
+export default async function RuleDetailPage({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}) {
+  const { id } = await params;
+  const rule = getRule(id);
   if (!rule) notFound();
 
   const cat = CATEGORY_THEME[rule.category];

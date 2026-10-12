@@ -8,8 +8,13 @@ export function generateStaticParams() {
   return topics.map((t) => ({ topic: t.id }));
 }
 
-export function generateMetadata({ params }: { params: { topic: string } }): Metadata {
-  const topic = getTopic(params.topic);
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ topic: string }>;
+}): Promise<Metadata> {
+  const { topic: topicId } = await params;
+  const topic = getTopic(topicId);
   if (!topic) return { title: '技术不存在' };
   return {
     title: `${topic.name} · 最佳实践案例库`,
@@ -17,8 +22,14 @@ export function generateMetadata({ params }: { params: { topic: string } }): Met
   };
 }
 
-export default function TopicPage({ params }: { params: { topic: string } }) {
-  const topic = getTopic(params.topic);
+// params 是 Promise（Next 15+ 动态 API 异步化）
+export default async function TopicPage({
+  params,
+}: {
+  params: Promise<{ topic: string }>;
+}) {
+  const { topic: topicId } = await params;
+  const topic = getTopic(topicId);
   if (!topic) notFound();
   const families = cookbookMeta.families ?? {};
 

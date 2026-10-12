@@ -87,7 +87,7 @@ export default function RulesBrowser() {
               value={q}
               onChange={(e) => setQ(e.target.value)}
               placeholder="搜索规则、ID、关键词… 例如「@Valid」「线程池」「事务」"
-              className="w-full rounded-md border border-line bg-canvas py-2 pl-9 pr-3 text-[13px] text-fg placeholder:text-fgFaint focus:border-brassDim focus:outline-none"
+              className="w-full rounded-md border border-line bg-canvas py-2 pl-9 pr-3 text-[13px] text-fg placeholder:text-fgFaint focus:border-brassDim focus:outline-hidden"
             />
           </div>
 

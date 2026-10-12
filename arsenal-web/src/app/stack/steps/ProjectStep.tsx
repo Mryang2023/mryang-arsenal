@@ -55,7 +55,7 @@ export default function ProjectStep({
             autoComplete="off"
             maxLength={40}
             aria-invalid={bad || undefined}
-            className="mt-1.5 w-full max-w-[320px] rounded-md border px-2.5 py-1.5 text-[12px] outline-none transition-colors placeholder:text-fgFaint focus:border-brass"
+            className="mt-1.5 w-full max-w-[320px] rounded-md border px-2.5 py-1.5 text-[12px] outline-hidden transition-colors placeholder:text-fgFaint focus:border-brass"
             style={{
               borderColor: bad ? toneAt('bad', 0.6) : INK.line,
               background: 'transparent',
