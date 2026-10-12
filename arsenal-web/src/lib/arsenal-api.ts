@@ -577,3 +577,233 @@ export async function lintRemote(files: LintSourceFile[]): Promise<LintRemoteOut
   }
   return { kind: 'report', report: body.data };
 }
+
+// ─────────────────────────────────────────────────────────────
+// 测试工程师（后端 /api/qa/*，异步 Job）
+//
+// 与体检（/api/autopsy/inspect，同步）的分工：这条链路把 git clone 与
+// 后续 LLM 段都收进后台线程，前端只认「提交 → 轮询 → 取报告」三步。
+// 类型与后端 com.arsenal.qa.QaService 的输出逐字段对齐 —— 前端不重算
+// 任何一条结论，也不自己算 projectId（规范化口径在后端一处，算两份早晚各说各的）。
+// ─────────────────────────────────────────────────────────────
+
+export type QaRangeMode = 'full' | 'review' | 'focus';
+
+export interface QaRange {
+  mode: QaRangeMode;
+  include: string[];
+  exclude: string[];
+}
+
+export interface QaSubmitResult {
+  jobId: string;
+  projectId: string;
+  status: string;
+}
+
+export type QaJobStatus = 'PENDING' | 'RUNNING' | 'DONE' | 'FAILED';
+export type QaPhaseState = 'pending' | 'running' | 'done' | 'failed';
+
+/** GET /api/qa/jobs/{id} —— 轮询用。phases 是 4 段后台流水线的状态 */
+export interface QaJobNode {
+  jobId: string;
+  projectId: string;
+  status: QaJobStatus;
+  phase: string;
+  error: string;
+  deepCheck: boolean;
+  createdAt: string;
+  source: { kind: string; value: string };
+  range: QaRange;
+  phases: Record<string, QaPhaseState>;
+  phaseAt: Record<string, string>;
+}
+
+/** qaReport v1 的静态档：复用 autopsy 的 violationNode 口径 */
+export interface QaStaticFindings {
+  p0: AutopsyFinding[];
+  p1: AutopsyFinding[];
+  other: AutopsyFinding[];
+  /** focus 模式：圈外只计数不给明细 */
+  outOfScopeSummary?: { p0: number; p1: number; other: number; note: string };
+  /** review 模式：圈外根本没跑 —— 两者语义不同，字段也不同，不许混 */
+  outOfScopeNote?: string;
+}
+
+export interface QaRecommendation {
+  id: string;
+  title: string;
+  file: string;
+  line: number;
+  severity: string;
+  category: string;
+  source: string;
+  before: string;
+  after: string;
+  /** 规则没附正例时给的是这句话，不是编造的代码 */
+  afterNote?: string;
+  rationale: string;
+}
+
+export interface QaTestSuggestion {
+  target: string;
+  reason: string;
+  findings?: number;
+}
+
+export interface QaReport {
+  schemaVersion: number;
+  jobId: string;
+  projectId: string;
+  scannedAt: string;
+  elapsedMs: number;
+  projectRef: { kind: string; rootName: string };
+  targetRange: QaRange & {
+    filesTotal: number;
+    filesMatched: number;
+    pctOfRepo: number;
+    fileIndexTruncated?: boolean;
+  };
+  scope: AutopsyReport['scope'] & { filteredOut?: number };
+  coverage: AutopsyCoverage & { scopeFilteredOut: number };
+  staticFindings: QaStaticFindings;
+  semanticFindings: unknown[];
+  semanticStatus: string;
+  semanticReason: string;
+  recommendations: QaRecommendation[];
+  testSuggestions: (QaTestSuggestion | { note: string })[];
+  skipped: AutopsyCoverage['skipped'];
+  undecidability: string[];
+  llmUsage: unknown;
+  scannedFiles: string[];
+}
+
+export interface QaTree {
+  projectId: string;
+  fromJobId: string;
+  from: string;
+  files: string[];
+}
+
+export interface QaSnapshotSummary {
+  jobId: string;
+  scannedAt: string;
+  mode: string;
+  files: number;
+  filesMatched: number;
+  p0: number;
+  p1: number;
+  truncated: boolean;
+}
+
+/** 轮询 / 查询类接口的三态。offline 不是故障：静态站本来就允许后端不在 */
+export type QaOutcome<T> =
+  | { kind: 'ok'; data: T }
+  | { kind: 'rejected'; code: string; message: string }
+  | { kind: 'offline'; message: string };
+
+async function readQa<T>(res: Response): Promise<QaOutcome<T>> {
+  let body: ApiEnvelope<T>;
+  try {
+    body = (await res.json()) as ApiEnvelope<T>;
+  } catch {
+    return {
+      kind: 'rejected',
+      code: `HTTP_${res.status}`,
+      message: `后端返回的不是 JSON（HTTP ${res.status}）`,
+    };
+  }
+  if (!body.success || !body.data) {
+    return {
+      kind: 'rejected',
+      code: body.code ?? `HTTP_${res.status}`,
+      message: body.message ?? `请求失败（HTTP ${res.status}）`,
+    };
+  }
+  return { kind: 'ok', data: body.data };
+}
+
+const QA_TIMEOUT_MS = 15_000;
+
+/** 受理一次深检（秒回 jobId，clone 在后台跑）。三态与 autopsyInspect 同一口径 */
+export async function qaSubmit(
+  source: ScanSource,
+  range: QaRange,
+  deepCheck: boolean
+): Promise<QaOutcome<QaSubmitResult>> {
+  const base = arsenalApiBase();
+  let res: Response;
+  try {
+    res = await fetchWithTimeout(
+      `${base}/api/qa/submit`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ source, range, deepCheck }),
+      },
+      QA_TIMEOUT_MS
+    );
+  } catch (e) {
+    return { kind: 'offline', message: offlineMessage(e) };
+  }
+  return readQa<QaSubmitResult>(res);
+}
+
+/** 轮询 job 状态。单次失败不掐断轮询 —— 返回 rejected 由调用方决定停不停 */
+export async function qaJob(jobId: string): Promise<QaOutcome<QaJobNode>> {
+  const base = arsenalApiBase();
+  let res: Response;
+  try {
+    res = await fetchWithTimeout(`${base}/api/qa/jobs/${encodeURIComponent(jobId)}`, {}, 8_000);
+  } catch (e) {
+    return { kind: 'offline', message: offlineMessage(e) };
+  }
+  return readQa<QaJobNode>(res);
+}
+
+/** DONE 之后的 qaReport。job 未完成时后端回 400 + 「继续轮询」提示 */
+export async function qaReport(jobId: string): Promise<QaOutcome<QaReport>> {
+  const base = arsenalApiBase();
+  let res: Response;
+  try {
+    res = await fetchWithTimeout(
+      `${base}/api/qa/reports/${encodeURIComponent(jobId)}`,
+      {},
+      SCAN_TIMEOUT_MS
+    );
+  } catch (e) {
+    return { kind: 'offline', message: offlineMessage(e) };
+  }
+  return readQa<QaReport>(res);
+}
+
+/** 范围勾选的数据源：该项目最近一次深检的文件索引（不重新 clone） */
+export async function qaTree(projectId: string): Promise<QaOutcome<QaTree>> {
+  const base = arsenalApiBase();
+  let res: Response;
+  try {
+    res = await fetchWithTimeout(
+      `${base}/api/qa/tree?projectId=${encodeURIComponent(projectId)}`,
+      {},
+      8_000
+    );
+  } catch (e) {
+    return { kind: 'offline', message: offlineMessage(e) };
+  }
+  return readQa<QaTree>(res);
+}
+
+export async function qaSnapshots(projectId: string): Promise<QaOutcome<QaSnapshotSummary[]>> {
+  const base = arsenalApiBase();
+  let res: Response;
+  try {
+    res = await fetchWithTimeout(
+      `${base}/api/qa/snapshots?projectId=${encodeURIComponent(projectId)}`,
+      {},
+      8_000
+    );
+  } catch (e) {
+    return { kind: 'offline', message: offlineMessage(e) };
+  }
+  return readQa<QaSnapshotSummary[]>(res);
+}

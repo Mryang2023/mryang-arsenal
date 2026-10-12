@@ -11,10 +11,10 @@ import com.arsenal.loader.RuleIndex;
 import com.arsenal.scan.ProjectScanner;
 import com.arsenal.scan.ScanGuard;
 import com.arsenal.scan.SourceResolver;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.node.ArrayNode;
-import com.fasterxml.jackson.databind.node.ObjectNode;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.node.ArrayNode;
+import tools.jackson.databind.node.ObjectNode;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
@@ -101,11 +101,22 @@ public class AutopsyService {
     }
 
     public ObjectNode inspect(SourceResolver source) {
+        return inspect(source, null);
+    }
+
+    /**
+     * 带文件过滤的体检 —— 测试工程师（/api/qa）的 review 模式复用这条通路：
+     * 「引擎入口裁剪」必须在 AutopsyService 这一层做（collect 与主链路同源），
+     * 在外面套壳只会得到「跑了全仓再丢结果」的假严格局部。
+     *
+     * @param pathFilter 相对路径（{@code /} 分隔）过滤器；null = 不过滤，行为与旧签名完全一致
+     */
+    public ObjectNode inspect(SourceResolver source, java.util.function.Predicate<String> pathFilter) {
         long start = System.currentTimeMillis();
         try (source) {
             // ① 先把源码读进内存：git / zip 的临时目录在 scanner.scan 里会被清掉，
             //    「先扫事实再读文件」会读到空气。
-            Collected collected = collect(source.root());
+            Collected collected = collect(source.root(), pathFilter);
             List<SourceFile> files = collected.files();
             // ★ 两条截断路径都要算：文件数上限 **和** 总字节上限。
             //   原先这里只看了文件数，字节撑爆时 truncated 仍是 false ——
@@ -147,7 +158,7 @@ public class AutopsyService {
             out.put("root", source.rootName());
             out.put("sourceKind", source.kind());
             out.put("elapsedMs", System.currentTimeMillis() - start);
-            out.set("scope", scopeNode(files.size(), bytes, truncated, source));
+            out.set("scope", scopeNode(files.size(), bytes, truncated, source, collected.filteredOut()));
             out.set("coverage", coverageNode(reports));
             out.set("p0", tierNode(reports, true));
             out.set("p1", tierNode(reports, false));
@@ -170,13 +181,14 @@ public class AutopsyService {
      * 写成绝对路径的话 {@code src/main/java/...} 这类 glob 一条都匹配不上。
      */
     /** 收集结果。**capped 是截断信号** —— 它与「文件列表」一样是结论的一部分。 */
-    private record Collected(List<SourceFile> files, boolean capped) {
+    private record Collected(List<SourceFile> files, boolean capped, int filteredOut) {
     }
 
-    private Collected collect(Path root) {
+    private Collected collect(Path root, java.util.function.Predicate<String> filter) {
         List<SourceFile> out = new ArrayList<>();
         long[] total = {0};
         boolean[] capped = {false};
+        int[] filteredOut = {0};
         try {
             Files.walkFileTree(root, new SimpleFileVisitor<>() {
                 @Override
@@ -203,6 +215,13 @@ public class AutopsyService {
                     if (attrs.size() > ScanGuard.MAX_FILE_BYTES) {
                         return FileVisitResult.CONTINUE;
                     }
+                    // 名字是相对路径且用 / —— LintEngine 拿它去匹配规则的 targetGlob。
+                    // 过滤器同样吃这个名字，review 模式的圈定口径与 targetGlob 对齐。
+                    String rel = root.relativize(file).toString().replace('\\', '/');
+                    if (filter != null && !filter.test(rel)) {
+                        filteredOut[0]++;
+                        return FileVisitResult.CONTINUE; // 圈外文件不读内容 —— 这是真·未检查，不是读了再丢
+                    }
                     String text;
                     try {
                         text = Files.readString(file, StandardCharsets.UTF_8);
@@ -215,7 +234,7 @@ public class AutopsyService {
                         return FileVisitResult.TERMINATE;
                     }
                     total[0] += size;
-                    out.add(new SourceFile(root.relativize(file).toString().replace('\\', '/'), text));
+                    out.add(new SourceFile(rel, text));
                     return FileVisitResult.CONTINUE;
                 }
             });
@@ -224,7 +243,7 @@ public class AutopsyService {
         }
         out.sort(Comparator.comparing(SourceFile::name));
         // 文件数那条截断：walk 在 out.size() >= maxFiles 时就停，正好等于上限也算踩线
-        return new Collected(List.copyOf(out), capped[0] || out.size() >= maxFiles);
+        return new Collected(List.copyOf(out), capped[0] || out.size() >= maxFiles, filteredOut[0]);
     }
 
     private static boolean readable(String fileName) {
@@ -236,11 +255,14 @@ public class AutopsyService {
         return EXTS.contains(ext) && ScanGuard.readable(fileName);
     }
 
-    private ObjectNode scopeNode(int fileCount, long bytes, boolean truncated, SourceResolver source) {
+    private ObjectNode scopeNode(int fileCount, long bytes, boolean truncated, SourceResolver source, int filteredOut) {
         ObjectNode n = mapper.createObjectNode();
         n.put("files", fileCount);
         n.put("bytes", bytes);
         n.put("truncated", truncated);
+        // ★ 圈外被过滤掉的文件数 —— 「没进引擎」与「没这个文件」是两回事，
+        //   /qa 的 review 模式靠这个数字披露「圈外根本没检查」
+        n.put("filteredOut", filteredOut);
         // ★ 只给目录名不给绝对路径 —— 事实 JSON 会被留档、会进快照，
         //   绝对路径既泄隐私又不可复现（本仓既有口径，见 SourceResolver#rootName）
         n.put("rootName", source.rootName());

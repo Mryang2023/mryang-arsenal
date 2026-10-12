@@ -56,6 +56,13 @@ arsenal:
   checkups:
     file: ${ARSENAL_CHECKUPS:../arsenal-checkups/checkups.json}
 
+  # 测试工程师（/qa）：异步深检的 job 状态与报告快照落盘处。
+  # 默认在仓库根的 .data/qa/（与解剖台快照同一「别的项目的资料不入库」规矩，见 .gitignore）。
+  qa:
+    data-dir: ${ARSENAL_QA_DIR:../.data/qa}
+    # 同时在跑的深检数。静态段吃内存（源码整份进堆），单机 2 个是稳妥默认。
+    pool-size: ${ARSENAL_QA_POOL:2}
+
   # 案例执行服务：把提交的案例代码用独立 JDK 21 子进程编译运行（虚拟线程等需要 21+）。
   # 2026-10-12 主服务升到 JDK 21 后，默认直接复用主服务的 JDK；
   # ARSENAL_CASE_JDK 仍可显式指到另一个 JDK 21+（比如要钉死某个小版本时）。
@@ -80,7 +87,8 @@ arsenal:
     max-heap: 256m
 
   cors:
-    allowed-origins: http://localhost:3010,http://127.0.0.1:3010
+    # 默认只放行本地前端 3010；验收/预览站换端口时用 ARSENAL_CORS_ORIGINS 追加（逗号分隔），不把测试端口写进默认值
+    allowed-origins: ${ARSENAL_CORS_ORIGINS:http://localhost:3010,http://127.0.0.1:3010}
 
 logging:
   level:
