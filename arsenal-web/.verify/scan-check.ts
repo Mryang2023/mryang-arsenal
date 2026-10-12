@@ -41,8 +41,31 @@ import { scanStats } from '../src/lib/scan-rules';
 import { CANVAS_THEME_OPTIONS, buildTechArchSvg } from '../src/lib/arch-canvas';
 import { archifyIrIssues, archifyIrShapeIssues } from '../src/lib/archify-ir';
 import { buildProfileDraftFromFacts } from '../src/lib/profile-draft';
+import type { AutopsyReport } from '../src/lib/arsenal-api';
+import {
+  buildSnapshot,
+  diffSnapshots,
+  findingKey,
+  fingerprintTrust,
+  projectIdOfSource,
+  redactSourceValue,
+  reusableSnapshot,
+} from '../src/lib/autopsy-snapshot';
+import {
+  resolveAutopsyDir,
+  saveSnapshot as saveSnapshotDisk,
+  listSnapshots as listSnapshotsDisk,
+  loadLatest as loadLatestDisk,
+} from '../scripts/lib/autopsy-store.mjs';
+import {
+  collectDirTree,
+  fingerprintDirTree,
+  fingerprintGitState,
+  projectIdOf,
+  readGitState,
+} from '../scripts/lib/autopsy-fingerprint.mjs';
 // 统一记账：pass / fail / **skip（独立状态，绝不计入 pass）**，退出码 0 / 2 / 1。
-import { check, finish, knowinglySkipped, skipLayer } from './lib/report';
+import { check, finish, knowinglySkipped, skip, skipLayer } from './lib/report';
 
 const here = path.dirname(url.fileURLToPath(import.meta.url));
 const webRoot = path.resolve(here, '..');
@@ -610,6 +633,343 @@ if (!skipAll && factsShared) {
   });
   check('9-6 解剖台没有平行实现：四个消费方都走 autopsy-data，不各自 import facts-arch 重算',
     parallel.length === 0, `另有: ${parallel.join('、')}`);
+}
+
+// ═══════════════════════════════════════════════════════════════
+// ── 【10】解剖台快照（2026-10-12 夜跑棒 3）───────────────────────
+//
+// 这一节守的是**持久化**，也是三个新检查里最容易被偷工减料的一类：
+// 「看起来存了」和「真存了」在页面上长得一模一样，而它自己永远不会报错。
+// 所以这一节全部是**真写盘、真读回、真注入坏数据**，没有一条比对的是源码文本
+// （除了 10-4 / 10-8 那两条「不许有平行实现」的守门，那本来就只能是文本）。
+{
+  section('【10】解剖台快照：三档目录 / 指纹 / 存取 / 损坏 / 对照');
+
+  const repoRoot = path.resolve(webRoot, '..');
+  const snapshotDir = path.join(tmpDir, 'autopsy-store');
+
+  /** 源码当数据断言 → 先去注释（本仓第三次栽在同一个坑上：注释里写了 readFileSync 就判红）。 */
+  const stripComments = (s: string) =>
+    s.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^[ \t]*\/\/.*$/gm, '');
+
+  /**
+   * 本沙箱里 `spawnSync` 对**任何**外部进程都返回 EBUSY（bash / git 实测皆然），
+   * 这不是代码缺陷。依赖外部进程的断言因此只能 `skip()` ——
+   * **绝不许兜成通过**：那会让「.gitignore 是否真生效」变成一条永远绿的摆设。
+   */
+  const spawnBroken =
+    spawnSync('git', ['--version'], { encoding: 'utf8' }).error !== undefined;
+  const spawnWhy = spawnBroken ? '本环境 spawnSync 对外部进程返回 EBUSY（沙箱限制）' : '';
+
+  // ① 三档目录必须真能换 —— 内联的 `??` 顺序写反时，整条链依然全绿（charter-dir 的教训）
+  const dTier1 = resolveAutopsyDir({ webRoot, repoRoot });
+  const dTier2 = resolveAutopsyDir({ webRoot, repoRoot, profileAutopsyDir: 'cfg/autopsy' });
+  const dTier3 = resolveAutopsyDir({
+    webRoot,
+    repoRoot,
+    profileAutopsyDir: 'cfg/autopsy',
+    env: { ARSENAL_AUTOPSY_DIR: 'D:/tmp/env-autopsy' },
+  });
+  const dEmptyEnv = resolveAutopsyDir({
+    webRoot,
+    repoRoot,
+    profileAutopsyDir: 'cfg/autopsy',
+    env: { ARSENAL_AUTOPSY_DIR: '   ' },
+  });
+  check(
+    '10-1 三档目录真生效：默认 → 档案 → 环境变量，且空串 env 退档而不是解析成仓库根',
+    dTier1.tier === 1 &&
+      dTier1.dir === path.join(webRoot, '.data', 'autopsy') &&
+      dTier2.tier === 2 &&
+      dTier2.dir === path.join(repoRoot, 'cfg', 'autopsy') &&
+      dTier3.tier === 3 &&
+      dTier3.dir === path.resolve('D:/tmp/env-autopsy') &&
+      dEmptyEnv.tier === 2,
+    JSON.stringify({ t1: dTier1.tier, t2: dTier2.tier, t3: dTier3.tier, empty: dEmptyEnv.tier })
+  );
+
+  // ② .gitignore 生效 —— 漏了它，别人的项目路径会被提交进军火库（profile-store 的老规矩）
+  //    分两条：清单里有没有（永远能判）+ git check-ignore 认不认（要 spawn，环境不行就 skip）。
+  //    必须分开记：合成一条会因 EBUSY 让「清单里有没有」这条也跟着失去证据。
+  const giPath = path.join(repoRoot, '.gitignore');
+  const gi = fs.existsSync(giPath) ? fs.readFileSync(giPath, 'utf8') : '';
+  const giHasPattern = /\*\*\/\.data\/autopsy\/|\.data\/autopsy\//.test(
+    gi.split('\n').filter((l) => !/^\s*#/.test(l)).join('\n')
+  );
+  check(
+    '10-2a .gitignore 里真的写了 .data/autopsy/ 这条（按名字忽略，改目录也不失效）',
+    giHasPattern,
+    `命中=${giHasPattern}`
+  );
+  const probeFile = path.join(webRoot, '.data', 'autopsy', 'zzz-probe.json');
+  const ignored = spawnSync('git', ['check-ignore', '-q', probeFile], { cwd: repoRoot });
+  if (spawnBroken) {
+    skip('10-2b git check-ignore 真的把快照目录判为忽略', spawnWhy);
+  } else {
+    check('10-2b git check-ignore 真的把快照目录判为忽略', ignored.status === 0, `退出码=${ignored.status}`);
+  }
+
+  // ③ 目录指纹：稳定、且**改内容就变**（同 size 也要变 —— 靠 mtime）
+  const treeRoot = path.join(tmpDir, 'tree');
+  fs.rmSync(treeRoot, { recursive: true, force: true });
+  fs.mkdirSync(path.join(treeRoot, 'src'), { recursive: true });
+  fs.writeFileSync(path.join(treeRoot, 'src', 'A.java'), 'class A {}\n');
+  fs.writeFileSync(path.join(treeRoot, 'pom.xml'), '<project/>\n');
+  const tree1 = collectDirTree(treeRoot);
+  const fp1 = fingerprintDirTree(tree1.entries);
+  const fp1again = fingerprintDirTree(collectDirTree(treeRoot).entries);
+  fs.writeFileSync(path.join(treeRoot, 'src', 'A.java'), 'class B {}\n'); // 同长度，只换一个字母
+  const fp2 = fingerprintDirTree(collectDirTree(treeRoot).entries);
+  check(
+    '10-3 目录指纹：同目录两次一致；改一个字符（size 不变）指纹即变',
+    fp1 === fp1again && fp1 !== fp2 && tree1.files === 2 && tree1.truncated === false,
+    `files=${tree1.files} bytes=${tree1.bytes} ${fp1.slice(0, 8)} → ${fp2.slice(0, 8)}`
+  );
+
+  // ④ 「不许读全量内容」是硬规矩：一旦有人顺手 readFileSync，大仓库的指纹会比重扫还慢
+  const fpSrcRaw = fs.readFileSync(path.join(webRoot, 'scripts', 'lib', 'autopsy-fingerprint.mjs'), 'utf8');
+  // ⚠️ 这里**必须**去注释再判：文件头那段说明里正写着「逐文件 readFileSync 会把…变慢」，
+  //    不去注释的话这条断言会因为一句注释而恒红（与 9-6 同款，本仓第三次）。
+  const fpSrc = stripComments(fpSrcRaw);
+  const srcFileHits = (fpSrc.match(/readFileSync|createReadStream/g) ?? []).length;
+  check(
+    '10-4 指纹不许读文件内容：autopsy-fingerprint.mjs 里没有 readFileSync / createReadStream（只用 stat）',
+    srcFileHits === 0,
+    `命中 ${srcFileHits} 处（未去注释时 ${(fpSrcRaw.match(/readFileSync/g) ?? []).length} 处 —— 差值就是注释里的）`
+  );
+
+  // ⑤ 存取往返 —— 真写盘、真读回
+  fs.rmSync(snapshotDir, { recursive: true, force: true });
+  const pidA = projectIdOf('path', 'D:/demo-a');
+  const mkFinding = (ruleId: string, file: string, line: number) => ({
+    ruleId,
+    title: `标题 ${ruleId}`,
+    severity: 'MUST',
+    category: 'style',
+    file,
+    line,
+    column: 1,
+    snippet: '***',
+    message: '',
+    collapsed: 0,
+    evidence: `${file}:${line}`,
+  });
+  const mkReport = (p0: ReturnType<typeof mkFinding>[]) =>
+    ({
+      schemaVersion: 1,
+      root: 'demo-a',
+      sourceKind: 'path',
+      elapsedMs: 12,
+      scope: { files: 3, bytes: 30, truncated: false, rootName: 'demo-a', maxFiles: 20000, maxTotalBytes: 1 },
+      coverage: {
+        total: 69,
+        executed: 42,
+        notRun: 27,
+        batches: 1,
+        decidable: true,
+        severityPool: {},
+        tierPool: { p0: 50, p1: 18, other: 1 },
+        skipped: [],
+        skippedCount: 0,
+        parseFailures: [],
+        undecidability: [],
+      },
+      p0,
+      p1: [],
+      other: [],
+      obs: {
+        available: true,
+        source: 'checkups.json',
+        ruleCount: 6,
+        items: [],
+        unevaluated: [],
+        firedCount: 0,
+        unevaluatedCount: 0,
+      },
+    }) as unknown as AutopsyReport;
+
+  const srcA = { kind: 'path' as const, value: 'D:/demo-a' };
+  const snapA1 = buildSnapshot({ source: srcA, report: mkReport([mkFinding('R-1', 'a.java', 1), mkFinding('R-2', 'b.java', 2)]), now: new Date('2026-10-12T01:00:00Z') });
+  const snapA2 = buildSnapshot({ source: srcA, report: mkReport([mkFinding('R-1', 'a.java', 1)]), now: new Date('2026-10-12T02:00:00Z') });
+  const saved1 = saveSnapshotDisk({ dir: snapshotDir, snapshot: snapA1 });
+  const saved2 = saveSnapshotDisk({ dir: snapshotDir, snapshot: snapA2 });
+  const listed = listSnapshotsDisk({ dir: snapshotDir, projectId: pidA });
+  const latest = loadLatestDisk({ dir: snapshotDir, projectId: pidA });
+  check(
+    '10-5 快照存取往返：save 2 份 → list 回 2 份 → loadLatest 是时间较新的那份',
+    saved1.ok && saved2.ok && listed.snapshots.length === 2 && listed.damaged.length === 0 && (latest as { snapshotId: string })?.snapshotId === '20261012T020000Z',
+    `listed=${listed.snapshots.length} damaged=${listed.damaged.length} latest=${(latest as { snapshotId?: string })?.snapshotId}`
+  );
+  // 现在两侧共用一个 projectIdOf（10-5 红过一次才改的），所以按快照自带 id 查也能查到 ——
+  // 这条就是那条 bug 的回归闸：**按 id 查得到 + 别的项目查不到**。
+  const listedByPid = listSnapshotsDisk({
+    dir: snapshotDir,
+    projectId: (snapA1 as unknown as { projectId: string }).projectId,
+  });
+  const otherPid = projectIdOf('path', 'D:/other');
+  check(
+    '10-6 快照按 projectId 分组：同项目查得到 2 份；别的项目查不到（两侧 id 必须同一个算法）',
+    listedByPid.total === 2 &&
+      listedByPid.snapshots.length === 2 &&
+      loadLatestDisk({ dir: snapshotDir, projectId: otherPid }) === null &&
+      otherPid !== (snapA1 as unknown as { projectId: string }).projectId,
+    `total=${listedByPid.total} otherPid=${otherPid}`
+  );
+
+  // ⑥ 坏形状必须在**存的时候**就被挡下，而不是等读的时候崩
+  const badMissingVerdict = saveSnapshotDisk({ dir: snapshotDir, snapshot: { ...snapA1, verdict: undefined } });
+  const badKind = saveSnapshotDisk({ dir: snapshotDir, snapshot: { ...snapA1, snapshotId: '20261012T030000Z', source: { kind: 'ftp', value: 'x' } } });
+  const badCount = saveSnapshotDisk({
+    dir: snapshotDir,
+    snapshot: { ...snapA1, snapshotId: '20261012T040000Z', verdict: { p0: 9, p1: 0, other: 0, obs: 0 } },
+  });
+  check(
+    '10-7 坏快照存不进去：缺 verdict / kind 非法 / verdict 与 report 条数对不上，三处都挡',
+    !badMissingVerdict.ok && !badKind.ok && !badCount.ok && listSnapshotsDisk({ dir: snapshotDir }).snapshots.length === 2,
+    JSON.stringify({ a: badMissingVerdict.issues, b: badKind.issues, c: badCount.issues })
+  );
+
+  // ⑦ 磁盘上的 JSON 被人改坏 → 进 damaged，**不是抛异常、也不是当它不存在**
+  const onDisk = fs.readdirSync(snapshotDir);
+  const victim = path.join(snapshotDir, onDisk[0]);
+  const victimBak = fs.readFileSync(victim, 'utf8');
+  fs.writeFileSync(victim, '{"schemaVersion":1,"snapshotId":"坏了"');
+  let threw = false;
+  let afterBreak = { snapshots: [] as unknown[], damaged: [] as unknown[], total: 0 };
+  try {
+    afterBreak = listSnapshotsDisk({ dir: snapshotDir });
+  } catch {
+    threw = true;
+  }
+  const latestAfterBreak = loadLatestDisk({ dir: snapshotDir, projectId: pidA });
+  fs.writeFileSync(victim, victimBak); // cp 还原，不用 git checkout
+  check(
+    '10-8 快照损坏不白屏：坏 JSON 进 damaged 列表，不抛异常，且不会被当成「最新」',
+    !threw && afterBreak.damaged.length === 1 && afterBreak.snapshots.length === 1 && (latestAfterBreak as { snapshotId: string })?.snapshotId !== '坏了',
+    `threw=${threw} damaged=${afterBreak.damaged.length} ok=${afterBreak.snapshots.length} latest=${(latestAfterBreak as { snapshotId?: string })?.snapshotId}`
+  );
+
+  // ⑧ 平行实现守门：形状校验只能有一份（浏览器与 Node 共用 autopsy-snapshot-shape.mjs）
+  const snapTs = fs.readFileSync(path.join(webRoot, 'src', 'lib', 'autopsy-snapshot.ts'), 'utf8');
+  const storeMjs = fs.readFileSync(path.join(webRoot, 'scripts', 'lib', 'autopsy-store.mjs'), 'utf8');
+  check(
+    '10-9 形状校验只有一份：TS 侧 import 共享的 .mjs，且两侧都不自带 schemaVersion 判据',
+    /autopsy-snapshot-shape\.mjs/.test(snapTs) &&
+      /autopsy-snapshot-shape\.mjs/.test(storeMjs) &&
+      !/schemaVersion\s*!==/.test(snapTs) &&
+      !/schemaVersion\s*!==/.test(storeMjs),
+    `ts import=${/autopsy-snapshot-shape\.mjs/.test(snapTs)}`
+  );
+
+  // ⑨ L1 复用：同指纹命中、换指纹不命中
+  const reuseHit = reusableSnapshot([snapA2, snapA1], snapA2.fingerprint);
+  const reuseMiss = reusableSnapshot([snapA2, snapA1], 'report:other|1|1');
+  check(
+    '10-10 L1 复用按指纹命中：同指纹返回那一份，指纹不同返回 null（不是返回第一份）',
+    reuseHit?.snapshotId === '20261012T020000Z' && reuseMiss === null,
+    `hit=${reuseHit?.snapshotId} miss=${reuseMiss === null}`
+  );
+
+  // ⑩ 「P0 少了 1 个」必须有依据 —— 少了哪一条、在哪个文件第几行
+  const d = diffSnapshots(snapA1, snapA2);
+  const back = diffSnapshots(snapA2, snapA1);
+  check(
+    '10-11 对照差集：R-2 消失进 fixed 且带 evidence；反向比它进 added（不是只给数字）',
+    d.p0.prev === 2 &&
+      d.p0.next === 1 &&
+      d.p0.fixed.length === 1 &&
+      findingKey(d.p0.fixed[0]) === 'R-2@b.java:2' &&
+      d.p0.added.length === 0 &&
+      back.p0.added.length === 1 &&
+      findingKey(back.p0.added[0]) === 'R-2@b.java:2',
+    JSON.stringify({ prev: d.p0.prev, next: d.p0.next, fixed: d.p0.fixed.map(findingKey), added: back.p0.added.map(findingKey) })
+  );
+
+  // ⑩-b 空跑不许被当成「没变」：0 文件的指纹照样算得出来，长得跟正常指纹一样 ——
+  //      放行它，页面就会拿「上次什么也没扫到」当「输入没变」来复用。
+  const emptyReport = mkReport([]);
+  const emptyTrust = fingerprintTrust({ ...emptyReport, scope: { ...emptyReport.scope, files: 0, bytes: 0 } });
+  const truncTrust = fingerprintTrust({ ...emptyReport, scope: { ...emptyReport.scope, truncated: true } });
+  const okTrust = fingerprintTrust(mkReport([mkFinding('R-9', 'z.java', 9)]));
+  check(
+    '10-15 指纹可信度闸门：0 文件 / 被截断 → 不可信（不许复用）；正常 → 可信',
+    emptyTrust.trustworthy === false &&
+      /一个文件都没扫到/.test(emptyTrust.reason) &&
+      truncTrust.trustworthy === false &&
+      okTrust.trustworthy === true,
+    JSON.stringify({ empty: emptyTrust, trunc: truncTrust.reason, ok: okTrust })
+  );
+
+  // ⑩-c 快照里不许存凭据：git URL 里内嵌 `user:token@` 是私有仓库的常见写法，
+  //      而快照要落盘、要被下载 —— 存进去等于把令牌写进一份会传阅的 JSON。
+  const withToken = 'https://ci-bot:ghp_REALTOKEN123@github.com/o/r.git';
+  const snapTok = buildSnapshot({
+    source: { kind: 'git', value: withToken },
+    report: mkReport([]),
+    now: new Date('2026-10-12T05:00:00Z'),
+  });
+  const snapNoTok = buildSnapshot({
+    source: { kind: 'git', value: 'https://github.com/o/r.git' },
+    report: mkReport([]),
+    now: new Date('2026-10-12T05:00:00Z'),
+  });
+  check(
+    '10-16 快照不存凭据：URL 里的 token 被脱敏，且脱敏后与不带凭据的地址身份不同（不是同一份历史）',
+    !JSON.stringify(snapTok).includes('ghp_REALTOKEN123') &&
+      !JSON.stringify(snapTok).includes('ci-bot') &&
+      /\*\*\*@/.test(snapTok.source.value) &&
+      snapTok.projectId !== snapNoTok.projectId &&
+      redactSourceValue(withToken) === 'https://***@github.com/o/r.git' &&
+      projectIdOfSource({ kind: 'git', value: withToken }) === snapTok.projectId,
+    `stored=${snapTok.source.value} pid=${snapTok.projectId}`
+  );
+
+  // ⑪-a git 指纹的**确定性**（不依赖 spawn）：同样的 (head, status) 必得同样的指纹，
+  //    换个 head 必变 —— 不确定 = 每次都判「变了」= L1 永远不复用。
+  const gA = fingerprintGitState({ head: 'a'.repeat(40), status: '' });
+  const gAagain = fingerprintGitState({ head: 'a'.repeat(40), status: '' });
+  const gB = fingerprintGitState({ head: 'b'.repeat(40), status: '' });
+  const gDirty = fingerprintGitState({ head: 'a'.repeat(40), status: ' M x.java' });
+  check(
+    '10-12a git 指纹确定性：同输入同指纹；换 HEAD 变；有未提交改动也变（否则脏工作区会被判成没变）',
+    gA === gAagain && gA !== gB && gA !== gDirty,
+    `${gA.slice(0, 8)} / ${gB.slice(0, 8)} / ${gDirty.slice(0, 8)}`
+  );
+
+  // ⑪-b 真仓库读 HEAD（要 spawn git）
+  const gs1 = readGitState(repoRoot);
+  if (spawnBroken) {
+    skip('10-12b 对本仓真能读出 40 位 HEAD 且两次一致', spawnWhy);
+  } else {
+    const gs2 = readGitState(repoRoot);
+    check(
+      '10-12b 对本仓真能读出 40 位 HEAD 且两次一致',
+      gs1 !== null && gs2 !== null && gs1.head.length === 40 && fingerprintGitState(gs1) === fingerprintGitState(gs2),
+      `head=${gs1?.head.slice(0, 8)}`
+    );
+  }
+
+  // ⑫ 声称新建的文件真的在
+  const newFiles = [
+    'scripts/lib/autopsy-store.mjs',
+    'scripts/lib/autopsy-fingerprint.mjs',
+    'scripts/lib/autopsy-snapshot-shape.mjs',
+    'src/lib/autopsy-snapshot.ts',
+    'src/app/autopsy/HistoryPanel.tsx',
+  ];
+  const gone = newFiles.filter((f) => !fs.existsSync(path.join(webRoot, f)));
+  check(`10-13 棒 3 新建的 ${newFiles.length} 个文件都在`, gone.length === 0, `缺失: ${gone.join('、')}`);
+
+  // ⑬ 页面不许声称 100% 准确 —— 盲区必须写在 UI 里（这条是 2026-10-04「0 与没有长得一样」的同款）
+  const historyTsx = fs.readFileSync(path.join(webRoot, 'src', 'app', 'autopsy', 'HistoryPanel.tsx'), 'utf8');
+  check(
+    '10-14 页面写明两件事：L2 增量未实现 + 指纹漏检的盲区（不许假装做到了）',
+    /L2 增量未实现/.test(historyTsx) && /漏检/.test(historyTsx),
+    `L2=${/L2 增量未实现/.test(historyTsx)} 盲区=${/漏检/.test(historyTsx)}`
+  );
+
+  fs.rmSync(snapshotDir, { recursive: true, force: true });
+  fs.rmSync(treeRoot, { recursive: true, force: true });
 }
 
 // ── 收尾清理（finally 语义，2026-09-26 终检 P2-9）────────────────
