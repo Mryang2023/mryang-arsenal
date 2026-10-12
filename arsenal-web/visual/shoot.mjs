@@ -52,7 +52,10 @@ const EXPECTED = {
   // 工程规范台（2026-10-05 第二轮）：/standards 上线，32 → 33 URL、96 → 99 张。
   // 工程规范台（2026-10-05）：/standards 上线（/charter 变迁移页，两条都留在矩阵里 ——
   // 迁移页也是页面，截图能验它真的跳）。固定页 24 → 25，矩阵 32 → 33 URL、96 → 99 张。
-  fixedPages: 25,
+  // 项目解剖台（2026-10-11 夜跑）：/autopsy 上线，固定页 25 → 26，矩阵 33 → 34 URL、99 → 102 张。
+  //   这条是终检棒补的 —— 三棒都把视觉层记成「跳过」，其实是没人跑过；
+  //   跑起来后第一件事就是它红（102 vs 99）。
+  fixedPages: 26,
   rulePicks: 3,
   // 2026-09-29 修正：上面这句「只剩 1 个」早就过期了 —— 蓝图主题已回到 6 个
   // （connection-pool / local-cache / retry-timeout / untrusted-data / web-layer +
@@ -65,8 +68,8 @@ const EXPECTED = {
   // 那时池子非空后这里的 slicePicks 必须改成 2（首/末），脚本会当场报警。
   casePicks: 3,
   slicePicks: 0,
-  urls: 33,
-  shots: 99,
+  urls: 34,
+  shots: 102,
   minBytes: 8 * 1024,
 };
 
