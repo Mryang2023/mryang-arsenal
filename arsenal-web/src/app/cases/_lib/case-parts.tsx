@@ -107,7 +107,7 @@ export function LevelAxis({ driver, value, exclusive, onChange }: {
             return (
               <button key={lv.id} onClick={() => onChange(lv.id)} title={lv.note ?? lv.label}
                 aria-pressed={on}
-                className="group flex flex-col items-center focus:outline-none">
+                className="group flex flex-col items-center focus:outline-hidden">
                 <span className="flex h-[13px] items-center">
                   <span className="block rounded-full transition-all"
                     style={on

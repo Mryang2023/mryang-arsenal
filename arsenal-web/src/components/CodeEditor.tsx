@@ -107,7 +107,7 @@ export default function CodeEditor({
         onKeyDown={handleKeyDown}
         spellCheck={false}
         readOnly={readOnly}
-        className="mono absolute inset-0 resize-none bg-transparent outline-none"
+        className="mono absolute inset-0 resize-none bg-transparent outline-hidden"
         style={{
           ...SHARED_STYLE,
           color: 'transparent',

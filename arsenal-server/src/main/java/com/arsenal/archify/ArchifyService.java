@@ -1,7 +1,8 @@
 package com.arsenal.archify;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
@@ -236,7 +237,8 @@ public class ArchifyService {
         byte[] specBytes;
         try {
             specBytes = mapper.writerWithDefaultPrettyPrinter().writeValueAsBytes(spec);
-        } catch (IOException e) {
+        } catch (JacksonException e) {
+            // Jackson 3 起序列化异常是非受检的 JacksonException（不再抛 IOException）
             throw new IllegalArgumentException("IR 无法序列化：" + e.getMessage(), e);
         }
         if (specBytes.length > maxSpecBytes) {
@@ -270,7 +272,7 @@ public class ArchifyService {
             JsonNode receipt;
             try {
                 receipt = mapper.readTree(exec.stdout());
-            } catch (IOException e) {
+            } catch (JacksonException e) {
                 throw new ArchifyUnavailableException(ArchifyUnavailableException.EXEC_FAILED,
                         "通用绘图器吐出的不是 JSON（退出码 " + exec.exitCode() + "）：" + head(exec.stdout(), 2), e);
             }
@@ -308,7 +310,7 @@ public class ArchifyService {
      */
     private void rejectRemoteBrands(JsonNode node, String path) {
         if (node.isObject()) {
-            node.fields().forEachRemaining(field -> {
+            node.properties().forEach(field -> {
                 String here = path + "/" + field.getKey();
                 if ("brand".equals(field.getKey()) && field.getValue().isObject()) {
                     throw new IllegalArgumentException(

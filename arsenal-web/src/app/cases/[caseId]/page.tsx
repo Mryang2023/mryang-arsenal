@@ -22,8 +22,13 @@ export function generateStaticParams() {
 // 明明函数就在，dev 却报缺。rules / blueprints 两条动态路由都不设它，dev、build 都正常。
 // 未知 caseId 的 404 由下方 `getCase()` 返回 undefined → notFound() 兜住，静态导出也没有对应 HTML。
 
-export function generateMetadata({ params }: { params: { caseId: string } }): Metadata {
-  const kase = getCase(params.caseId);
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ caseId: string }>;
+}): Promise<Metadata> {
+  const { caseId } = await params;
+  const kase = getCase(caseId);
   if (!kase) return { title: '未找到场景' };
   return {
     title: `${kase.name} · 场景案例库`,
@@ -31,8 +36,14 @@ export function generateMetadata({ params }: { params: { caseId: string } }): Me
   };
 }
 
-export default function CaseBenchPage({ params }: { params: { caseId: string } }) {
-  const kase = getCase(params.caseId);
+// params 是 Promise（Next 15+ 动态 API 异步化）
+export default async function CaseBenchPage({
+  params,
+}: {
+  params: Promise<{ caseId: string }>;
+}) {
+  const { caseId } = await params;
+  const kase = getCase(caseId);
   if (!kase) notFound();
 
   // 只把 caseId 传下去 —— `cases.json` 在共享 chunk 里，客户端自行 `getCase()`，
@@ -42,7 +53,7 @@ export default function CaseBenchPage({ params }: { params: { caseId: string } }
   // Suspense 边界内才允许出现在静态导出的页面里（否则 build 直接报错）。
   return (
     <Suspense fallback={null}>
-      <CaseBench caseId={params.caseId} />
+      <CaseBench caseId={caseId} />
     </Suspense>
   );
 }

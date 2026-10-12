@@ -118,7 +118,7 @@ export default function IconGallery() {
             value={q}
             onChange={(e) => setQ(e.target.value)}
             placeholder="搜 key / 中文名 / 英文名 / 标签 —— 例如 缓存、nacos、lb"
-            className="w-full rounded-md border border-line bg-surface py-2 pl-8 pr-3 text-[13px] text-fg placeholder:text-fgFaint focus:border-brass focus:outline-none"
+            className="w-full rounded-md border border-line bg-surface py-2 pl-8 pr-3 text-[13px] text-fg placeholder:text-fgFaint focus:border-brass focus:outline-hidden"
           />
         </div>
 

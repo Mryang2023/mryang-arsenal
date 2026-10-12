@@ -56,9 +56,10 @@ fi
 # 漏转时 java 把 /d/workspace/... 当成「当前盘根下的 d/workspace/...」，
 # 于是报「目录下没有 meta.json」，看起来像规则目录本身有问题。
 #
-# sun.stdout/stderr.encoding 是为了让探针的中文报错可读：Windows 控制台默认
-# cp936，JVM 按 cp936 写出、Node 按 UTF-8 读入，报错就变成一串「�÷�」，
-# 恰好把最有用的那一行糊掉。JDK 17 认这两个属性（19+ 换成 stdout.encoding）。
-"$JAVA" -Dsun.stdout.encoding=UTF-8 -Dsun.stderr.encoding=UTF-8 \
+# stdout/stderr.encoding 是为了让探针的中文报错可读：Windows 控制台默认
+# cp936，JVM 按 cp936 写出、Node 按 UTF-8 读入，报错就变成一串「�÷÷」，
+# 恰好把最有用的那一行糊掉。主服务已升 JDK 21，用 19+ 的标准属性名
+# （sun.* 那对是 17 时代的别名）。
+"$JAVA" -Dstdout.encoding=UTF-8 -Dstderr.encoding=UTF-8 \
   -cp "$(to_win "$SERVER_ROOT/$CLASSES");$CP" \
   ParityProbe "$(to_win "$RULES_DIR")" "$(to_win "$OUT_DIR")" "$SEVERITIES_CSV" "$CATEGORIES_CSV"

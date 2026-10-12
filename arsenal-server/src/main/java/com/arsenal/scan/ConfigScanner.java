@@ -1,7 +1,7 @@
 package com.arsenal.scan;
 
-import com.fasterxml.jackson.databind.node.ArrayNode;
-import com.fasterxml.jackson.databind.node.ObjectNode;
+import tools.jackson.databind.node.ArrayNode;
+import tools.jackson.databind.node.ObjectNode;
 
 import java.nio.file.Path;
 import java.util.ArrayDeque;
@@ -135,7 +135,7 @@ public final class ConfigScanner {
     private static void scanEnv(ScanContext ctx, List<String> lines, String rel, ArrayNode keys, ObjectNode values) {
         scanProperties(ctx, lines, rel, keys, values);
         List<String> names = new ArrayList<>();
-        values.fieldNames().forEachRemaining(names::add);
+        names.addAll(values.propertyNames());
         for (String it : names) {
             values.put(it, "***");
         }

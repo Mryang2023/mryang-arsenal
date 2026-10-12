@@ -1,6 +1,6 @@
 package com.arsenal.util;
 
-import com.fasterxml.jackson.databind.JsonNode;
+import tools.jackson.databind.JsonNode;
 
 import java.math.BigInteger;
 import java.util.Iterator;
@@ -60,7 +60,7 @@ public final class JsonText {
                 return;
             }
             b.append('{');
-            Iterator<Map.Entry<String, JsonNode>> it = n.fields();
+            Iterator<Map.Entry<String, JsonNode>> it = n.properties().iterator();
             boolean first = true;
             while (it.hasNext()) {
                 Map.Entry<String, JsonNode> e = it.next();

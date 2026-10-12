@@ -8,7 +8,7 @@ import com.arsenal.engine.SourceFile;
 import com.arsenal.engine.Violation;
 import com.arsenal.loader.RuleIndex;
 import com.arsenal.loader.RuleLoader;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
 
 import java.nio.file.Path;
 import java.util.ArrayList;

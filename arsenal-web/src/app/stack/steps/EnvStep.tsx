@@ -182,7 +182,7 @@ export default function EnvStep({
                     value={values[f.key] ?? ''}
                     placeholder={f.placeholder ?? ''}
                     onChange={(e) => onChange(f.key, e.target.value)}
-                    className="w-full rounded-md border border-line bg-transparent px-2 py-1.5 text-xs text-fg outline-none focus:border-brass"
+                    className="w-full rounded-md border border-line bg-transparent px-2 py-1.5 text-xs text-fg outline-hidden focus:border-brass"
                   />
                 </label>
               ))}
@@ -208,7 +208,7 @@ export default function EnvStep({
                     type={f.secret ? 'password' : 'text'}
                     value={values[f.key] ?? ''}
                     onChange={(e) => onChange(f.key, e.target.value)}
-                    className="w-full rounded-md border border-line bg-transparent px-2 py-1.5 text-xs text-fg outline-none focus:border-brass"
+                    className="w-full rounded-md border border-line bg-transparent px-2 py-1.5 text-xs text-fg outline-hidden focus:border-brass"
                   />
                 </label>
               ))}

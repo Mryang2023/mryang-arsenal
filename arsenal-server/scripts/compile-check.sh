@@ -3,13 +3,13 @@
 # arsenal-server 静态编译校验（无需 Maven）
 #
 # Why: 本机没有 mvn，但仍需要确定性地回答「这套代码能不能编译」。
-# 用 JDK 17 + 本地 .m2 里已有的 Spring Boot 依赖跑 javac，
+# 用 JDK 21 + 本地 .m2 里已有的 Spring Boot 依赖跑 javac，
 # 能抓住语法错误、API 误用、泛型不匹配、lambda 捕获等问题。
 #
 # 用法:
 #   bash scripts/compile-check.sh
 # 可覆盖的环境变量:
-#   JDK_HOME   JDK 17 安装目录（不含 /bin）。不指定则自动扫 .jdks 与常见安装位置
+#   JDK_HOME   JDK 21 安装目录（不含 /bin）。不指定则自动扫 .jdks 与常见安装位置
 #   M2_REPO    本地 Maven 仓库
 #
 # JDK 与依赖类路径的定位逻辑在 scripts/_cp.sh，与 parity-probe.sh 共用一份。

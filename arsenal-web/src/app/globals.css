@@ -1,6 +1,20 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@import "tailwindcss";
+/* Tailwind 4 主题 token（生成物：scripts/gen-theme-tokens.ts ← palette.ts 唯一色源） */
+@import "../generated/theme-tokens.css";
+
+/* v3 → v4 边框默认色兼容垫片（官方升级路径同款）。
+   v3 的 preflight 把无边框色元素的 border-color 一律设成 gray-200，
+   v4 改成 currentColor —— 本仓有 200+ 处裸 `border`（蓝图风的浅色发丝线），
+   不垫就会跟着文字色变色。字面量 #e5e7eb = v3 borderColor.DEFAULT 的实值。 */
+@layer base {
+  *,
+  ::after,
+  ::before,
+  ::backdrop,
+  ::file-selector-button {
+    border-color: #e5e7eb;
+  }
+}
 
 :root {
   color-scheme: dark;
@@ -60,6 +74,12 @@ body {
   border: none;
 }
 
+/* v4：mono 要能被 @apply（.stat-num 在用），必须注册成 @utility，
+   不再是 @layer components 里的普通类 —— 语义不变，注册方式变了。 */
+@utility mono {
+  font-family: 'Cascadia Code', 'JetBrains Mono', Consolas, ui-monospace, monospace;
+}
+
 @layer components {
   .panel {
     @apply rounded-lg border border-line bg-surface;
@@ -69,9 +89,6 @@ body {
   }
   .hairline-b {
     @apply border-b border-line;
-  }
-  .mono {
-    font-family: 'Cascadia Code', 'JetBrains Mono', Consolas, ui-monospace, monospace;
   }
   .grid-bg {
     background-image: linear-gradient(rgba(36, 48, 41, 0.55) 1px, transparent 1px),

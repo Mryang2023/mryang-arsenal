@@ -442,15 +442,23 @@ function collectAssertions(page) {
       if (cs.position !== 'sticky' && cs.position !== 'fixed') return false;
       return isVisible(el);
     });
+    // 2026-10-12 修正测量法：原式 `r.bottom + (docH - vh)` 隐含「元素随页面滚走」，
+    // 对「全程钉在视口顶」的 top-0 包裹层必然算出假溢出 —— Shell 侧栏
+    // （md:sticky top-0 h-screen）在 52 张图上被误判（升级前旧栈同样 58 失败，
+    // 是存量问题不是升级回归）。改成真滚到底再量 rect：钉住的取钉住位、
+    // 随流滚动的取自然位、容器结束的取跟随位 —— 三种情况都量到真实最低点。
+    // 量完滚回原位，不影响其它断言（A8 是链上最后一条）。
+    const prevScrollY = window.scrollY;
+    window.scrollTo(0, de.scrollHeight);
+    const stickyBottomsAtDocEnd = stickyCols.map((el) => el.getBoundingClientRect().bottom);
+    window.scrollTo(0, prevScrollY);
     const colOffenders = [];
     let colChecked = 0;
-    for (const el of stickyCols) {
+    for (const [i, el] of stickyCols.entries()) {
       const cs = getComputedStyle(el);
       const scrollable =
         (cs.overflowY === 'auto' || cs.overflowY === 'scroll') && el.scrollHeight > el.clientHeight + 1;
-      const r = el.getBoundingClientRect();
-      // 用文档坐标判：sticky 元素滚到页面底部时才是它最低的位置
-      const bottomAtDocEnd = r.bottom + (de.scrollHeight - vh);
+      const bottomAtDocEnd = stickyBottomsAtDocEnd[i];
       const over = Math.max(0, Math.round(bottomAtDocEnd - vh));
       if (over <= limits.stickyOverflowPx) continue;
       colChecked++;

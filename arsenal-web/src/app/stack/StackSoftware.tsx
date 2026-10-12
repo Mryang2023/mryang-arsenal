@@ -248,7 +248,7 @@ export default function StackSoftware({ pinnedStep }: { pinnedStep?: StepId }) {
                 onChange={(e) => setQuery(e.target.value)}
                 placeholder="搜维度 / 零件名"
                 aria-label="搜索选型维度或零件名"
-                className="w-[150px] min-w-0 rounded-md border px-2 py-1 text-[11px] outline-none transition-colors placeholder:text-fgFaint focus:border-brass"
+                className="w-[150px] min-w-0 rounded-md border px-2 py-1 text-[11px] outline-hidden transition-colors placeholder:text-fgFaint focus:border-brass"
                 style={{ borderColor: INK.line, background: 'transparent', color: INK.pale }}
               />
               {(

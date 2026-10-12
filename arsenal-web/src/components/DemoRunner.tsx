@@ -105,7 +105,7 @@ export default function DemoRunner({ demos }: { demos: PlaygroundDemo[] }) {
           <input
             value={mainClass}
             onChange={(e) => setMainClass(e.target.value)}
-            className="mono rounded border border-line bg-surface px-2 py-1.5 text-[13px] text-fg outline-none focus:border-brass"
+            className="mono rounded border border-line bg-surface px-2 py-1.5 text-[13px] text-fg outline-hidden focus:border-brass"
           />
         </label>
         <label className="flex flex-col gap-1 text-2xs text-fgMuted">
@@ -118,7 +118,7 @@ export default function DemoRunner({ demos }: { demos: PlaygroundDemo[] }) {
             onChange={(e) =>
               setTimeoutMs(Math.max(1000, Math.min(300000, Number(e.target.value) || 30000)))
             }
-            className="mono w-24 rounded border border-line bg-surface px-2 py-1.5 text-[13px] text-fg outline-none focus:border-brass"
+            className="mono w-24 rounded border border-line bg-surface px-2 py-1.5 text-[13px] text-fg outline-hidden focus:border-brass"
           />
         </label>
         <button
@@ -174,7 +174,7 @@ export default function DemoRunner({ demos }: { demos: PlaygroundDemo[] }) {
           <input
             value={active?.path ?? ''}
             onChange={(e) => setFilePath(activeFile, e.target.value)}
-            className="mono rounded border border-line bg-surface px-2 py-1.5 text-[13px] text-fg outline-none focus:border-brass"
+            className="mono rounded border border-line bg-surface px-2 py-1.5 text-[13px] text-fg outline-hidden focus:border-brass"
           />
         </label>
       </div>

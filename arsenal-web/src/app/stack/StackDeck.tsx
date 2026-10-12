@@ -257,7 +257,7 @@ export default function StackDeck({
               placeholder="给这套方案起个名"
               aria-label="草稿名称"
               autoFocus
-              className="w-[180px] min-w-0 rounded-md border px-2 py-1 text-[11px] outline-none transition-colors placeholder:text-fgFaint focus:border-brass"
+              className="w-[180px] min-w-0 rounded-md border px-2 py-1 text-[11px] outline-hidden transition-colors placeholder:text-fgFaint focus:border-brass"
               style={{ borderColor: INK.line, background: 'transparent', color: INK.pale }}
             />
             <button
@@ -391,7 +391,7 @@ export default function StackDeck({
               value={shareUrl}
               onFocus={(e) => e.currentTarget.select()}
               aria-label="分享链接（点击全选复制）"
-              className="min-w-0 flex-1 rounded-md border px-2 py-1 text-[10px] outline-none focus:border-brass"
+              className="min-w-0 flex-1 rounded-md border px-2 py-1 text-[10px] outline-hidden focus:border-brass"
               style={{ borderColor: INK.line, background: 'transparent', color: INK.pale }}
             />
             <button

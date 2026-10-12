@@ -3,7 +3,7 @@ import com.arsenal.exporter.ExporterService;
 import com.arsenal.loader.RuleIndex;
 import com.arsenal.loader.RuleLoader;
 import com.arsenal.mcp.McpToolCatalog;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
 
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;

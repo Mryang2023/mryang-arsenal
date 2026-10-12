@@ -281,7 +281,7 @@ export default function ArchifyLab() {
               }}
               spellCheck={false}
               placeholder='在这里粘贴一份 IR JSON，例如 {"meta":{"title":"…","locale":"zh-CN","views":[…]},"components":[…]}'
-              className="mono h-[300px] w-full resize-y bg-transparent px-3 py-2.5 text-[11px] leading-[17px] text-fg outline-none placeholder:text-fgFaint"
+              className="mono h-[300px] w-full resize-y bg-transparent px-3 py-2.5 text-[11px] leading-[17px] text-fg outline-hidden placeholder:text-fgFaint"
             />
             {text && (
               <div className="flex items-center gap-2 border-t border-line px-3 py-2">

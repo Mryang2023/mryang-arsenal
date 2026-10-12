@@ -16,8 +16,13 @@ function find(topicId: string, scenarioId: string) {
   return recipeLocations.find((l) => l.topic.id === topicId && l.scenario.id === scenarioId);
 }
 
-export function generateMetadata({ params }: { params: { topic: string; scenario: string } }): Metadata {
-  const loc = find(params.topic, params.scenario);
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ topic: string; scenario: string }>;
+}): Promise<Metadata> {
+  const { topic, scenario } = await params;
+  const loc = find(topic, scenario);
   if (!loc) return { title: '场景不存在' };
   return {
     title: `${loc.scenario.name} · ${loc.topic.name} · 最佳实践案例库`,
@@ -25,12 +30,14 @@ export function generateMetadata({ params }: { params: { topic: string; scenario
   };
 }
 
-export default function ScenarioPage({
+// params 是 Promise（Next 15+ 动态 API 异步化）
+export default async function ScenarioPage({
   params,
 }: {
-  params: { topic: string; scenario: string };
+  params: Promise<{ topic: string; scenario: string }>;
 }) {
-  const loc = find(params.topic, params.scenario);
+  const { topic: topicId, scenario: scenarioId } = await params;
+  const loc = find(topicId, scenarioId);
   if (!loc) notFound();
   const { topic, scenario } = loc;
   const sc = getScenario(topic.id, scenario.id)!;

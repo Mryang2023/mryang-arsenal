@@ -6,9 +6,9 @@ import com.arsenal.domain.Severity;
 import com.arsenal.loader.RuleIndex;
 import com.arsenal.mcp.McpToolCatalog;
 import com.arsenal.util.JsonText;
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 import org.springframework.stereotype.Service;
 
 import java.time.Instant;
@@ -432,7 +432,7 @@ public class ExporterService {
     private static String inlineEnv(JsonNode env) {
         StringBuilder b = new StringBuilder("{ ");
         boolean first = true;
-        Iterator<Map.Entry<String, JsonNode>> it = env.fields();
+        Iterator<Map.Entry<String, JsonNode>> it = env.properties().iterator();
         while (it.hasNext()) {
             Map.Entry<String, JsonNode> e = it.next();
             if (!first) b.append(", ");
@@ -480,7 +480,7 @@ public class ExporterService {
                 rules.size(), rules);
         try {
             return mapper.writerWithDefaultPrettyPrinter().writeValueAsString(carrier) + "\n";
-        } catch (JsonProcessingException e) {
+        } catch (JacksonException e) {
             throw new IllegalStateException("规则集 JSON 序列化失败 —— 这是代码 bug，不是数据问题", e);
         }
     }

@@ -1,6 +1,6 @@
 # arsenal-server · 杨先生的军火库（后端）
 
-规则供给与代码合规校验服务。Spring Boot 3.2.5 + Java 17 + jakarta 命名空间，端口 **3011**。
+规则供给与代码合规校验服务。Spring Boot 4.1.1 + Java 21 + Jackson 3 + jakarta 命名空间，端口 **3011**。
 
 ```bash
 mvn spring-boot:run          # 启动（需 Maven）
