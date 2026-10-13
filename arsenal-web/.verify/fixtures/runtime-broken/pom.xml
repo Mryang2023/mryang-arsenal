@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+
+  <!--
+    活体解剖 fixture：给「运行时采集」当最小可复用样本。
+
+    刻意不引数据库 / Redis —— 本环境没有，且它们会让启动结果不可控，
+    那样「起不来」就分不清是项目的问题还是环境的问题。
+
+    这份 pom 同时是 RuntimeClasspath 的解析输入：它从 <parent> 读 Boot 版本，
+    再从 .m2 里的 spring-boot-dependencies BOM 读 spring-framework / tomcat / micrometer 版本。
+    所以这里**不许**出现与真实项目不同的写法 —— fixture 一旦失真，它验的东西就都不算数。
+  -->
+  <parent>
+    <groupId>org.springframework.boot</groupId>
+    <artifactId>spring-boot-starter-parent</artifactId>
+    <version>4.1.1</version>
+    <relativePath/>
+  </parent>
+
+  <groupId>com.arsenal.demo</groupId>
+  <artifactId>runtime-demo</artifactId>
+  <version>0.0.1-SNAPSHOT</version>
+  <name>runtime-demo</name>
+
+  <properties>
+    <java.version>21</java.version>
+  </properties>
+
+  <dependencies>
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-starter-web</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-starter-actuator</artifactId>
+    </dependency>
+  </dependencies>
+</project>

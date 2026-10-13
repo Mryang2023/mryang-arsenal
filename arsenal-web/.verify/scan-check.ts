@@ -44,6 +44,12 @@ import { archifyIrIssues, archifyIrShapeIssues } from '../src/lib/archify-ir';
 import { buildProfileDraftFromFacts } from '../src/lib/profile-draft';
 import { buildServiceTopo } from '../src/lib/service-topo';
 import { buildServiceGraphSvg } from '../src/lib/service-graph';
+import {
+  declaredPort,
+  healthWording,
+  reconcileRuntime,
+  type RuntimeProbeFact,
+} from '../src/lib/runtime-recon';
 import type { AutopsyReport } from '../src/lib/arsenal-api';
 import {
   buildSnapshot,
@@ -1401,6 +1407,254 @@ if (!skipAll) {
     cov50.coverageTotal === 50 && cov69.coverageTotal === 69
     && cov50.lines[2].values[0] === 84 && Math.abs((cov69.lines[2].values[0] ?? 0) - 60.87) < 0.02,
     `cov50=${cov50.coverageTotal}/${cov50.lines[2].values[0]} cov69=${cov69.coverageTotal}/${cov69.lines[2].values[0]}`);
+}
+
+// ═══════════════════════════════════════════════════════════════
+// 【13】活体对账（2026-10-13 夜跑棒 2）
+// ═══════════════════════════════════════════════════════════════
+//
+// 「静态声明的，运行时是不是真的」这第一次有了断言。
+//
+// 分两截，与【12】同款理由：
+//   13-A ~ 13-E 纯函数（不碰 bash/JDK，放 skipAll 之外）—— 对账判据是最该守的东西，
+//                       不能因为探针挂了就没人守；
+//   13-1 ~ 13-7 真跑（要 bash + JDK + .m2），放 if (!skipAll) 里。
+//
+// 本棒三个高发静默失败，逐条有断言盯着：
+//   ① 采集返回 not-executed 被当成「正常」→ 13-A / 13-3
+//   ② 进程没杀干净但断言空跑通过       → 13-2（拿日志里的真 PID 去查，不是数进程总数）
+//   ③ 断言通过但样本量为 0             → 13-1 明验 port/health 都有值，13-D 明验 0 入口时 rows 非空
+/** 一份带一个 spring-boot 入口的最小 facts。真跑那一段（13-7）也要用，所以提到块外 */
+const factsWithEntry = {
+  code: {
+    entryPoints: [
+      { file: 'src/main/java/demo/DemoApplication.java', line: 12, package: 'demo', className: 'DemoApplication', runtime: 'spring-boot' },
+    ],
+  },
+  config: [],
+} as any;
+
+{
+  section('【13】活体对账：纯函数部分（不依赖 bash/JDK）');
+
+  /** 喂断言的运行时事实（不经过后端 —— 后端那一路在 13-1 真跑里验） */
+  const probeOk = (over: Record<string, unknown> = {}): RuntimeProbeFact =>
+    ({
+      runtime: 'spring-boot',
+      supported: true,
+      mainClass: 'demo.DemoApplication',
+      bootVersion: '4.1.1',
+      status: 'executed',
+      reason: '',
+      process: { status: 'ok', stoppedBy: 'signal', exitCode: 1, elapsedMs: 3800, truncated: false },
+      port: {
+        value: 60123,
+        source: 'startup-log',
+        evidence: { stream: 'stdout', line: 18, text: "Tomcat started on port 60123 (http)" },
+      },
+      health: { endpoint: '/actuator/health', probed: true, httpStatus: 200, body: '{"status":"UP"}' },
+      log: { stdoutLines: 19, stderrLines: 0, tail: [], errors: [] },
+      missingDeps: [],
+      ...over,
+    }) as unknown as RuntimeProbeFact;
+
+  // ① 没有采集结果 —— 必须是 not-run + reason 非空，且摘要把「未执行」说出来
+  const reconNone = reconcileRuntime(factsWithEntry, [null]);
+  const entryNone = reconNone.rows.find((r) => r.kind === 'entry')!;
+  check('13-A 没有运行时采集结果 → verdict=not-run 且 reason 非空、摘要明说「未执行」',
+    entryNone.verdict === 'not-run'
+    && entryNone.reason.includes('没跑')
+    && reconNone.counts.notRun >= 1
+    && reconNone.summary.includes('未执行')
+    && reconNone.notRunReasons.length >= 1,
+    `verdict=${entryNone.verdict} notRun=${reconNone.counts.notRun} summary=${reconNone.summary.slice(0, 60)}`);
+
+  // ② 起不来 —— 必须是 mismatch（不是 not-run，更不是 match），且**不许出现「健康」「正常」字样**
+  const reconBroken = reconcileRuntime(factsWithEntry, [
+    { ...probeOk(), status: 'not-executed', reason: '编译不过 —— BrokenApplication.java:13: 需要\';\'', port: null, health: { probed: false, note: '没探到' } },
+  ]);
+  const entryBroken = reconBroken.rows.find((r) => r.kind === 'entry')!;
+  const healthBroken = reconBroken.rows.find((r) => r.kind === 'health')!;
+  // 只看「结论字段」（verdict + reason）里有没有肯定的「健康/正常」。
+  // 不能拿整份 JSON 去 substring —— summary 里本来就有「不是「没问题」」这种**否定**表述，
+  // 拿整串去查会把自己的正确措辞判成错误，而真正的问题（reason 里写「健康」）反而查不出来。
+  const brokenClaims = reconBroken.rows.map((r) => `${r.verdict}|${r.reason}`).join(' ');
+  check('13-B 起不来的工程 → verdict=mismatch + reason 说清原因，且没有任何一条结论声称「健康 / 正常」',
+    entryBroken.verdict === 'mismatch'
+    && entryBroken.reason.includes('编译不过')
+    && healthBroken.verdict !== 'match'
+    && !brokenClaims.includes('健康')
+    && !brokenClaims.includes('正常'),
+    `verdict=${entryBroken.verdict} health=${healthBroken.verdict} reason=${entryBroken.reason.slice(0, 40)}`);
+
+  // ③ 三问全成立 —— 三条 match，且每条两侧都有证据
+  // 端口这一问要 match，静态声明必须就等于实际监听值（60123）。
+  // 写 '0' 的话会走「采集姿势导致的偏差」分支 —— 那是 mismatch，验不到 match 这条路。
+  const reconOk = reconcileRuntime(
+    { ...factsWithEntry, config: [{ path: 'src/main/resources/application.properties', keys: ['server.port'], values: { 'server.port': '60123' } }] } as any,
+    [probeOk()],
+  );
+  const allMatch = reconOk.rows.filter((r) => r.verdict === 'match');
+  check('13-C 三问全成立 → 三条 match，且每条两侧证据都在（静态 file:line + 运行时日志行号/HTTP）',
+    allMatch.length === 3
+    && reconOk.rows.every((r) => r.staticEvidence !== null || r.runtimeEvidence !== null)
+    && reconOk.rows.filter((r) => r.kind === 'entry').every((r) => r.staticEvidence?.file.includes('DemoApplication')
+        && r.runtimeEvidence?.line === 18)
+    && reconOk.started === 1,
+    `match=${allMatch.length}/${reconOk.rows.length} started=${reconOk.started}`);
+
+  // ④ 0 个入口 —— 不许是空表，也不许是一句「一切正常」
+  const reconZero = reconcileRuntime({ code: { entryPoints: [] }, config: [] } as any, []);
+  check('13-D 0 个入口时 rows 非空、摘要明说「没有可运行入口」（0 的情况本身是一条结论）',
+    reconZero.rows.length >= 3
+    && reconZero.declared === 0
+    && reconZero.summary.includes('没有可运行入口')
+    && reconZero.notRunReasons.length >= 1,
+    `rows=${reconZero.rows.length} summary=${reconZero.summary.slice(0, 50)}`);
+
+  // ⑤ 静态端口读不到 → 返回 null，不是「默认 8080」。猜出来的端口不许进对账表
+  check('13-E 静态端口读不到 → declaredPort 返回 null（不是默认 8080）',
+    declaredPort({ config: [] } as any) === null
+    && declaredPort(null) === null
+    && declaredPort({ config: [{ path: 'a.properties', keys: [], values: { 'server.port': '8081' } }] } as any)?.port === 8081,
+    `空=${declaredPort({ config: [] } as any)} 有值=${declaredPort({ config: [{ path: 'a', keys: [], values: { 'server.port': '8081' } }] } as any)?.port}`);
+
+  // ⑥ 没探到 health → 对账 verdict 绝不能是 match（「没探」被当成「健康」是最坏的一种静默失败）。
+  //    措辞里出现「健康」字样没关系（原文是「……不是『健康』」这种否定），
+  //    **verdict 是 match** 才是真出事了。
+  const noActuator = { ...probeOk(), health: { probed: false, note: 'classpath 里没有 spring-boot-actuator —— 这是「无 health 端点」，不是「健康」' } };
+  const reconNoAct = reconcileRuntime(factsWithEntry, [noActuator]);
+  const healthNoAct = reconNoAct.rows.find((r) => r.kind === 'health')!;
+  check('13-F 没探到 health → 对账 verdict 是 not-run（不是 match），措辞带「无 health 端点」；探到的那条措辞带 UP',
+    healthNoAct.verdict === 'not-run'
+    && healthWording(noActuator).includes('无 health 端点')
+    && healthWording(probeOk()).includes('UP'),
+    `verdict=${healthNoAct.verdict} 措辞=${healthWording(noActuator).slice(0, 28)}`);
+}
+
+if (!skipAll) {
+  section('【13】活体对账：真跑部分（RuntimeProbe CLI，需要 bash + JDK + .m2）');
+
+  const rtScript = path.join(serverRoot, 'scripts', 'runtime-probe.sh');
+  const rtFixture = path.join(here, 'fixtures', 'runtime-demo');
+  const rtBroken = path.join(here, 'fixtures', 'runtime-broken');
+
+  /** spawn 一次采集。返回解析后的 JSON；跑不起来返回 null（断言会因此变红，不会静默通过） */
+  const runRt = (args: string[], timeoutMs = 240_000): any | null => {
+    const res = spawnSync('bash', [rtScript.replace(/\\/g, '/'), ...args], {
+      cwd: serverRoot, encoding: 'utf8', timeout: timeoutMs,
+    });
+    const lines = (res.stdout ?? '').split('\n').map((l) => l.trim()).filter((l) => l.startsWith('{'));
+    if (lines.length === 0) {
+      console.log(`  [采集失败] ${(res.stdout ?? '').slice(-300)}${(res.stderr ?? '').slice(-300)}`);
+      return null;
+    }
+    try {
+      return JSON.parse(lines[lines.length - 1]);
+    } catch {
+      return null;
+    }
+  };
+
+  const toWindows = (p: string) => p.replace(/\\/g, '/');
+
+  // ── 13-0 引用核实：fixture 必须真的在 ────────────────────────
+  // 不加这一条的代价实测过一次：fixture 建在了仓库根 .verify/ 而不是 arsenal-web/.verify/，
+  // 于是「目录不存在 → 读不到 pom → 起不来」被 13-3 判成**通过** ——
+  // 「故意起不来」和「根本没这个目录」长得一模一样，断言就成了摆设。
+  // 所以真跑之前先把「素材真的存在」钉死。
+  const rtDemoPom = path.join(rtFixture, 'pom.xml');
+  const rtDemoMain = path.join(rtFixture, 'src', 'main', 'java', 'demo', 'DemoApplication.java');
+  const rtBrokenPom = path.join(rtBroken, 'pom.xml');
+  const rtBrokenMain = path.join(rtBroken, 'src', 'main', 'java', 'demo', 'BrokenApplication.java');
+  check('13-0 引用核实：两个 fixture（好 / 故意编译错）的 pom.xml 与入口源码都真实存在',
+    fs.existsSync(rtScript) && fs.existsSync(rtDemoPom) && fs.existsSync(rtDemoMain)
+    && fs.existsSync(rtBrokenPom) && fs.existsSync(rtBrokenMain),
+    `script=${fs.existsSync(rtScript)} demo=${fs.existsSync(rtDemoPom)}&${fs.existsSync(rtDemoMain)} broken=${fs.existsSync(rtBrokenPom)}&${fs.existsSync(rtBrokenMain)}`);
+
+  // ── 13-1 fixture 真跑一次：三问都有两侧证据 ──────────────────
+  const rt = runRt([toWindows(rtFixture), 'demo.DemoApplication', 'spring-boot', '60000']);
+  check('13-1 fixture 真跑起来：executed + 端口有值 + 证据带日志行号 + health 200 且 body 含 UP',
+    rt !== null && rt.status === 'executed'
+    && typeof rt.port?.value === 'number' && rt.port.value > 0
+    && rt.port?.evidence?.line > 0 && String(rt.port.evidence.text).includes('Tomcat started on port')
+    && rt.health?.probed === true && rt.health.httpStatus === 200
+    && String(rt.health.body).includes('UP'),
+    rt === null ? '采集没跑起来（见上方 [采集失败]）'
+      : `status=${rt.status} port=${rt.port?.value} line=${rt.port?.evidence?.line} health=${rt.health?.httpStatus}`);
+
+  // ── 13-2 安全红线：跑完必须死干净 ────────────────────────────
+  // 拿启动日志里那个**真实 PID** 去查，不是数 java 进程总数 ——
+  // 数总数会被别的会话干扰（10-12/10-13 就有 3 个别的 java 挂在机器上），
+  // 那种断言要么永远绿（等于没有），要么随机红（没人再信）。
+  const logText = (rt?.log?.tail ?? []).map((l: any) => l.text).join('\n');
+  const pidMatch = /with PID (\d+)/.exec(logText);
+  const rtPid = pidMatch ? pidMatch[1] : null;
+  let pidGone = false;
+  if (rtPid) {
+    const tl = spawnSync('tasklist', ['/FI', `PID eq ${rtPid}`], { encoding: 'utf8' });
+    pidGone = !(tl.stdout ?? '').includes(rtPid);
+  }
+  check('13-2 安全红线：采完即杀 —— 启动日志里那个真 PID 已不存在，且 stoppedBy=signal（是我们杀的，不是它自己退的）',
+    rtPid !== null && pidGone && rt?.process?.stoppedBy === 'signal',
+    `pid=${rtPid} gone=${pidGone} stoppedBy=${rt?.process?.stoppedBy}`);
+
+  // ── 13-3 起不来的工程：必须说「起不来」，不许说「健康/正常」 ──
+  const rtBad = runRt([toWindows(rtBroken), 'demo.BrokenApplication', 'spring-boot', '30000']);
+  const rtBadJson = JSON.stringify(rtBad ?? {});
+  check('13-3 故意编译不过的 fixture → not-executed + reason 非空可读，且整份输出里不出现「健康 / 正常 / 没问题」',
+    rtBad !== null && rtBad.status === 'not-executed'
+    && typeof rtBad.reason === 'string' && rtBad.reason.trim().length >= 6
+    && !rtBadJson.includes('健康') && !rtBadJson.includes('正常') && !rtBadJson.includes('没问题'),
+    rtBad === null ? '采集没跑起来' : `status=${rtBad.status} reason=${String(rtBad.reason).slice(0, 60)}`);
+
+  // ── 13-4 路径逃逸：拒绝且报错可读 ────────────────────────────
+  const rtEsc = runRt([toWindows(rtFixture), 'demo.DemoApplication', 'spring-boot', '30000', '../..']);
+  const runStep = (rtEsc?.steps ?? []).find((s: any) => s.name === 'run');
+  check('13-4 路径逃逸入参 ../.. → run 这一步被拒（refused），进程一个都没起',
+    rtEsc !== null && runStep?.status === 'refused' && rtEsc.status === 'not-executed',
+    rtEsc === null ? '采集没跑起来' : `run.status=${runStep?.status} status=${rtEsc.status} workDir=${rtEsc.workDir}`);
+
+  // ── 13-5 墙钟上限：到点没起来就是没起来，不许静默成功 ────────
+  // 判据刻意全用**状态码**而不是中文子串：stdout 经过 bash→node 这一趟，
+  // 中文在本机 GBK 控制台下会显示成乱码，拿中文去 includes 于环境相关 ——
+  // 那种断言今天红明天绿，没人会再信它。stoppedBy='timeout' 就是「被超时杀掉」的精确说法。
+  const rtTmo = runRt([toWindows(rtFixture), 'demo.DemoApplication', 'spring-boot', '1200']);
+  check('13-5 墙钟 1.2s 内起不来 → not-executed 且 process 是 timeout/stoppedBy=timeout（超时不许被当成成功）',
+    rtTmo !== null && rtTmo.status === 'not-executed'
+    && rtTmo.process?.status === 'timeout'
+    && rtTmo.process?.stoppedBy === 'timeout'
+    && typeof rtTmo.reason === 'string' && rtTmo.reason.trim().length >= 6,
+    rtTmo === null ? '采集没跑起来'
+      : `status=${rtTmo.status} process=${rtTmo.process?.status}/${rtTmo.process?.stoppedBy} reasonLen=${String(rtTmo.reason ?? '').length}`);
+
+  // ── 13-6 非 spring-boot 入口：明说不支持，不许说「跑过了」 ────
+  const rtNode = runRt([toWindows(rtFixture), 'demo.DemoApplication', 'node-start', '30000']);
+  check('13-6 runtime=node-start → not-executed + supported=false + reason 说清「不是跑过了」',
+    rtNode !== null && rtNode.status === 'not-executed' && rtNode.supported === false
+    && String(rtNode.reason).includes('spring-boot'),
+    rtNode === null ? '采集没跑起来' : `status=${rtNode.status} supported=${rtNode.supported}`);
+
+  // ── 13-7 确定性：同输入两次 → 对账结论逐字段相等（端口这种随机值除外）──
+  const rt2 = runRt([toWindows(rtFixture), 'demo.DemoApplication', 'spring-boot', '60000']);
+  const r1 = reconcileRuntime(factsWithEntry, [rt]);
+  const r2 = reconcileRuntime(factsWithEntry, [rt2]);
+  // 端口是 --server.port=0 的随机值，**它出现在entry 那条结论的措辞里**（「起来了，监听 64165」）。
+  // 逐字段相等要比的是**结论稳不稳**，不是随机数一不一样 —— 所以先把两个端口替换掉再比。
+  const norm = (r: any, ports: number[]) =>
+    JSON.stringify(r.rows.map((x: any) => {
+      let text = x.reason;
+      for (const p of ports) text = String(text).split(String(p)).join('<PORT>');
+      return { k: x.kind, q: x.question, v: x.verdict, r: text };
+    }));
+  const ports = [rt?.port?.value, rt2?.port?.value].filter((n: unknown) => typeof n === 'number');
+  check('13-7 同输入采集两次 → 对账结论逐字段相等（唯一允许变的是那次采集的随机端口）',
+    rt2 !== null && rt2.status === 'executed'
+    && norm(r1, ports) === norm(r2, ports)
+    && r1.counts.match === r2.counts.match
+    && rt?.port?.value !== rt2?.port?.value,
+    rt2 === null ? '第二次采集没跑起来'
+      : `端口 ${rt?.port?.value} vs ${rt2?.port?.value}（应当不同）结论相等=${norm(r1, ports) === norm(r2, ports)}`);
 }
 
 // ── 收尾清理（finally 语义，2026-09-26 终检 P2-9）────────────────
