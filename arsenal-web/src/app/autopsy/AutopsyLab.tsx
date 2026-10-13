@@ -34,6 +34,14 @@ import CheckupPanel from './CheckupPanel';
 import HistoryPanel, { type DamagedEntry } from './HistoryPanel';
 import ServicePanel from './ServicePanel';
 import UnmatchedPanel from './UnmatchedPanel';
+import VitalsPanel from './VitalsPanel';
+import {
+  appendLocalPoint,
+  clearLocalVitals,
+  loadLocalVitals,
+  pointFromReport,
+  type VitalsPointShape,
+} from '@/lib/vitals-store';
 
 /**
  * 项目解剖台。
@@ -99,7 +107,7 @@ export default function AutopsyLab() {
   const [source, setSource] = useState('');
   const [stage, setStage] = useState<Stage>({ kind: 'idle' });
   const [theme, setTheme] = useState<CanvasTheme>('doc');
-  const [tab, setTab] = useState<'arch' | 'services' | 'checkup' | 'history'>('arch');
+  const [tab, setTab] = useState<'arch' | 'services' | 'checkup' | 'history' | 'vitals'>('arch');
   const [checkup, setCheckup] = useState<CheckupStage>({ kind: 'idle' });
   const fileRef = useRef<HTMLInputElement>(null);
 
@@ -114,6 +122,11 @@ export default function AutopsyLab() {
   const [storeNote, setStoreNote] = useState<string | null>(null);
   /** 「输入没变就复用」默认开 —— 这是 L1 的唯一入口；关掉即强制重扫 */
   const [reuseInput, setReuseInput] = useState(true);
+
+  // ── 生命体征序列（浏览器侧 localStorage，与快照同一条「不进军火库仓库」的规矩）──
+  const [vitalsPoints, setVitalsPoints] = useState<VitalsPointShape[]>([]);
+  const [vitalsDamaged, setVitalsDamaged] = useState<{ projectId: string; issues: string[] }[]>([]);
+  const [vitalsNote, setVitalsNote] = useState<string | null>(null);
 
   const currentSource: { kind: 'path' | 'git'; value: string } | null = useMemo(() => {
     if (mode === 'zip') return null;
@@ -131,6 +144,18 @@ export default function AutopsyLab() {
   useEffect(() => {
     reloadSnapshots();
   }, [reloadSnapshots]);
+
+  /** 序列与快照同源同 pid —— 两边靠同一个 `projectIdOfSource` 对上号。 */
+  const reloadVitals = useCallback(() => {
+    const loaded = loadLocalVitals();
+    setVitalsDamaged(loaded.damaged);
+    const pid = currentSource ? projectIdOfSource(currentSource) : null;
+    setVitalsPoints(pid ? loaded.points[pid] ?? [] : []);
+  }, [currentSource]);
+
+  useEffect(() => {
+    reloadVitals();
+  }, [reloadVitals]);
 
   const run = useCallback(async (what: string, requested: string, fn: () => Promise<ScanOutcome>) => {
     setStage({ kind: 'scanning', what });
@@ -207,6 +232,25 @@ export default function AutopsyLab() {
           });
           const prev = snapshots[0] ?? null;
           const trust = fingerprintTrust(outcome.report);
+
+          // ── 生命体征：这次体检落一枚序列点（与快照同一次采集，不另发请求）──
+          //    L1 复用那一趟（上面 early return）不落点 —— 那一次没有新事实。
+          const pid = projectIdOfSource(src);
+          const vPoint = pointFromReport({
+            report: outcome.report,
+            facts: stage.kind === 'done' ? stage.facts : null,
+            fingerprint: snap.fingerprint,
+            fingerprintKind: snap.fingerprintKind,
+            snapshotId: snap.snapshotId,
+            savedAt: snap.savedAt,
+          });
+          const vr = appendLocalPoint(pid, vPoint);
+          setVitalsNote(
+            vr.ok
+              ? null
+              : `这一枚没进生命体征序列：${vr.issues.join('；')}`
+          );
+          reloadVitals();
           // 指纹本身不可信（0 文件 / 被截断）时不许归入 —— 否则「两次都没扫到」
           // 会被记成「没变化」，历史里就只剩一条永远不变的记录。
           if (prev && trust.trustworthy && prev.fingerprint === snap.fingerprint) {
@@ -353,15 +397,16 @@ export default function AutopsyLab() {
         )}
       </div>
 
-      {/* ── 页签：架构 / 服务拓扑 / 体检 / 历史 ── */}
-      <div className="flex items-center gap-1 self-start rounded border border-line p-0.5">
+      {/* ── 页签：架构 / 服务拓扑 / 体检 / 历史 / 生命体征 ── */}
+      <div className="flex flex-wrap items-center gap-1 self-start rounded border border-line p-0.5">
         {(
           [
             ['arch', '架构面板'],
             ['services', '服务拓扑'],
             ['checkup', '体检报告'],
             ['history', `历史（${snapshots.length}）`],
-          ] as ['arch' | 'services' | 'checkup' | 'history', string][]
+            ['vitals', `生命体征（${vitalsPoints.length}）`],
+          ] as ['arch' | 'services' | 'checkup' | 'history' | 'vitals', string][]
         ).map(([id, label]) => (
           <button
             key={id}
@@ -654,6 +699,21 @@ export default function AutopsyLab() {
             reloadSnapshots();
           }}
         />
+      )}
+
+      {tab === 'vitals' && (
+        <VitalsPanel
+          points={vitalsPoints}
+          damaged={vitalsDamaged}
+          onClear={() => {
+            if (currentSource) clearLocalVitals(projectIdOfSource(currentSource));
+            setVitalsNote(null);
+            reloadVitals();
+          }}
+        />
+      )}
+      {vitalsNote && tab === 'vitals' && (
+        <p className="text-[10.5px] leading-[15px] text-fgFaint">⚠ {vitalsNote}</p>
       )}
     </div>
   );

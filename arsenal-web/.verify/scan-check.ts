@@ -67,6 +67,18 @@ import {
   projectIdOf,
   readGitState,
 } from '../scripts/lib/autopsy-fingerprint.mjs';
+import {
+  appendPoint,
+  listPoints,
+  newPointId,
+  seriesFile,
+} from '../scripts/lib/vitals-store.mjs';
+import {
+  SERIES_SCHEMA_VERSION,
+  diffPoints,
+  formatDiff,
+} from '../scripts/lib/vitals-point.mjs';
+import { buildVitalsSeries, EMPTY_SERIES_MESSAGE } from '../src/lib/vitals-series';
 // 统一记账：pass / fail / **skip（独立状态，绝不计入 pass）**，退出码 0 / 2 / 1。
 import { check, finish, knowinglySkipped, skip, skipLayer } from './lib/report';
 
@@ -1278,6 +1290,117 @@ if (!skipAll) {
       units: tNested.units.map((u: any) => `${u.name}${u.codeOnly ? '(codeOnly)' : ''}`),
       counts: tNested.counts,
     }));
+}
+
+// ═══════════════════════════════════════════════════════════════
+// ── 【12】生命体征序列（2026-10-13 夜跑棒 1）──────────────────────
+//
+// 这一节是「多看几次」的地基：序列点落盘 → 读回 → 连成曲线 → 两点相减。
+// 全部不依赖 bash / JDK（套件本身零依赖），所以放在 `if (!skipAll)` 之外 ——
+// 探针挂了的机器上也必须能验这一节，否则「曲线读的是数据」这件事就没人守了。
+{
+  section('【12】生命体征序列：落点 / 读回 / 曲线 / 相减 / 坏行');
+
+  const vitalsDir = path.join(tmpDir, 'vitals-store');
+  const pid = 'pj-vitals-check';
+  fs.rmSync(vitalsDir, { recursive: true, force: true });
+
+  /** 构造一枚序列点（只用来喂断言，不经过后端 —— 后端那一路有【9】【10】守着）。 */
+  const point = (n: number, over: Record<string, unknown> = {}) => ({
+    schemaVersion: SERIES_SCHEMA_VERSION,
+    snapshotId: newPointId(new Date(Date.UTC(2026, 9, 13, 15, n, 0))),
+    ts: new Date(Date.UTC(2026, 9, 13, 15, n, 0)).toISOString(),
+    fingerprint: `sha256:${n}`,
+    fingerprintKind: 'dir' as const,
+    fingerprintTrust: true,
+    fingerprintCaveat: '',
+    verdict: { p0: 12 - n, p1: 30, other: 0, obs: 8 },
+    services: { declarations: 3, entryPoints: 2, units: null, conflicts: null },
+    coverage: { executed: 42, total: 50 },
+    scan: { files: 100 + n, bytes: 1234, ms: 90, truncated: false },
+    status: 'full' as const,
+    ...over,
+  });
+
+  // ① 同输入两次落点：除 ts / snapshotId 外逐字段相等 —— 曲线要是看到「同一个输入
+  //    两次不一样」，后面所有「趋势」都不可信。
+  const w1 = appendPoint({ dir: vitalsDir, projectId: pid, point: point(1) });
+  const w2 = appendPoint({ dir: vitalsDir, projectId: pid, point: point(2) });
+  const listed = listPoints({ dir: vitalsDir, projectId: pid });
+  const [p1, p2] = listed.points;
+  const strip = (o: Record<string, any>) => {
+    const { ts, snapshotId, ...rest } = o;
+    return rest;
+  };
+  check('12-1 序列点除 ts/snapshotId 外逐字段相等，且两次追加都读回校验通过',
+    w1.ok && w1.verified === true && w2.ok && w2.verified === true
+    && listed.points.length === 2 && listed.issues.length === 0
+    && JSON.stringify(strip(p1)) === JSON.stringify(strip(point(1)))
+    && JSON.stringify(strip(p2)) === JSON.stringify(strip(point(2)))
+    && p1.ts < p2.ts,
+    `points=${listed.points.length} verified=${w1.verified}/${w2.verified}`);
+
+  // ② 曲线确定性：同输入两次逐字节相等。
+  const asPoints = (arr: Record<string, any>[]) => arr as unknown as Parameters<typeof buildVitalsSeries>[0];
+  const svgA = buildVitalsSeries(asPoints([p1, p2]));
+  const svgB = buildVitalsSeries(asPoints([p1, p2]));
+  check('12-2 曲线确定性：同输入两次 SVG 逐字节相等（不是「长度相等」）',
+    svgA.svg === svgB.svg && svgA.svg.length > 0 && svgA.plotted === 2,
+    `len=${svgA.svg.length}`);
+
+  // ③ 空序列：不许画一张看起来健康的空图 —— svg 必须是空串，并且给出一句人话。
+  const emptyRes = buildVitalsSeries([]);
+  check('12-3 空序列不画假图：svg 为空串 + 一句「还没有序列数据」',
+    emptyRes.empty === true && emptyRes.svg === '' && emptyRes.plotted === 0
+    && emptyRes.message === EMPTY_SERIES_MESSAGE && !emptyRes.message.includes('正常'),
+    `empty=${emptyRes.empty} svgLen=${emptyRes.svg.length} msg=${emptyRes.message}`);
+
+  // ④ 单点：只画点，不画折线（一条点的「折线」是编出来的趋势）。
+  const one = buildVitalsSeries(asPoints([p1]));
+  const polyOne = (one.svg.match(/<polyline/g) ?? []).length;
+  const dotOne = (one.svg.match(/<circle/g) ?? []).length;
+  const twoPolys = (svgA.svg.match(/<polyline/g) ?? []).length;
+  check('12-4 单点只画点不画折线：polyline=0 且 circle>0（两点时才有线）',
+    polyOne === 0 && dotOne > 0 && twoPolys > 0,
+    `单点 polyline=${polyOne} circle=${dotOne}；两点 polyline=${twoPolys}`);
+
+  // ⑤ 两点相减：P0 从 12 变 10 → 「体检」段必须是 −2（**带前后两个数**，不是只给差）。
+  //    依据那一路（哪一条规则修好了）归 diffSnapshots，这里比的是计数，两者不许混。
+  const pA = point(0);
+  const pB = { ...point(2), verdict: { p0: 10, p1: 30, other: 0, obs: 8 } };
+  const d12 = diffPoints(pA, pB);
+  const fmt12 = formatDiff(d12).join('\n');
+  check('12-5 两点相减：体检段显示 12 → 10（−2），且依据来自明细级 diffSnapshots 而非另算',
+    d12.checkup.p0.prev === 12 && d12.checkup.p0.next === 10 && d12.checkup.p0.delta === -2
+    && fmt12.includes('12 → 10') && fmt12.includes('-2'),
+    `delta=${d12.checkup.p0.delta} text=${fmt12.split('\n')[0]}`);
+
+  // ⑥ partial 不进曲线：点数必须等于「总点数 − partial 数」。
+  const withPartial = [point(1), point(2), { ...point(3), status: 'partial' as const }];
+  const partialRes = buildVitalsSeries(withPartial as any);
+  check('12-6 partial 不进曲线：plotted == 总点数 − partial 数，且被剔的原因写在结果里',
+    withPartial.length === 3 && partialRes.plotted === 2 && partialRes.skippedPartial === 1,
+    `plotted=${partialRes.plotted} skipped=${partialRes.skippedPartial}`);
+
+  // ⑦ 坏行不许静默跳过：塞一行坏 JSON 后必须报 issues，且可用点数 < 文件行数。
+  const seriesPath = seriesFile({ dir: vitalsDir, projectId: pid });
+  fs.appendFileSync(seriesPath, '{这不是合法 JSON\n', 'utf8');
+  fs.appendFileSync(seriesPath, `${JSON.stringify({ ...point(9), schemaVersion: 99 })}\n`, 'utf8');
+  const afterBad = listPoints({ dir: vitalsDir, projectId: pid });
+  check('12-7 坏行不许静默跳过：非 JSON 行与 schemaVersion 不符的行都进 issues，可用点数 < 行数',
+    afterBad.issues.length === 2 && afterBad.lines === 4 && afterBad.points.length === 2
+    && afterBad.issues[0].issues[0].includes('不是合法 JSON')
+    && afterBad.issues[1].issues.some((s: string) => s.includes('schemaVersion')),
+    `lines=${afterBad.lines} points=${afterBad.points.length} issues=${afterBad.issues.map((i: any) => i.line).join(',')}`);
+
+  // ⑧ 覆盖率分母从数据读：同一批分子、分母 50 → 69，曲线的分母与文字都要跟着变；
+  //    写死 69 的实现在这条断言上永远是绿的，所以必须**双向**都验。
+  const cov50 = buildVitalsSeries([{ ...point(1), coverage: { executed: 42, total: 50 } }]);
+  const cov69 = buildVitalsSeries([{ ...point(1), coverage: { executed: 42, total: 69 } }]);
+  check('12-8 覆盖率分母从数据读（50 与 69 两种数据给出两种分母，不出现写死的 69）',
+    cov50.coverageTotal === 50 && cov69.coverageTotal === 69
+    && cov50.lines[2].values[0] === 84 && Math.abs((cov69.lines[2].values[0] ?? 0) - 60.87) < 0.02,
+    `cov50=${cov50.coverageTotal}/${cov50.lines[2].values[0]} cov69=${cov69.coverageTotal}/${cov69.lines[2].values[0]}`);
 }
 
 // ── 收尾清理（finally 语义，2026-09-26 终检 P2-9）────────────────
