@@ -2450,6 +2450,7 @@
         },
         "docker": {
           "icon": "docker",
+          "tech": "docker",
           "label": "Docker + Compose",
           "cluster": [
             {
@@ -2471,6 +2472,7 @@
         },
         "k8s": {
           "icon": "k8s",
+          "tech": "kubernetes",
           "label": "Kubernetes",
           "brand": "kubernetes",
           "cluster": [
@@ -2526,6 +2528,7 @@
           "icon": "prometheus",
           "port": "9090",
           "brand": "prometheus",
+          "tech": "prometheus",
           "label": "Prometheus + Grafana",
           "cluster": [
             {
@@ -2554,10 +2557,12 @@
           "icon": "vm"
         },
         "container": {
-          "icon": "docker"
+          "icon": "docker",
+          "tech": "docker"
         },
         "k8s": {
-          "icon": "k8s"
+          "icon": "k8s",
+          "tech": "kubernetes"
         },
         "serverless": {
           "icon": "serverless"
@@ -2621,16 +2626,20 @@
           "icon": "single"
         },
         "compose": {
-          "icon": "docker"
+          "icon": "docker",
+          "tech": "docker"
         },
         "swarm": {
-          "icon": "docker"
+          "icon": "docker",
+          "tech": "docker"
         },
         "k8s": {
-          "icon": "k8s"
+          "icon": "k8s",
+          "tech": "kubernetes"
         },
         "k3s": {
-          "icon": "k8s"
+          "icon": "k8s",
+          "tech": "kubernetes"
         },
         "nomad": {
           "icon": "rack"
@@ -2767,7 +2776,8 @@
         },
         "promgrafana": {
           "icon": "prometheus",
-          "port": "9090"
+          "port": "9090",
+          "tech": "prometheus"
         },
         "zabbix": {
           "icon": "apmproxy",

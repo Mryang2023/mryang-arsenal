@@ -31,6 +31,7 @@ import {
   sameBoxSet,
 } from '@/lib/arch-geometry';
 import { dimensions, emptyPicks, presetPicks, presets } from '@/lib/stack';
+import { buildTechArch } from '@/lib/arch-canvas';
 // 统一记账：pass / fail / **skip（独立状态，绝不计入 pass）**，退出码 0 / 2 / 1。
 import { check, finish } from './lib/report';
 
@@ -505,6 +506,92 @@ console.log('\n【10】几何不变量（版式模型 × 八条判据 × SVG 实
       totalCards > 0 && allCards.every((c) => Number.isFinite(c.x) && Number.isFinite(c.y))
     );
   }
+}
+
+// ═══════════════════════════════════════════════════════════════
+// 【11】技术栈部署图（arch-canvas.ts 的 buildTechArch）：合并与入口改道不变量。
+//
+// 这条图此前一行断言都没有。它最容易出的两类静默说谎，已被实修：
+//   ① 同一技术被多个维度各画一个盒子（deploy=k8s / orchestration=k8s / os=k8s 三个
+//     一模一样的 Kubernetes 盒子）—— 合并判据是数据声明的 tech，不是图标，否则会
+//     把 Solr / Doris 这类同图标但不同系统的东西误并；
+//   ② ingress / gateway 选中后悬空 —— 请求路径必须真的穿过它，而不是仍画 client→app 直连。
+// 下面逐条钉死这两个不变式，反向代理/编排维度选空时则保持直连（不报错）。
+console.log('\n【11】技术栈部署图：合并与入口改道不变量');
+{
+  const k8sPicks = { ...emptyPicks(), web: 'mvc', deploy: 'k8s', orchestration: 'k8s', os: 'k8s' };
+  const k8sArch = buildTechArch(k8sPicks);
+  const k8sNodes = k8sArch.nodes;
+  const k8sSurvivor = k8sNodes.find((n) => n.tech === 'kubernetes');
+  check(
+    'K8s 三维度合并为单个 Kubernetes 节点（无重复盒子，deploy 保留为存活节点）',
+    k8sNodes.filter((n) => n.tech === 'kubernetes').length === 1 &&
+      !k8sNodes.some((n) => n.id === 'orchestration') &&
+      !k8sNodes.some((n) => n.id === 'os'),
+    k8sNodes
+      .filter((n) => n.tech === 'kubernetes' || n.id === 'orchestration' || n.id === 'os')
+      .map((n) => `${n.id}:${n.title}`)
+      .join(' / ')
+  );
+  check(
+    '合并节点副标题并起各维度角色（交付形态 + 编排与调度）',
+    !!k8sSurvivor && /交付形态/.test(k8sSurvivor.subtitle) && /编排与调度/.test(k8sSurvivor.subtitle),
+    k8sSurvivor ? k8sSurvivor.subtitle : '无 Kubernetes 节点'
+  );
+
+  // 反例：Docker 系同样应合并成一个盒子（deploy.docker / orchestration.compose / os.container
+  // 都是 tech:"docker"），且不得与 K8s 盒子混为一谈。
+  const dockerPicks = { ...emptyPicks(), web: 'mvc', deploy: 'docker', orchestration: 'compose', os: 'container' };
+  const dockerArch = buildTechArch(dockerPicks);
+  check(
+    'Docker 三维度合并为单个 Docker 节点（且与 K8s 互不污染）',
+    dockerArch.nodes.filter((n) => n.tech === 'docker').length === 1 &&
+      !dockerArch.nodes.some((n) => n.tech === 'kubernetes'),
+    dockerArch.nodes
+      .filter((n) => n.tech === 'docker' || n.tech === 'kubernetes')
+      .map((n) => `${n.id}:${n.tech}`)
+      .join(' / ')
+  );
+
+  // ingress 选中 → 请求路径必须穿过它，且不再有 client→app 直连。
+  const ingPicks = { ...emptyPicks(), web: 'mvc', ingress: 'nginx' };
+  const ingArch = buildTechArch(ingPicks);
+  const ingEdges = ingArch.edges;
+  const has = (f: string, t: string) => ingEdges.some((e) => e.from === f && e.to === t);
+  check(
+    'ingress 选中时请求路径穿过它（client→ingress→app）',
+    has('client', 'ingress') && has('ingress', 'app'),
+    ingEdges
+      .filter((e) => e.from === 'client' || e.from === 'ingress')
+      .map((e) => `${e.from}→${e.to}`)
+      .join(' ')
+  );
+  check(
+    'ingress 选中时无 client→app 直连（反向代理不再悬空）',
+    !has('client', 'app')
+  );
+
+  // 反向：未选任何入口节点（ingress / gateway 都为空）时保持 client→app 直连，改道逻辑不误伤。
+  const noEntryPicks = { ...emptyPicks(), web: 'mvc' };
+  const noEntryArch = buildTechArch(noEntryPicks);
+  const noEntryHas = (f: string, t: string) => noEntryArch.edges.some((e) => e.from === f && e.to === t);
+  check(
+    '未选 ingress/gateway 时保持 client→app 直连（改道只在入口节点选中时触发）',
+    noEntryHas('client', 'app') && !noEntryHas('client', 'ingress') && !noEntryHas('client', 'gateway')
+  );
+
+  // gateway 选中时同样要落在请求路径上（client→gateway→app）。
+  const gwPicks = { ...emptyPicks(), web: 'mvc', gateway: 'scg' };
+  const gwArch = buildTechArch(gwPicks);
+  const gwHas = (f: string, t: string) => gwArch.edges.some((e) => e.from === f && e.to === t);
+  check(
+    'gateway 选中时请求路径穿过它（client→gateway→app）',
+    gwHas('client', 'gateway') && gwHas('gateway', 'app') && !gwHas('client', 'app'),
+    gwArch.edges
+      .filter((e) => e.from === 'client' || e.from === 'gateway')
+      .map((e) => `${e.from}→${e.to}`)
+      .join(' ')
+  );
 }
 
 finish('graph');

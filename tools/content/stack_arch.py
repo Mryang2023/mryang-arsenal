@@ -1187,6 +1187,7 @@ CANVAS_OPTIONS = {
         },
         'docker': {
             'icon': 'docker',
+            'tech': 'docker',
             'label': 'Docker + Compose',
             'cluster': [
                 CL('单容器', 1, '一个容器。Compose 会把 compose file 里声明的东西一并拉起。'),
@@ -1196,6 +1197,7 @@ CANVAS_OPTIONS = {
         },
         'k8s': {
             'icon': 'k8s',
+            'tech': 'kubernetes',
             'label': 'Kubernetes',
             'brand': 'kubernetes',
             'cluster': [
@@ -1219,7 +1221,7 @@ CANVAS_OPTIONS = {
         'none': {'icon': 'logback', 'place': 'appTag'},
         'actuator': {'icon': 'actuator', 'place': 'appTag'},
         'prometheus': {
-            'icon': 'prometheus', 'port': '9090', 'brand': 'prometheus',
+            'icon': 'prometheus', 'port': '9090', 'brand': 'prometheus', 'tech': 'prometheus',
             # 选项全名是「Actuator + Prometheus + Grafana」，塞进一个方块会挤成一团；
             # 图上只写真正起了进程的两个 —— Actuator 是应用自己暴露的端点
             'label': 'Prometheus + Grafana',

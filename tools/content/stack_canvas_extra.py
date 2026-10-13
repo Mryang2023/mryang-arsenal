@@ -13,6 +13,13 @@ stack_arch.py 里的 CANVAS_DIMS / CANVAS_OPTIONS 是「Java 侧那 18 个维度
 两个硬约束（与 stack_arch.py 里的写法一致，违反会在构建期炸掉）：
     ① icon 必须是 arsenal-web/src/lib/tech-icons.ts 里真实存在的 key；
     ② place=node 时必须给 zone，且 zone 必须在 CANVAS_ZONES 里。
+
+tech 字段（选项级）：
+    同一 tech 字符串的「跨维度选项」在图上合并成同一个部署节点 —— 例如 deploy=k8s、
+    os=k8s、orchestration=k8s 都是 Kubernetes，只画一个盒子而不是三个一模一样的 K8s。
+    渲染器不猜「哪些维度是同一种技术」，这层事实由数据声明。选项没写 tech 时按
+    （维度 id + 选项 id）生成唯一键，永不合并（避免把 Solr / Doris 这类同图标但不同
+    系统的东西误并）。
 """
 
 # ── 每个新维度在图上怎么出现 ──────────────────────────────
@@ -45,12 +52,14 @@ CANVAS_DIMS_EXTRA = {
 # ── 每个新选项的图标 ──────────────────────────────────────
 #   icon   图标库 key（arsenal-web/src/lib/tech-icons.ts）
 #   port   默认端口，写进连线标签供技术说明书引用
+#   tech   技术身份（选项级）：同一 tech 的跨维度选项在图上合并成同一节点，
+#          渲染器不猜「哪些维度是同一种技术」。详见文件头注释。
 CANVAS_OPTIONS_EXTRA = {
     'os': {
         'bare':       {'icon': 'baremetal'},
         'vm':         {'icon': 'vm'},
-        'container':  {'icon': 'docker'},
-        'k8s':        {'icon': 'k8s'},
+        'container':  {'icon': 'docker', 'tech': 'docker'},
+        'k8s':        {'icon': 'k8s', 'tech': 'kubernetes'},
         'serverless': {'icon': 'serverless'},
         'hybrid':     {'icon': 'rack'},
     },
@@ -72,10 +81,10 @@ CANVAS_OPTIONS_EXTRA = {
     },
     'orchestration': {
         'single':  {'icon': 'single'},
-        'compose': {'icon': 'docker'},
-        'swarm':   {'icon': 'docker'},
-        'k8s':     {'icon': 'k8s'},
-        'k3s':     {'icon': 'k8s'},
+        'compose': {'icon': 'docker', 'tech': 'docker'},
+        'swarm':   {'icon': 'docker', 'tech': 'docker'},
+        'k8s':     {'icon': 'k8s', 'tech': 'kubernetes'},
+        'k3s':     {'icon': 'k8s', 'tech': 'kubernetes'},
         'nomad':   {'icon': 'rack'},
     },
     'imageregistry': {
@@ -124,7 +133,7 @@ CANVAS_OPTIONS_EXTRA = {
     },
     'monitoring': {
         'actuator':    {'icon': 'actuator'},
-        'promgrafana': {'icon': 'prometheus', 'port': '9090'},
+        'promgrafana': {'icon': 'prometheus', 'port': '9090', 'tech': 'prometheus'},
         'zabbix':      {'icon': 'apmproxy', 'port': '10051'},
         'skywalking':  {'icon': 'skywalking', 'port': '11800'},
         'cloudapm':    {'icon': 'apmproxy'},

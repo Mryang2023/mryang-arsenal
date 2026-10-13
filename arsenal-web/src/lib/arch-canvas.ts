@@ -57,6 +57,13 @@ interface CanvasOption {
   archifyType?: string;
   /** 交付图上的短名。全名太长时用 */
   label?: string;
+  /**
+   * 技术身份（选项级）。同一 tech 字符串的**跨维度选项**在图上合并成同一个部署节点
+   * （部署形态=k8s / 运行基座=k8s / 编排=k8s 都是 Kubernetes，只画一个盒子）。
+   * 没声明 tech 的选项按「维度 id」生成唯一键，永不合并 —— 渲染器不猜「哪些是同一种技术」，
+   * 这层事实由数据（stack_arch.py / stack_canvas_extra.py）声明。
+   */
+  tech?: string;
 }
 interface CanvasDim {
   place: 'node' | 'appTag' | 'side';
@@ -140,6 +147,8 @@ export interface CanvasNode {
    */
   archifyType?: string;
   brand?: string;
+  /** 技术身份（选项级）。同一 tech 的跨维度节点合并为单个部署节点，详见 mergeDuplicateTechNodes */
+  tech?: string;
   /** 自动布局算出来的位置，编辑位移叠加在其上 */
   x: number;
   y: number;
@@ -349,12 +358,21 @@ export function buildTechArch(
       // 类型先看选项自己的声明，再退回分区给的那一层性质
       archifyType: opt?.archifyType ?? zoneArchifyType(nodeZone),
       brand: opt?.brand,
+      tech: opt?.tech,
       x: 0, y: 0,
       w: isSide ? SIDE_W : NODE_W,
       h: isSide ? SIDE_H : NODE_H,
     };
     nodes.push(node);
   }
+
+  // ── 同技术合并：选项级 tech 身份相同的跨维度节点（如 deploy=k8s / orchestration=k8s /
+  //    os=k8s 都 tech:"kubernetes"）只画一个节点，避免「两个一模一样的 Kubernetes 盒子」。
+  //    合并判据是数据声明的 tech，不是图标 —— 图标相同但系统不同的（Solr / Doris 都
+  //    columnar 图标）不会被误并。存活节点优先取被连线表引用到的 id（保留 deploy→app
+  //    这类边），其余维度的角色并进取 subtitle。逐字节对照的断言在 graph-check.ts。
+  mergeDuplicateTechNodes(nodes, CANVAS_LINKS, dimensions);
+
   appNode.tags = appTags;
   // 工程属性按两列排，行数决定卡高
   const tagRows = Math.max(1, Math.ceil(appTags.length / 2));
@@ -379,6 +397,11 @@ export function buildTechArch(
     if (!onCanvas.has(l.from) || !onCanvas.has(l.to)) continue;
     edges.push({ ...l, port: portOf(l.to) || portOf(l.from) });
   }
+
+  // ── 请求入口改道：ingress / gateway 一旦选中，流量必须穿过它们，
+  //    不能还是 client→app 直连（否则反向代理节点悬空，图上自相矛盾）。
+  //    改道在连线表之后做：先按静态表连好，再据 picks 把入口路径重画一遍。
+  rerouteEntryThroughGateway(edges, onCanvas, portOf);
 
   // 同一对分区之间的多条线，水平段依次错开 18px，标签就不会叠成一行
   const zoneOf = (id: string) => nodes.find((n) => n.id === id)?.zone ?? '?';
@@ -486,6 +509,96 @@ function clusterStack(nodes: CanvasNode[]) {
     }
   }
   return out;
+}
+
+/**
+ * 同技术合并：选项级 tech 身份相同的维度节点，视为同一技术实体，只保留一个节点。
+ * 典型现场：`deploy=k8s` / `orchestration=k8s` / `os=k8s` 都声明 `tech:"kubernetes"`，
+ * 原样会出「两个一模一样的 Kubernetes 盒子」；合并后一个节点，
+ * 副标题把各维度的角色并起来（如「交付形态 + 编排调度 + 运行基石」）。
+ *
+ * 存活节点优先取**被连线表引用到**的那个 id，确保 `deploy→app` 这类既有边不丢；
+ * 端口 / 集群形态取第一个非空来源。被合并掉的节点从 `nodes` 中移除。
+ *
+ * 只作用于「落到独立节点位」的维度节点（`kind==='component'` 且 id 是已知维度）；
+ * client / app / 旁路件(side) / 手加节点都不参与，避免误吞。
+ */
+function mergeDuplicateTechNodes(
+  nodes: CanvasNode[],
+  links: CanvasLink[],
+  dims: { id: string; name: string }[]
+): void {
+  const dimName = (id: string) => dims.find((d) => d.id === id)?.name ?? id;
+  const linkIds = new Set(links.flatMap((l) => [l.from, l.to]));
+  const candidates = nodes.filter(
+    (n) => n.kind === 'component' && dims.some((d) => d.id === n.id)
+  );
+  const groups = new Map<string, CanvasNode[]>();
+  for (const n of candidates) {
+    // 数据驱动：同一 tech 字符串的跨维度选项合并为单节点。
+    // 选项没声明 tech 时按「维度 id」生成唯一键，永不合并（避免把 Solr / Doris
+    // 这类同图标但不同系统的东西误并成一张图）。
+    const key = n.tech ? `tech:${n.tech}` : `__uniq__:${n.id}`;
+    const list = groups.get(key) ?? [];
+    list.push(n);
+    groups.set(key, list);
+  }
+  for (const group of groups.values()) {
+    if (group.length < 2) continue;
+    const survivor = group.find((n) => linkIds.has(n.id)) ?? group[0];
+    const merged = group.filter((n) => n !== survivor);
+    survivor.subtitle = group.map((n) => dimName(n.id)).join(' + ');
+    if (!survivor.port) {
+      const otherPort = merged.find((n) => n.port)?.port;
+      if (otherPort) survivor.port = otherPort;
+    }
+    if (!survivor.modes) {
+      const otherModes = merged.find((n) => n.modes)?.modes;
+      const otherMode = merged.find((n) => n.mode !== undefined)?.mode;
+      if (otherModes) {
+        survivor.modes = otherModes;
+        survivor.mode = otherMode ?? 0;
+      }
+    }
+    for (const m of merged) {
+      const i = nodes.indexOf(m);
+      if (i >= 0) nodes.splice(i, 1);
+    }
+  }
+}
+
+/**
+ * 请求入口改道：当 `ingress` 或 `gateway` 节点在图上时，把 `client→app` 直连改成
+ * `client→ingress→(gateway)→app` 的链路，让反向代理 / 网关真正落在请求路径上，
+ * 而不是孤零零悬空。没有任何入口节点时（纯直连架构）保持 `client→app` 不变。
+ */
+function rerouteEntryThroughGateway(
+  edges: CanvasEdge[],
+  onCanvas: Set<string>,
+  portOf: (id: string) => string | undefined
+): void {
+  const has = (id: string) => onCanvas.has(id);
+  if (!has('ingress') && !has('gateway')) return;
+  for (let i = edges.length - 1; i >= 0; i--) {
+    if (edges[i].from === 'client' && edges[i].to === 'app') edges.splice(i, 1);
+  }
+  const chain: string[] = ['client'];
+  if (has('ingress')) chain.push('ingress');
+  if (has('gateway')) chain.push('gateway');
+  chain.push('app');
+  for (let i = 0; i < chain.length - 1; i++) {
+    const from = chain[i];
+    const to = chain[i + 1];
+    const isEntry = from === 'client';
+    const port = portOf(to) || (isEntry ? portOf(from) : undefined);
+    edges.push({
+      from,
+      to,
+      label: i === 0 ? 'HTTPS' : from === 'ingress' ? '路由转发' : 'HTTP',
+      kind: 'solid',
+      port,
+    });
+  }
 }
 
 function zoneBoxes(nodes: CanvasNode[], _minX: number) {
