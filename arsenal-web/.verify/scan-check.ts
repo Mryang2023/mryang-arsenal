@@ -999,12 +999,16 @@ if (!skipAll && factsShared) {
 // `buildServiceTopo` 一份里（Java 侧只摊平 `facts.services.declarations`，
 // 不做任何跨源关联 —— 10-04「判定逻辑两份实现」事故的防线）。
 //
-// 五个样本，全部**探针实扫**（含一个注入副本），没有一条在 TS 里手搓 facts：
+// 五个样本，全部**探针实扫**（含两个注入副本），没有一条在 TS 里手搓 facts：
 //   ① services-demo   微服务正样本：4 compose + 3 篇 k8s 文档 + 4 入口
 //   ② ghost-injected  ①的整目录副本 + 补上 ghost-service 的启动类 → 冲突必须消失
 //   ③ demo-repo       单体（既有 fixture）→ 1 个入口说「单体特征」
 //   ④ no-signal-repo  空信号 → 0 也是结论，且说清检查过哪些信号
 //   ⑤ near-name-repo  order-service vs order-svc → 不得合并
+//   ⑥ nested-root     ①的整目录塞进父目录再扫 —— 仓中仓布局（compose 在子目录、
+//                      服务代码在同级子目录）。2026-10-12 棒 5 真扫军火库自身时
+//                      发现 R1 只认入口路径第一段，这种布局下精确同名也归属失败，
+//                      报 2 条假 declared-no-code 冲突；修复后以声明所在目录为根归属
 if (!skipAll) {
   section('【11】服务拓扑：facts.services → 「这个项目有几个服务」');
 
@@ -1038,11 +1042,20 @@ if (!skipAll) {
     '',
   ].join('\n'), 'utf8');
 
+  // ⑥ 的材料：services-demo 整目录塞进父目录 nested-root/ 再扫 —— 仓中仓布局。
+  //    修复前（R1 只认入口路径第一段）这种布局报 2 条假 declared-no-code 冲突：
+  //    compose 明明在 services-demo/ 根下声明了 order-service，代码就在同级
+  //    order-service/ 里，却因为第一段是 services-demo 而归属不上。
+  const nestedRoot = path.join(tmpDir, 'nested-root');
+  fs.rmSync(nestedRoot, { recursive: true, force: true });
+  fs.cpSync(fixtureSvc, path.join(nestedRoot, 'services-demo'), { recursive: true });
+
   const svcActions = [
     `facts:${win(fixtureSvc)}`,
     `facts:${win(fixtureNear)}`,
     `facts:${win(fixtureNoSignal)}`,
     `facts:${win(ghostRepo)}`,
+    `facts:${win(nestedRoot)}`,
     `facts:${win(fixture)}`, // demo-repo 单体
   ];
   let r11 = runProbe('svc-topo', svcActions);
@@ -1062,6 +1075,7 @@ if (!skipAll) {
   const fEmpty = factsOf('no-signal-repo');
   const fGhost = factsOf('ghost-injected');
   const fDemo = factsOf('demo-repo');
+  const fNested = factsOf('nested-root');
 
   // ── ① 原始声明（Java 摊平层：只摊事实，不关联）────────────────
   const decl = fSvc.services?.declarations ?? [];
@@ -1241,6 +1255,29 @@ if (!skipAll) {
     // 反向：没有外部目标就不许出现点线（services-demo 只有 depends_on 的 5 4 虚线）
     && !svcSvg.includes('stroke-dasharray="1 3"') && svcSvg.includes('stroke-dasharray="5 4"'),
     `ext=${JSON.stringify(tMono.externals)} svgLen=${extSvg.length}`);
+
+  // ⑧ 仓中仓布局（2026-10-12 棒 5 真扫自身暴露）：compose 在子目录、服务代码在
+  //    同级子目录时，归属必须以**声明所在目录**为根 —— 只认入口路径第一段会把
+  //    order-service / payment-service 误报成「声明了但没有代码」。这条断言在
+  //    修复前是红的（2 条假冲突 + 2 个 codeOnly 副本单元），别把它当既有绿。
+  const tNested = buildServiceTopo(fNested);
+  const nOrder = tNested.units.find((u: any) => u.name === 'order-service');
+  const nPay = tNested.units.find((u: any) => u.name === 'payment-service');
+  check('11-18 仓中仓布局：声明所在目录为根归属，order-service/payment-service 挂上入口，冲突只剩 ghost-service',
+    fNested.code?.entryPoints?.length === 4
+    && nOrder?.matchedOn === 'dir-name' && nOrder?.codeOnly === false
+    && nOrder?.entries.map((e: any) => e.className).join(',') === 'OrderApplication'
+    && nOrder?.sources.map((s: any) => s.source).join('+') === 'compose+k8s'
+    && nOrder?.dockerfiles.length === 1 && nOrder?.poms.length === 1
+    && nPay?.matchedOn === 'dir-name' && nPay?.codeOnly === false
+    && nPay?.entries.map((e: any) => e.className).join(',') === 'PaymentApplication'
+    && tNested.conflicts.length === 1 && tNested.conflicts[0]?.unit === 'ghost-service'
+    && tNested.counts.units === 5 && tNested.counts.codeEntry === 4,
+    JSON.stringify({
+      conflicts: tNested.conflicts.map((c: any) => c.unit),
+      units: tNested.units.map((u: any) => `${u.name}${u.codeOnly ? '(codeOnly)' : ''}`),
+      counts: tNested.counts,
+    }));
 }
 
 // ── 收尾清理（finally 语义，2026-09-26 终检 P2-9）────────────────

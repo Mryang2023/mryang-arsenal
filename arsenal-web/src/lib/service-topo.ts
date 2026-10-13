@@ -20,8 +20,13 @@
  * 10-04 踩过。要改判据，只改这里，并且必须过 scan-check 的正反样本。
  *
  * 归属规则（三条，全部精确匹配，matchedOn 记录用的是哪条）：
- *   R1 dir-name —— 文件路径的第一段（`order-service/src/…` → `order-service`）
- *       与某个服务单元名恰好相等。mono-repo 的惯例布局就走这条。
+ *   R1 dir-name —— 文件路径里有**目录段**与某个服务单元名恰好相等。
+ *       以声明所在目录为根看相对路径：声明在仓库根时就是整条路径（mono-repo
+ *       的根布局 `order-service/src/…` 与 `services/order-service/src/…` 都走这条），
+ *       声明在子目录时只看该子目录内的相对路径（仓中仓：`deploy/` 上一层的
+ *       `services-demo/{docker-compose.yml, order-service/}` —— 10-12 真扫军火库
+ *       自身时发现只认第一段会把这种布局误报成「声明了但没有代码」）。
+ *       一个文件同时命中多个不同单元名 → 不猜，退回 R2/R3。
  *   R2 name     —— 代码入口的类名与单元名恰好相等（少见，但便宜）。
  *   R3 package  —— 入口类的包路径是文件路径的子串（`com/acme/order/`），
  *       经该入口间接归属。共享库布局走这条；比 R1 粗，所以排在最后。
@@ -158,9 +163,10 @@ export interface ServiceTopo {
 // 三、小工具
 // ─────────────────────────────────────────────────────────────
 
-function firstSegment(file: string): string | null {
-  const i = file.indexOf('/');
-  return i > 0 ? file.slice(0, i) : null;
+/** 文件路径的目录部分（`deploy/k8s/a.yml` → `deploy/k8s`；根下的文件 → `''`） */
+function dirOf(file: string): string {
+  const i = file.lastIndexOf('/');
+  return i > 0 ? file.slice(0, i) : '';
 }
 
 /** java 文件路径 → 包路径（`…/src/main/java/com/acme/order/X.java` → `com/acme/order/X`）。
@@ -246,7 +252,33 @@ export function buildServiceTopo(facts: {
     }
   }
 
-  // ── 2. 代码入口挂载（R1 dir-name → R2 name → 自建单元）──────
+  // ── 2. R1 索引：声明所在目录 → 单元名（入口 / 路由 / Dockerfile / pom 共用）──
+  //
+  // 为什么以声明目录为根：声明在仓库根时看整条路径（根布局与 services/ 布局
+  // 都覆盖），声明在子目录时只看该子目录内的相对路径 —— 仓中仓（一个仓库里
+  // 躺着好几个各自带 compose 的项目）下，服务代码就在 compose 的同级目录，
+  // 只认路径第一段会把它误报成「声明了但没有代码」（10-12 真扫自身时的实测）。
+  const declDirs: Array<{ name: string; dir: string }> = [];
+  for (const d of declarations) {
+    if ((d.source === 'compose' || d.source === 'k8s') && d.name != null && units.has(d.name)) {
+      declDirs.push({ name: d.name, dir: dirOf(d.path) });
+    }
+  }
+  /** R1：目录段精确匹配。多处命中不同单元名 → null（不猜，退回 R2/R3） */
+  const dirNameUnitOf = (file: string): string | null => {
+    const f = file.replace(/\\/g, '/');
+    const matched = new Set<string>();
+    for (const { name, dir } of declDirs) {
+      const rel = dir === '' ? f : (f.startsWith(dir + '/') ? f.slice(dir.length + 1) : null);
+      if (rel === null) continue;
+      const segs = rel.split('/');
+      segs.pop(); // 文件名不算目录段
+      if (segs.includes(name)) matched.add(name);
+    }
+    return matched.size === 1 ? [...matched][0] : null;
+  };
+
+  // ── 3. 代码入口挂载（R1 dir-name → R2 name → 自建单元）──────
   const pkgUnits = new Map<string, string>(); // 包路径 → 单元名（R3 用）
   const codeEntryCount = entries.length;
   const entryRuntimeCount: Record<string, number> = {};
@@ -254,9 +286,9 @@ export function buildServiceTopo(facts: {
     entryRuntimeCount[e.runtime] = (entryRuntimeCount[e.runtime] ?? 0) + 1;
     let unit: ServiceUnit | null = null;
     let matchedOn: 'dir-name' | 'name' | null = null;
-    const seg = firstSegment(e.file);
-    if (seg && units.has(seg)) {
-      unit = units.get(seg)!;
+    const dirName = dirNameUnitOf(e.file);
+    if (dirName) {
+      unit = units.get(dirName)!;
       matchedOn = 'dir-name';
     } else if (e.className && units.has(e.className)) {
       unit = units.get(e.className)!;
@@ -273,10 +305,10 @@ export function buildServiceTopo(facts: {
     if (e.package) pkgUnits.set(e.package.replace(/\./g, '/'), unit.name);
   }
 
-  // ── 3. 归属函数（路由 / 客户端 / Dockerfile / pom 共用）──────
+  // ── 4. 归属函数（路由 / 客户端 / Dockerfile / pom 共用）──────
   const ownerOf = (file: string): { unit: ServiceUnit; on: 'dir-name' | 'package' } | { unit: null; on: null } => {
-    const seg = firstSegment(file);
-    if (seg && units.has(seg)) return { unit: units.get(seg)!, on: 'dir-name' };
+    const dirName = dirNameUnitOf(file);
+    if (dirName) return { unit: units.get(dirName)!, on: 'dir-name' };
     const pkgPath = packagePathOf(file);
     if (pkgPath) {
       // 包前缀匹配：入口包 com/acme/order 是文件路径的前缀（尾斜杠防 order/ 咬住 orderextra/）
@@ -298,13 +330,13 @@ export function buildServiceTopo(facts: {
   }
 
   for (const df of dockerfiles) {
-    const seg = firstSegment(df.path);
-    if (seg && units.has(seg)) units.get(seg)!.dockerfiles.push(df.path);
+    const dirName = dirNameUnitOf(df.path);
+    if (dirName) units.get(dirName)!.dockerfiles.push(df.path);
     else unattributedDockerfiles.push(df.path);
   }
   for (const a of artifacts) {
-    const seg = firstSegment(a.path);
-    if (seg && units.has(seg)) units.get(seg)!.poms.push(a.path);
+    const dirName = dirNameUnitOf(a.path);
+    if (dirName) units.get(dirName)!.poms.push(a.path);
     else unattributedPoms.push(a.path);
   }
 
@@ -360,7 +392,7 @@ export function buildServiceTopo(facts: {
         unit: u.name,
         // 措辞说准：是「没有代码能归属到它」，不是「仓库里找不到代码」——
         // 单体仓库的代码就在根目录，只是名字对不上（demo-repo 实测教训）
-        detail: `部署清单声明了「${u.name}」，但没有任何可运行入口、路由或构建文件能归属到它（目录名与包路径精确匹配都对不上）`,
+        detail: `部署清单声明了「${u.name}」，但没有任何可运行入口、路由或构建文件能归属到它（目录名 / 声明所在目录 / 包路径精确匹配都对不上）`,
         evidence: u.sources.map((s) => ev(s.path, s.line)),
       });
     }
