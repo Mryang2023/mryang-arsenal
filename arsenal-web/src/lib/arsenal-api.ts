@@ -761,6 +761,17 @@ export interface QaRepro {
   attempts?: number;
   /** 复现率：redCount / attempts。1/3 就是 0.333，不四舍五入成「稳定复现」 */
   rate?: number;
+  /**
+   * 稳定性分档（判据在 `ReproVerdict`，纯函数）。
+   *
+   * ⚠ 它**只是标注，不影响两档分流** —— 偶发复现仍然是实锤。
+   * 并发 / 时序类缺陷天生低复现率，若因为「不稳定」降级，它们就永远进不了实锤档。
+   */
+  stability?: 'stable' | 'flaky' | 'absent' | 'insufficient';
+  /** 稳定性的一句话说法，后端原话 */
+  stabilityText?: string;
+  /** 给到稳定性结论至少要几次样本 */
+  stableSamples?: number;
   /** 跑红时的断言异常栈 —— 这是实锤的证据本身 */
   failureExcerpt?: string;
   /** 编译没过时的第一处错误 */
@@ -851,13 +862,62 @@ export interface QaReport {
     notReproduced: number;
     invalidTest: number;
     notRun: number;
+    /** 稳定性只做标注，不参与两档分流 */
+    stability?: { stable: number; flaky: number; insufficientSamples: number; minSamples: number };
   };
   /** not-run | ok | partial */
   reproStatus?: string;
   reproReason?: string;
   reproNotes?: string[];
   reproUsage?: Record<string, unknown> | null;
+
+  // ── C4 · 审查员委员会 ──
+  /** 三路并行审出来的问题，带「共识 / 孤证」标注 */
+  committeeFindings?: QaCommitteeFinding[];
+  committeeNotes?: string[];
+  committeeSummary?: {
+    consensus: number;
+    solo: number;
+    budgetCut: boolean;
+    note?: string;
+  };
+  /** 三个审查员**各一份**的账 —— 成本 ×3 这件事必须看得见 */
+  committeeUsage?: {
+    model: string;
+    members: number;
+    batches: number;
+    promptTokens: number;
+    completionTokens: number;
+    budgetCut: boolean;
+    costNote?: string;
+    perJudgeer: Record<
+      string,
+      { ran: boolean; reason?: string; batches: number; issues: number; promptTokens: number; completionTokens: number }
+    >;
+  } | null;
   scannedFiles: string[];
+}
+
+/**
+ * 一条委员会结论。
+ *
+ * ⚠ {@code signal} 只有两档且**都不是判负**：`consensus`（2+ 人报）与 `solo`（1 人报）。
+ * 孤证不等于误报 —— 它是置信标注，与「语义 finding 必带 confidence、不进 P0」同一条纪律。
+ */
+export interface QaCommitteeFinding {
+  file: string;
+  line: number;
+  title: string;
+  impact: string;
+  evidence: string;
+  /** consensus | solo */
+  signal: string;
+  /** 几个审查员报了它（1 = 孤证） */
+  voters: number;
+  /** 具体是谁：security | performance | concurrency */
+  reportedBy: string[];
+  /** 报告层给这一档的中文说法 */
+  signalText: string;
 }
 
 export interface QaTree {

@@ -80,6 +80,8 @@ public class QaService {
     private final SemanticJudge judge;
     /** C1：给语义 finding 补「我真的跑红了」的实锤。关掉用 arsenal.qa.repro.max-per-job=0。 */
     private final ReproService repro;
+    /** C4：三个审查员并行 + 交叉验证（共识 / 孤证）。 */
+    private final CommitteeJudge committee;
     /** 本地 maven 仓库 —— 编译与跑复现测试都要它。找不到就如实说「没跑」。 */
     private final Path m2Repo;
 
@@ -87,7 +89,7 @@ public class QaService {
     private ExecutorService executor;
 
     public QaService(AutopsyService autopsy, RuleIndex index, ObjectMapper mapper,
-                     LlmClient llm, SemanticJudge judge, ReproService repro,
+                     LlmClient llm, SemanticJudge judge, ReproService repro, CommitteeJudge committee,
                      @Value("${arsenal.qa.data-dir:../.data/qa}") String dataDir,
                      @Value("${arsenal.qa.pool-size:2}") int poolSize,
                      @Value("${arsenal.m2.repo:}") String m2RepoEnv) {
@@ -97,6 +99,7 @@ public class QaService {
         this.llm = llm;
         this.judge = judge;
         this.repro = repro;
+        this.committee = committee;
         this.baseDir = Path.of(dataDir).toAbsolutePath().normalize();
         this.poolSize = Math.max(1, poolSize);
         // 与 AutopsyController#m2Repo 同一个口径：env 优先，否则 ~/.m2/repository。
@@ -337,7 +340,38 @@ public class QaService {
 
             job.enterPhase(QaJob.PHASES.get(2)); // ANALYZING
             persistJob(job);
+            // ── C4 委员会：同样必须在 inspect 关掉 source 之前跑 ──
+            // ⚠ 顺序不是随意的：autopsy.inspect 内部会 close 掉 source（git 模式的工作副本用完即焚），
+            //   事后再读文件就是空的。所以委员会与复现一样，都排在 inspect 之前。
+            CommitteeJudge.Outcome comOutcome = null;
+            if (job.deepCheck()) {
+                comOutcome = committee.run(source.root(), semanticTargets(job, allFiles));
+            }
+
             ObjectNode qa = assemble(job, report, allFiles, matched, semantic, semanticSkip, reproOutcome);
+
+            if (comOutcome != null) {
+                qa.set("committeeFindings", comOutcome.findings());
+                qa.set("committeeUsage", comOutcome.usage());
+                ArrayNode cn = qa.putArray("committeeNotes");
+                comOutcome.notes().forEach(cn::add);
+                ObjectNode cs = qa.putObject("committeeSummary");
+                cs.put("consensus", comOutcome.consensus());
+                cs.put("solo", comOutcome.solo());
+                cs.put("budgetCut", comOutcome.budgetCut());
+                cs.put("note", "孤证 ≠ 误报：只有一个审查员报的是置信标注，"
+                        + "与「语义 finding 必带 confidence、不进 P0」是同一条纪律");
+            } else {
+                qa.set("committeeFindings", mapper.createArrayNode());
+                qa.putNull("committeeUsage");
+                qa.putArray("committeeNotes");
+                ObjectNode cs = qa.putObject("committeeSummary");
+                cs.put("consensus", 0);
+                cs.put("solo", 0);
+                cs.put("budgetCut", false);
+                cs.put("note", "语义深检未开启 —— 委员会需要 LLM，本次没跑");
+            }
+
             job.markPhaseDone(QaJob.PHASES.get(2));
 
             job.enterPhase(QaJob.PHASES.get(3)); // AGGREGATING
@@ -457,11 +491,22 @@ public class QaService {
         int notReproduced = 0;
         int invalidDraft = 0;
         int notRun = 0;
+        int stable = 0;
+        int flaky = 0;
+        int insufficient = 0;
         if (semantic != null) {
             for (JsonNode f : semantic.findings()) {
                 String v = f.path("repro").path("verdict").asString("");
                 if (ReproVerdict.REPRODUCED.equals(v)) {
                     proven.add(f);
+                    String st = f.path("repro").path("stability").asString("");
+                    if (ReproVerdict.STABILITY_STABLE.equals(st)) {
+                        stable++;
+                    } else if (ReproVerdict.STABILITY_FLAKY.equals(st)) {
+                        flaky++;
+                    } else {
+                        insufficient++;
+                    }
                 } else {
                     unconfirmed.add(f);
                     if (ReproVerdict.NOT_REPRODUCED.equals(v)) {
@@ -481,6 +526,13 @@ public class QaService {
         tiers.put("notReproduced", notReproduced);
         tiers.put("invalidTest", invalidDraft);
         tiers.put("notRun", notRun);
+        // 稳定性**不参与两档分流**，只做标注：偶发复现仍然是实锤（并发类缺陷天生低复现率，
+        // 若因为「不稳定」降级，它们就永远进不了实锤档，也就永远没人修）。
+        ObjectNode stab = tiers.putObject("stability");
+        stab.put("stable", stable);
+        stab.put("flaky", flaky);
+        stab.put("insufficientSamples", insufficient);
+        stab.put("minSamples", ReproVerdict.MIN_SAMPLES_FOR_STABILITY);
         if (reproOutcome == null) {
             rep.put("reproStatus", "not-run");
             rep.put("reproReason", semantic == null

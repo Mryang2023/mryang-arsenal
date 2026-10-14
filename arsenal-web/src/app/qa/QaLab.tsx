@@ -710,6 +710,15 @@ function SemanticPanel({ report }: { report: QaReportData }) {
               四档分开是因为下一步不同：「复现失败」该去改规则或撤案，「没跑起来」该去修环境 ——
               合成一句「未实锤」会让人分不清该动哪一个。
             </p>
+            {tiers?.stability && (
+              <p className="mt-1 text-[10px] leading-[15px] text-fgFaint">
+                稳定性（只是标注，<b>不参与分流</b>）：稳定 {tiers.stability.stable} ·
+                偶发 {tiers.stability.flaky} · 样本不足 {tiers.stability.insufficientSamples}
+                （少于 {tiers.stability.minSamples} 次不给稳定性结论）。
+                <b>偶发复现仍然是实锤</b> —— 并发 / 时序类缺陷天生低复现率，
+                若因为「不稳定」降级，它们就永远进不了实锤档，也就永远没人修。
+              </p>
+            )}
             {(report.reproNotes ?? []).length > 0 && (
               <ul className="mt-1 space-y-0.5 text-[10px] leading-[15px] text-fgFaint">
                 {report.reproNotes!.map((n, i) => (
@@ -761,6 +770,8 @@ function SemanticPanel({ report }: { report: QaReportData }) {
         </div>
       )}
 
+      <CommitteePanel report={report} />
+
       {findings.length > 0 ? (
         <div className="panel px-3 py-2.5">
           <p className="mono text-[10px] uppercase tracking-wider text-fgFaint">
@@ -788,6 +799,97 @@ function SemanticPanel({ report }: { report: QaReportData }) {
             语义层跑过了，没有给出带行号的发现 —— 「跑过且没报」不等于「合规」，见上方判定明细与覆盖率。
           </div>
         )
+      )}
+    </div>
+  );
+}
+
+function CommitteePanel({ report }: { report: QaReportData }) {
+  const items = report.committeeFindings ?? [];
+  const sum = report.committeeSummary;
+  const usage = report.committeeUsage ?? null;
+  const names: Record<string, string> = {
+    security: '安全',
+    performance: '性能',
+    concurrency: '并发',
+  };
+  return (
+    <div className="panel px-3 py-2.5">
+      <p className="mono text-[10px] uppercase tracking-wider text-fgFaint">
+        C4 · 审查员委员会（共识 {sum?.consensus ?? 0} · 孤证 {sum?.solo ?? 0}）
+      </p>
+
+      {sum?.note && <p className="mt-1 text-[10px] leading-[15px] text-fgFaint">{sum.note}</p>}
+
+      {usage && (
+        <div className="mt-1.5 flex flex-wrap gap-x-3 gap-y-1 text-[10px] leading-[15px] text-fgFaint">
+          <span className="mono">model {usage.model}</span>
+          <span>批数 {usage.batches}/{usage.members} 位审查员</span>
+          <span>
+            tokens 入 {usage.promptTokens} / 出 {usage.completionTokens}
+          </span>
+          {usage.costNote && (
+            <span style={{ color: '#E5A33D' }}>{usage.costNote}</span>
+          )}
+        </div>
+      )}
+
+      {usage &&
+        Object.entries(usage.perJudgeer ?? {}).map(([who, v]) => (
+          <p key={who} className="text-[10px] leading-[15px] text-fgFaint">
+            {names[who] ?? who}审查员：
+            {v.ran ? (
+              <span style={{ color: '#7FA650' }}>跑过了，报 {v.issues} 条</span>
+            ) : (
+              <span style={{ color: '#E5A33D' }}>{v.reason ?? '这一路没跑起来'}</span>
+            )}
+          </p>
+        ))}
+
+      {items.length === 0 ? (
+        <p className="mt-2 text-[10.5px] leading-[16px] text-fgFaint">
+          本次没有委员会结论。
+          {usage
+            ? '三位审查员跑完了，一个问题都没报 —— 这不等于「代码没问题」，它们只看得到送进来的那几个文件与这一批视角。'
+            : '委员会没跑（LLM 未配置 / 语义深检未开启）。'}
+        </p>
+      ) : (
+        <ul className="mt-2 space-y-1.5">
+          {items.map((f, i) => {
+            const consensus = f.signal === 'consensus';
+            return (
+              <li key={`${f.file}-${f.line}-${i}`} className="rounded border border-line px-2 py-1.5">
+                <div className="flex items-baseline gap-2">
+                  <span
+                    className="mono text-[9.5px]"
+                    style={{ color: consensus ? '#D9A441' : '#E5A33D' }}
+                  >
+                    [{consensus ? `共识 ×${f.voters}` : '孤证'}]
+                  </span>
+                  <span className="flex-1 text-[11px] text-fg">{f.title}</span>
+                  <span className="mono text-[9.5px] text-fgFaint">
+                    {f.reportedBy.map((r) => names[r] ?? r).join('、')}
+                  </span>
+                </div>
+                <p className="mono mt-0.5 text-[10px] text-fgFaint">
+                  {f.file}:{f.line} — {f.evidence}
+                </p>
+                {f.impact && (
+                  <p className="mt-0.5 text-[10.5px] leading-[16px] text-fgMuted">{f.impact}</p>
+                )}
+                <p className="mt-0.5 text-[10px] leading-[15px] text-fgFaint">{f.signalText}</p>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+
+      {(report.committeeNotes ?? []).length > 0 && (
+        <ul className="mt-1.5 space-y-0.5 text-[10px] leading-[15px] text-fgFaint">
+          {report.committeeNotes!.map((n, i) => (
+            <li key={`cn-${i}`}>· {n}</li>
+          ))}
+        </ul>
       )}
     </div>
   );
@@ -864,6 +966,26 @@ function SemanticFindingRow({
             {r.rate != null && r.attempts ? `　复现率 ${r.rate.toFixed(2)}（${r.redCount ?? 0}/${r.attempts}）` : ''}
           </p>
           <p className="mt-0.5 text-[10px] leading-[15px] text-fgFaint">{r.reason}</p>
+          {r.stability && r.verdict === 'reproduced' && (
+            <p className="mt-0.5 text-[10px] leading-[15px] text-fgFaint">
+              稳定性：
+              <span
+                style={{
+                  color:
+                    r.stability === 'stable'
+                      ? '#D9A441'
+                      : r.stability === 'flaky'
+                        ? '#E5A33D'
+                        : '#888780',
+                }}
+              >
+                {r.stabilityText}
+              </span>
+              {r.stability === 'flaky' && (
+                <span className="text-fgFaint">（仍算实锤，只是你没法靠它天天拦）</span>
+              )}
+            </p>
+          )}
           {r.failureExcerpt && (
             <pre className="mono mt-1 max-h-32 overflow-auto rounded border border-line px-1.5 py-1 text-[9.5px] leading-[14px] text-fgMuted">
               {r.failureExcerpt}

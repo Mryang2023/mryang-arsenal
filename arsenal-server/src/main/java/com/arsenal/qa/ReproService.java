@@ -190,6 +190,10 @@ public class ReproService {
             if (j.rate() != null) {
                 repro.put("rate", j.rate());
             }
+            // 稳定性是 rate 的函数，但**报告层要看得见** —— 判据在 ReproVerdict 一处，这里只转述
+            repro.put("stability", j.stability())
+                    .put("stabilityText", ReproVerdict.stabilityText(j))
+                    .put("stableSamples", ReproVerdict.MIN_SAMPLES_FOR_STABILITY);
             if (j.failureExcerpt() != null && !j.failureExcerpt().isBlank()) {
                 repro.put("failureExcerpt", j.failureExcerpt());
             }

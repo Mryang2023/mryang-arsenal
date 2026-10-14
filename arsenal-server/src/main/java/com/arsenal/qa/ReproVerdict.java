@@ -55,6 +55,58 @@ public final class ReproVerdict {
         public boolean proven() {
             return REPRODUCED.equals(verdict);
         }
+
+        /** 稳定性分档（见 {@link #stabilityOf}）。判定里不直接存 —— 它是 rate 的函数，存两份就会漂。 */
+        public String stability() {
+            return stabilityOf(redCount, attempts);
+        }
+    }
+
+    // ── 稳定性：flaky 判定 ────────────────────────────────────────
+    //
+    // 计划书 C1 的边界写得很清楚：「并发 bug 的复现测试本身可能 flaky ——
+    // 如实标『复现率 3/10』，不假装稳定」。
+    // 所以这里做的是**标注**，不是**降级**：
+    //
+    //   ⚠ 偶发复现**仍然是实锤**。跑红过就是跑红过 ——
+    //     如果因为「不稳定」把它降到待确认，那正是并发类缺陷的下场：
+    //     它们天生低复现率，于是永远进不了实锤档，于是永远没人修。
+    //     稳定性只影响「你有多急」，不影响「它是不是真的」。
+    public static final String STABILITY_STABLE = "stable";
+    public static final String STABILITY_FLAKY = "flaky";
+    public static final String STABILITY_ABSENT = "absent";
+    /** 样本不足 —— **宁可不给结论，也不拿 1/1 说「稳定复现」**。 */
+    public static final String STABILITY_INSUFFICIENT = "insufficient";
+
+    /** 少于这个样本数就不给稳定性结论。1 次跑红说明不了「稳定」，2 次也说明不了。 */
+    public static final int MIN_SAMPLES_FOR_STABILITY = 3;
+
+    /**
+     * 稳定性分档。<b>纯函数</b>，判据只看两个数 —— 所以能被直接验证。
+     *
+     * @param redCount 跑红的次数（不含没跑起来的那些）
+     * @param attempts 真正跑了的次数（<b>分母</b>：超时的、被沙箱拒的不算）
+     */
+    public static String stabilityOf(int redCount, int attempts) {
+        if (attempts < MIN_SAMPLES_FOR_STABILITY) {
+            return STABILITY_INSUFFICIENT;
+        }
+        if (redCount <= 0) {
+            return STABILITY_ABSENT;
+        }
+        return redCount >= attempts ? STABILITY_STABLE : STABILITY_FLAKY;
+    }
+
+    /** 稳定性的一句话说法，页面与报告原样用。 */
+    public static String stabilityText(Judgement j) {
+        return switch (j.stability()) {
+            case STABILITY_STABLE -> "稳定复现（每次都红）";
+            case STABILITY_FLAKY -> "偶发复现 —— 是真问题，但不稳定"
+                    + "（这类通常是并发 / 时序 / 环境相关；它仍然是实锤，只是你没法靠它天天拦）";
+            case STABILITY_ABSENT -> "跑够了但一次都没红";
+            default -> "样本不足（跑了 " + j.attempts() + " 次，少于 " + MIN_SAMPLES_FOR_STABILITY
+                    + " 次）—— 不给稳定性结论";
+        };
     }
 
     private static final Pattern TESTS = Pattern.compile("TESTS total=(\\d+) succeeded=(\\d+) failed=(\\d+)");
@@ -92,10 +144,14 @@ public final class ReproVerdict {
         int effective = ran.size();
         if (red > 0) {
             // 复现率如实给，不四舍五入成「稳定复现」—— 3 次里红 1 次就是 1/3
-            return new Judgement(REPRODUCED,
+            Judgement j = new Judgement(REPRODUCED,
                     "复现成功：" + red + "/" + effective + " 次跑红（另有 " + (attempts - effective)
                             + " 次没跑起来，不计入分母）",
                     red, effective, (double) red / effective, firstGoodStack);
+            // ⚠ reason 里补一句稳定性 —— 「跑红了」与「每次都红」是两句话，
+            //   只报前者会让并发类缺陷看起来和空指针一样可靠。
+            return new Judgement(j.verdict(), j.reason() + "；" + stabilityText(j),
+                    j.redCount(), j.attempts(), j.rate(), j.failureExcerpt());
         }
         // 全绿 —— 这是结论，不是失败
         return new Judgement(NOT_REPRODUCED,
@@ -208,5 +264,13 @@ public final class ReproVerdict {
             case INVALID -> "复现测试本身无效，未判";
             default -> "未实锤（没跑起来）";
         };
+    }
+
+    /**
+     * 两档分流的最终依据。<b>偶发复现算实锤</b> —— 见 {@link #STABILITY_FLAKY} 处的理由。
+     * 这一句写在方法里而不是散在调用方，是为了让它只有一个可被直接验证的出处。
+     */
+    public static boolean provedTier(Judgement j) {
+        return REPRODUCED.equals(j.verdict());
     }
 }

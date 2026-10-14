@@ -81,6 +81,17 @@ arsenal:
       # 每条跑几次取复现率。1 次分不出「稳定复现」与「碰巧红」，所以默认 3。
       attempts: ${ARSENAL_REPRO_ATTEMPTS:3}
 
+    # C4 · 审查员委员会：安全 / 性能 / 并发三路并行审同一批文件，交叉验证后标「共识 / 孤证」。
+    # ⚠ 成本是单审的 3 倍 —— 预算闸门必须与功能同时上线，所以这一段一定有三个可配项。
+    committee:
+      max-batches-per-job: ${ARSENAL_COMMITTEE_MAX_BATCHES:12}
+      # 三个审查员并发数。调到 1 就退化成串行（墙钟 ×3），报告里 costNote 会照实说明。
+      parallelism: ${ARSENAL_COMMITTEE_PARALLELISM:3}
+
+    # C2 · 改造工坊：一次会话最多应用几处改造点。「人踩油门」不等于「一次能踩一百脚」。
+    refactor:
+      max-per-session: ${ARSENAL_REFACTOR_MAX_PER_SESSION:20}
+
   # 编译与跑复现测试要用的本地 maven 仓库；留空 = ~/.m2/repository。
   # 找不到不是启动失败 —— 那只意味着「实锤跑不了」，报告里会如实记成 not-run。
   m2:
