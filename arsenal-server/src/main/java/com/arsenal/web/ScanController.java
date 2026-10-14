@@ -1,6 +1,7 @@
 package com.arsenal.web;
 
 import com.arsenal.archify.ArchifyService;
+import com.arsenal.scan.IncrementalRequest;
 import com.arsenal.scan.ProjectScanner;
 import com.arsenal.scan.ScanException;
 import com.arsenal.scan.SourceResolver;
@@ -60,6 +61,13 @@ public class ScanController {
      * <p>请求体：{@code {"source":{"kind":"path"|"git","value":"..."}}}。
      * 缺字段、kind 不认识、路径不存在都是 400 —— 它们是调用方改一下就好的问题，
      * 不是服务端异常。
+     *
+     * <p><b>L2 增量（可选）</b>：请求体可另带
+     * {@code {"prevFacts":{…上次那份 facts…},"changedFiles":["src/a.java",…]}}。
+     * 两个都不带就是全量老路；带了也<b>不一定</b>会增量 ——
+     * 「变更文件里有没有描述文件」由
+     * {@link com.arsenal.scan.IncrementalHint} 判，判据不在本方法里，
+     * 判定结果一律写进返回的 {@code incremental} 段与 notes，调用方不需要猜。
      */
     @PostMapping("/facts")
     public ApiResponse<JsonNode> facts(@RequestBody JsonNode body) {
@@ -69,12 +77,48 @@ public class ScanController {
         }
         String kind = source.path("kind").asText("");
         String value = source.path("value").asText("");
+        IncrementalRequest hint = readHint(body);
         return switch (kind) {
-            case "path" -> ApiResponse.ok(scanner.scan(SourceResolver.fromPath(value)));
-            case "git" -> ApiResponse.ok(scanner.scan(SourceResolver.fromGit(value)));
+            case "path" -> ApiResponse.ok(scanner.scan(SourceResolver.fromPath(value), hint));
+            case "git" -> ApiResponse.ok(scanner.scan(SourceResolver.fromGit(value), hint));
             default -> throw new IllegalArgumentException(
                     "source.kind 只支持 path / git，收到的是「" + kind + "」（zip 请走 /api/scan/upload）");
         };
+    }
+
+    /**
+     * 读增量提示。**入参校验全在这里**（不靠框架异常 —— {@code GlobalExceptionHandler}
+     * 会把 400 吃成 500，那会让「参数写错了」变成「后端炸了」）。
+     *
+     * <p>刻意<b>不</b>校验 {@code changedFiles} 的条目数上限：条目多只是判据更慢，
+     * 而「悄悄截断一部分再拿去判」会直接给出错误的复用结论 ——
+     * 要防就在客户端截断并明说，不在这里静默丢弃。
+     */
+    private IncrementalRequest readHint(JsonNode body) {
+        JsonNode prev = body == null ? null : body.get("prevFacts");
+        JsonNode changed = body == null ? null : body.get("changedFiles");
+        if (prev == null || changed == null) return IncrementalRequest.none();
+        if (!prev.isObject()) {
+            throw new IllegalArgumentException("prevFacts 必须是一份 facts 对象");
+        }
+        if (!changed.isArray()) {
+            throw new IllegalArgumentException("changedFiles 必须是字符串数组");
+        }
+        java.util.Set<String> rel = new java.util.LinkedHashSet<>();
+        for (JsonNode n : changed) {
+            if (!n.isTextual()) {
+                throw new IllegalArgumentException("changedFiles 里混进了非字符串条目");
+            }
+            String s = n.asText();
+            // 路径逃逸：这里只当字符串比对，不落盘不读文件，但仍然拒掉明显不是相对路径的条目，
+            // 否则「复用」这个结论会建立在一个我们没读过的路径上
+            if (s.startsWith("/") || s.contains("..") || s.contains("\\")) {
+                throw new IllegalArgumentException("changedFiles 只接受仓库相对路径，收到的是「" + s + "」");
+            }
+            rel.add(s);
+        }
+        if (rel.isEmpty()) return IncrementalRequest.none();
+        return new IncrementalRequest(prev, rel);
     }
 
     /**

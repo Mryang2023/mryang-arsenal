@@ -38,10 +38,23 @@ export const STATUS_PARTIAL = 'partial';
  * @property {{p0: number|null, p1: number|null, other: number|null, obs: number|null}} verdict
  * @property {{declarations: number|null, entryPoints: number|null, units: number|null, conflicts: number|null}} services
  * @property {{executed: number|null, total: number|null}} coverage
- * @property {{files: number, bytes: number, ms: number, truncated: boolean}} scan
+ * @property {{files: number, bytes: number, ms: number, truncated: boolean, delta?: ScanDelta|null}} scan
  * @property {PointStatus} status
  * @property {string} [note]
  * @property {string} [degraded] 本点为什么是 partial：采不到的原因原话
+ */
+
+/**
+ * 文件级差分的**计数摘要**。只带计数不带文件清单 ——
+ * 清单可能有几千条，塞进 JSONL 会让「一个点」变成「一个点加几百 KB」。
+ * @typedef {Object} ScanDelta
+ * @property {number} added
+ * @property {number} modified
+ * @property {number} removed
+ * @property {number} unchanged
+ * @property {number|null} changed 变更总数；trust=false 时是 null（「没算出来」不是 0）
+ * @property {boolean} trust
+ * @property {string} caveat
  */
 
 const FINGERPRINT_KINDS = ['dir', 'git', 'report'];
@@ -84,7 +97,26 @@ export function pointShapeIssues(p) {
   }
   const scan = p.scan;
   if (!isPlainObject(scan)) out.push('缺少 scan 段（这次扫了多少文件 / 字节 / 毫秒）');
-  else if (typeof scan.truncated !== 'boolean') out.push('scan.truncated 不是 boolean —— 截断与否不能含糊');
+  else {
+    if (typeof scan.truncated !== 'boolean') out.push('scan.truncated 不是 boolean —— 截断与否不能含糊');
+    // delta 是可选的（旧点没有），但**在就要完整**：半份差分比没有差分更难解释
+    if (scan.delta !== undefined && scan.delta !== null) {
+      if (!isPlainObject(scan.delta)) {
+        out.push('scan.delta 不是对象');
+      } else {
+        for (const k of ['added', 'modified', 'removed', 'unchanged']) {
+          if (!isCountOrNull(scan.delta[k])) out.push(`scan.delta.${k} 必须是非负整数或 null`);
+        }
+        if (!isCountOrNull(scan.delta.changed)) out.push('scan.delta.changed 必须是非负整数或 null');
+        if (typeof scan.delta.trust !== 'boolean') out.push('scan.delta.trust 不是 boolean');
+        if (typeof scan.delta.caveat !== 'string') out.push('scan.delta.caveat 必须是字符串');
+        // 「没算出来」不许长成「0 个变化」：trust=false 时 changed 必须为 null
+        if (scan.delta.trust === false && scan.delta.changed !== null) {
+          out.push('scan.delta.trust=false 时 changed 必须是 null —— 「没算出来」不是「0 个变化」');
+        }
+      }
+    }
+  }
 
   for (const seg of ['verdict', 'services', 'coverage']) {
     const keys =
@@ -144,9 +176,11 @@ export function servicesFromFacts(facts) {
  * @param {Record<string, any>|null} args.facts   `/api/scan/facts` 回包
  * @param {string|null} [args.note]
  * @param {string|null} [args.degraded]
+ * @param {{added: number, modified: number, removed: number, unchanged: number, changed: number|null, trust: boolean, caveat: string}|null} [args.delta]
+ *        文件级差分摘要（L2）；null = 这次没算（例如没落清单）
  * @returns {VitalsPoint}
  */
-export function buildPoint({ snapshotId, ts, fp, report, facts, note = null, degraded = null }) {
+export function buildPoint({ snapshotId, ts, fp, report, facts, note = null, degraded = null, delta = null }) {
   const hasReport = !!report && Array.isArray(report.p0) && Array.isArray(report.p1);
   return {
     schemaVersion: SERIES_SCHEMA_VERSION,
@@ -177,6 +211,7 @@ export function buildPoint({ snapshotId, ts, fp, report, facts, note = null, deg
       // 有报告就用报告里的 elapsedMs（那是真扫描耗时）；没有就用指纹采集的 walking 时间
       ms: typeof report?.elapsedMs === 'number' ? report.elapsedMs : fp.ms,
       truncated: report?.scope?.truncated ?? fp.tree.truncated,
+      ...(delta ? { delta } : {}),
     },
     // truncated 为真 = 规模闸门截断 = 指纹覆盖不全 → partial；缺报告同样 partial
     status:

@@ -97,8 +97,12 @@ type CheckupStage =
  *      相同，于是归入已有快照、只更新 `savedAt`。这才是**校验过的**没变，
  *      代价是这一趟已经扫过了。
  *
- * L2（只重扫变化的文件）**没做**：那要先重构 `CodeScanner` 的聚合方式，
- * 页面上有专门一段写明，不许让人以为这支专栏存在。
+ * L2（只重扫变化的文件）：**CLI 那一路做了，浏览器这一路没有。**
+ *   · CLI `autopsy-watch once` 会算文件级差分（mtime + size），把差异与上一份 facts
+ *     一起送给 `/api/scan/facts`；后端判「变更文件里有没有描述文件」，
+ *     没有就沿用 build/config/deploy/frontend/techStack，只重算代码侧。
+ *   · 页面这一趟**仍然全量**：浏览器读不到目录 mtime，算不出差分，
+ *     所以它没有 L2 也不假装有。想看差分就跑 CLI。
  */
 
 const MODES: [Mode, string, string][] = [

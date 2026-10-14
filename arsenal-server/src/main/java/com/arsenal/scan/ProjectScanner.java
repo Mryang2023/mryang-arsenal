@@ -54,6 +54,17 @@ public final class ProjectScanner {
      * @param source 输入源（本地目录 / zip / git 都是它）
      */
     public ObjectNode scan(SourceResolver source) {
+        return scan(source, null);
+    }
+
+    /**
+     * 扫描，**可选地带上 L2 增量提示**。
+     *
+     * @param source 输入源（本地目录 / zip / git 都是它）
+     * @param hint   上一份 facts + 这次变更的文件相对路径；null = 全量（老路）。
+     *               能不能用由 {@link IncrementalHint#usable} 判，判据不在本方法里。
+     */
+    public ObjectNode scan(SourceResolver source, IncrementalRequest hint) {
         long start = System.currentTimeMillis();
         try (source) {
             boolean[] collectFlags = new boolean[2];
@@ -76,37 +87,69 @@ public final class ProjectScanner {
             facts.put("scannedAt", OffsetDateTime.now().toString());
 
             List<ScannedDep> deps = new ArrayList<>();
-            ObjectNode build = BuildScanner.scan(ctx, deps);
-            facts.set("build", build);
 
-            ArrayNode config = ConfigScanner.scan(ctx);
-            facts.set("config", config);
+            // ── L2：判据在 IncrementalHint，这里只照办 ──
+            // 五个描述文件驱动的块要么沿用、要么重算；code / services 永远重算。
+            // facts 的键顺序**与全量路径保持一致**（build → config → deploy → code →
+            // services → frontend → techStack）—— 顺序是输出稳定的一部分，
+            // 增量路径若另开一个顺序，逐字节比对的断言会在「这次走了增量」时才红。
+            boolean sameRoot = hint != null && hint.prevFacts() != null
+                    && source.rootName().equals(hint.prevFacts().path("root").asText(""));
+            boolean incremental = IncrementalHint.usable(hint == null ? null : hint.prevFacts(),
+                    hint == null ? null : hint.changedFiles(), sameRoot);
+            int reused = incremental ? IncrementalHint.reuseBlocks(hint.prevFacts(), facts, mapper) : 0;
+            if (incremental) {
+                ctx.note(ScanNote.WARN, "INCREMENTAL_REUSED",
+                        "L2 增量：本次变更的 " + hint.changedFiles().size() + " 个文件里没有描述文件，"
+                                + "build / config / deploy / frontend / techStack 沿用上一份事实（"
+                                + hint.prevFacts().path("scannedAt").asText("时刻未记录") + " 那次），"
+                                + "只有代码侧重算。若那次事实本身已过期，这里也会一起过期 —— "
+                                + "客户端报差异的盲区与指纹相同（mtime + size）");
+            }
 
-            ObjectNode deploy = DeployScanner.scan(ctx);
-            ArrayNode ci = CiScanner.scan(ctx);
-            deploy.set("ci", ci);
-            facts.set("deploy", deploy);
+            if (!incremental) {
+                ObjectNode build = BuildScanner.scan(ctx, deps);
+                facts.set("build", build);
+
+                ArrayNode config = ConfigScanner.scan(ctx);
+                facts.set("config", config);
+
+                ObjectNode deploy = DeployScanner.scan(ctx);
+                ArrayNode ci = CiScanner.scan(ctx);
+                deploy.set("ci", ci);
+                facts.set("deploy", deploy);
+            } else {
+                warnUnmatched(ctx, facts.path("techStack"));
+            }
 
             ObjectNode code = CodeScanner.scan(ctx);
             facts.set("code", code);
 
             // 服务视角：部署清单 + 代码入口摊平成「运行单元声明」。
             // 放在 frontend / techStack 之前没有语义，只是顺序稳定而已
-            facts.set("services", serviceDeclarations(deploy, code));
+            facts.set("services", serviceDeclarations(facts.path("deploy"), code));
 
-            facts.set("frontend", scanFrontend(ctx, deps));
+            if (!incremental) {
+                facts.set("frontend", scanFrontend(ctx, deps));
 
-            ObjectNode techStack = resolver.resolve(deps, mapper);
-            facts.set("techStack", techStack);
-            // 未命中的依赖必须留下痕迹：这份清单本身就是待补的映射与图标
-            ArrayNode unmatched = (ArrayNode) techStack.get("unmatched");
-            if (unmatched != null) {
-                for (var n : unmatched) {
-                    ctx.warn(ScanNote.UNMAPPED_DEPENDENCY,
-                            "未收录依赖 " + n.path("group").asText() + ":" + n.path("artifact").asText()
-                                    + "（" + n.path("count").asInt() + " 处）");
+                ObjectNode techStack = resolver.resolve(deps, mapper);
+                facts.set("techStack", techStack);
+                warnUnmatched(ctx, techStack);
+            }
+
+            ObjectNode incrementalMeta = facts.putObject("incremental");
+            incrementalMeta.put("applied", incremental);
+            incrementalMeta.put("reusedBlocks", reused);
+            incrementalMeta.put("recomputedBlocks", 2); // code / services
+            if (hint != null) {
+                incrementalMeta.put("changedFiles", hint.changedFiles().size());
+                if (!incremental) {
+                    incrementalMeta.put("reason", hint.prevFacts() == null
+                            ? "没有可沿用的上一份事实"
+                            : "变更文件里碰到了描述文件，或两份事实不是同一个 root");
                 }
             }
+
             if (ctx.truncated()) {
                 ctx.note(ScanNote.WARN, ScanNote.TRUNCATED, "扫描被闸门截断，以下事实可能不完整");
             }
@@ -133,6 +176,23 @@ public final class ProjectScanner {
     }
 
     /**
+     * 未命中的依赖必须留下痕迹：这份清单本身就是待补的映射与图标。
+     *
+     * <p>抽成方法是因为**增量路径也要说**：沿用来的 {@code techStack} 里带着上一轮的
+     * {@code unmatched}，不点名的话「待补的映射」会在走了增量时凭空消失 ——
+     * 而「有时候少一串待办」比「一直多着」更难被发现。
+     */
+    private void warnUnmatched(ScanContext ctx, JsonNode techStack) {
+        JsonNode unmatched = techStack == null ? null : techStack.get("unmatched");
+        if (unmatched == null || !unmatched.isArray()) return;
+        for (JsonNode n : unmatched) {
+            ctx.warn(ScanNote.UNMAPPED_DEPENDENCY,
+                    "未收录依赖 " + n.path("group").asText() + ":" + n.path("artifact").asText()
+                            + "（" + n.path("count").asInt() + " 处）");
+        }
+    }
+
+    /**
      * 服务视角：把 compose 服务、k8s 条目、代码入口摊平成一份「运行单元声明」列表。
      *
      * <p><b>只摊平，不关联。</b>按名字合并、按 kind 过滤、算冲突是派生层
@@ -140,7 +200,7 @@ public final class ProjectScanner {
      * 这里多做一步判断就多一处会漂移的地方（10-04 双实现事故的教训）。
      * 读不到的值一律 null / 空数组，不许兜底。
      */
-    private ObjectNode serviceDeclarations(ObjectNode deploy, ObjectNode code) {
+    private ObjectNode serviceDeclarations(JsonNode deploy, JsonNode code) {
         ObjectNode services = mapper.createObjectNode();
         ArrayNode decls = services.putArray("declarations");
 
