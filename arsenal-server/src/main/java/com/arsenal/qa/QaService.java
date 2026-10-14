@@ -76,18 +76,36 @@ public class QaService {
     private final ObjectMapper mapper;
     private final Path baseDir;
     private final int poolSize;
+    private final LlmClient llm;
+    private final SemanticJudge judge;
+    /** C1：给语义 finding 补「我真的跑红了」的实锤。关掉用 arsenal.qa.repro.max-per-job=0。 */
+    private final ReproService repro;
+    /** 本地 maven 仓库 —— 编译与跑复现测试都要它。找不到就如实说「没跑」。 */
+    private final Path m2Repo;
 
     private final Map<String, QaJob> jobs = new ConcurrentHashMap<>();
     private ExecutorService executor;
 
     public QaService(AutopsyService autopsy, RuleIndex index, ObjectMapper mapper,
+                     LlmClient llm, SemanticJudge judge, ReproService repro,
                      @Value("${arsenal.qa.data-dir:../.data/qa}") String dataDir,
-                     @Value("${arsenal.qa.pool-size:2}") int poolSize) {
+                     @Value("${arsenal.qa.pool-size:2}") int poolSize,
+                     @Value("${arsenal.m2.repo:}") String m2RepoEnv) {
         this.autopsy = autopsy;
         this.index = index;
         this.mapper = mapper;
+        this.llm = llm;
+        this.judge = judge;
+        this.repro = repro;
         this.baseDir = Path.of(dataDir).toAbsolutePath().normalize();
         this.poolSize = Math.max(1, poolSize);
+        // 与 AutopsyController#m2Repo 同一个口径：env 优先，否则 ~/.m2/repository。
+        // 找不到不是启动失败 —— 那只意味着「复现实锤跑不了」，由 assemble 如实披露。
+        String repo = m2RepoEnv == null || m2RepoEnv.isBlank()
+                ? System.getenv("M2_REPO") : m2RepoEnv;
+        this.m2Repo = (repo == null || repo.isBlank()
+                ? Path.of(System.getProperty("user.home"), ".m2", "repository")
+                : Path.of(repo)).toAbsolutePath().normalize();
     }
 
     @PostConstruct
@@ -280,6 +298,38 @@ public class QaService {
 
             job.enterPhase(QaJob.PHASES.get(1)); // SCANNING
             persistJob(job);
+
+            // 语义层（M2）：deepCheck + 已配 key 才放行。
+            // ⚠ 必须赶在 autopsy.inspect 之前跑 —— inspect 的 try-with-resources 会关掉 source，
+            //   git 模式的工作副本用完即焚，事后再读文件就是空的。
+            SemanticJudge.Outcome semantic = null;
+            String semanticSkip = null;
+            if (job.deepCheck()) {
+                List<Rule> llmRules = llmRules();
+                if (!llm.configured()) {
+                    semanticSkip = "已请求语义深检，但 LLM 未配置（缺环境变量 ARSENAL_LLM_KEY）—— "
+                            + "本次降级为纯静态结论，「没跑」不等于「没问题」";
+                } else if (llmRules.isEmpty()) {
+                    semanticSkip = "LLM 已配置，但当前规则集里没有可交语义层的规则";
+                } else {
+                    List<String> targets = semanticTargets(job, allFiles);
+                    semantic = judge.run(source.root(), targets, llmRules);
+                }
+            } else {
+                semanticSkip = "语义深检未开启 —— 本次结论全部来自静态引擎";
+            }
+
+            // C1 实锤：紧跟语义判定，同样必须在 inspect 关掉 source 之前跑
+            //（复现测试要读目标文件、要往工作副本里写测试、要编译 —— 三件事都指着那份还活着的副本）。
+            ReproService.Outcome reproOutcome = null;
+            if (semantic != null) {
+                if (job.deepCheck()) {
+                    reproOutcome = repro.attach(source.root(), m2Repo, semantic.findings());
+                } else {
+                    reproOutcome = null;
+                }
+            }
+
             // review：引擎入口裁剪（圈外文件内容都不读）。full/focus：与 /autopsy 逐位同源的整仓跑。
             Predicate<String> filter = job.range().isReview() ? job.range()::matches : null;
             JsonNode report = autopsy.inspect(source, filter);
@@ -287,7 +337,7 @@ public class QaService {
 
             job.enterPhase(QaJob.PHASES.get(2)); // ANALYZING
             persistJob(job);
-            ObjectNode qa = assemble(job, report, allFiles, matched);
+            ObjectNode qa = assemble(job, report, allFiles, matched, semantic, semanticSkip, reproOutcome);
             job.markPhaseDone(QaJob.PHASES.get(2));
 
             job.enterPhase(QaJob.PHASES.get(3)); // AGGREGATING
@@ -306,7 +356,9 @@ public class QaService {
     // qaReport v1 组装（schema 见 00-计划书 1.2-⑤）
     // ─────────────────────────────────────────────────────────────
 
-    private ObjectNode assemble(QaJob job, JsonNode autopsyReport, List<String> allFiles, int matched) {
+    private ObjectNode assemble(QaJob job, JsonNode autopsyReport, List<String> allFiles, int matched,
+                                SemanticJudge.Outcome semantic, String semanticSkip,
+                                ReproService.Outcome reproOutcome) {
         ObjectNode rep = mapper.createObjectNode();
         rep.put("schemaVersion", 1);
         rep.put("jobId", job.id());
@@ -358,12 +410,35 @@ public class QaService {
             }
         }
 
-        // 语义档：M1 恒未执行 —— 「没跑」与「没问题」分开写死（三态披露纪律）
-        rep.set("semanticFindings", mapper.createArrayNode());
-        rep.put("semanticStatus", "not-run");
-        rep.put("semanticReason", job.deepCheck()
-                ? "已请求语义深检，但 LLM 层未上线（M1 骨架不含；M2 起交付）—— 本次结论全部来自静态引擎"
-                : "语义深检未开启 —— 本次结论全部来自静态引擎");
+        // 语义档（M2）：跑过就如实落 findings/verdicts/usage/notes；没跑写清「为什么没跑」。
+        // 三态披露纪律不变 —— 「没跑」「跑不完」「跑完没问题」是三回事，绝不含混。
+        if (semantic != null) {
+            rep.set("semanticFindings", semantic.findings());
+            rep.set("semanticVerdicts", semantic.verdicts());
+            ArrayNode notes = rep.putArray("semanticNotes");
+            semantic.notes().forEach(notes::add);
+            boolean anyFailedVerdict = false;
+            for (JsonNode v : semantic.verdicts()) {
+                if ("失败-格式".equals(v.path("verdict").asString(""))) {
+                    anyFailedVerdict = true;
+                    break;
+                }
+            }
+            boolean ranAnything = semantic.verdicts().size() > 0;
+            String status = !ranAnything ? "failed"
+                    : (semantic.budgetCut() || anyFailedVerdict || !semantic.notes().isEmpty()) ? "partial"
+                    : "ok";
+            rep.put("semanticStatus", status);
+            rep.put("semanticReason", statusReason(status, semantic));
+            rep.set("llmUsage", semantic.usage());
+        } else {
+            rep.set("semanticFindings", mapper.createArrayNode());
+            rep.set("semanticVerdicts", mapper.createArrayNode());
+            rep.put("semanticStatus", "not-run");
+            rep.put("semanticReason", semanticSkip == null
+                    ? "语义深检未执行 —— 本次结论全部来自静态引擎" : semanticSkip);
+            rep.putNull("llmUsage");
+        }
 
         List<JsonNode> presented = new ArrayList<>();
         presented.addAll(toList(findings.path("p0")));
@@ -371,11 +446,68 @@ public class QaService {
         presented.addAll(toList(findings.path("other")));
 
         rep.set("recommendations", buildRecommendations(presented));
-        rep.set("testSuggestions", buildTestSuggestions(allFiles, presented));
+        rep.set("testSuggestions", buildTestSuggestions(allFiles, presented, semantic, reproOutcome));
+
+        // ── C1：语义 finding 的两档 ──
+        // 「有复现」= 我真的跑红了；其余一律「待确认」。
+        // ⚠ 这一段**只做分流，不改 P0/P1 分档**：语义 finding 本来就不进 P0（有 confidence 纪律），
+        //   实锤是把它从「待确认」提到「有复现」，不是把它塞进静态 P0 —— 那是另一条判据的事。
+        ArrayNode proven = mapper.createArrayNode();
+        ArrayNode unconfirmed = mapper.createArrayNode();
+        int notReproduced = 0;
+        int invalidDraft = 0;
+        int notRun = 0;
+        if (semantic != null) {
+            for (JsonNode f : semantic.findings()) {
+                String v = f.path("repro").path("verdict").asString("");
+                if (ReproVerdict.REPRODUCED.equals(v)) {
+                    proven.add(f);
+                } else {
+                    unconfirmed.add(f);
+                    if (ReproVerdict.NOT_REPRODUCED.equals(v)) {
+                        notReproduced++;
+                    } else if (ReproVerdict.INVALID.equals(v)) {
+                        invalidDraft++;
+                    } else if (ReproVerdict.NOT_RUN.equals(v)) {
+                        notRun++;
+                    }
+                }
+            }
+        }
+        rep.set("provenSemanticFindings", proven);
+        rep.set("unconfirmedSemanticFindings", unconfirmed);
+        ObjectNode tiers = rep.putObject("reproTiers");
+        tiers.put("proven", proven.size());
+        tiers.put("notReproduced", notReproduced);
+        tiers.put("invalidTest", invalidDraft);
+        tiers.put("notRun", notRun);
+        if (reproOutcome == null) {
+            rep.put("reproStatus", "not-run");
+            rep.put("reproReason", semantic == null
+                    ? "语义层没跑，复现实锤无从谈起 —— 这不是「没复现」"
+                    : "语义深检未开启，复现实锤未执行");
+            rep.putNull("reproUsage");
+        } else {
+            boolean anyRan = reproOutcome.attempted() > 0 && reproOutcome.proven() + notReproduced
+                    + invalidDraft + notRun > 0;
+            rep.put("reproStatus", !anyRan ? "not-run" : reproOutcome.proven() > 0 ? "ok" : "partial");
+            StringBuilder why = new StringBuilder();
+            why.append("尝试实锤 ").append(reproOutcome.attempted()).append(" 条，")
+                    .append("实锤 ").append(reproOutcome.proven()).append(" 条，")
+                    .append("复现失败 ").append(notReproduced).append(" 条，")
+                    .append("测试无效 ").append(invalidDraft).append(" 条，")
+                    .append("没跑起来 ").append(notRun).append(" 条");
+            if (reproOutcome.budgetCut()) {
+                why.append("；已达本 job 的复现条数上限，余下未实锤");
+            }
+            rep.put("reproReason", why.toString());
+            rep.set("reproUsage", reproOutcome.usage());
+            ArrayNode rn = rep.putArray("reproNotes");
+            reproOutcome.notes().forEach(rn::add);
+        }
 
         rep.set("skipped", coverage.path("skipped"));
         rep.set("undecidability", coverage.path("undecidability"));
-        rep.putNull("llmUsage");
 
         ArrayNode idx = rep.putArray("scannedFiles");
         for (int i = 0; i < Math.min(total, MAX_FILE_INDEX); i++) {
@@ -402,6 +534,41 @@ public class QaService {
             }
         }
         return kept;
+    }
+
+    // ── 语义层（M2）：规则选取 + 送检范围 + 状态口径 ──
+
+    /** 最强的自动化层级是 llm 的活跃规则 —— regex/ast 层能判的绝不浪费 token。 */
+    private List<Rule> llmRules() {
+        return index.active().stream()
+                .filter(r -> "llm".equals(r.checkOrEmpty().layer()))
+                .toList();
+    }
+
+    /** 送检文件 = 本次 scope 内的相对路径（full 全量，review/focus 只圈内；judge 再按扩展名筛）。 */
+    private List<String> semanticTargets(QaJob job, List<String> allFiles) {
+        if (job.range().isFull()) {
+            return allFiles;
+        }
+        return allFiles.stream().filter(job.range()::matches).toList();
+    }
+
+    private static String statusReason(String status, SemanticJudge.Outcome o) {
+        if ("failed".equals(status)) {
+            return "语义层未能产出任何判定 —— 原因见 semanticNotes";
+        }
+        if (o.budgetCut()) {
+            return "语义层已执行，但撞到本 job 的 LLM 批数上限被截断 —— 余下规则未判定（见 llmUsage.budgetCut）";
+        }
+        if ("partial".equals(status)) {
+            return "语义层部分完成：含判定失败批或被截断的候选 —— 逐项见 semanticNotes / semanticVerdicts";
+        }
+        return "语义层已执行完毕";
+    }
+
+    /** LLM 配置状态（/api/qa/llm-status）：只回状态与模型名，绝不回 key。 */
+    public JsonNode llmStatus() {
+        return llm.statusNode();
     }
 
     // ── 面板 C · 离线模板：违规 → 规则自带 good 片段的对照方案 ──
@@ -448,8 +615,25 @@ public class QaService {
     }
 
     // ── 面板 D · 离线启发式：findings 命中密度 × 同名测试存在性 ──
+    //
+    // ★ 2026-10-14：draftCases 从 putNull 占位变成真实内容（计划书点名的旧债）。
+    //   那个空字段一直显示成「有建议但没有用例」，读起来像「用例已经有了只是没展示」。
+    //   现在它挂的是 ReproService 真跑出来的产物 —— 编译过的测试源码、判据、复现率、失败堆栈；
+    //   跑不出来时是 status=not-run + 原因，不再是一个假装有值的空字段。
 
-    private ArrayNode buildTestSuggestions(List<String> files, List<JsonNode> findings) {
+    private ArrayNode buildTestSuggestions(List<String> files, List<JsonNode> findings,
+                                           SemanticJudge.Outcome semantic, ReproService.Outcome outcome) {
+        // 按目标文件把**已实锤**的复现产物索引起来 —— 建议行按 target 挂自己的用例
+        Map<String, List<JsonNode>> reproByFile = new LinkedHashMap<>();
+        if (semantic != null) {
+            for (JsonNode f : semantic.findings()) {
+                if (ReproVerdict.REPRODUCED.equals(f.path("repro").path("verdict").asString(""))) {
+                    reproByFile.computeIfAbsent(f.path("file").asString(""), k -> new ArrayList<>()).add(f);
+                }
+            }
+        }
+        int attempted = outcome == null ? 0 : outcome.attempted();
+
         Map<String, Integer> hits = new LinkedHashMap<>();
         for (JsonNode v : findings) {
             hits.merge(v.path("file").asText(""), 1, Integer::sum);
@@ -470,7 +654,7 @@ public class QaService {
             ObjectNode g = arr.addObject();
             g.put("target", "（全仓）");
             g.put("reason", "仓库里找不到任何 *Test / *Tests / *IT 文件 —— 核心路径至少该有冒烟级用例");
-            g.putNull("draftCases");
+            g.set("draftCases", reproCases("（全仓）", reproByFile, attempted, outcome));
         }
 
         List<Map.Entry<String, Integer>> ranked = hits.entrySet().stream()
@@ -495,13 +679,59 @@ public class QaService {
             o.put("target", f);
             o.put("findings", e.getValue());
             o.put("reason", "命中 " + e.getValue() + " 处静态违规且仓库内找不到同名测试（" + base + "Test 等命名）—— 这里最该有用例");
-            o.putNull("draftCases");
+            o.set("draftCases", reproCases(f, reproByFile, attempted, outcome));
         }
         if (mainJava >= MAX_TEST_SUGGESTIONS) {
             ObjectNode note = arr.addObject();
             note.put("note", "建议数已达上限 " + MAX_TEST_SUGGESTIONS + "，按违规命中密度排序截断");
         }
         return arr;
+    }
+
+    /**
+     * 一条建议挂的复现用例。
+     *
+     * <p>形状刻意是 {@code {status, cases[]}} 而不是裸数组：这样「有建议但一条都没实锤」
+     * 与「实锤了 3 条」在报告里是两种能一眼分开的形状，而不是都变成空数组 ——
+     * 空数组在 JSON 里长得和「没跑」一模一样。
+     */
+    private ObjectNode reproCases(String target, Map<String, List<JsonNode>> byFile,
+                                  int attempted, ReproService.Outcome outcome) {
+        ObjectNode n = mapper.createObjectNode();
+        List<JsonNode> found = byFile.getOrDefault(target, List.of());
+        if (!found.isEmpty()) {
+            n.put("status", "proven");
+            n.put("reason", "这个目标上已经有跑红的复现测试 —— 建议直接拿它当回归用例");
+            ArrayNode cases = n.putArray("cases");
+            for (JsonNode f : found) {
+                ObjectNode c = cases.addObject();
+                JsonNode r = f.path("repro");
+                c.put("ruleId", f.path("ruleId").asString(""));
+                c.put("line", f.path("line").asInt(0));
+                c.put("testClass", r.path("testClass").asString(""));
+                c.put("source", r.path("testSource").asString(""));
+                c.put("verdict", ReproVerdict.REPRODUCED);
+                if (r.has("rate")) {
+                    c.put("rate", r.path("rate").asDouble(0));
+                }
+                if (!r.path("failureExcerpt").asString("").isBlank()) {
+                    c.put("failureExcerpt", r.path("failureExcerpt").asString(""));
+                }
+            }
+            return n;
+        }
+        if (attempted == 0 || outcome == null) {
+            n.put("status", "not-run");
+            n.put("reason", "复现实锤没跑（LLM 未配置 / 语义深检未开启 / 本 job 关掉了实锤）—— "
+                    + "这是「没跑」，不是「跑过但没问题」");
+            n.putArray("cases");
+            return n;
+        }
+        n.put("status", "no-repro");
+        n.put("reason", "这个目标上没能实锤任何一条：可能是测试写不出来、复现全绿、或测试本身无效"
+                + " —— 三者在 reproNotes 里逐条分开写了，不合并成一句「验证过」");
+        n.putArray("cases");
+        return n;
     }
 
     /** 测试文件命名识别：FooTest / FooTests / FooIT / TestFoo → "foo"；不是测试文件返回 null。 */

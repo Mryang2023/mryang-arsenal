@@ -62,6 +62,29 @@ arsenal:
     data-dir: ${ARSENAL_QA_DIR:../.data/qa}
     # 同时在跑的深检数。静态段吃内存（源码整份进堆），单机 2 个是稳妥默认。
     pool-size: ${ARSENAL_QA_POOL:2}
+    # 语义深检（M2）：OpenAI-compatible chat。未配 key 时整段优雅降级，报告只含静态结论。
+    # 铁律：api-key 只走环境变量 ARSENAL_LLM_KEY，绝不写死在此、不落库、不进前端、不进 git、不进日志。
+    llm:
+      base-url: ${ARSENAL_LLM_BASE_URL:https://api.deepseek.com/v1}
+      model: ${ARSENAL_LLM_MODEL:deepseek-chat}
+      api-key: ${ARSENAL_LLM_KEY:}
+      timeout-seconds: ${ARSENAL_LLM_TIMEOUT:30}
+      # 每 job 的 LLM 批数上限，超限即熔断并把余下规则标「未跑-预算」—— 花多少看得见，跑不完说跑不完。
+      max-batches-per-job: ${ARSENAL_LLM_MAX_BATCHES:40}
+
+    # C1 · 复现实锤：语义 finding 从「模型说的」升级为「我真的跑红了」。
+    # 一条实锤 = 一次 LLM 调用（写测试）+ 一次编译（用户全量 src/main/java）+ attempts 次跑。
+    # 所以它的预算闸门必须比 LLM 那一层更紧 —— 不设上限的话，一个 job 能把机器打满。
+    repro:
+      # 每 job 最多实锤几条。0 = 整段关闭，所有语义 finding 留在待确认档（并如实说明为什么）。
+      max-per-job: ${ARSENAL_REPRO_MAX_PER_JOB:5}
+      # 每条跑几次取复现率。1 次分不出「稳定复现」与「碰巧红」，所以默认 3。
+      attempts: ${ARSENAL_REPRO_ATTEMPTS:3}
+
+  # 编译与跑复现测试要用的本地 maven 仓库；留空 = ~/.m2/repository。
+  # 找不到不是启动失败 —— 那只意味着「实锤跑不了」，报告里会如实记成 not-run。
+  m2:
+    repo: ${M2_REPO:}
 
   # 案例执行服务：把提交的案例代码用独立 JDK 21 子进程编译运行（虚拟线程等需要 21+）。
   # 2026-10-12 主服务升到 JDK 21 后，默认直接复用主服务的 JDK；

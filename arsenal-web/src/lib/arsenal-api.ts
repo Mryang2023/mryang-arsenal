@@ -715,6 +715,57 @@ export interface QaTestSuggestion {
   target: string;
   reason: string;
   findings?: number;
+  /**
+   * 可运行的复现用例（C1）。
+   *
+   * ★ 2026-10-14：这一段以前恒为 `null`（后端 `putNull` 占位），页面上显示成
+   * 「有建议、没有用例」—— 读起来像「用例已经有了只是没展示」。
+   * 现在它是 `{status, reason, cases[]}`：
+   *   · `proven`   —— 这个目标上已经有**跑红过**的复现测试，cases 里有可直接用的源码
+   *   · `no-repro` —— 跑过但没能实锤（写不出来 / 全绿 / 测试本身无效，三者 reason 分开写）
+   *   · `not-run`  —— 根本没跑（LLM 未配置 / 语义深检未开启 / 本 job 关掉了实锤）
+   */
+  draftCases?: {
+    status: 'proven' | 'no-repro' | 'not-run';
+    reason: string;
+    cases: {
+      ruleId: string;
+      line: number;
+      testClass: string;
+      source: string;
+      verdict: string;
+      rate?: number;
+      failureExcerpt?: string;
+    }[];
+  } | null;
+}
+
+/**
+ * 一次复现的结果（C1）。**四档，不是两档** ——
+ * 「没复现」与「没跑」在页面上必须长得不一样，否则下一步会去改规则而不是改环境。
+ */
+export interface QaRepro {
+  /** reproduced | not-reproduced | invalid | not-run */
+  verdict: string;
+  /** 判据那一句话的原话，页面要原样显示，不许改写 */
+  reason: string;
+  /** 报告层给这一档的中文说法 */
+  tierText: string;
+  /** 模型有没有把测试写出来（false = 说写不出来或格式不对，已放弃） */
+  authored?: boolean;
+  testClass?: string;
+  testSource?: string;
+  /** 编译 + 启动器 + N 次跑的墙钟合计（毫秒） */
+  compileMs?: number;
+  redCount?: number;
+  attempts?: number;
+  /** 复现率：redCount / attempts。1/3 就是 0.333，不四舍五入成「稳定复现」 */
+  rate?: number;
+  /** 跑红时的断言异常栈 —— 这是实锤的证据本身 */
+  failureExcerpt?: string;
+  /** 编译没过时的第一处错误 */
+  compileError?: string;
+  testClasspath?: string[];
 }
 
 export interface QaSemanticFinding {
@@ -729,6 +780,8 @@ export interface QaSemanticFinding {
   confidence: number;
   source: string;
   recommendation: { before: string; after: string; rationale: string };
+  /** C1：这条 finding 的复现实锤。没有这一段说明本 job 压根没跑复现。 */
+  repro?: QaRepro;
 }
 
 export interface QaSemanticVerdict {
@@ -787,6 +840,23 @@ export interface QaReport {
   skipped: AutopsyCoverage['skipped'];
   undecidability: string[];
   llmUsage: QaLlmUsage | null;
+  // ── C1 · 复现实锤 ──
+  /** 实锤档：真的跑红过的语义 finding（后端 2026-10-14 起才有；旧报告里没有这个键） */
+  provenSemanticFindings?: QaSemanticFinding[];
+  /** 待确认档：其余全部语义 finding —— 没复现、测试无效、没跑起来都归这里 */
+  unconfirmedSemanticFindings?: QaSemanticFinding[];
+  /** 四档计数。`notRun` 与 `notReproduced` 分开，因为它们导向的下一步完全不同 */
+  reproTiers?: {
+    proven: number;
+    notReproduced: number;
+    invalidTest: number;
+    notRun: number;
+  };
+  /** not-run | ok | partial */
+  reproStatus?: string;
+  reproReason?: string;
+  reproNotes?: string[];
+  reproUsage?: Record<string, unknown> | null;
   scannedFiles: string[];
 }
 

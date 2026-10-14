@@ -1,18 +1,23 @@
 'use client';
 
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   qaJob,
+  qaLlmStatus,
   qaReport,
   qaSnapshots,
   qaSubmit,
   qaTree,
   type QaJobNode,
+  type QaLlmStatus,
+  type QaLlmUsage,
   type QaRange,
   type QaRangeMode,
-  type QaRecommendation,
   type QaReport as QaReportData,
+  type QaSemanticFinding,
+  type QaSemanticVerdict,
   type QaSnapshotSummary,
+  type QaTestSuggestion,
   type QaTree,
 } from '@/lib/arsenal-api';
 import SeverityBadge from '@/components/SeverityBadge';
@@ -32,8 +37,9 @@ import type { Severity } from '@/lib/types';
  *   ③ **projectId 怎么来** —— 后端 submit 的回包。**前端不自己算哈希**：
  *      路径规范化口径只该有一处，算两份早晚各说各的。
  *
- * M1 边界（页面上必须如实写的两件事）：
- *   · 语义深检（面板 B）恒为「未执行」—— LLM 层是 M2/M3 的交付，占位不是结果；
+ * M2 边界（页面上必须如实写的两件事）：
+ *   · 语义深检（面板 B）按 LLM 配置三态披露 —— 未配 key 时「未执行」、跑了但预算撞顶/有批失败时
+ *     「部分完成」、全跑完才「已执行」；「没跑」「跑不完」「跑完没报」是三回事，绝不含混；
  *   · 优化方案（面板 C）离线走规则自带正例模板，规则没附正例的只给说明，
  *     不编造示例代码（后端在 afterNote 里写死这一点）。
  */
@@ -79,6 +85,17 @@ function isNote(x: QaNote | undefined): x is { note: string } {
   return !!x && typeof x.note === 'string';
 }
 
+/**
+ * 面板 C 的条目也是「真方案 + 溢出说明行」的混合：静态档命中组数超上限（120）时，
+ * 后端只追加一条 `{ note: "另有 N 组…" }`，它没有 id/severity。必须先用这个判别式
+ * 分流，否则整块丢给 SeverityBadge → SEVERITY_THEME[undefined].color → 白屏。
+ */
+type RecItem = QaReportData['recommendations'][number];
+
+function isRecNote(x: RecItem): x is { note: string } {
+  return !('id' in x) && typeof (x as { note?: unknown }).note === 'string';
+}
+
 export default function QaLab() {
   const [mode, setMode] = useState<Mode>('path');
   const [source, setSource] = useState('');
@@ -88,6 +105,19 @@ export default function QaLab() {
   const [deepCheck, setDeepCheck] = useState(false);
   const [stage, setStage] = useState<Stage>({ kind: 'idle' });
   const [tab, setTab] = useState<'hard' | 'semantic' | 'recs' | 'tests'>('hard');
+
+  // LLM 配置状态：进页面探一次。configured=false 时「深度检测」勾选框锁死并说明原因，
+  // 而不是让用户勾了才发现没配 key（后端会优雅降级，但前端该提前告知）。
+  const [llm, setLlm] = useState<QaLlmStatus | null>(null);
+  useEffect(() => {
+    let alive = true;
+    void qaLlmStatus().then((out) => {
+      if (alive && out.kind === 'ok') setLlm(out.data);
+    });
+    return () => {
+      alive = false;
+    };
+  }, []);
 
   // projectId 只从后端回包拿（见顶部分工 ③）
   const [projectId, setProjectId] = useState<string | null>(null);
@@ -255,14 +285,24 @@ export default function QaLab() {
               </button>
             ))}
           </div>
-          <label className="flex cursor-pointer items-center gap-1.5 text-[10.5px] text-fgMuted">
+          <label
+            className={
+              'flex items-center gap-1.5 text-[10.5px] ' +
+              (llm?.configured ? 'cursor-pointer text-fgMuted' : 'text-fgFaint')
+            }
+          >
             <input
               type="checkbox"
-              checked={deepCheck}
-              disabled
-              className="accent-brass"
+              checked={deepCheck && !!llm?.configured}
+              disabled={!llm?.configured}
+              onChange={(e) => setDeepCheck(e.target.checked)}
+              className="accent-brass disabled:cursor-not-allowed"
             />
-            <span className="opacity-45">语义深检（LLM）—— M2 上线，当前恒为未执行</span>
+            <span>
+              {llm?.configured
+                ? `语义深检（LLM · ${llm.model}）—— 静态之后再花几分钟过一遍需理解语义的规则`
+                : '语义深检（LLM）—— 未配置，勾选不可用（设 ARSENAL_LLM_KEY 后开启）'}
+            </span>
           </label>
           <button
             type="button"
@@ -377,7 +417,7 @@ export default function QaLab() {
 
       {stage.kind === 'idle' && (
         <div className="panel px-3 py-2.5 text-[10.5px] leading-[16px] text-fgMuted">
-          还没跑过审查。报告出四个面板：A 硬伤清单（与 /autopsy 同一台引擎、同一口径）、B 语义深检（M1 恒未执行，如实标出）、
+          还没跑过审查。报告出四个面板：A 硬伤清单（与 /autopsy 同一台引擎、同一口径）、B 语义深检（配了 LLM key 才跑，未配 / 预算截断都如实标出三态）、
           C 逐点优化方案（before/after，规则没附正例的只给说明不编代码）、D 测试建议（缺测试的核心路径清单）。
           每次审查自动留档在服务器侧 <span className="mono">.data/qa/&lt;projectId&gt;/</span>，不进 git。
         </div>
@@ -496,9 +536,9 @@ function ReportView({
         {(
           [
             ['hard', `A 硬伤（${total}）`],
-            ['semantic', 'B 语义深检'],
-            ['recs', `C 优化方案（${report.recommendations.length}）`],
-            ['tests', `D 测试建议（${report.testSuggestions.length}）`],
+            ['semantic', `B 语义深检（${report.semanticFindings.length}）`],
+            ['recs', `C 优化方案（${report.recommendations.filter((x) => !isRecNote(x)).length}）`],
+            ['tests', `D 测试建议（${report.testSuggestions.filter((x) => !isNote(x)).length}）`],
           ] as ['hard' | 'semantic' | 'recs' | 'tests', string][]
         ).map(([id, label]) => (
           <button
@@ -516,20 +556,7 @@ function ReportView({
       </div>
 
       {onTab === 'hard' && <HardPanel report={report} />}
-      {onTab === 'semantic' && (
-        <div className="panel px-3 py-3">
-          <p className="mono text-[10px] uppercase tracking-wider text-fgFaint">面板 B · 语义深检</p>
-          <div
-            className="mt-2 rounded border px-2.5 py-2"
-            style={{ borderColor: 'rgba(229,163,61,0.4)', background: 'rgba(229,163,61,0.08)' }}
-          >
-            <p className="text-[11px] font-semibold" style={{ color: '#E5A33D' }}>
-              语义深检未执行（{report.semanticStatus}）
-            </p>
-            <p className="mt-1 text-[10.5px] leading-[16px] text-fgMuted">{report.semanticReason}</p>
-          </div>
-        </div>
-      )}
+      {onTab === 'semantic' && <SemanticPanel report={report} />}
       {onTab === 'recs' && <RecsPanel items={report.recommendations} />}
       {onTab === 'tests' && <TestsPanel items={report.testSuggestions} />}
 
@@ -615,48 +642,323 @@ function HardPanel({ report }: { report: QaReportData }) {
   );
 }
 
-function RecsPanel({ items }: { items: QaRecommendation[] }) {
+function SemanticPanel({ report }: { report: QaReportData }) {
+  const status = report.semanticStatus;
+  const ran = status === 'ok' || status === 'partial';
+  const banner =
+    status === 'ok'
+      ? { c: '#7FA650', label: '语义深检已执行' }
+      : status === 'partial'
+        ? { c: '#E5A33D', label: '语义深检部分完成（有规则未判定）' }
+        : status === 'failed'
+          ? { c: '#E5484D', label: '语义深检执行失败' }
+          : { c: '#E5A33D', label: '语义深检未执行' };
+
+  const usage = report.llmUsage as QaLlmUsage | null;
+  const findings = report.semanticFindings;
+  const verdicts = report.semanticVerdicts;
+  const notes = report.semanticNotes ?? [];
   const [open, setOpen] = useState<Record<string, boolean>>({});
+
+  // ── C1：实锤两档 ──
+  // 后端把实锤结果已经分流好了（provenSemanticFindings / unconfirmedSemanticFindings）；
+  // 旧报告里没有这两个键 → 一律当「没有实锤数据」，并说清是「这份报告出在实锤功能之前」。
+  const tiers = report.reproTiers;
+  const proven = report.provenSemanticFindings ?? [];
+  const unconfirmed = report.unconfirmedSemanticFindings ?? [];
+  const hasReproData = !!report.reproStatus;
+  const provenSet = new Set(proven.map((f) => `${f.ruleId}|${f.file}|${f.line}`));
+
+  return (
+    <div className="space-y-3">
+      <div className="panel px-3 py-2.5">
+        <p className="mono text-[10px] uppercase tracking-wider text-fgFaint">面板 B · 语义深检</p>
+        <div
+          className="mt-2 rounded border px-2.5 py-2"
+          style={{ borderColor: banner.c + '66', background: banner.c + '14' }}
+        >
+          <p className="text-[11px] font-semibold" style={{ color: banner.c }}>
+            {banner.label}（{status}）
+          </p>
+          <p className="mt-1 text-[10.5px] leading-[16px] text-fgMuted">{report.semanticReason}</p>
+        </div>
+
+        {/* ── C1 实锤条 ── */}
+        {hasReproData ? (
+          <div className="mt-2 rounded border border-line px-2.5 py-2">
+            <p className="mono text-[10px] uppercase tracking-wider text-fgFaint">
+              C1 · 复现实锤（{report.reproStatus}）
+            </p>
+            <p className="mt-1 text-[10.5px] leading-[16px] text-fgMuted">{report.reproReason}</p>
+            {tiers && (
+              <div className="mt-1.5 flex flex-wrap gap-x-3 gap-y-1 text-[10px] leading-[15px]">
+                <span style={{ color: tiers.proven > 0 ? '#D9A441' : '#888780' }}>
+                  有复现（实锤）{tiers.proven}
+                </span>
+                <span style={{ color: tiers.notReproduced > 0 ? '#E5484D' : '#888780' }}>
+                  复现失败（这条 finding 站不住）{tiers.notReproduced}
+                </span>
+                <span style={{ color: tiers.invalidTest > 0 ? '#E5A33D' : '#888780' }}>
+                  测试无效 {tiers.invalidTest}
+                </span>
+                <span style={{ color: tiers.notRun > 0 ? '#E5A33D' : '#888780' }}>
+                  没跑起来 {tiers.notRun}
+                </span>
+              </div>
+            )}
+            <p className="mt-1 text-[10px] leading-[15px] text-fgFaint">
+              四档分开是因为下一步不同：「复现失败」该去改规则或撤案，「没跑起来」该去修环境 ——
+              合成一句「未实锤」会让人分不清该动哪一个。
+            </p>
+            {(report.reproNotes ?? []).length > 0 && (
+              <ul className="mt-1 space-y-0.5 text-[10px] leading-[15px] text-fgFaint">
+                {report.reproNotes!.map((n, i) => (
+                  <li key={`rn-${i}`}>· {n}</li>
+                ))}
+              </ul>
+            )}
+          </div>
+        ) : (
+          <p className="mt-2 text-[10px] leading-[15px] text-fgFaint">
+            这份报告里没有复现实锤数据 —— 它出在 C1 上线之前。<b>没有实锤不等于没有 bug</b>，
+            下面每条都还是「模型说的」，不是「跑出来的」。
+          </p>
+        )}
+
+        {usage && (
+          <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-[10px] leading-[15px] text-fgFaint">
+            <span className="mono">model {usage.model}</span>
+            <span>候选 {usage.candidateFiles} 文件</span>
+            <span>批次 {usage.batches}/{usage.maxBatches}</span>
+            <span>送出 ~{usage.charsSent} 字</span>
+            <span>tokens 入 {usage.promptTokens} / 出 {usage.completionTokens}</span>
+            {usage.droppedFindings > 0 && (
+              <span style={{ color: '#E5A33D' }}>丢弃 {usage.droppedFindings} 条无行号/对不上的判定</span>
+            )}
+            {usage.budgetCut && <span style={{ color: '#E5484D' }}>预算熔断：余下规则未判定</span>}
+          </div>
+        )}
+
+        {notes.length > 0 && (
+          <ul className="mt-1.5 space-y-0.5 text-[10px] leading-[15px] text-fgFaint">
+            {notes.map((n, i) => (
+              <li key={`note-${i}`}>· {n}</li>
+            ))}
+          </ul>
+        )}
+      </div>
+
+      {ran && verdicts.length > 0 && (
+        <div className="panel px-3 py-2.5">
+          <p className="mono text-[10px] uppercase tracking-wider text-fgFaint">
+            逐规则判定（{verdicts.length} 条）
+          </p>
+          <ul className="mt-1.5 space-y-1">
+            {verdicts.map((v, i) => (
+              <VerdictRow key={`${v.ruleId}-${i}`} v={v} />
+            ))}
+          </ul>
+        </div>
+      )}
+
+      {findings.length > 0 ? (
+        <div className="panel px-3 py-2.5">
+          <p className="mono text-[10px] uppercase tracking-wider text-fgFaint">
+            语义层发现（{findings.length} 条 ·{' '}
+            {hasReproData
+              ? `其中 ${proven.length} 条已实锤、${unconfirmed.length} 条待确认`
+              : '判定来源 = LLM，全部未实锤'}
+            ）
+          </p>
+          <ul className="mt-2 space-y-2">
+            {findings.map((x, i) => (
+              <SemanticFindingRow
+                key={`${x.ruleId}-${x.file}-${x.line}-${i}`}
+                f={x}
+                proven={provenSet.has(`${x.ruleId}|${x.file}|${x.line}`)}
+                open={!!open[`${i}`]}
+                toggle={() => setOpen((s) => ({ ...s, [`${i}`]: !s[`${i}`] }))}
+              />
+            ))}
+          </ul>
+        </div>
+      ) : (
+        ran && (
+          <div className="panel px-3 py-2.5 text-[10.5px] text-fgFaint">
+            语义层跑过了，没有给出带行号的发现 —— 「跑过且没报」不等于「合规」，见上方判定明细与覆盖率。
+          </div>
+        )
+      )}
+    </div>
+  );
+}
+
+function VerdictRow({ v }: { v: QaSemanticVerdict }) {
+  const tone: Record<string, string> = {
+    违规: '#E5484D',
+    合规: '#7FA650',
+    不适用: '#93A39C',
+    '未跑-预算': '#E5A33D',
+    '失败-格式': '#E5A33D',
+  };
+  const c = tone[v.verdict] ?? '#93A39C';
+  return (
+    <li className="flex flex-wrap items-baseline gap-x-2 text-[10.5px] leading-[16px]">
+      <span className="mono text-fg">{v.ruleId}</span>
+      <span className="text-fgMuted">{v.title}</span>
+      <span className="mono" style={{ color: c }}>
+        {v.verdict}
+      </span>
+      <span className="mono text-fgFaint">
+        {v.filesJudged} 文件 · {v.violations} 违规
+      </span>
+      {v.note && <span className="text-fgFaint">— {v.note}</span>}
+    </li>
+  );
+}
+
+function SemanticFindingRow({
+  f,
+  proven,
+  open,
+  toggle,
+}: {
+  f: QaSemanticFinding;
+  proven: boolean;
+  open: boolean;
+  toggle: () => void;
+}) {
+  const conf = f.confidence;
+  const confColor = conf >= 0.8 ? '#E5484D' : conf >= 0.6 ? '#E5A33D' : '#93A39C';
+  const r = f.repro;
+  return (
+    <li className="rounded border border-line px-2.5 py-2">
+      <button type="button" onClick={toggle} className="flex w-full items-baseline gap-2 text-left">
+        <SeverityBadge severity={f.severity as Severity} size="sm" />
+        <span className="flex-1 text-[11px] text-fg">{f.ruleTitle}</span>
+        {proven ? (
+          <span className="mono text-[9.5px]" style={{ color: '#D9A441' }}>
+            实锤{r?.redCount != null && r.attempts ? ` ${r.redCount}/${r.attempts}` : ''}
+          </span>
+        ) : (
+          <span className="mono text-[9.5px] text-fgFaint">待确认</span>
+        )}
+        <span className="mono text-[9.5px]" style={{ color: confColor }}>
+          置信 {Math.round(conf * 100)}%
+        </span>
+        <span className="mono text-[9.5px] text-fgFaint">LLM</span>
+        <span className="mono text-[10px] text-fgMuted">{open ? '收起' : '展开对照'}</span>
+      </button>
+      <p className="mono mt-0.5 text-[10px] text-fgFaint">
+        {f.file}:{f.line} — {f.evidence}
+      </p>
+      {f.impact && <p className="mt-0.5 text-[10.5px] leading-[16px]" style={{ color: '#E5484D' }}>{f.impact}</p>}
+
+      {/* ── C1 实锤证据：不折叠，因为它就是这条 finding 的可信度本身 ── */}
+      {r && (
+        <div className="mt-1.5 rounded border border-line px-2 py-1.5">
+          <p className="text-[10.5px] leading-[15px] text-fgMuted">
+            <span style={{ color: r.verdict === 'reproduced' ? '#D9A441' : '#888780' }}>
+              [{r.tierText}]
+            </span>
+            {r.rate != null && r.attempts ? `　复现率 ${r.rate.toFixed(2)}（${r.redCount ?? 0}/${r.attempts}）` : ''}
+          </p>
+          <p className="mt-0.5 text-[10px] leading-[15px] text-fgFaint">{r.reason}</p>
+          {r.failureExcerpt && (
+            <pre className="mono mt-1 max-h-32 overflow-auto rounded border border-line px-1.5 py-1 text-[9.5px] leading-[14px] text-fgMuted">
+              {r.failureExcerpt}
+            </pre>
+          )}
+          {r.compileError && (
+            <p className="mono mt-1 text-[9.5px] leading-[14px]" style={{ color: '#E5A33D' }}>
+              编译未过：{r.compileError}
+            </p>
+          )}
+          {r.verdict === 'reproduced' && r.testSource && open && (
+            <>
+              <p className="mono mt-1 text-[9.5px] uppercase text-fgFaint">
+                实锤用的复现测试（{r.testClass}）
+              </p>
+              <pre className="mono mt-0.5 max-h-48 overflow-auto rounded border border-line px-1.5 py-1 text-[9.5px] leading-[14px] text-fgMuted">
+                {r.testSource}
+              </pre>
+            </>
+          )}
+        </div>
+      )}
+
+      {open && (
+        <div className="mt-1.5 grid gap-1.5 md:grid-cols-2">
+          <div>
+            <p className="mono text-[9.5px] uppercase text-fgFaint">before（现状）</p>
+            <pre className="mono mt-0.5 max-h-40 overflow-auto rounded border px-1.5 py-1 text-[10px]" style={{ borderColor: 'rgba(229,72,77,0.35)' }}>
+              {f.recommendation?.before || '（无）'}
+            </pre>
+          </div>
+          <div>
+            <p className="mono text-[9.5px] uppercase text-fgFaint">after（建议改法）</p>
+            <pre className="mono mt-0.5 max-h-40 overflow-auto rounded border px-1.5 py-1 text-[10px]" style={{ borderColor: 'rgba(127,166,80,0.35)' }}>
+              {f.recommendation?.after || '（无）'}
+            </pre>
+          </div>
+          {f.recommendation?.rationale && (
+            <p className="text-[10.5px] leading-[16px] text-fgMuted md:col-span-2">{f.recommendation.rationale}</p>
+          )}
+        </div>
+      )}
+    </li>
+  );
+}
+
+function RecsPanel({ items }: { items: QaReportData['recommendations'] }) {
+  const [open, setOpen] = useState<Record<string, boolean>>({});
+  const groups = items.reduce((n, x) => n + (isRecNote(x) ? 0 : 1), 0);
   return (
     <div className="panel px-3 py-2.5">
       <p className="mono text-[10px] uppercase tracking-wider text-fgFaint">
-        面板 C · 逐点优化方案（{items.length} 组，来源全部标注）
+        面板 C · 逐点优化方案（{groups} 组，来源全部标注）
       </p>
-      {items.length === 0 && (
+      {groups === 0 && (
         <p className="mt-2 text-[10.5px] text-fgFaint">没有可给的方案 —— 静态档是空的（先看面板 A 的覆盖率是否如预期）。</p>
       )}
       <ul className="mt-2 space-y-2">
-        {items.map((r) => (
-          <li key={r.id} className="rounded border border-line px-2.5 py-2">
-            <button
-              type="button"
-              onClick={() => setOpen((s) => ({ ...s, [r.id]: !s[r.id] }))}
-              className="flex w-full items-baseline gap-2 text-left"
-            >
-              <SeverityBadge severity={r.severity as Severity} size="sm" />
-              <span className="flex-1 text-[11px] text-fg">{r.title}</span>
-              <span className="mono text-[9.5px] text-fgFaint">{r.source}</span>
-              <span className="mono text-[10px] text-fgMuted">{open[r.id] ? '收起' : '展开对照'}</span>
-            </button>
-            {open[r.id] && (
-              <div className="mt-1.5 grid gap-1.5 md:grid-cols-2">
-                <div>
-                  <p className="mono text-[9.5px] uppercase text-fgFaint">before（现状 {r.file}:{r.line}）</p>
-                  <pre className="mono mt-0.5 max-h-40 overflow-auto rounded border px-1.5 py-1 text-[10px]" style={{ borderColor: 'rgba(229,72,77,0.35)' }}>
-                    {r.before || '（无片段）'}
-                  </pre>
+        {items.map((r, i) =>
+          isRecNote(r) ? (
+            <li key={`note-${i}`} className="text-[10.5px]" style={{ color: '#E5A33D' }}>
+              {r.note}
+            </li>
+          ) : (
+            <li key={r.id} className="rounded border border-line px-2.5 py-2">
+              <button
+                type="button"
+                onClick={() => setOpen((s) => ({ ...s, [r.id]: !s[r.id] }))}
+                className="flex w-full items-baseline gap-2 text-left"
+              >
+                <SeverityBadge severity={r.severity as Severity} size="sm" />
+                <span className="flex-1 text-[11px] text-fg">{r.title}</span>
+                <span className="mono text-[9.5px] text-fgFaint">{r.source}</span>
+                <span className="mono text-[10px] text-fgMuted">{open[r.id] ? '收起' : '展开对照'}</span>
+              </button>
+              {open[r.id] && (
+                <div className="mt-1.5 grid gap-1.5 md:grid-cols-2">
+                  <div>
+                    <p className="mono text-[9.5px] uppercase text-fgFaint">before（现状 {r.file}:{r.line}）</p>
+                    <pre className="mono mt-0.5 max-h-40 overflow-auto rounded border px-1.5 py-1 text-[10px]" style={{ borderColor: 'rgba(229,72,77,0.35)' }}>
+                      {r.before || '（无片段）'}
+                    </pre>
+                  </div>
+                  <div>
+                    <p className="mono text-[9.5px] uppercase text-fgFaint">after（规则自带正例）</p>
+                    <pre className="mono mt-0.5 max-h-40 overflow-auto rounded border px-1.5 py-1 text-[10px]" style={{ borderColor: 'rgba(127,166,80,0.35)' }}>
+                      {r.after || r.afterNote || '（无）'}
+                    </pre>
+                  </div>
+                  <p className="text-[10.5px] leading-[16px] text-fgMuted md:col-span-2">{r.rationale}</p>
                 </div>
-                <div>
-                  <p className="mono text-[9.5px] uppercase text-fgFaint">after（规则自带正例）</p>
-                  <pre className="mono mt-0.5 max-h-40 overflow-auto rounded border px-1.5 py-1 text-[10px]" style={{ borderColor: 'rgba(127,166,80,0.35)' }}>
-                    {r.after || r.afterNote || '（无）'}
-                  </pre>
-                </div>
-                <p className="text-[10.5px] leading-[16px] text-fgMuted md:col-span-2">{r.rationale}</p>
-              </div>
-            )}
-          </li>
-        ))}
+              )}
+            </li>
+          )
+        )}
       </ul>
     </div>
   );
@@ -666,7 +968,7 @@ function TestsPanel({ items }: { items: QaReportData['testSuggestions'] }) {
   return (
     <div className="panel px-3 py-2.5">
       <p className="mono text-[10px] uppercase tracking-wider text-fgFaint">
-        面板 D · 该补测试的核心路径（离线启发式清单，用例草案属 M4）
+        面板 D · 该补测试的核心路径（清单来自离线启发式；C1 起附可运行的复现用例）
       </p>
       {items.length === 0 ? (
         <p className="mt-2 text-[10.5px] text-fgFaint">本次没有给出测试建议。</p>
@@ -684,11 +986,44 @@ function TestsPanel({ items }: { items: QaReportData['testSuggestions'] }) {
                   <span className="mono ml-1.5 text-fgFaint">命中 {x.findings}</span>
                 )}
                 <p className="text-fgMuted">{x.reason}</p>
+                {/* C1：draftCases 以前恒为 null（后端 putNull 占位），页面什么都不显示，
+                    读起来像「用例已经有了只是没展示」。现在三档各有一句人话。 */}
+                <DraftCases cases={x.draftCases} />
               </li>
             )
           )}
         </ul>
       )}
+    </div>
+  );
+}
+
+function DraftCases({ cases }: { cases?: QaTestSuggestion['draftCases'] }) {
+  if (!cases) {
+    return (
+      <p className="mt-0.5 text-[10px] text-fgFaint">
+        复现用例：这份报告没有这一段（出在 C1 之前）。
+      </p>
+    );
+  }
+  const color =
+    cases.status === 'proven' ? '#D9A441' : cases.status === 'not-run' ? '#888780' : '#E5A33D';
+  return (
+    <div className="mt-1 rounded border border-line px-2 py-1.5">
+      <p className="text-[10px] leading-[15px]" style={{ color }}>
+        [{cases.status}] {cases.reason}
+      </p>
+      {cases.cases.map((c, i) => (
+        <div key={`${c.testClass}-${i}`} className="mt-1">
+          <p className="mono text-[9.5px] text-fgFaint">
+            {c.testClass}
+            {c.rate != null ? `　复现率 ${c.rate.toFixed(2)}` : ''}
+          </p>
+          <pre className="mono mt-0.5 max-h-40 overflow-auto rounded border border-line px-1.5 py-1 text-[9.5px] leading-[14px] text-fgMuted">
+            {c.source}
+          </pre>
+        </div>
+      ))}
     </div>
   );
 }
