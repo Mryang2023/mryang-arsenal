@@ -66,7 +66,7 @@ const NAV: NavItem[] = [
     children: STACK_NAV,
   },
   { href: '/arch', label: '架构图谱', glyph: '▣', count: 6 },
-  { href: '/autopsy', label: '项目解剖台', glyph: '▧', count: 0 },
+  { href: '/autopsy', label: '项目侦察', glyph: '▧', count: 0 },
   { href: '/qa', label: '测试工程师', glyph: '⚗', count: 0 },
   { href: '/icons', label: '图标库', glyph: '❖', count: iconStats.total },
   { href: '/archify', label: '出图服务', glyph: '⚒', count: 0 },

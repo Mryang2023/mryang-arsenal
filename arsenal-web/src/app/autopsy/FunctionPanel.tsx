@@ -22,8 +22,11 @@ import type { ProjectFacts } from '@/lib/facts-arch';
  * 也可能是死代码 —— 所以它们单列成一节并说清「不知道是哪种」。
  */
 export default function FunctionPanel({ facts }: { facts: ProjectFacts | null }) {
+  // ⚠️ 判据在 facts.code：扫描器把 directCalls / routes / entryPoints 挂在 code 段下，
+  // 而不是顶层 —— 此前把整个 facts 传进去，算法按顶层取字段全部落空，
+  // 页面上就成了一张「没解析出东西」的空图（2026-10-14 修复）。
   const view = useMemo<FunctionView>(
-    () => buildFunctionView(facts as never),
+    () => buildFunctionView(facts ? { ...facts.code } : null),
     [facts]
   );
   const [open, setOpen] = useState<string | null>(null);

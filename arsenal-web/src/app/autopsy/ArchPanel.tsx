@@ -10,6 +10,9 @@ import { downloadText } from '@/lib/zip';
  * 两张图都来自 `buildAutopsy()` 同一份模型（分层图复用部署图的节点），
  * 所以不会出现「部署图说 MySQL、分层图说 Postgres」。
  * 本组件只负责**显示与下载**，不重新算图 —— 判据在 `facts-arch.ts` / `arch-canvas.ts`。
+ *
+ * 渲染形态（2026-10-14 二次定版）：预览直接上 SVG 原图。
+ * HTML 卡片视图试过一版被否 —— 图没了就不像图，回退。
  */
 export default function ArchPanel({
   artifacts,

@@ -120,7 +120,9 @@ async function postJson(base, apiPath, body) {
  */
 export function review({ diffText, facts, report }) {
   const files = changedFilesFromDiff(diffText);
-  const view = facts ? buildFunctionView(facts) : null;
+  // facts 是 /api/scan/facts 的完整事实 —— 调用边/路由/入口都挂在 code 段下，
+  // 直接整个传进去等于传一张空图（与 FunctionPanel 2026-10-14 修的同一个坑）。
+  const view = facts ? buildFunctionView({ ...facts.code }) : null;
   const impacted = view ? affectedFeatures(view, files) : [];
 
   const staticFindings = [];

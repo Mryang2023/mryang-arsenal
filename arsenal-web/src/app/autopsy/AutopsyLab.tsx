@@ -50,7 +50,7 @@ import {
 } from '@/lib/vitals-store';
 
 /**
- * 项目解剖台。
+ * 项目侦察。
  *
  * 一句话：给一个地址 → 出「技术栈部署图 + 应用分层图 + 未识别依赖清单 + 服务拓扑」。
  *
@@ -358,9 +358,9 @@ export default function AutopsyLab() {
   return (
     <div className="space-y-3">
       <header>
-        <h1 className="text-[14px] font-bold text-fg">项目解剖台</h1>
+        <h1 className="text-[14px] font-bold text-fg">项目侦察</h1>
         <p className="mt-1 text-[11px] leading-[17px] text-fgMuted">
-          给一个项目地址，扫出技术栈部署图、应用分层图、未识别依赖清单与服务拓扑（有几个服务、各带什么出处）。
+          给一个项目地址，侦察出技术栈部署图、应用分层图、未识别依赖清单与服务拓扑（有几个服务、各带什么出处）。
           只读扫描、不执行仓库里的任何脚本；每条结论都带文件与行号，没认出来的一律列出来而不猜。
         </p>
       </header>

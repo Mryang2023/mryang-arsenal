@@ -141,7 +141,10 @@ export function buildFunctionView(facts: CallFacts | null | undefined): Function
     if (e?.className) seeds.push({ cls: e.className, kind: 'entrypoint' });
   }
   for (const r of routes) {
-    if (r?.handler) seeds.push({ cls: r.handler, kind: 'route' });
+    // handler 是 "UserController#getUser" 形态（CodeScanner 出品）——
+    // 种子必须取类名那半，否则与调用边上的类名永远对不上，路由链全部悬空。
+    const cls = handlerClass(r?.handler);
+    if (cls) seeds.push({ cls, kind: 'route' });
   }
   // 去重 + 排序：同一类既是入口又是路由处理时只留一条，且 kind 取更靠前的那个
   const seedMap = new Map<string, 'entrypoint' | 'route'>();
@@ -159,7 +162,7 @@ export function buildFunctionView(facts: CallFacts | null | undefined): Function
     const classes = [...reach].sort();
     const id = clusterId(seed);
     const myRoutes = routes
-      .filter((r) => r.handler === seed)
+      .filter((r) => handlerClass(r.handler) === seed)
       .map((r) => ({ method: r.method, path: r.path, handler: r.handler, file: r.file, line: r.line }))
       .sort((a, b) => (a.path < b.path ? -1 : a.path > b.path ? 1 : 0));
     const inb = (inboundEdges.get(seed) ?? [])
@@ -275,6 +278,13 @@ function filesOf(classes: string[], calls: { from: string; to: string; file: str
 
 function clusterId(seed: string): string {
   return `fn:${seed}`;
+}
+
+/** 路由 handler（"UserController#getUser"）→ 类名（"UserController"）。没有 "#" 时原样返回。 */
+function handlerClass(handler: string | undefined): string {
+  if (!handler) return '';
+  const i = handler.indexOf('#');
+  return i >= 0 ? handler.slice(0, i) : handler;
 }
 
 function labelOf(seed: string, kind: 'entrypoint' | 'route', routes: { method: string; path: string }[]): string {
