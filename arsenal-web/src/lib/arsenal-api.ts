@@ -920,6 +920,64 @@ export interface QaCommitteeFinding {
   signalText: string;
 }
 
+/** 数字孪生 · 对话问诊的返回。`dossier` 与 `numberAudit` 是这个接口真正的价值。 */
+export interface QaTwinAnswer {
+  schemaVersion: number;
+  projectId: string;
+  question: string;
+  /** ok | not-run | failed */
+  status: string;
+  reason?: string;
+  answer?: string;
+  citations?: string[];
+  /** 模型自己说「答不了」的清单 */
+  cannotSay?: string[];
+  /** 四层档案里**哪层有数据**。缺哪层就明写，不用别的层顶替 */
+  dossier?: {
+    static: { present: boolean; note: string };
+    semantic: { present: boolean; proven: number; notReproduced: number; notRun: number };
+    runtime: { present: boolean; started: number; declared: number };
+    time: { present: boolean; points: number; latest?: unknown };
+    empty: boolean;
+  };
+  /** 这份档案答不了什么 */
+  blindSpots?: string[];
+  /**
+   * 答案里每个数字是否都能在档案里找到出处。
+   * `suspect` = 有数字找不到出处 —— **那些数字可能是在编**，看结论前先核。
+   */
+  numberAudit?: 'pass' | 'suspect';
+  numberAuditNote?: string;
+  usage?: { promptTokens: number; completionTokens: number; dossierChars: number };
+}
+
+/** POST /api/qa/ask —— 对着活档案问一句。三态与 qa 其余接口同一口径。 */
+export async function qaAsk(
+  question: string,
+  source?: ScanSource
+): Promise<QaOutcome<QaTwinAnswer>> {
+  const base = arsenalApiBase();
+  try {
+    const res = await fetchWithTimeout(
+      `${base}/api/qa/ask`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        // 不传 source 时后端默认看军火库自己（dogfooding）
+        body: JSON.stringify({ question, ...(source ? { source } : {}) }),
+      },
+      180_000
+    );
+    const body = (await res.json()) as ApiEnvelope<QaTwinAnswer>;
+    if (!body.success || !body.data) {
+      return { kind: 'rejected', code: body.code ?? `HTTP_${res.status}`, message: body.message ?? `问诊失败（HTTP ${res.status}）` };
+    }
+    return { kind: 'ok', data: body.data };
+  } catch (e) {
+    return { kind: 'offline', message: offlineMessage(e) };
+  }
+}
+
 export interface QaTree {
   projectId: string;
   fromJobId: string;

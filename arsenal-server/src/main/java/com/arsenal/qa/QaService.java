@@ -82,6 +82,10 @@ public class QaService {
     private final ReproService repro;
     /** C4：三个审查员并行 + 交叉验证（共识 / 孤证）。 */
     private final CommitteeJudge committee;
+    /** 数字孪生 · 对话问诊。 */
+    private final TwinAsk twin;
+    /** 静态层 facts 的唯一出处 —— 问诊的静态层也走它，不自己拼一份。 */
+    private final com.arsenal.scan.ProjectScanner scanner;
     /** 本地 maven 仓库 —— 编译与跑复现测试都要它。找不到就如实说「没跑」。 */
     private final Path m2Repo;
 
@@ -90,6 +94,7 @@ public class QaService {
 
     public QaService(AutopsyService autopsy, RuleIndex index, ObjectMapper mapper,
                      LlmClient llm, SemanticJudge judge, ReproService repro, CommitteeJudge committee,
+                     TwinAsk twin, com.arsenal.scan.ProjectScanner scanner,
                      @Value("${arsenal.qa.data-dir:../.data/qa}") String dataDir,
                      @Value("${arsenal.qa.pool-size:2}") int poolSize,
                      @Value("${arsenal.m2.repo:}") String m2RepoEnv) {
@@ -100,6 +105,8 @@ public class QaService {
         this.judge = judge;
         this.repro = repro;
         this.committee = committee;
+        this.twin = twin;
+        this.scanner = scanner;
         this.baseDir = Path.of(dataDir).toAbsolutePath().normalize();
         this.poolSize = Math.max(1, poolSize);
         // 与 AutopsyController#m2Repo 同一个口径：env 优先，否则 ~/.m2/repository。
@@ -383,6 +390,66 @@ public class QaService {
             log.warn("qa job {} 失败", job.id(), e);
             job.fail(e.getMessage() == null ? e.getClass().getSimpleName() : e.getMessage());
             persistJob(job);
+        }
+    }
+
+    // ── 数字孪生 · 对话问诊 ──────────────────────────────────────
+
+    /**
+     * 问一句。<b>先把档案装配出来，再决定能不能答</b> —— 顺序反了就会出现
+     * 「答案里引用的东西在档案里根本不存在」，而那正是数字自检要抓的情形。
+     *
+     * @param question 问句
+     * @param source   与 /qa/submit 同形的输入源；缺省取军火库自己（dogfooding）
+     */
+    public JsonNode ask(String question, JsonNode source) {
+        ObjectNode out = mapper.createObjectNode();
+        String kind = source == null ? "path" : source.path("kind").asText("path");
+        String value = source == null || source.path("value").asText("").isBlank()
+                ? repoRootOrNull()
+                : source.path("value").asText("");
+        if (value == null || value.isBlank()) {
+            out.put("status", "not-run");
+            out.put("reason", "没有输入源：问诊需要知道看哪个项目。传 source，或用默认（军火库自己）");
+            return out;
+        }
+        JsonNode facts = null;
+        JsonNode report = null;
+        String projectId = value;
+
+        // ① 静态层：ProjectScanner.scan 自己 try-with-resources 关 source，所以单独开一个
+        try (var s1 = "git".equals(kind)
+                ? com.arsenal.scan.SourceResolver.fromGit(value)
+                : com.arsenal.scan.SourceResolver.fromPath(value)) {
+            projectId = s1.rootName();
+            facts = scanner.scan(s1);
+        } catch (RuntimeException e) {
+            log.warn("问诊：静态层没装配上", e);
+        }
+
+        // ② 语义层：AutopsyService.inspect 同样会关 source，也要单独开一个
+        try (var s2 = "git".equals(kind)
+                ? com.arsenal.scan.SourceResolver.fromGit(value)
+                : com.arsenal.scan.SourceResolver.fromPath(value)) {
+            report = autopsy.inspect(s2, null);
+        } catch (RuntimeException e) {
+            log.warn("问诊：语义层没装配上", e);
+        }
+
+        // ③ 运行时层 / ④ 时间层：这一版还没接（活体采集与序列存储都只在页面上，不在 API 里）。
+        //    **如实留空** —— 档案里写「没数据」，比编一个数字诚实。
+        return twin.ask(null, projectId, question, facts, report, null, null, null);
+    }
+
+    private String repoRootOrNull() {
+        try {
+            Path here = Path.of(".").toAbsolutePath().normalize();
+            // arsenal-web 的上一级才是军火库根；从仓库根启动时就是它自己
+            Path candidate = Files.isDirectory(here.resolve("arsenal-server")) ? here : here.getParent();
+            return candidate != null && Files.isDirectory(candidate.resolve("arsenal-server"))
+                    ? candidate.toString() : null;
+        } catch (RuntimeException e) {
+            return null;
         }
     }
 

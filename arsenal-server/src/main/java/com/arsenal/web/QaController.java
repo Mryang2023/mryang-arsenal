@@ -29,6 +29,27 @@ public class QaController {
     }
 
     /**
+     * 数字孪生 · 对话问诊：对着一个项目的活档案问一句话。
+     *
+     * <p>请求体：{@code {"question":"…","source":{…}}}。<b>入参校验全在这一层</b> ——
+     * {@code GlobalExceptionHandler} 会把 400 吃成 500，那会让「参数写错了」变成「后端炸了」。
+     *
+     * <p>返回体里 {@code dossier}（哪层有数据）与 {@code numberAudit}（答案里的数字有没有出处）
+     * 是这个接口真正的价值 —— 它们让「答得流畅但数字是编的」这件事能被看见。
+     */
+    @PostMapping("/ask")
+    public ApiResponse<JsonNode> ask(@RequestBody JsonNode body) {
+        JsonNode q = body == null ? null : body.get("question");
+        if (q == null || !q.isTextual() || q.asString("").isBlank()) {
+            throw new IllegalArgumentException("缺少 question（问诊不猜你想问什么）");
+        }
+        if (q.asString("").length() > 500) {
+            throw new IllegalArgumentException("question 太长了（最多 500 字）");
+        }
+        return ApiResponse.ok(qa.ask(body.path("question").asString(""), body.path("source")));
+    }
+
+    /**
      * 受理一次深检。请求体：
      * <pre>{@code {"source":{"kind":"path|git","value":"…"},
      *             "range":{"mode":"full|review|focus","include":[glob…],"exclude":[glob…]},
@@ -62,5 +83,11 @@ public class QaController {
     @GetMapping("/snapshots")
     public ApiResponse<JsonNode> snapshots(@RequestParam("projectId") String projectId) {
         return ApiResponse.ok(qa.snapshots(projectId));
+    }
+
+    /** LLM 语义层配置状态。前端据此决定「深度检测」勾选框放不放行 —— 只回状态与模型名，绝不回 key。 */
+    @GetMapping("/llm-status")
+    public ApiResponse<JsonNode> llmStatus() {
+        return ApiResponse.ok(qa.llmStatus());
     }
 }

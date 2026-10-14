@@ -35,6 +35,7 @@ import { downloadText } from '@/lib/zip';
 import ArchPanel from './ArchPanel';
 import CheckupPanel from './CheckupPanel';
 import HistoryPanel, { type DamagedEntry } from './HistoryPanel';
+import FunctionPanel from './FunctionPanel';
 import RuntimePanel, { type RuntimeStage } from './RuntimePanel';
 import ServicePanel from './ServicePanel';
 import UnmatchedPanel from './UnmatchedPanel';
@@ -116,7 +117,7 @@ export default function AutopsyLab() {
   const [source, setSource] = useState('');
   const [stage, setStage] = useState<Stage>({ kind: 'idle' });
   const [theme, setTheme] = useState<CanvasTheme>('doc');
-  const [tab, setTab] = useState<'arch' | 'services' | 'checkup' | 'history' | 'vitals' | 'runtime'>('arch');
+  const [tab, setTab] = useState<'arch' | 'services' | 'checkup' | 'history' | 'vitals' | 'runtime' | 'functions'>('arch');
   const [checkup, setCheckup] = useState<CheckupStage>({ kind: 'idle' });
   const fileRef = useRef<HTMLInputElement>(null);
 
@@ -461,7 +462,7 @@ export default function AutopsyLab() {
         )}
       </div>
 
-      {/* ── 页签：架构 / 服务拓扑 / 体检 / 历史 / 生命体征 / 活体 ── */}
+      {/* ── 页签：架构 / 服务拓扑 / 体检 / 历史 / 生命体征 / 活体 / 功能 ── */}
       <div className="flex flex-wrap items-center gap-1 self-start rounded border border-line p-0.5">
         {(
           [
@@ -471,7 +472,8 @@ export default function AutopsyLab() {
             ['history', `历史（${snapshots.length}）`],
             ['vitals', `生命体征（${vitalsPoints.length}）`],
             ['runtime', '活体对账'],
-          ] as ['arch' | 'services' | 'checkup' | 'history' | 'vitals' | 'runtime', string][]
+            ['functions', '功能视图'],
+          ] as ['arch' | 'services' | 'checkup' | 'history' | 'vitals' | 'runtime' | 'functions', string][]
         ).map(([id, label]) => (
           <button
             key={id}
@@ -797,6 +799,8 @@ export default function AutopsyLab() {
           />
         </>
       )}
+
+      {tab === 'functions' && <FunctionPanel facts={stage.kind === 'done' ? stage.facts : null} />}
     </div>
   );
 }
