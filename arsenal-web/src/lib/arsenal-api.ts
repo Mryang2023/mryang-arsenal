@@ -1,4 +1,5 @@
 import type { ProjectFacts } from './facts-arch';
+import type { RuntimeProbeFact } from './runtime-recon';
 import type { CategoryKey, CheckLayer, Severity } from './types';
 
 /**
@@ -426,6 +427,71 @@ export async function autopsyInspect(source: ScanSource): Promise<AutopsyOutcome
 }
 
 // ─────────────────────────────────────────────────────────────
+// 活体采集（后端 POST /api/autopsy/run）
+//
+// 与体检是**两件不同的事**，所以不是一个请求：
+//   · /inspect —— 只读扫一遍出三档结论，一个字节都不执行
+//   · /run     —— 把项目复制到工作副本里**真跑起来**，采端口 / health / 日志
+//
+// ⚠️ 超时口径**刻意不复用** SCAN_TIMEOUT_MS（200s）。那个是给只读扫描的；
+// 这里必须比后端墙钟（默认 90s）更宽 —— 否则前端先超时、后端还在跑，
+// 页面会说「没采到」，而进程其实起来了。那又是一句假话，
+// 而且是最难查的那种（要等到下一次扫同一个项目才可能发现）。
+const RUNTIME_RUN_TIMEOUT_MS = 150_000;
+
+/** 后端认得的运行时。**只有 spring-boot 是真跑通的**，另两个是显式降级，不是「还没接」 */
+export type RuntimeKind = 'spring-boot' | 'node-start' | 'plain-main';
+
+export type AutopsyRunOutcome =
+  | { kind: 'probe'; probe: RuntimeProbeFact }
+  | { kind: 'rejected'; code: string; message: string }
+  | { kind: 'offline'; message: string };
+
+/**
+ * 真跑一次，采运行时事实。
+ *
+ * `mainClass` 由调用方（页面从 facts.code.entryPoints[] 里挑）传进来 ——
+ * **后端不猜「该跑哪个类」**：猜错的表现是「起不来」，
+ * 而项目真的起不来时也是「起不来」，两者在结果上无从区分。
+ */
+export async function autopsyRun(
+  source: ScanSource,
+  mainClass: string,
+  runtime: RuntimeKind = 'spring-boot',
+  wallClockMs = 90_000,
+): Promise<AutopsyRunOutcome> {
+  const base = arsenalApiBase();
+  let res: Response;
+  try {
+    res = await fetchWithTimeout(
+      `${base}/api/autopsy/run`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ source, mainClass, runtime, wallClockMs }),
+      },
+      RUNTIME_RUN_TIMEOUT_MS
+    );
+  } catch (e) {
+    return { kind: 'offline', message: offlineMessage(e) };
+  }
+  let body: ApiEnvelope<RuntimeProbeFact>;
+  try {
+    body = (await res.json()) as ApiEnvelope<RuntimeProbeFact>;
+  } catch {
+    return { kind: 'rejected', code: `HTTP_${res.status}`, message: `后端返回的不是 JSON（HTTP ${res.status}）` };
+  }
+  if (!body.success || !body.data) {
+    return {
+      kind: 'rejected',
+      code: body.code ?? `HTTP_${res.status}`,
+      message: body.message ?? `活体采集失败（HTTP ${res.status}）`,
+    };
+  }
+  return { kind: 'probe', probe: body.data };
+}
+
+// ─────────────────────────────────────────────────────────────
 // 代码校验（后端 POST /api/lint）
 //
 // 校验台的「后端深检」：把用户粘贴的源码交给后端，跑正则层之外的
@@ -651,6 +717,49 @@ export interface QaTestSuggestion {
   findings?: number;
 }
 
+export interface QaSemanticFinding {
+  ruleId: string;
+  ruleTitle: string;
+  severity: string;
+  category: string;
+  file: string;
+  line: number;
+  evidence: string;
+  impact: string;
+  confidence: number;
+  source: string;
+  recommendation: { before: string; after: string; rationale: string };
+}
+
+export interface QaSemanticVerdict {
+  ruleId: string;
+  title: string;
+  severity: string;
+  /** 违规 | 合规 | 不适用 | 未跑-预算 | 失败-格式 */
+  verdict: string;
+  filesJudged: number;
+  violations: number;
+  note?: string;
+}
+
+export interface QaLlmUsage {
+  model: string;
+  candidateFiles: number;
+  batches: number;
+  maxBatches: number;
+  charsSent: number;
+  promptTokens: number;
+  completionTokens: number;
+  droppedFindings: number;
+  budgetCut: boolean;
+}
+
+export interface QaLlmStatus {
+  configured: boolean;
+  model: string;
+  reason: string;
+}
+
 export interface QaReport {
   schemaVersion: number;
   jobId: string;
@@ -667,14 +776,17 @@ export interface QaReport {
   scope: AutopsyReport['scope'] & { filteredOut?: number };
   coverage: AutopsyCoverage & { scopeFilteredOut: number };
   staticFindings: QaStaticFindings;
-  semanticFindings: unknown[];
+  semanticFindings: QaSemanticFinding[];
+  semanticVerdicts: QaSemanticVerdict[];
+  semanticNotes: string[];
+  /** not-run | ok | partial | failed —— 「没跑」「跑不完」「跑完没问题」是三回事 */
   semanticStatus: string;
   semanticReason: string;
-  recommendations: QaRecommendation[];
+  recommendations: (QaRecommendation | { note: string })[];
   testSuggestions: (QaTestSuggestion | { note: string })[];
   skipped: AutopsyCoverage['skipped'];
   undecidability: string[];
-  llmUsage: unknown;
+  llmUsage: QaLlmUsage | null;
   scannedFiles: string[];
 }
 
@@ -806,4 +918,16 @@ export async function qaSnapshots(projectId: string): Promise<QaOutcome<QaSnapsh
     return { kind: 'offline', message: offlineMessage(e) };
   }
   return readQa<QaSnapshotSummary[]>(res);
+}
+
+/** LLM 语义层配置状态。只回 configured/model/reason，后端绝不回 key —— 前端据此放行「深度检测」勾选。 */
+export async function qaLlmStatus(): Promise<QaOutcome<QaLlmStatus>> {
+  const base = arsenalApiBase();
+  let res: Response;
+  try {
+    res = await fetchWithTimeout(`${base}/api/qa/llm-status`, {}, 8_000);
+  } catch (e) {
+    return { kind: 'offline', message: offlineMessage(e) };
+  }
+  return readQa<QaLlmStatus>(res);
 }

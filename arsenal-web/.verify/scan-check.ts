@@ -105,17 +105,47 @@ function section(title: string) {
 // ═══════════════════════════════════════════════════════════════
 section('【0】依赖：bash + JDK17（后端扫描探针）');
 const probeScript = path.join(serverRoot, 'scripts', 'scan-probe.sh');
-const bash = spawnSync('bash', ['--version'], { encoding: 'utf8' });
-const hasBash = bash.status === 0;
+
+/**
+ * 探 bash。**「bash 不存在」与「本环境瞬时拒绝了 spawn」是两件事。**
+ *
+ * 2026-10-14 终检实测：`spawnSync('bash', ['--version'])` 在本 harness **时灵时不灵** ——
+ * 同一份代码、同一个终端，四次里 3 次返回 `EBUSY`（1 次真跑通了 134/134）。
+ * 老写法只看 `status === 0`，于是 EBUSY 被写成「bash 不可用」，
+ * 后果是**整层 134 项记成「未执行」而实测数取自档案声明值** ——
+ * 一句假话套着另一个假话：不是环境不具备，是这一层**一项都没测过**。
+ * （10-12 铁律：「跑不动」和「没跑」不许写成同一句话，先探活再判断。）
+ *
+ * 所以：瞬时错误码重试 3 次；重试后仍被拒就**照实说是被拒**，
+ * 并且不许把它写成「bash 不可用」。
+ */
+function probeBash(attempts = 3): { ok: boolean; transient: boolean; detail: string } {
+  let detail = '';
+  for (let i = 0; i < attempts; i++) {
+    const r = spawnSync('bash', ['--version'], { encoding: 'utf8' });
+    if (r.status === 0) return { ok: true, transient: false, detail: '' };
+    detail = (r.error as NodeJS.ErrnoException | undefined)?.code || `status=${r.status}`;
+    if (detail !== 'EBUSY' && detail !== 'EAGAIN' && detail !== 'EPERM') {
+      return { ok: false, transient: false, detail }; // ENOENT 之类才是真的没有
+    }
+  }
+  return { ok: false, transient: true, detail };
+}
+
+const bashProbe = probeBash();
+const hasBash = bashProbe.ok;
 const hasProbe = fs.existsSync(probeScript);
 let skipReason = '';
 if (!hasBash || !hasProbe) {
   skipAll = true;
   skipReason = !hasBash
-    ? 'bash 不可用（spawnSync("bash","--version") 未返回 0）—— 扫描探针跑不起来'
+    ? bashProbe.transient
+      ? `连续 ${3} 次 spawn bash 都被本环境瞬时拒绝（${bashProbe.detail}）—— `
+        + '**这不是「bash 不可用」**，是这一层一次都没能起跑，下面 N 项全部未测'
+      : `bash 不可用（spawnSync("bash","--version") 返回 ${bashProbe.detail}）—— 扫描探针跑不起来`
     : `探针脚本不存在：${probeScript}`;
   console.log(`  ! 跳过：${skipReason}`);
-  console.log('    本层不会被计入「通过」。收尾会打「实测 0 项 / 跳过 N 项 / 失败 0 项」，退出码 2。');
+  console.log('    本层不会被计入「通过」。收尾会打「实测 N 项 / 跳过 M 项 / 失败 0 项」，退出码 2。');
 }
 
 // 探针回执。除 facts 外还有三种附加载荷（rules / symlink / guard）——
@@ -690,13 +720,28 @@ if (!skipAll && factsShared) {
     s.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^[ \t]*\/\/.*$/gm, '');
 
   /**
-   * 本沙箱里 `spawnSync` 对**任何**外部进程都返回 EBUSY（bash / git 实测皆然），
-   * 这不是代码缺陷。依赖外部进程的断言因此只能 `skip()` ——
-   * **绝不许兜成通过**：那会让「.gitignore 是否真生效」变成一条永远绿的摆设。
+   * 依赖外部进程的断言在 spawn 被拒时只能 `skip()` —— **绝不许兜成通过**：
+   * 那会让「.gitignore 是否真生效」变成一条永远绿的摆设。
+   *
+   * 本 harness 里 `spawnSync` 对外部进程**会**返回 EBUSY，但那是**瞬时态** ——
+   * 2026-10-14 终检实测：同一台机器同一条命令，四次里 3 次被拒、1 次跑通。
+   * 所以这里也重试 3 次再下结论，且文案只写**实测到的**（返回了什么错误码），
+   * 不写「沙箱限制」这种推断 —— 推断写进跳过理由，下一个人会当真。
    */
-  const spawnBroken =
-    spawnSync('git', ['--version'], { encoding: 'utf8' }).error !== undefined;
-  const spawnWhy = spawnBroken ? '本环境 spawnSync 对外部进程返回 EBUSY（沙箱限制）' : '';
+  const gitProbe = (() => {
+    let detail = '';
+    for (let i = 0; i < 3; i++) {
+      const r = spawnSync('git', ['--version'], { encoding: 'utf8' });
+      if (r.status === 0) return { ok: true, detail: '' };
+      detail = (r.error as NodeJS.ErrnoException | undefined)?.code || `status=${r.status}`;
+      if (detail !== 'EBUSY' && detail !== 'EAGAIN' && detail !== 'EPERM') break;
+    }
+    return { ok: false, detail };
+  })();
+  const spawnBroken = !gitProbe.ok;
+  const spawnWhy = spawnBroken
+    ? `连续 3 次 spawn git 都被本环境拒绝（${gitProbe.detail}）—— 这一条因此没测，不是「通过」`
+    : '';
 
   // ① 三档目录必须真能换 —— 内联的 `??` 顺序写反时，整条链依然全绿（charter-dir 的教训）
   const dTier1 = resolveAutopsyDir({ webRoot, repoRoot });
@@ -1530,6 +1575,67 @@ const factsWithEntry = {
     && healthWording(noActuator).includes('无 health 端点')
     && healthWording(probeOk()).includes('UP'),
     `verdict=${healthNoAct.verdict} 措辞=${healthWording(noActuator).slice(0, 28)}`);
+
+  // ⑦ 「没采」不许被说成「健康」——**这条是被真实注入打出来的**，不是想出来的。
+  //    2026-10-14 终检注入 `healthWording(null) → '健康'` 时 13-A / 13-B / 13-F **三条全绿**：
+  //    它们守的是 reconcile 产出的 rows 与 verdict，而 `healthWording` 的 null 分支
+  //    在 reconcile 路径上**根本走不到**（调用前已判过 probeForHealth 非空）。
+  //    → 措辞层是一个独立的出口，必须有断言直接打它，否则改坏了没人知道。
+  //    判据用「肯定句」而不是 substring：措辞里出现「不是健康」这种否定表述是**正确**的，
+  //    拿 substring 去查会把自己的好话判成错。
+  const stripNegated = (w: string) =>
+    // 做法：先把「不是/并非/没有…健康|正常」这类**否定式**整段抠掉，剩下的是「肯定地说它健康」。
+    // （第一版把方向写反了：`!NEGATED.test(w)` 会把「不是健康」判成错、真正的「就是健康」放行。
+    //   判据方向写反和没写这条断言长得一模一样 —— 都是绿的。所以判据写完必须反着验一次。）
+    w.replace(/(不是|并非|没有|没|未|≠)[^。；;]{0,6}(健康|正常)/g, '');
+  const emptyWordings = [
+    healthWording(null),
+    healthWording(undefined),
+    healthWording({} as RuntimeProbeFact),
+  ];
+  const emptyOk = emptyWordings.every((w) =>
+    (w.includes('没采') || w.includes('没有') || w.includes('没探'))
+    && !stripNegated(w).includes('健康')
+    && !stripNegated(w).includes('正常'));
+  check('13-G 没采集结果时 healthWording 不许说「健康 / 正常」（措辞层单独守，不靠 verdict 顺带覆盖）',
+    emptyOk,
+    `三处措辞：${emptyWordings.map((w) => w.slice(0, 18)).join(' | ')}`);
+
+  // ⑧ 第六页签真的挂上了吗 —— 端点、面板、页签三处一起看。
+  //    2026-10-13 棒 2 的教训：后端端点建好了、纯函数写好了、断言全绿了，
+  //    但页签没做 → 「用户一点都看不到」。纯函数绿 ≠ 页面在。
+  const labSrc = fs.readFileSync(path.join(webRoot, 'src/app/autopsy/AutopsyLab.tsx'), 'utf8');
+  const panelSrc = fs.existsSync(path.join(webRoot, 'src/app/autopsy/RuntimePanel.tsx'))
+    ? fs.readFileSync(path.join(webRoot, 'src/app/autopsy/RuntimePanel.tsx'), 'utf8')
+    : '';
+  const ctrlSrc = fs.readFileSync(
+    path.join(serverRoot, 'src/main/java/com/arsenal/web/AutopsyController.java'), 'utf8');
+  // 从面板源码里**抠出**档位字样表，而不是在本仓再抄一份 ——
+  // 抄一份的话，改了页面忘改断言，13-I 会一直绿而页面已经变了。
+  const VERDICT_TEXT_SRC =
+    panelSrc.match(/const VERDICT_TEXT[^=]*=\s*\{([\s\S]*?)\n\}/)?.[1] ?? '';
+  const tabIds = (labSrc.match(/\['(arch|services|checkup|history|vitals|runtime)',/g) ?? []);
+  check('13-H 第六页签真挂上：tab 数组含 runtime + 渲染分支 + 面板文件 + 后端 /run 端点',
+    tabIds.length >= 6
+    && new Set(tabIds).size === 6
+    && labSrc.includes("tab === 'runtime'")
+    && panelSrc.length > 0
+    && /reconcileRuntime/.test(panelSrc)
+    && /VERDICT_TEXT/.test(panelSrc)
+    && ctrlSrc.includes('@PostMapping("/run")'),
+    `tab 项=${tabIds.length} 面板=${panelSrc.length}字端点=${ctrlSrc.includes('@PostMapping("/run")')}`);
+
+  // ⑨ 三档措辞不许只有颜色 —— 页面上必须带字（色盲 / 单色截图 / 打印都靠它）。
+  //    键名要带引号一起匹配：`'not-run': '未执行'` 里 `not-run:` 根本不是合法的 key 形态，
+  //    按 `not-run:` 去 match 会静默匹配不到，然后这条断言靠 fallback 分支假装通过。
+  const verdictEntries = [...VERDICT_TEXT_SRC.matchAll(/'?([a-z][a-z-]*)'?:\s*'([^']*)'/g)]
+    .map((m) => [m[1], m[2]] as const);
+  check('13-I 三档 verdict 各自带中文档位字样（不许只靠颜色表达）',
+    verdictEntries.length === 3
+    && ['match', 'mismatch', 'not-run'].every((k) =>
+      verdictEntries.some(([kk, v]) => kk === k && /[\u4e00-\u9fff]/.test(v)))
+    && new Set(verdictEntries.map((e) => e[1])).size === 3,
+    `抠出 ${verdictEntries.length} 档：${verdictEntries.map(([k, v]) => `${k}=${v}`).join(' ')}`);
 }
 
 if (!skipAll) {

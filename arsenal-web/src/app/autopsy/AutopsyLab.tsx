@@ -11,9 +11,12 @@ import {
 import type { ProjectFacts } from '@/lib/facts-arch';
 import {
   autopsyInspect,
+  autopsyRun,
   scanFacts,
   scanUpload,
   type AutopsyReport,
+  type AutopsyRunOutcome,
+  type RuntimeKind,
   type ScanOutcome,
 } from '@/lib/arsenal-api';
 import { scanTechName } from '@/lib/scan-rules';
@@ -32,9 +35,11 @@ import { downloadText } from '@/lib/zip';
 import ArchPanel from './ArchPanel';
 import CheckupPanel from './CheckupPanel';
 import HistoryPanel, { type DamagedEntry } from './HistoryPanel';
+import RuntimePanel, { type RuntimeStage } from './RuntimePanel';
 import ServicePanel from './ServicePanel';
 import UnmatchedPanel from './UnmatchedPanel';
 import VitalsPanel from './VitalsPanel';
+import type { RuntimeProbeFact } from '@/lib/runtime-recon';
 import {
   appendLocalPoint,
   clearLocalVitals,
@@ -107,9 +112,16 @@ export default function AutopsyLab() {
   const [source, setSource] = useState('');
   const [stage, setStage] = useState<Stage>({ kind: 'idle' });
   const [theme, setTheme] = useState<CanvasTheme>('doc');
-  const [tab, setTab] = useState<'arch' | 'services' | 'checkup' | 'history' | 'vitals'>('arch');
+  const [tab, setTab] = useState<'arch' | 'services' | 'checkup' | 'history' | 'vitals' | 'runtime'>('arch');
   const [checkup, setCheckup] = useState<CheckupStage>({ kind: 'idle' });
   const fileRef = useRef<HTMLInputElement>(null);
+
+  // ── 活体采集（第六页签）──
+  // 独立于 checkup / vitals 的第三份状态：**不与它们合并**。
+  // 合并会把「快照好了、序列没好、活体没跑」三种差异藏成一片空白，
+  // 而这三件事各自都会独立失败（10-13 棒 1 交接时定的规矩）。
+  const [runtimeStage, setRuntimeStage] = useState<RuntimeStage>({ kind: 'idle' });
+  const [runtimeRun, setRuntimeRun] = useState<{ entryIndex: number; probe: RuntimeProbeFact | null } | null>(null);
 
   // ── 快照（浏览器侧 localStorage，不进军火库仓库）──
   const [snapshots, setSnapshots] = useState<AutopsySnapshot[]>([]);
@@ -280,6 +292,54 @@ export default function AutopsyLab() {
     [mode, source, reuseInput, snapshots, stage, reloadSnapshots]
   );
 
+  /**
+   * 活体采集一次。
+   *
+   * 与 `onAnalyze` / `onAnalyzeCheckup` 是**三条独立的路**，不共用状态：
+   * 体检是只读扫，活体是真跑。前者绿了不代表后者会跑起来。
+   *
+   * zip 模式**这一条走不了**：后端 /run 只接 path|git（它要复制目录到工作副本，
+   * 上传件的临时文件活不过这一次请求）。这里明说，不给一个点了才知道坏的按钮。
+   */
+  const onRunRuntime = useCallback(
+    (entryIndex: number, runtime: RuntimeKind, wallClockMs: number) => {
+      const src = currentSource;
+      const entries = stage.kind === 'done' ? (stage.facts.code?.entryPoints ?? []) : [];
+      const ep = entries[entryIndex];
+      if (!src) {
+        setRuntimeStage({ kind: 'failed', code: 'NO_SOURCE', message: '先在上面填一个项目地址（或先做一次分析，让解剖台认出入口）', offline: false });
+        return;
+      }
+      if (!ep) {
+        setRuntimeStage({ kind: 'failed', code: 'NO_ENTRY', message: '这次分析没认出任何可运行入口 —— 活体解剖无从下手', offline: false });
+        return;
+      }
+      const mainClass = ep.package ? `${ep.package}.${ep.className ?? ''}` : ep.className ?? '';
+      if (!mainClass) {
+        setRuntimeStage({ kind: 'failed', code: 'NO_MAIN_CLASS', message: '这个入口没解析出主类名 —— 后端不猜，猜错与真起不来在结果上分不开', offline: false });
+        return;
+      }
+      setRuntimeStage({ kind: 'running' });
+      setRuntimeRun({ entryIndex, probe: null });
+      void autopsyRun(src, mainClass, runtime, wallClockMs).then((outcome: AutopsyRunOutcome) => {
+        if (outcome.kind === 'probe') {
+          setRuntimeRun({ entryIndex, probe: outcome.probe });
+          setRuntimeStage({ kind: 'done' });
+        } else if (outcome.kind === 'offline') {
+          setRuntimeStage({ kind: 'failed', code: 'OFFLINE', message: outcome.message, offline: true });
+        } else {
+          setRuntimeStage({ kind: 'failed', code: outcome.code, message: outcome.message, offline: false });
+        }
+      });
+    },
+    [currentSource, stage]
+  );
+
+  const runtimeEntries = useMemo(
+    () => (stage.kind === 'done' ? (stage.facts.code?.entryPoints ?? []) : []),
+    [stage]
+  );
+
   const artifacts: AutopsyArtifacts | null = useMemo(
     () => (stage.kind === 'done' ? buildAutopsy(stage.facts, theme) : null),
     [stage, theme]
@@ -397,7 +457,7 @@ export default function AutopsyLab() {
         )}
       </div>
 
-      {/* ── 页签：架构 / 服务拓扑 / 体检 / 历史 / 生命体征 ── */}
+      {/* ── 页签：架构 / 服务拓扑 / 体检 / 历史 / 生命体征 / 活体 ── */}
       <div className="flex flex-wrap items-center gap-1 self-start rounded border border-line p-0.5">
         {(
           [
@@ -406,7 +466,8 @@ export default function AutopsyLab() {
             ['checkup', '体检报告'],
             ['history', `历史（${snapshots.length}）`],
             ['vitals', `生命体征（${vitalsPoints.length}）`],
-          ] as ['arch' | 'services' | 'checkup' | 'history' | 'vitals', string][]
+            ['runtime', '活体对账'],
+          ] as ['arch' | 'services' | 'checkup' | 'history' | 'vitals' | 'runtime', string][]
         ).map(([id, label]) => (
           <button
             key={id}
@@ -714,6 +775,23 @@ export default function AutopsyLab() {
       )}
       {vitalsNote && tab === 'vitals' && (
         <p className="text-[10.5px] leading-[15px] text-fgFaint">⚠ {vitalsNote}</p>
+      )}
+
+      {tab === 'runtime' && (
+        <>
+          {mode === 'zip' && (
+            <p className="text-[10.5px] leading-[15px] text-fgFaint">
+              ⚠ 上传 zip 这一条<span className="text-fgMuted">走不了活体采集</span>：后端要把目录复制成工作副本再跑，
+              上传件的临时文件活不过这一次请求。要真跑请用「本地目录」或「https git」。
+            </p>
+          )}
+          <RuntimePanel
+            entries={runtimeEntries}
+            stage={runtimeStage}
+            run={runtimeRun}
+            onRun={onRunRuntime}
+          />
+        </>
       )}
     </div>
   );
