@@ -132,6 +132,25 @@ export interface ProjectFacts {
     annotations: Record<string, number>;
     layers: Record<string, number>;
     packages: { path: string; files: number }[];
+    /**
+     * 类清单：每个 .java 文件一条（既定口径只认第一个类声明）。
+     * layer / layerBy 与 layers 聚合同一次分类 —— Σ classes[].layer 逐层 === layers 各键。
+     * 读不到的一律 null（未分类也是结论，不许兜底）
+     */
+    classes: {
+      name: string | null;
+      file: string;
+      line: number | null;
+      package: string | null;
+      layer: string | null;
+      /** annotation（硬事实）/ name（命名推断）/ package（约定推断）/ null（未分类） */
+      layerBy: string | null;
+      /** 只收 WATCHED 里真出现的，与全局 annotations 计数同源 —— **文件级**（含方法上的），不是「类声明头上的」 */
+      annotations: string[];
+    }[];
+    /** 目录计数：全量收集到的文件（含非 Java）按父目录归并；"" = 仓库根目录。
+     *  被 ScanGuard.skipDir 跳过的目录不在树里 —— 树是「读过的文件」，不是磁盘全貌 */
+    dirs: { path: string; files: number }[];
     routes: { method: string; path: string; handler: string; file: string; line: number }[];
     clients: { kind: string; target: string | null; file: string; line: number }[];
     directCalls: { from: string; to: string; file: string }[];

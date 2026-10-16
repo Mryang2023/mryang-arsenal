@@ -100,6 +100,32 @@ function section(title: string) {
   console.log(`\n${title}`);
 }
 
+/**
+ * 类清单与 layers 聚合的一致性判据（2026-10-17 夜跑棒 2）。
+ *
+ * 两边必须**同口径**：左边从 `code.classes` 现算（跳过 layer 为 null 的未分类条目），
+ * 右边直接读 `code.layers` 聚合值。键集合与每个键的计数都要相等 ——
+ * 多一个键、少一个键、计数差一，都是「同一趟输出内部漂移」。
+ * 抽成函数是为了反向断言能复用同一份判据（喂一份改坏的副本必须判负）。
+ */
+function classLayerCounts(facts: any): Record<string, number> {
+  const out: Record<string, number> = {};
+  for (const c of facts?.code?.classes ?? []) {
+    if (c.layer != null) out[c.layer] = (out[c.layer] ?? 0) + 1;
+  }
+  return out;
+}
+
+function layersAgg(facts: any): Record<string, number> {
+  return facts?.code?.layers ?? {};
+}
+
+function sameLayerCounts(a: Record<string, number>, b: Record<string, number>): boolean {
+  const ka = Object.keys(a).sort();
+  const kb = Object.keys(b).sort();
+  return ka.length === kb.length && ka.every((k, i) => k === kb[i] && a[k] === b[k]);
+}
+
 // ═══════════════════════════════════════════════════════════════
 // 【0】环境：bash + JDK。缺一个就明说跳过，不装作通过
 // ═══════════════════════════════════════════════════════════════
@@ -256,9 +282,10 @@ if (!skipAll) {
     check('1-14 code.annotations["@RestController"] === 3',
       factsA.code?.annotations?.['@RestController'] === 3,
       `实际 ${JSON.stringify(factsA.code?.annotations)}`);
-    check('1-15 分层计数：controller 3 / service 1 / repository 1',
+    check('1-15 分层计数：controller 3 / service 1 / repository 1 / util 1（util 桶为 10-17 夜跑棒 2 新增：类名后缀 Utils/Util/Helper/Tools）',
       factsA.code?.layers?.controller === 3 && factsA.code?.layers?.service === 1
-      && factsA.code?.layers?.repository === 1, `实际 ${JSON.stringify(factsA.code?.layers)}`);
+      && factsA.code?.layers?.repository === 1 && factsA.code?.layers?.util === 1,
+      `实际 ${JSON.stringify(factsA.code?.layers)}`);
     check('1-16 Feign 客户端：kind=feign 且 target=inventory-service',
       factsA.code?.clientsUnique?.[0]?.kind === 'feign'
       && factsA.code?.clientsUnique?.[0]?.target === 'inventory-service',
@@ -273,6 +300,58 @@ if (!skipAll) {
     check('1-19 包只取前三层',
       factsA.code?.packages?.every((p: any) => p.path.split('/').length <= 3) === true,
       `实际 ${JSON.stringify(factsA.code?.packages)}`);
+
+    // ── 类清单 / 目录计数 / util 桶（2026-10-17 夜跑棒 2：Java 信号提取）──────
+    // 判据来自计划书 §6：① classes 与 layers 聚合逐键相等 ② util 标 layerBy=name
+    // ③ 未分类不许猜 ④ dirs 与 stats.files 自洽。**每条都带样本量非零的前置**，
+    // 防「空数组上 every() 恒真」这种静默通过。
+    const cls: any[] = factsA.code?.classes ?? [];
+    const dirsArr: any[] = factsA.code?.dirs ?? [];
+
+    check('1-31 类清单形状：13 个 .java 文件 13 条，每条 name/file/line/package/layer/layerBy/annotations 七字段齐',
+      cls.length === 13 && cls.every((c: any) =>
+        typeof c.file === 'string' && c.file.endsWith('.java')
+        && (c.name === null || typeof c.name === 'string')
+        && (c.line === null || (typeof c.line === 'number' && c.line > 0))
+        && (c.package === null || typeof c.package === 'string')
+        && (c.layer === null || typeof c.layer === 'string')
+        && (c.layerBy === null || typeof c.layerBy === 'string')
+        && Array.isArray(c.annotations)),
+      `实际 ${cls.length} 条`);
+
+    check('1-32 一致性：Σ classes[].layer 逐层 === layers 聚合各键（双向——多一个键也是漂移）',
+      sameLayerCounts(classLayerCounts(factsA), layersAgg(factsA)),
+      `classes 现算 ${JSON.stringify(classLayerCounts(factsA))} vs layers ${JSON.stringify(layersAgg(factsA))}`);
+
+    // 反向断言：删掉 StringUtils 那条后一致性必须判负 —— 证明 1-32 不是恒真摆设
+    const dropped = JSON.parse(JSON.stringify(factsA));
+    dropped.code.classes = dropped.code.classes.filter((c: any) => c.name !== 'StringUtils');
+    check('1-33 反向断言：删掉 StringUtils 那条后一致性判负（证明 1-32 真的在比数据）',
+      !sameLayerCounts(classLayerCounts(dropped), layersAgg(dropped)),
+      '删了一条仍然相等 —— 1-32 的样本量或口径有问题');
+
+    check('1-34 util 桶：StringUtils → layer=util 且 layerBy=name（命名推断，与徽标「据类名推断」角标同源）',
+      cls.some((c: any) => c.name === 'StringUtils' && c.layer === 'util' && c.layerBy === 'name'),
+      `实际 ${JSON.stringify(cls.find((c: any) => c.name === 'StringUtils') ?? null)}`);
+
+    check('1-35 layers 键集精确等于 config/controller/domain/repository/service/util（行为变更钉死：只多 util 一个键）',
+      JSON.stringify(Object.keys(layersAgg(factsA)).sort())
+        === JSON.stringify(['config', 'controller', 'domain', 'repository', 'service', 'util']),
+      `实际 ${JSON.stringify(Object.keys(layersAgg(factsA)).sort())}`);
+
+    check('1-36 目录计数自洽：Σ dirs.files === stats.files（每个收集到的文件恰好属于一个目录）',
+      dirsArr.length > 0 && dirsArr.reduce((n: number, d: any) => n + d.files, 0) === factsA.stats?.files,
+      `Σ=${dirsArr.reduce((n: number, d: any) => n + d.files, 0)} vs stats.files=${factsA.stats?.files}`);
+
+    check('1-37 根目录计数："" = 4 个文件（pom/Dockerfile/compose/gitlab-ci），com/demo/util = 1 个',
+      dirsArr.find((d: any) => d.path === '')?.files === 4
+      && dirsArr.find((d: any) => d.path === 'src/main/java/com/demo/util')?.files === 1,
+      `实际 ${JSON.stringify(dirsArr.filter((d: any) => d.path === '' || d.path.endsWith('/util')))}`);
+
+    check('1-38 三种 layerBy 出处都在真实数据里出现（annotation / name / package），且未分类桶非空',
+      new Set(cls.map((c: any) => c.layerBy).filter((v: any) => v !== null)).size === 3
+      && cls.filter((c: any) => c.layer === null).length > 0,
+      `layerBy 集合 ${JSON.stringify([...new Set(cls.map((c: any) => c.layerBy))])}，未分类 ${cls.filter((c: any) => c.layer === null).length} 条`);
 
     const matched: any[] = factsA.techStack?.matched ?? [];
     check('1-20 技术栈命中 spring / mysql / redis',
@@ -297,6 +376,52 @@ if (!skipAll) {
       `实际 root=${factsA.root}`);
   }
   check('1-26 映射表 ≥80 条', (rules?.count ?? 0) >= 80, `实际 ${rules?.count}`);
+
+  // ── 【1b】军火库自身真扫（2026-10-17 夜跑棒 2）─────────────────
+  //
+  // 判据要求「demo-repo fixture + 军火库自身真扫」两条真样本都过。
+  // 扫的是 **arsenal-server 本体**而不是整仓：整仓扫会把【5】节留在 tmp 里的
+  // 20001 文件测试库一起收进来，顶穿 MAX_FILES(20000) 被整次拒绝；而在校验脚本里
+  // 清那个目录又会踩本机 safe-delete 的批量删除闸（>50 文件即拒，整个层被异常炸掉）。
+  // arsenal-server 是 Java 事实源的主场（类清单 / 分层 / util 都出自它），
+  // 且自带非 Java 文件（scripts / pom / resources）可验目录计数的全栈形状。
+  //
+  // 自身真扫**只查性质、不钉精确计数**（仓库在长大，钉死总数只会天天红）：
+  // 一致性 / 目录自洽 / util 的 0 值结论 / 闸门跳过目录不泄漏。
+  section('【1b】军火库自身真扫：classes / dirs / util');
+  const repoRoot = path.resolve(webRoot, '..');
+  const scanRoot = path.join(repoRoot, 'arsenal-server');
+  const rSelf = runProbe('self', [`facts:${scanRoot.replace(/\\/g, '/')}`]);
+  const selfFacts = rSelf.find((r) => r.kind === 'facts')?.facts;
+  if (selfFacts) {
+    const selfCls: any[] = selfFacts.code?.classes ?? [];
+    const selfDirs: any[] = selfFacts.code?.dirs ?? [];
+    check('1b-1 自身真扫：Σ classes[].layer 与 layers 逐键相等（样本量 > 0）',
+      selfCls.length > 0 && sameLayerCounts(classLayerCounts(selfFacts), layersAgg(selfFacts)),
+      `classes ${selfCls.length} 条；现算 ${JSON.stringify(classLayerCounts(selfFacts))}`
+      + ` vs layers ${JSON.stringify(layersAgg(selfFacts))}`);
+
+    check('1b-2 自身真扫：Σ dirs.files === stats.files（含 scripts / pom 等非 Java 文件）',
+      selfDirs.length > 0 && selfDirs.reduce((n: number, d: any) => n + d.files, 0) === selfFacts.stats?.files,
+      `Σ=${selfDirs.reduce((n: number, d: any) => n + d.files, 0)} vs stats.files=${selfFacts.stats?.files}`);
+
+    // arsenal-server 自身没有 *Utils / *Util / *Helper / *Tools 类 —— util 计数为 0。
+    // **0 也是结论**：这条钉的就是「真扫出来的 util 是 0，不是漏扫」
+    const selfUtil = selfCls.filter((c: any) => c.layer === 'util');
+    check('1b-3 自身真扫：util 计数为 0 且 layers 无 util 键（arsenal-server 自身没有工具类，0 也是结论）',
+      selfUtil.length === 0 && !('util' in layersAgg(selfFacts)),
+      `util ${selfUtil.length} 条；layers ${JSON.stringify(layersAgg(selfFacts))}`);
+
+    // 闸门跳过目录不泄漏：arsenal-server/target 真实存在（726 个 .class），树里一条都不能有
+    const skipNames = ['.git', 'node_modules', 'target', 'dist', 'build', 'out', '.next', 'bin', 'vendor', '__pycache__'];
+    const existingSkips = skipNames.filter((n) => fs.existsSync(path.join(scanRoot, n)));
+    const leaked = existingSkips.filter((n) => selfDirs.some((d: any) => d.path.split('/').includes(n)));
+    check('1b-4 自身真扫：被 ScanGuard 跳过的目录不在树里（磁盘存在 target，树里泄漏 0 个）',
+      existingSkips.includes('target') && leaked.length === 0,
+      `磁盘存在 ${existingSkips.join(',')}；树里泄漏 ${leaked.join(',') || '无'}`);
+  } else {
+    check('1b-1 自身真扫拿到 facts', false, '探针没返回 arsenal-server 的 facts —— 这一组因此没测，不是通过');
+  }
 
   // ── 【2】确定性 ──────────────────────────────────────────────
   section('【2】确定性：同一份 fixture 扫两次');

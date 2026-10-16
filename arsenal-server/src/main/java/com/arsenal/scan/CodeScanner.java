@@ -13,7 +13,7 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
- * 代码结构扫描：包、分层、注解、路由、外部客户端。
+ * 代码结构扫描：包、分层、类清单、目录计数、注解、路由、外部客户端。
  *
  * <b>用正则 + 极简词法，不引 JavaParser。</b>理由不是「先凑合」：
  * 这里要的是**统计与位置**（有几个 Controller、路由长什么样、谁调了谁），
@@ -58,15 +58,24 @@ public final class CodeScanner {
         List<Client> clients = new ArrayList<>();
         List<DirectCall> directCalls = new ArrayList<>();
         List<EntryPoint> entryPoints = new ArrayList<>();
+        List<ClassInfo> classes = new ArrayList<>();
+        Map<String, Integer> dirs = new TreeMap<>();
 
         for (Path p : ctx.files()) {
             ctx.tick();
             String rel = ctx.rel(p);
+            // 目录计数：**全部**收集到的文件（含非 Java）按父目录归并，一次遍历零新增 IO。
+            // 被 ScanGuard.skipDir 跳过的目录（.git / node_modules / target …）不在此列 ——
+            // 这棵树是「读过的文件」，不是磁盘全貌，页面上必须这么说。
+            // "" = 仓库根目录下的文件（如 pom.xml / Dockerfile）
+            int slash = rel.lastIndexOf('/');
+            dirs.merge(slash < 0 ? "" : rel.substring(0, slash), 1, Integer::sum);
             if (!rel.endsWith(".java")) continue;
             List<String> lines = ctx.readLines(p);
             if (lines == null) continue;
 
             String pkg = null, className = null;
+            int classLine = -1;
             List<String> classAnnotations = new ArrayList<>();
             boolean restController = false, controller = false, service = false,
                     repository = false, configuration = false;
@@ -89,7 +98,10 @@ public final class CodeScanner {
                     if (pm.find()) pkg = pm.group(1);
                 }
                 Matcher cm = CLASS_DECL.matcher(line);
-                if (cm.find() && className == null) className = cm.group(2);
+                if (cm.find() && className == null) {
+                    className = cm.group(2);
+                    classLine = i + 1;
+                }
 
                 Matcher am = ANNOTATION.matcher(line);
                 while (am.find()) {
@@ -146,9 +158,15 @@ public final class CodeScanner {
                 }
             }
 
-            // 分层：注解优先，其次类名后缀，最后看包名
-            String layer = classify(restController, controller, service, repository, configuration, className, pkg);
-            if (layer != null) layers.merge(layer, 1, Integer::sum);
+            // 分层：注解优先，其次类名后缀，最后看包名。判据出处（layerBy）原样带出 ——
+            // 页面上的角色徽标必须能说清「这一层是注解说的还是类名猜的」
+            Layer classified = classify(restController, controller, service, repository, configuration, className, pkg);
+            if (classified.layer() != null) layers.merge(classified.layer(), 1, Integer::sum);
+
+            // 类清单：每个 .java 文件一条（既定口径：只认文件中第一个类声明，后续类不单列）。
+            // 读不到类名 / 行号 / 分层就写 null —— 没扫到的部分不许拿别的类凑
+            classes.add(new ClassInfo(className, rel, classLine, pkg,
+                    classified.layer(), classified.by(), classAnnotations));
 
             // 可运行入口登记：有 @SpringBootApplication 或 main 就算。
             // 两者都有时 runtime 记 spring-boot（更具体），行号取先出现的那个
@@ -191,6 +209,34 @@ public final class CodeScanner {
         packages.entrySet().stream()
                 .sorted(Map.Entry.<String, Integer>comparingByKey())
                 .forEach(e -> pkgs.addObject().put("path", e.getKey()).put("files", e.getValue()));
+
+        // 类清单：与 layers **同一次分类**的产物。Σ classes[].layer 逐层必须等于 layers 各键计数 ——
+        // 同一趟输出不可能不等，不等就是漂移（断言层双向守着这条）
+        ArrayNode cls = code.putArray("classes");
+        classes.stream()
+                .sorted((a, b) -> a.file.equals(b.file) ? Integer.compare(a.line, b.line) : a.file.compareTo(b.file))
+                .forEach(x -> {
+                    ObjectNode n = cls.addObject();
+                    if (x.name != null) n.put("name", x.name);
+                    else n.putNull("name");
+                    n.put("file", x.file);
+                    if (x.line > 0) n.put("line", x.line);
+                    else n.putNull("line");
+                    if (x.pkg != null) n.put("package", x.pkg);
+                    else n.putNull("package");
+                    if (x.layer != null) n.put("layer", x.layer);
+                    else n.putNull("layer");
+                    if (x.by != null) n.put("layerBy", x.by);
+                    else n.putNull("layerBy");
+                    ArrayNode anns = n.putArray("annotations");
+                    x.annotations.forEach(anns::add);
+                });
+
+        // 目录计数：全量文件的父目录归并（"" = 仓库根目录）。被闸门跳过的目录不在树里
+        ArrayNode dirArr = code.putArray("dirs");
+        dirs.entrySet().stream()
+                .sorted(Map.Entry.<String, Integer>comparingByKey())
+                .forEach(e -> dirArr.addObject().put("path", e.getKey()).put("files", e.getValue()));
 
         ArrayNode r = code.putArray("routes");
         routes.stream()
@@ -259,25 +305,39 @@ public final class CodeScanner {
         return code;
     }
 
-    private static String classify(boolean rest, boolean ctrl, boolean svc, boolean repo, boolean conf,
-                                   String className, String pkg) {
-        if (rest || ctrl) return "controller";
-        if (svc) return "service";
-        if (repo) return "repository";
-        if (conf) return "config";
+    /**
+     * 分层判据。返回值**带出处**：注解（硬事实）/ 类名后缀（命名推断）/ 包名（约定推断）/
+     * 双 null（都对不上 —— 未分类，含 {@code @Component} 杂项，塞进任何一层都是猜）。
+     *
+     * <p>三种出处在页面上必须分开可见：只画一个「工具类」徽标、误判了却无从知道是猜的，
+     * 比没有徽标更危险。
+     */
+    private static Layer classify(boolean rest, boolean ctrl, boolean svc, boolean repo, boolean conf,
+                                  String className, String pkg) {
+        if (rest || ctrl) return new Layer("controller", "annotation");
+        if (svc) return new Layer("service", "annotation");
+        if (repo) return new Layer("repository", "annotation");
+        if (conf) return new Layer("config", "annotation");
         if (className != null) {
-            if (className.endsWith("Service") || className.endsWith("ServiceImpl")) return "service";
+            if (className.endsWith("Service") || className.endsWith("ServiceImpl")) return new Layer("service", "name");
             if (className.endsWith("Repository") || className.endsWith("Mapper") || className.endsWith("Dao")) {
-                return "repository";
+                return new Layer("repository", "name");
             }
-            if (className.endsWith("Controller")) return "controller";
-            if (className.endsWith("Config") || className.endsWith("Configuration")) return "config";
+            if (className.endsWith("Controller")) return new Layer("controller", "name");
+            if (className.endsWith("Config") || className.endsWith("Configuration")) return new Layer("config", "name");
+            // 工具类后缀（Utils / Util / Helper / Tools）→ util。与上面几条同款性质：命名推断。
+            // **刻意放在已有后缀之后**：ConfigUtils 这类双后缀类沿用旧判据（config），
+            // 本次只做增量，不悄悄改任何既有分类
+            if (className.endsWith("Utils") || className.endsWith("Util")
+                    || className.endsWith("Helper") || className.endsWith("Tools")) {
+                return new Layer("util", "name");
+            }
         }
         if (pkg != null && (pkg.contains(".domain") || pkg.contains(".entity") || pkg.contains(".model")
                 || pkg.contains(".dto") || pkg.contains(".vo"))) {
-            return "domain";
+            return new Layer("domain", "package");
         }
-        return null;
+        return new Layer(null, null);
     }
 
     /** 去掉行注释与块注释行。注释里的 `@Something` 不是注解，之前踩过这个坑（规则引擎同款） */
@@ -320,6 +380,15 @@ public final class CodeScanner {
     }
 
     private record Route(String method, String path, String handler, String file, int line) {
+    }
+
+    /** 一个 .java 文件一条：类名 / 位置 / 包 / 分层与判据出处 / 出现过的 WATCHED 注解 */
+    private record ClassInfo(String name, String file, int line, String pkg,
+                             String layer, String by, List<String> annotations) {
+    }
+
+    /** 分层值 + 判据出处（annotation / name / package；双 null = 未分类） */
+    private record Layer(String layer, String by) {
     }
 
     private record Client(String kind, String target, String file, int line) {

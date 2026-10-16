@@ -101,6 +101,26 @@ function declaredCounts() {
 const DECLARED = declaredCounts();
 
 /**
+ * 子进程统一追加的环境变量。
+ *
+ * `CODEBUDDY_SAFE_DELETE_ENABLED=0` —— 关掉 WorkBuddy 宿主的 safe-delete 批量闸门
+ * （shim 自带的进程级开关，见 shim 第 22~26 行；先例：`scripts/next-run.mjs`
+ * 对 next dev/build 同样处理，因为 .next 清理同样超阈值）。
+ *
+ * 为什么本链必须关：闸门按「一次工具调用内**累计**删除的文件数」计数
+ * （阈值默认 20，本环境 50），而本链各层会成批删自己的 fixture ——
+ * scan 层退出钩子清 `.verify/tmp/scan-check`（many-repo 20001 个 0 字节文件 + 各回执），
+ * 中途还删 ghost-injected / nested-root。于是整链跑时累计量在 scan 层中途越过阈值、
+ * 整层崩成「没写出 layer-scan.json」；**单跑却两次都过** —— 因为单跑时退出钩子的
+ * 那次大批删除被 try/catch 吞掉，看起来像没事。这正是「跑不动」和「没跑」
+ * 长得一样的活例：层数对不上档案，却查不到一条红断言。
+ *
+ * 真 CI 里没有这个 shim，变量无人认领，无副作用。
+ * （2026-10-17 夜跑棒 2 实测：全量 verify 的 scan 层崩溃根因即此。）
+ */
+const CHAIN_ENV = { CODEBUDDY_SAFE_DELETE_ENABLED: '0' };
+
+/**
  * 用 shell 跑 `npm`：Windows 上 npm 是 `.cmd`，Node 22 起 spawn 批处理必须走 shell。
  * `shell: true` 时 Node **不会**为数组参数做转义（直接以空格拼进命令行），
  * 所以这里自己拼：含空白或引号的片段加双引号 —— 否则 `process.execPath` 一旦落在
@@ -114,7 +134,7 @@ function run(command, args, extraEnv = {}) {
     cwd: webRoot,
     stdio: 'inherit',
     shell: true,
-    env: { ...process.env, ...extraEnv },
+    env: { ...process.env, ...CHAIN_ENV, ...extraEnv },
   });
   if (r.error) {
     console.error(`  ! 起不了子进程：${line}\n    ${r.error.message}`);
