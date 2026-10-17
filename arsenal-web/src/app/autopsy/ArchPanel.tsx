@@ -5,13 +5,15 @@ import type { AutopsyArtifacts } from '@/lib/autopsy-data';
 import { downloadText } from '@/lib/zip';
 
 /**
- * 架构面板 —— 技术栈部署图 + 应用分层图。
+ * 架构面板 · 应用分层图。
  *
- * 两张图都来自 `buildAutopsy()` 同一份模型（分层图复用部署图的节点），
- * 所以不会出现「部署图说 MySQL、分层图说 Postgres」。
- * 本组件只负责**显示与下载**，不重新算图 —— 判据在 `facts-arch.ts` / `arch-canvas.ts`。
+ * 「技术栈部署图」卡片已撤下（2026-10-17 架构图谱合并棒1）—— 它的职能由
+ * 「技术架构」子页签的可拖拽画布承担：下载 SVG / PNG 在画布工具栏，
+ * 副本徽章在画布上（读自部署清单，读不到不画、不兜底 1）。
+ * 两张图仍来自 `buildAutopsy()` 同一份模型，不会出现「部署图说 MySQL、
+ * 分层图说 Postgres」；本组件只负责**显示与下载**，不重新算图。
  *
- * 渲染形态（2026-10-14 二次定版）：预览直接上 SVG 原图。
+ * 渲染形态（2026-10-14 二次定版，2026-10-17 沿用）：预览直接上 SVG 原图。
  * HTML 卡片视图试过一版被否 —— 图没了就不像图，回退。
  */
 export default function ArchPanel({
@@ -21,37 +23,28 @@ export default function ArchPanel({
   artifacts: AutopsyArtifacts;
   safeName: string;
 }) {
-  const [shown, setShown] = useState<'none' | 'tech' | 'layered'>('tech');
+  const [open, setOpen] = useState(true);
   const { built, layered } = artifacts;
 
   return (
     <div className="space-y-2">
-      <div className="grid gap-2 sm:grid-cols-2">
-        <DiagramCard
-          title="技术栈部署图"
-          desc={`${built.arch.nodes.length} 节点 / ${built.arch.edges.length} 连线 · 本地生成（不发往任何地方）`}
-          active={shown === 'tech'}
-          onToggle={() => setShown(shown === 'tech' ? 'none' : 'tech')}
-          onDownload={() => downloadText(artifacts.techSvg, `${safeName}-deploy.svg`, 'image/svg+xml')}
-        />
-        <DiagramCard
-          title="应用分层图"
-          desc={
-            `${layered.bands.length} 带 / ${layered.crossCalls.length} 处跨带直连 · 本地生成` +
-            (layered.crossCalls.length ? '（跨带直连已在图上标红）' : '')
-          }
-          active={shown === 'layered'}
-          onToggle={() => setShown(shown === 'layered' ? 'none' : 'layered')}
-          onDownload={() =>
-            downloadText(artifacts.layeredSvg, `${safeName}-layered.svg`, 'image/svg+xml')
-          }
-        />
-      </div>
+      <DiagramCard
+        title="应用分层图"
+        desc={
+          `${layered.bands.length} 带 / ${layered.crossCalls.length} 处跨带直连 · 本地生成` +
+          (layered.crossCalls.length ? '（跨带直连已在图上标红）' : '')
+        }
+        active={open}
+        onToggle={() => setOpen((v) => !v)}
+        onDownload={() =>
+          downloadText(artifacts.layeredSvg, `${safeName}-layered.svg`, 'image/svg+xml')
+        }
+      />
 
-      {shown !== 'none' && (
+      {open && (
         <div
           className="overflow-auto rounded border border-line bg-surface"
-          dangerouslySetInnerHTML={{ __html: shown === 'tech' ? artifacts.techSvg : artifacts.layeredSvg }}
+          dangerouslySetInnerHTML={{ __html: artifacts.layeredSvg }}
         />
       )}
 

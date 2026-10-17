@@ -9,6 +9,9 @@ import {
   type AutopsySourceTrace,
 } from '@/lib/autopsy-data';
 import type { ProjectFacts } from '@/lib/facts-arch';
+import { replicaFact } from '@/lib/facts-arch';
+import { emptyMeta, withParam } from '@/lib/topology';
+import { archifyIrFilename } from '@/lib/archify-ir';
 import {
   autopsyInspect,
   autopsyRun,
@@ -32,6 +35,7 @@ import {
   type SnapshotDiff,
 } from '@/lib/autopsy-snapshot';
 import { downloadText } from '@/lib/zip';
+import TechArch from '../stack/TechArch';
 import ArchPanel from './ArchPanel';
 import CheckupPanel from './CheckupPanel';
 import HistoryPanel, { type DamagedEntry } from './HistoryPanel';
@@ -118,6 +122,8 @@ export default function AutopsyLab() {
   const [stage, setStage] = useState<Stage>({ kind: 'idle' });
   const [theme, setTheme] = useState<CanvasTheme>('doc');
   const [tab, setTab] = useState<'arch' | 'services' | 'checkup' | 'history' | 'vitals' | 'runtime' | 'functions'>('arch');
+  /** 架构面板内的子页签：技术架构画布（2026-10-17 合并进台）/ 应用分层图 */
+  const [archSub, setArchSub] = useState<'canvas' | 'layered'>('canvas');
   const [checkup, setCheckup] = useState<CheckupStage>({ kind: 'idle' });
   const fileRef = useRef<HTMLInputElement>(null);
 
@@ -349,6 +355,18 @@ export default function AutopsyLab() {
     () => (stage.kind === 'done' ? buildAutopsy(stage.facts, theme) : null),
     [stage, theme]
   );
+
+  /**
+   * 画布的形态参数（计划 D2）：副本数只从部署清单读
+   * （K8s Deployment / Helm replicaCount，判据在 `replicaFact`），
+   * 读不到就不设 —— `paramIsSet` 的「未设」哨兵保证**不兜底 1**，
+   * 「只覆盖应用卡」的规矩由 `nodeTopologyMap` 继承。
+   */
+  const scanMeta = useMemo(() => {
+    if (!artifacts) return emptyMeta();
+    const fact = replicaFact(artifacts.facts);
+    return fact ? withParam(emptyMeta(), 'replicas', fact.replicas) : emptyMeta();
+  }, [artifacts]);
 
   const trace: AutopsySourceTrace | null =
     stage.kind === 'done' ? traceSource(stage.requested, stage.facts) : null;
@@ -676,11 +694,62 @@ export default function AutopsyLab() {
             </div>
           </div>
 
-          {/* ── 架构面板 ── */}
+          {/* ── 架构面板：技术架构画布 / 应用分层图 ── */}
           <div className="panel px-3 py-2.5">
-            <p className="mono text-[10px] uppercase tracking-wider text-fgFaint">三、架构面板</p>
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+              <p className="mono text-[10px] uppercase tracking-wider text-fgFaint">三、架构面板</p>
+              <div className="flex items-center gap-1 rounded border border-line p-0.5">
+                {(
+                  [
+                    ['canvas', '技术架构'],
+                    ['layered', '应用分层'],
+                  ] as ['canvas' | 'layered', string][]
+                ).map(([id, label]) => (
+                  <button
+                    key={id}
+                    type="button"
+                    onClick={() => setArchSub(id)}
+                    className={
+                      'rounded px-2 py-0.5 text-[10.5px] transition-colors ' +
+                      (archSub === id ? 'bg-surfaceHi text-brass' : 'text-fgMuted hover:text-fg')
+                    }
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+            </div>
             <div className="mt-2">
-              <ArchPanel artifacts={artifacts} safeName={safeName} />
+              {archSub === 'canvas' ? (
+                <TechArch
+                  key={`canvas:${artifacts.facts.root}`}
+                  picks={artifacts.picksRes.picks}
+                  meta={scanMeta}
+                  titleRoot={artifacts.facts.root}
+                  banner={
+                    <p
+                      className="flex flex-wrap items-center gap-x-2 rounded-md border px-3 py-2 text-[11px]"
+                      style={{ borderColor: 'rgba(229,162,61,0.35)', background: 'rgba(229,162,61,0.07)' }}
+                    >
+                      <span className="mono" style={{ color: '#E5A33D' }}>
+                        ◎
+                      </span>
+                      <span className="text-fgMuted">
+                        这张图来自<span className="text-fg">本次扫描</span>（{artifacts.facts.root}）——
+                        不是装配台选型快照。副本数读自部署清单，读不到就不画徽章、不兜底 1；
+                        拖动与改名只影响这张交付图，不改扫描结论。
+                      </span>
+                    </p>
+                  }
+                  irOverride={{
+                    ir: artifacts.ir,
+                    issues: artifacts.issues,
+                    name: archifyIrFilename(artifacts.facts.root),
+                  }}
+                />
+              ) : (
+                <ArchPanel artifacts={artifacts} safeName={safeName} />
+              )}
             </div>
           </div>
 

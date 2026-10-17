@@ -16,7 +16,13 @@ import {
   type CanvasNode,
   type CanvasTheme,
 } from '@/lib/arch-canvas';
-import { archifyIrFilename, archifyIrIssues, buildArchifyIr } from '@/lib/archify-ir';
+import {
+  archifyIrFilename,
+  archifyIrIssues,
+  buildArchifyIr,
+  type ArchifyIr,
+} from '@/lib/archify-ir';
+import { presetForTheme } from '@/lib/facts-arch';
 import { presetPicks } from '@/lib/stack';
 import { loadSnapshot } from '@/lib/picks-store';
 import { emptyMeta, nodeTopologyMap, type StackPicksMeta } from '@/lib/topology';
@@ -43,10 +49,22 @@ import { TONE, toneAt } from './palette';
 
 const STORAGE_KEY = 'arsenal-tech-arch-edits-v1';
 
-function loadEdits(): CanvasEdits {
+/**
+ * 编辑态的存储键（计划坑 1：单键会串项目）。
+ *
+ * 单键（`/arch` 快照路径）：装配台 ↔ 图谱「选型改图跟改」靠它，维持现状。
+ * 分键（扫描路径）：`<STORAGE_KEY>:<项目根名>` —— 扫 A 拖好的布局原样出现在
+ * B 项目的图上是事故，所以按项目隔离。切换项目由调用方 key 重挂载保证
+ * （见 AutopsyLab 的 `key={`canvas:${root}`}`），本组件不处理热切换。
+ */
+function editsKeyOf(scanMode: boolean, titleRoot: string | undefined): string {
+  return scanMode && titleRoot ? `${STORAGE_KEY}:${titleRoot}` : STORAGE_KEY;
+}
+
+function loadEdits(key: string): CanvasEdits {
   if (typeof window === 'undefined') return emptyEdits();
   try {
-    const raw = window.localStorage.getItem(STORAGE_KEY);
+    const raw = window.localStorage.getItem(key);
     if (!raw) return emptyEdits();
     const parsed = JSON.parse(raw) as CanvasEdits;
     return { ...emptyEdits(), ...parsed };
@@ -110,10 +128,30 @@ function channelLine(status: ArchifyStatus): { text: string; tone: string } {
 export default function TechArch({
   picks: picksProp,
   meta: metaProp,
+  titleRoot,
+  banner,
+  irOverride,
 }: {
   picks?: StackPicks;
   /** 装配台把集群形态一起传进来，画布才画得出分片 / 多副本；不传就读快照 */
   meta?: StackPicksMeta;
+  /**
+   * 标题用项目根名（扫描路径传入）。不传 = `projectDoc.artifactId` ——
+   * 默认值维持现状，`/arch` 路径字节级不变（计划 D1）。
+   */
+  titleRoot?: string;
+  /**
+   * 顶部说明注入（扫描路径讲清「这张图来自本次扫描」）。
+   * 不传走既有「跟随装配台」横幅 —— 默认路径不变。
+   */
+  banner?: React.ReactNode;
+  /**
+   * IR 二义收口（计划坑 2）：传入时「交给通用绘图器」区直接用这份
+   * facts 版 IR（带副本事实、带 theme→preset 绑定），不再自己从 picks 重建。
+   * 不传 = 既有行为。preset 仍按**画布自己的主题**重戳 —— 选了什么主题，
+   * 导出的 HTML 就是什么预设，不让顶部选择器隔着画廊管交付物。
+   */
+  irOverride?: { ir: ArchifyIr; issues: string[]; name: string };
 }) {
   // 装配台传选型进来；架构图谱页不传 —— 读 localStorage 里的最新快照，
   // 在装配台改选型，这里挂载时自动跟上。没有快照（首次访问）回落 standard 预设。
@@ -132,8 +170,12 @@ export default function TechArch({
   const picks = picksProp ?? storedPicks ?? presetPicks('standard');
   const meta = metaProp ?? storedMeta;
   const followsAssembly = !picksProp;
+  /** 标题根名：扫描路径传项目根名，默认路径仍是仓库 artifactId */
+  const titleRootName = titleRoot ?? projectDoc.artifactId;
+  const scanMode = !!picksProp;
+  const editsKey = editsKeyOf(scanMode, titleRoot);
 
-  const [edits, setEdits] = useState<CanvasEdits>(() => loadEdits());
+  const [edits, setEdits] = useState<CanvasEdits>(() => loadEdits(editsKey));
   const [theme, setTheme] = useState<CanvasTheme>('dark');
   const [selected, setSelected] = useState<string | null>(null);
   const [note, setNote] = useState<string | null>(null);
@@ -158,11 +200,11 @@ export default function TechArch({
 
   useEffect(() => {
     try {
-      window.localStorage.setItem(STORAGE_KEY, JSON.stringify(edits));
+      window.localStorage.setItem(editsKey, JSON.stringify(edits));
     } catch {
       /* 存不下就不存，编辑态丢了对交付没有致命影响 */
     }
-  }, [edits]);
+  }, [editsKey, edits]);
 
   const arch = useMemo(
     () => buildTechArch(picks, edits, { topology: nodeTopologyMap(picks, meta) }),
@@ -172,21 +214,25 @@ export default function TechArch({
   const svg = useMemo(
     () =>
       buildTechArchSvg(arch, theme, {
-        title: `${projectDoc.artifactId} 技术架构图`,
-        subtitle: `由装配台按当前选型生成 · ${arch.nodes.length} 个节点 / ${arch.edges.length} 条连线 · 可直接拖拽调整`,
+        title: `${titleRootName} 技术架构图`,
+        subtitle: followsAssembly
+          ? `由装配台按当前选型生成 · ${arch.nodes.length} 个节点 / ${arch.edges.length} 条连线 · 可直接拖拽调整`
+          : `由本次项目扫描生成 · ${arch.nodes.length} 个节点 / ${arch.edges.length} 条连线 · 可直接拖拽调整`,
         hooks: true,
       }),
-    [arch, theme]
+    [arch, theme, titleRootName, followsAssembly]
   );
 
   /** 规范产物：导出用，不带编辑钩子 */
   const cleanSvg = useMemo(
     () =>
       buildTechArchSvg(arch, theme, {
-        title: `${projectDoc.artifactId} 技术架构图`,
-        subtitle: `由装配台按当前选型生成 · ${arch.nodes.length} 个节点 / ${arch.edges.length} 条连线`,
+        title: `${titleRootName} 技术架构图`,
+        subtitle: followsAssembly
+          ? `由装配台按当前选型生成 · ${arch.nodes.length} 个节点 / ${arch.edges.length} 条连线`
+          : `由本次项目扫描生成 · ${arch.nodes.length} 个节点 / ${arch.edges.length} 条连线`,
       }),
-    [arch, theme]
+    [arch, theme, titleRootName, followsAssembly]
   );
 
   const selectedNode = arch.nodes.find((n) => n.id === selected) ?? null;
@@ -325,7 +371,7 @@ export default function TechArch({
       } catch {
         const a = document.createElement('a');
         a.href = URL.createObjectURL(png);
-        a.download = `${projectDoc.artifactId}-tech-arch.png`;
+        a.download = `${titleRootName}-tech-arch.png`;
         a.click();
         setNote('当前环境不允许写剪贴板，已改为下载 PNG');
       }
@@ -346,11 +392,24 @@ export default function TechArch({
    *
    * 手工拖出来的坐标**不带过去**：那份图有自己的版式引擎，而正是那个引擎
    * 在管「标签会不会压线」。把扰动过的坐标喂进去，只会让它报到我们头上。
+   *
+   * `irOverride`（扫描路径）：直接用 facts 版 IR —— 同一份 facts 出两次必须是
+   * 同一份 IR（计划坑 2），否则「图上写几节点」和「IR 里写几节点」会分家，
+   * 而两边都全绿。preset 按画布主题重戳，见 props 注释。
    */
-  const ir = useMemo(() => buildArchifyIr(arch, { title: `${projectDoc.artifactId} 技术架构` }), [arch]);
+  const ownIr = useMemo(
+    () => buildArchifyIr(arch, { title: `${titleRootName} 技术架构` }),
+    [arch, titleRootName]
+  );
+  const ir: ArchifyIr = irOverride
+    ? {
+        ...irOverride.ir,
+        meta: { ...irOverride.ir.meta, visual_preset: presetForTheme(theme) },
+      }
+    : ownIr;
   const irJson = useMemo(() => JSON.stringify(ir, null, 2), [ir]);
-  const irIssues = useMemo(() => archifyIrIssues(ir), [ir]);
-  const irName = useMemo(() => archifyIrFilename(projectDoc.artifactId), []);
+  const irIssues = irOverride ? irOverride.issues : archifyIrIssues(ownIr);
+  const irName = irOverride ? irOverride.name : archifyIrFilename(titleRootName);
 
   // 进页面问一次后端能不能出图 —— 按钮该亮还是该灰，取决于这个答案。
   // 探测失败不算错误：军火库本来就允许没有后端。
@@ -431,20 +490,22 @@ export default function TechArch({
 
   return (
     <div className="space-y-4">
-      {followsAssembly && (
-        <p
-          className="flex flex-wrap items-center gap-x-2 rounded-md border px-3 py-2 text-[11px]"
-          style={{ borderColor: toneAt('warn', 0.35), background: toneAt('warn', 0.07) }}
-        >
-          <span className="mono" style={{ color: TONE.warn.color }}>
-            ⇄
-          </span>
-          <span className="text-fgMuted">
-            此视图跟随<span className="text-fg">装配台</span>的当前选型 —— 改选型去装配台，这里自动跟上；
-            首次访问未选过时按「standard」预设出图。
-          </span>
-        </p>
-      )}
+      {banner
+        ? banner
+        : followsAssembly && (
+            <p
+              className="flex flex-wrap items-center gap-x-2 rounded-md border px-3 py-2 text-[11px]"
+              style={{ borderColor: toneAt('warn', 0.35), background: toneAt('warn', 0.07) }}
+            >
+              <span className="mono" style={{ color: TONE.warn.color }}>
+                ⇄
+              </span>
+              <span className="text-fgMuted">
+                此视图跟随<span className="text-fg">装配台</span>的当前选型 —— 改选型去装配台，这里自动跟上；
+                首次访问未选过时按「standard」预设出图。
+              </span>
+            </p>
+          )}
       <p className="text-xs leading-relaxed text-fgMuted">
         这张图回答「<span className="text-fg">部署出来是什么样</span>」：选型里的构建期零件
         （Maven / Lombok / 测试框架）收进应用卡的工程属性，不占部署节点位；
@@ -675,7 +736,7 @@ export default function TechArch({
             onClick={() =>
               setNote(
                 `已下载 SVG（${arch.width}×${arch.height}，${
-                  downloadText(cleanSvg, `${projectDoc.artifactId}-tech-arch.svg`, 'image/svg+xml')
+                  downloadText(cleanSvg, `${titleRootName}-tech-arch.svg`, 'image/svg+xml')
                 } 字节）`
               )
             }

@@ -3586,8 +3586,75 @@ function startupChecks() {
     !ymlDb.includes('mode: always'));
 }
 
+/**
+ * 【28】架构图谱合并 · 棒1 画布进台（2026-10-17）。
+ *
+ * 守的不是「组件能跑」，而是**合并本身不回退**：TechArch 搬进解剖台之后，
+ * 三件容易静默发生的事 —— ① 画布没接扫描事实（挂个空壳还在讲装配台快照）
+ * ② IR 二义（画布自己从 picks 重建一份，图上与 IR 各说各话，两边全绿）
+ * ③ 编辑态串项目（扫 A 拖好的布局原样出现在 B 的图上，计划坑 1）。
+ * 默认路径（/arch 不传 props）字节级不变由 28-8 与 graph/archify 两层共守。
+ */
+function archMergeChecks() {
+  console.log('\n【28】架构图谱合并 · 画布进台');
+  {
+    const srcFile = (rel: string) => fs.readFileSync(path.resolve(here, '..', 'src', rel), 'utf8');
+    const lab = srcFile('app/autopsy/AutopsyLab.tsx');
+    const tech = srcFile('app/stack/TechArch.tsx');
+    const panel = stripComments(srcFile('app/autopsy/ArchPanel.tsx'));
+
+    check(
+      '28-1 架构面板拆子页签：技术架构（画布）与应用分层两个渲染分支都在',
+      lab.includes("archSub === 'canvas'") && lab.includes('<ArchPanel'),
+      '少了任一支，合并就只剩半张面板'
+    );
+    check(
+      '28-2 画布接扫描事实：picks / titleRoot / irOverride 三件都传，且按项目重挂载',
+      /picks=\{artifacts\.picksRes\.picks\}/.test(lab) &&
+        /titleRoot=\{artifacts\.facts\.root\}/.test(lab) &&
+        /irOverride=\{\{/.test(lab) &&
+        /key=\{`canvas:\$\{artifacts\.facts\.root\}`\}/.test(lab),
+      'picks 没接 = 画布还在讲装配台快照；key 不分项目 = 编辑态必串'
+    );
+    check(
+      '28-3 副本事实只从部署清单读、读不到不兜底（scanMeta 走 replicaFact + withParam）',
+      lab.includes('replicaFact(artifacts.facts)') &&
+        lab.includes("withParam(emptyMeta(), 'replicas'"),
+      '没有 replicaFact 分支，图上就会出现没有依据的「×1」'
+    );
+    check(
+      '28-4 IR 二义收口：irOverride 传入时画布直接用 facts 版 IR 与 issues',
+      /const ir: ArchifyIr = irOverride/.test(tech) &&
+        /irOverride \? irOverride\.issues/.test(tech),
+      '画布自己从 picks 重建 IR = 同一项目两个 IR，迟早分家而两边都全绿'
+    );
+    check(
+      '28-5 画布主题管自己的 preset：扫描路径按画布主题重戳 visual_preset',
+      /visual_preset: presetForTheme\(theme\)/.test(tech),
+      'preset 跟顶部选择器走，就会「选了深色、导出的是蓝图」'
+    );
+    check(
+      '28-6 编辑态按项目分键：扫描路径分键、默认路径维持单键',
+      /function editsKeyOf\(scanMode: boolean/.test(tech) &&
+        /return scanMode && titleRoot \? `\$\{STORAGE_KEY\}:\$\{titleRoot\}` : STORAGE_KEY;/.test(tech),
+      '单键跨项目 = 扫 A 拖好的布局原样出现在 B（计划坑 1）'
+    );
+    check(
+      '28-7 部署图卡片撤下、下载职能归画布工具栏（剥注释后不许再出现该卡片标题）',
+      !panel.includes('技术栈部署图') && panel.includes('应用分层图'),
+      '卡片还在 = 下载入口两处，副本徽章与卡片数字会对不上'
+    );
+    check(
+      '28-8 默认路径字节级不变：/arch 的 ArchGallery 仍是不带任何 props 的 <TechArch />',
+      /<TechArch\s*\/>/.test(srcFile('app/arch/ArchGallery.tsx')),
+      'ArchGallery 多传一个 prop，「维持现状」就不再成立'
+    );
+  }
+}
+
 zipChecks().then(() => {
   profileChecks();
   startupChecks();
+  archMergeChecks();
   process.exit(finish('project'));
 });
