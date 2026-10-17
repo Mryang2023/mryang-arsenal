@@ -80,12 +80,25 @@ export interface LayeredArchData {
 
 export const BAND_ORDER: LayerBandId[] = ['client', 'api', 'app', 'domain', 'data'];
 
-const BAND_NAME: Record<LayerBandId, string> = {
+export const BAND_NAME: Record<LayerBandId, string> = {
   client: '客户端',
   api: '接入层',
   app: '应用层',
   domain: '领域层',
   data: '数据层',
+};
+
+/**
+ * 带的释义 —— 与 BAND_NAME 同级的唯一词汇表。
+ * 结构面板（`code-structure.ts`）的层级释义逐字复用它，`scan-check` 有断言
+ * 钉「五带名与释义都不许出现第二套文案」。
+ */
+export const BAND_DESC: Record<LayerBandId, string> = {
+  client: '浏览器 / 移动端 / 三方系统',
+  api: 'Controller —— 对外 HTTP 入口',
+  app: 'Service 与装配 —— 业务编排，也是 Config 类的落点',
+  domain: '领域对象 / 实体 —— 不依赖任何一层',
+  data: 'Repository —— 持久化。数据存储是它连出去的对象，不计入类数',
 };
 
 /** 会被画成数据层 infra 条目的技术维度 */
@@ -153,7 +166,7 @@ export function buildLayeredArch(facts: ProjectFacts, arch?: TechArch): LayeredA
     {
       id: 'client',
       name: BAND_NAME.client,
-      desc: '浏览器 / 移动端 / 三方系统',
+      desc: BAND_DESC.client,
       total: fe.kind ? (fe.routes ?? []).length : null,
       groups: groups([
         fe.kind
@@ -164,7 +177,7 @@ export function buildLayeredArch(facts: ProjectFacts, arch?: TechArch): LayeredA
     {
       id: 'api',
       name: BAND_NAME.api,
-      desc: 'Controller —— 对外 HTTP 入口',
+      desc: BAND_DESC.api,
       total: layers.controller ?? null,
       groups: groups([
         { label: 'Controller', count: layers.controller ?? 0, infra: false },
@@ -175,7 +188,7 @@ export function buildLayeredArch(facts: ProjectFacts, arch?: TechArch): LayeredA
     {
       id: 'app',
       name: BAND_NAME.app,
-      desc: 'Service 与装配 —— 业务编排，也是 Config 类的落点',
+      desc: BAND_DESC.app,
       // Service 与 Config 都算应用层的类。两个键扫描器一个都没给 → null（没读到）
       total:
         layers.service === undefined && layers.config === undefined
@@ -191,14 +204,14 @@ export function buildLayeredArch(facts: ProjectFacts, arch?: TechArch): LayeredA
     {
       id: 'domain',
       name: BAND_NAME.domain,
-      desc: '领域对象 / 实体 —— 不依赖任何一层',
+      desc: BAND_DESC.domain,
       total: layers.domain ?? null,
       groups: groups([{ label: 'Domain / Entity', count: layers.domain ?? 0, infra: false }]),
     },
     {
       id: 'data',
       name: BAND_NAME.data,
-      desc: 'Repository —— 持久化。数据存储是它连出去的对象，不计入类数',
+      desc: BAND_DESC.data,
       total: layers.repository ?? null,
       groups: [
         ...groups([{ label: 'Repository', count: layers.repository ?? 0, infra: false }]),

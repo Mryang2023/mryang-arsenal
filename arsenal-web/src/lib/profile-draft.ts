@@ -154,7 +154,9 @@ export function buildProfileDraftFromFacts(facts: ProjectFacts): ProfileDraft {
       ? pageRoutes.map((r) => ({ name: r.name, desc: r.path }))
       : [];
 
-  const layerStatus = (['controller', 'service', 'repository', 'domain', 'config'] as const)
+  // util 桶是 2026-10-17  classify() 新增的（Utils/Util/Helper/Tools 后缀）——
+  // 键表不跟着长，档案草稿就会把扫到的工具类吞掉（昨夜 review P2，本棒补）
+  const layerStatus = (['controller', 'service', 'repository', 'domain', 'config', 'util'] as const)
     .filter((k) => (layers[k] ?? 0) > 0)
     .map((k) => ({
       name: k,

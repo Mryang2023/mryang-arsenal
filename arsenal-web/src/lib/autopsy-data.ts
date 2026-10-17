@@ -29,6 +29,7 @@ import {
   type LayeredArchData,
   type ProjectFacts,
 } from '@/lib/facts-arch';
+import { buildCodeStructure, type CodeStructure } from '@/lib/code-structure';
 import { scanStats } from '@/lib/scan-rules';
 import type { PicksProvenance } from '@/lib/picks-store';
 import { buildServiceGraphSvg } from '@/lib/service-graph';
@@ -58,6 +59,8 @@ export interface AutopsyArtifacts {
   title: string;
   /** 选型出处：装配台靠它区分「扫描读出来的格子」与「人点出来的格子」 */
   provenance: PicksProvenance;
+  /** 项目结构：目录树 + 类角色徽标 + 层级释义（纯函数产物，面板只画） */
+  structure: CodeStructure;
 }
 
 /**
@@ -169,6 +172,9 @@ export function buildAutopsy(facts: ProjectFacts, theme: CanvasTheme = 'doc'): A
     issues,
     title,
     provenance,
+    // 项目结构：目录树 + 类角色徽标 + 层级释义（2026-10-17 结构面板棒2）。
+    // 与 built / layered / topo 同款 —— 面板只画，不重算
+    structure: buildCodeStructure(facts),
   };
 }
 

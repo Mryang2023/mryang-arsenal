@@ -42,6 +42,13 @@ import { scanStats } from '../src/lib/scan-rules';
 import { CANVAS_THEME_OPTIONS, buildTechArchSvg } from '../src/lib/arch-canvas';
 import { archifyIrIssues, archifyIrShapeIssues } from '../src/lib/archify-ir';
 import { buildProfileDraftFromFacts } from '../src/lib/profile-draft';
+import {
+  buildCodeStructure,
+  classBadge,
+  structureMarkdown,
+  type CodeStructure,
+} from '../src/lib/code-structure';
+import { BAND_DESC, BAND_NAME, BAND_ORDER } from '../src/lib/arch-layered';
 import { buildServiceTopo } from '../src/lib/service-topo';
 import { buildServiceGraphSvg } from '../src/lib/service-graph';
 import {
@@ -124,6 +131,21 @@ function sameLayerCounts(a: Record<string, number>, b: Record<string, number>): 
   const ka = Object.keys(a).sort();
   const kb = Object.keys(b).sort();
   return ka.length === kb.length && ka.every((k, i) => k === kb[i] && a[k] === b[k]);
+}
+
+/** 在结构树里按路径找目录节点（找不到返回 null） */
+function findDir(node: any, path: string): any | null {
+  if (node.path === path) return node;
+  for (const c of node.children ?? []) {
+    const hit = findDir(c, path);
+    if (hit) return hit;
+  }
+  return null;
+}
+
+/** 整棵树上挂的类总数（一条不丢的判据要能真数） */
+function countTreeClasses(node: any): number {
+  return (node.classes?.length ?? 0) + (node.children ?? []).reduce((n: number, c: any) => n + countTreeClasses(c), 0);
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -421,6 +443,128 @@ if (!skipAll) {
       `磁盘存在 ${existingSkips.join(',')}；树里泄漏 ${leaked.join(',') || '无'}`);
   } else {
     check('1b-1 自身真扫拿到 facts', false, '探针没返回 arsenal-server 的 facts —— 这一组因此没测，不是通过');
+  }
+
+  // ── 【1c】项目结构派生层（code-structure.ts，2026-10-17 结构面板棒2）──
+  //
+  // 派生层是纯函数，判据全在 Java 侧（1-15 / 1b-1 已守 Σ classes ↔ layers）。
+  // 这一节守的是**派生不漂**：组树不丢类、徽标带依据、词汇表与分层图同一套、
+  // 0/空也是结论、判据不是恒真（反例自证）。
+  section('【1c】项目结构派生层：组树 / 徽标 / 词汇表 / 空态');
+  if (factsA) {
+    const structA: CodeStructure = buildCodeStructure(factsA);
+    const clsA: any[] = factsA.code?.classes ?? [];
+
+    // ① 组树：约定节点在、根计数与 dirs 的 '' 条目对齐、类一条不丢
+    const javaNode = findDir(structA.tree, 'src/main/java');
+    const allDirFiles = (factsA.code?.dirs ?? []).reduce((s: number, d: any) => s + d.files, 0);
+    check('1c-1 组树：src/main/java 约定节点在且子树带文件计数（中间目录 files=0 看 total）',
+      !!javaNode && javaNode.total > 0 && structA.tree.total === allDirFiles,
+      `java 节点 total=${javaNode?.total ?? '节点不在'}；根 total ${structA.tree.total} vs dirs 文件和 ${allDirFiles}`);
+    const rootDir = (factsA.code?.dirs ?? []).find((d: any) => d.path === '');
+    check('1c-2 组树：根节点直接文件数与 dirs 的 \'\' 条目相等',
+      structA.tree.files === (rootDir?.files ?? -1),
+      `树根 ${structA.tree.files} vs dirs[''] ${rootDir?.files ?? '缺失'}`);
+    const treeClassCount = countTreeClasses(structA.tree);
+    check('1c-3 组树：挂进树的类数 === facts classes 数（一条不丢）',
+      treeClassCount === clsA.length, `树上 ${treeClassCount} vs facts ${clsA.length}`);
+
+    // ② 一致性：七行（五带 + util + 未分类）计数之和 === 类总数；
+    //    且五带 + util 的计数和 === layers 聚合各键和（派生不重算判据）
+    const rowSum = structA.layers.reduce((n, r) => n + r.count, 0);
+    check('1c-4 一致性：七行计数之和 === classes 总数',
+      rowSum === structA.stats.classes && structA.stats.classes === clsA.length,
+      `行和 ${rowSum} vs stats ${structA.stats.classes} vs facts ${clsA.length}`);
+    const layerSum = Object.values(layersAgg(factsA)).reduce((a: number, b: any) => a + b, 0);
+    const bandUtilSum = structA.layers
+      .filter((r) => r.id !== 'unclassified')
+      .reduce((n, r) => n + r.count, 0);
+    check('1c-5 一致性：五带 + util 计数和 === layers 聚合和（未分类不进聚合，两层口径对齐）',
+      bandUtilSum === layerSum, `派生 ${bandUtilSum} vs layers 聚合 ${layerSum}`);
+
+    // ③ 徽标带依据：util 类必带「据类名推断」
+    const utilCls = clsA.filter((c: any) => c.layer === 'util');
+    check('1c-6 util 徽标：demo-repo 的 util 类据类名推断（layerBy=name，徽标全文带依据）',
+      utilCls.length > 0 && utilCls.every((c: any) => c.layerBy === 'name')
+      && utilCls.every((c: any) => classBadge(c) === '工具（据类名）'),
+      `${utilCls.length} 个 util 类；徽标样本 ${utilCls[0] ? classBadge(utilCls[0]) : '无'}`);
+
+    // ④ 未分类桶：判不出的单独列，不塞层
+    const nullLayer = clsA.filter((c: any) => !c.layer);
+    check('1c-7 未分类桶：计数与 facts 的 layer=null 类逐一相等，且桶里没有已分类类',
+      structA.unclassified.length === nullLayer.length && nullLayer.length > 0
+      && structA.unclassified.every((c: any) => !c.layer),
+      `桶 ${structA.unclassified.length} 个 vs facts layer=null ${nullLayer.length} 个`);
+
+    // ⑤ 空态：没有 Java 类 → 明说「未扫到 Java 类」，不是空树
+    const emptyStruct = buildCodeStructure({
+      ...factsA,
+      code: { ...factsA.code, classes: [], layers: {} },
+    });
+    check('1c-8 空态：零 Java 类时明说「未扫到 Java 类」（0 也是结论，不是空树）',
+      emptyStruct.stats.classes === 0
+      && emptyStruct.notes.some((n) => n.includes('未扫到 Java 类')),
+      emptyStruct.notes[0] ?? '无 notes');
+
+    // ⑥ 确定性：同 facts 两跑逐字段相等
+    check('1c-9 确定性：同一份 facts 派生两次逐字段相等',
+      JSON.stringify(buildCodeStructure(factsA)) === JSON.stringify(structA),
+      '两次不等 —— 树或徽标排序有不确定源');
+
+    // ⑦ 词汇表单一出处：五带名与释义逐字等于 arch-layered（防第二套文案）
+    const bandRows = structA.layers.filter((r) => (BAND_ORDER as string[]).includes(r.id));
+    check('1c-10 词汇表：五带名与释义和 arch-layered 逐字相等（单一词汇表）',
+      bandRows.length === BAND_ORDER.length
+      && bandRows.every((r, i) => r.id === BAND_ORDER[i] && r.name === BAND_NAME[BAND_ORDER[i]]
+        && r.desc === BAND_DESC[BAND_ORDER[i]]),
+      bandRows.map((r) => `${r.id}=${r.name}`).join(' '));
+
+    // ⑧ Markdown 导出：头部 stats + 层级释义 + 树 + 徽标依据都在
+    const md = structureMarkdown(structA);
+    check('1c-11 Markdown 导出：根名 / stats / 层级释义 / 目录树 / 徽标依据五样都在',
+      md.includes(`# ${factsA.root} 项目结构`) && md.includes('## 层级释义')
+      && md.includes('## 目录树') && md.includes('据类名') && md.includes('未分类'),
+      `md ${md.length} 字符`);
+
+    // ⑨ 反例自证（两条，各打一个判据）—— 恒真断言没有意义。
+    //    A 打「七行覆盖」（1c-4）：塞一个判据外的 layer 值，
+    //       它该掉出所有行（树里还在，行里没有）→ 行和比类总数少 1
+    const unknownFacts = JSON.parse(JSON.stringify(factsA));
+    unknownFacts.code.classes.push({
+      name: 'MysteryBean', file: 'src/main/java/com/demo/MysteryBean.java', line: 1,
+      package: 'com.demo', layer: 'mystery', layerBy: 'name', annotations: [],
+    });
+    const unknownStruct = buildCodeStructure(unknownFacts);
+    const unknownRowSum = unknownStruct.layers.reduce((n, r) => n + r.count, 0);
+    check('1c-12 反例自证 A：判据外 layer 值使「七行和 === 类总数」判负（覆盖不恒真）',
+      rowSum === structA.stats.classes
+      && unknownRowSum === unknownStruct.stats.classes - 1,
+      `原状 ${rowSum}=${structA.stats.classes}；注入后七行和 ${unknownRowSum} vs 类总数 ${unknownStruct.stats.classes}（差 1 = 掉出所有行）`);
+    //    B 打「派生↔layers 聚合」（1c-5）：只加类不改聚合，
+    //       派生侧 +1、聚合侧不动 → 两边不等（聚合是 Java 侧另一份事实）
+    const driftFacts = JSON.parse(JSON.stringify(factsA));
+    driftFacts.code.classes.push({
+      name: 'DriftService', file: 'src/main/java/com/demo/DriftService.java', line: 1,
+      package: 'com.demo', layer: 'service', layerBy: 'name', annotations: [],
+    });
+    const driftStruct = buildCodeStructure(driftFacts);
+    const driftBandUtilSum = driftStruct.layers
+      .filter((r) => r.id !== 'unclassified')
+      .reduce((n, r) => n + r.count, 0);
+    check('1c-13 反例自证 B：只加类不改 layers 聚合使「派生↔聚合」判负（口径不恒真）',
+      driftBandUtilSum === layerSum + 1,
+      `派生 ${driftBandUtilSum} vs 聚合 ${layerSum}（聚合未动、派生 +1 → 判负正确）`);
+  } else {
+    check('1c-1 派生层拿到 factsA', false, 'fixture facts 没拿到 —— 这一组因此没测，不是通过');
+  }
+  if (selfFacts) {
+    const structSelf: CodeStructure = buildCodeStructure(selfFacts);
+    const rowSumSelf = structSelf.layers.reduce((n, r) => n + r.count, 0);
+    check('1c-14 自身真扫同样过一致性：七行和 === 类总数，util 行为 0（0 也是结论）',
+      rowSumSelf === structSelf.stats.classes
+      && structSelf.layers.find((r) => r.id === 'util')?.count === 0
+      && structSelf.notes.some((n) => n.includes('读过的文件')),
+      `行和 ${rowSumSelf} vs 类总数 ${structSelf.stats.classes}`);
   }
 
   // ── 【2】确定性 ──────────────────────────────────────────────
