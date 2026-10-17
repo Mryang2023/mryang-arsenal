@@ -42,6 +42,7 @@ import HistoryPanel, { type DamagedEntry } from './HistoryPanel';
 import FunctionPanel from './FunctionPanel';
 import RuntimePanel, { type RuntimeStage } from './RuntimePanel';
 import ServicePanel from './ServicePanel';
+import StructurePanel from './StructurePanel';
 import UnmatchedPanel from './UnmatchedPanel';
 import VitalsPanel from './VitalsPanel';
 import type { RuntimeProbeFact } from '@/lib/runtime-recon';
@@ -123,7 +124,7 @@ export default function AutopsyLab() {
   const [theme, setTheme] = useState<CanvasTheme>('doc');
   const [tab, setTab] = useState<'arch' | 'services' | 'checkup' | 'history' | 'vitals' | 'runtime' | 'functions'>('arch');
   /** 架构面板内的子页签：技术架构画布（2026-10-17 合并进台）/ 应用分层图 */
-  const [archSub, setArchSub] = useState<'canvas' | 'layered'>('canvas');
+  const [archSub, setArchSub] = useState<'canvas' | 'layered' | 'structure'>('canvas');
   const [checkup, setCheckup] = useState<CheckupStage>({ kind: 'idle' });
   const fileRef = useRef<HTMLInputElement>(null);
 
@@ -703,7 +704,8 @@ export default function AutopsyLab() {
                   [
                     ['canvas', '技术架构'],
                     ['layered', '应用分层'],
-                  ] as ['canvas' | 'layered', string][]
+                    ['structure', '项目结构'],
+                  ] as ['canvas' | 'layered' | 'structure', string][]
                 ).map(([id, label]) => (
                   <button
                     key={id}
@@ -747,8 +749,16 @@ export default function AutopsyLab() {
                     name: archifyIrFilename(artifacts.facts.root),
                   }}
                 />
-              ) : (
+              ) : archSub === 'layered' ? (
                 <ArchPanel artifacts={artifacts} safeName={safeName} />
+              ) : (
+                // key 按项目分：扫新项目必须重算「默认展开两层」的折叠态，
+                // 否则旧 collapsed 集合全不命中新树 → 深层默认全展开（万类仓库会卡）
+                <StructurePanel
+                  key={`structure:${artifacts.facts.root}`}
+                  artifacts={artifacts}
+                  safeName={safeName}
+                />
               )}
             </div>
           </div>
