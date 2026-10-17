@@ -14,6 +14,7 @@
         { "ref": "Google Java Style Guide §6.2 Caught exceptions: not ignored", "type": "industry-standard", "quote": "It is very rarely correct to do nothing in response to a caught exception." }
       ],
       "rationale": "空 catch 把「失败」伪装成「成功」。流程继续往下走，但状态已经不一致了——这是最贵的 bug 类型，因为没有任何日志线索，只能靠猜。如果确实要忽略，必须写注释说明为什么可以忽略。",
+      "impact": "异常被吞掉后流程带着坏数据继续跑，下游拿到不完整结果，而线上没有任何报错——问题暴露时已离现场很远。",
       "appliesTo": { "stack": ["java-17"], "scope": "server" },
       "bad": "try {\n  syncData();\n} catch (Exception e) {\n  // 什么都没做\n}\n\ntry {\n  parseJson(s);\n} catch (Exception e) {\n  e.printStackTrace();   // 打印后继续，同样等于吞掉\n}",
       "good": "try {\n  syncData();\n} catch (Exception e) {\n  log.error(\"同步数据失败, taskId={}\", taskId, e);\n  throw new BizException(ErrorCode.SYNC_FAILED, \"同步数据失败\", e);\n}\n\n// 确实可忽略时，必须写注释\ntry {\n  num = Integer.parseInt(s);\n} catch (NumberFormatException e) {\n  // s 可能不是数字，此处回退为默认值 0，属于预期分支\n  num = 0;\n}",
@@ -24,8 +25,8 @@
       "promptFragment": "严禁空 catch 块。捕获异常后必须：记录含堆栈的日志并向上抛出，或转为业务异常抛出。确实需要忽略的，必须在 catch 块内写明注释解释为何可以忽略。禁止捕获后仅 printStackTrace 就继续执行。",
       "tags": ["exception", "p0", "高频踩坑"],
       "status": "active",
-      "version": 1,
-      "updatedAt": "2026-09-11"
+      "version": 2,
+      "updatedAt": "2026-10-18"
     },
     {
       "id": "REL-EXCP-002",
@@ -38,6 +39,7 @@
         { "ref": "Effective Java 3rd Edition · Item 69: Use exceptions only for exceptional conditions", "type": "book" }
       ],
       "rationale": "用异常控制流程时，填充堆栈的开销（构造 Throwable 要抓取栈帧）是普通条件判断的百倍以上，且会把真正的异常淹没在噪音里。注意：本项目降级为 SHOULD，因为少量场景（如解析失败回退）用异常表达反而更清晰，由开发者判断。",
+      "impact": "高频路径白烧百倍开销，真正的故障异常被淹没在业务异常里，监控看到异常率飙升却翻不出真凶。",
       "appliesTo": { "stack": ["java-17"], "scope": "server" },
       "bad": "try {\n  if (!checkQuota(id)) throw new QuotaException();\n  doWork();\n} catch (QuotaException e) {\n  return \"配额不足\";\n}",
       "good": "if (!checkQuota(id)) {\n  return ApiResponse.fail(ErrorCode.QUOTA_EXCEEDED);\n}\ndoWork();",
@@ -47,8 +49,8 @@
       "promptFragment": "异常只用于表达真正的意外情况。正常的业务分支（配额不足、状态不允许等）必须用条件判断和返回值处理，禁止用抛异常+捕获来实现流程控制。",
       "tags": ["exception"],
       "status": "active",
-      "version": 1,
-      "updatedAt": "2026-09-11"
+      "version": 2,
+      "updatedAt": "2026-10-18"
     },
     {
       "id": "REL-EXCP-003",
@@ -60,6 +62,7 @@
         { "ref": "阿里巴巴Java开发手册 异常日志·异常处理【强制】", "type": "industry-standard", "quote": "不要在 finally 块中使用 return。try 块中的 return 语句执行成功后，并不马上返回，而是继续执行 finally 块中的语句，如果此处存在 return 语句，则会在此直接返回，无情丢弃掉 try 块中的返回点。" }
       ],
       "rationale": "finally 的 return 会覆盖 try 中的返回值，且会吞掉尚未抛出的异常。这让返回值变得无法从代码上推断——你必须同时看 try 和 finally 才能知道方法返回什么。",
+      "impact": "你以为返回的是计算结果，实际拿到的是 null；该抛给调用方的异常也被 finally 吞了，两边都无声。",
       "appliesTo": { "stack": ["java-17"], "scope": "server" },
       "bad": "try {\n  return calc();\n} finally {\n  return null;   // try 的返回值被丢弃\n}",
       "good": "try {\n  return calc();\n} finally {\n  cleanup();\n}",
@@ -70,8 +73,8 @@
       "promptFragment": "严禁在 finally 块中使用 return 语句。finally 只用于资源释放与清理。",
       "tags": ["exception"],
       "status": "active",
-      "version": 1,
-      "updatedAt": "2026-09-11"
+      "version": 2,
+      "updatedAt": "2026-10-18"
     },
     {
       "id": "REL-EXCP-004",
@@ -84,6 +87,7 @@
         { "ref": "Effective Java 3rd Edition · Item 9: Prefer try-with-resources to try-finally", "type": "book" }
       ],
       "rationale": "手写 finally close 有两个坑：close 本身可能抛异常从而覆盖原始异常；多资源嵌套时关闭顺序需要人工维护。try-with-resources 由编译器生成正确的抑制异常处理，且顺序天然正确。",
+      "impact": "close 自己抛异常会覆盖真实异常，排错时看到的是关闭失败而不是根因；多资源嵌套还容易漏关。",
       "appliesTo": { "stack": ["java-17"], "scope": "server" },
       "bad": "InputStream in = null;\ntry {\n  in = new FileInputStream(f);\n  read(in);\n} finally {\n  if (in != null) in.close();   // close 抛异常会覆盖真实异常\n}",
       "good": "try (InputStream in = new FileInputStream(f)) {\n  read(in);\n}",
@@ -93,8 +97,8 @@
       "promptFragment": "所有实现 AutoCloseable 的资源（流、连接、结果集）必须使用 try-with-resources 语法自动关闭，禁止手写 finally close。",
       "tags": ["exception", "resource"],
       "status": "active",
-      "version": 1,
-      "updatedAt": "2026-09-11"
+      "version": 2,
+      "updatedAt": "2026-10-18"
     },
     {
       "id": "REL-LOG-001",
@@ -106,6 +110,7 @@
         { "ref": "阿里巴巴Java开发手册 异常日志·日志规约【强制】", "type": "industry-standard", "quote": "生产环境禁止使用 System.out 或 System.err 输出或使用 e.printStackTrace() 打印异常堆栈。" }
       ],
       "rationale": "标准输出不经过日志框架：没有级别、没有时间戳、没有线程名、不落文件、无法按级别过滤，且在高并发下是同步阻塞的（println 内部有锁），会直接拖慢吞吐。生产环境这些输出通常直接被丢弃。",
+      "impact": "真出问题时去翻日志，里面什么都没有——这些输出根本没进日志系统；高并发下的同步阻塞还会拖慢吞吐。",
       "appliesTo": { "stack": ["java-17"], "scope": "server" },
       "bad": "System.out.println(\"user = \" + user);\ncatch (Exception e) { e.printStackTrace(); }",
       "good": "log.info(\"user={}\", user);\ncatch (Exception e) { log.error(\"查询用户失败, userId={}\", userId, e); }",
@@ -115,8 +120,8 @@
       "promptFragment": "禁止使用 System.out、System.err 或 e.printStackTrace() 输出任何信息。所有日志必须通过 SLF4J 的 Logger 输出。",
       "tags": ["logging", "p0"],
       "status": "active",
-      "version": 1,
-      "updatedAt": "2026-09-11"
+      "version": 2,
+      "updatedAt": "2026-10-18"
     },
     {
       "id": "REL-LOG-002",
@@ -129,6 +134,7 @@
         { "ref": "阿里巴巴Java开发手册 异常日志·日志规约【强制】", "type": "industry-standard", "quote": "应用中不可直接使用日志系统（Log4j、Logback）中的 API，而应依赖使用日志框架 SLF4J 中的 API。" }
       ],
       "rationale": "拼接写法即使日志级别未开启也会先执行字符串构造和对象 toString，白烧 CPU；占位符是延迟求值，级别不匹配时零开销。直接依赖实现类则让日志框架无法替换。",
+      "impact": "debug 关着的时候每次调用还在拼字符串，大促时这点白烧的 CPU 全加到延迟上；绑定死日志实现后想换框架得连业务代码一起改。",
       "appliesTo": { "stack": ["java-17"], "scope": "server" },
       "bad": "log.info(\"查询用户: \" + userId + \", 结果: \" + user);\nlog.debug(\"payload = \" + JSON.toJSONString(obj));   // debug 关闭时仍会序列化",
       "good": "log.info(\"查询用户: {}, 结果: {}\", userId, user);\nif (log.isDebugEnabled()) {\n  log.debug(\"payload = {}\", JSON.toJSONString(obj));\n}",
@@ -138,8 +144,8 @@
       "promptFragment": "日志必须使用 SLF4J 的 Logger，用 {} 占位符传参，禁止字符串拼接。需要序列化对象再打印的 debug 日志，必须先判断 log.isDebugEnabled()。",
       "tags": ["logging"],
       "status": "active",
-      "version": 1,
-      "updatedAt": "2026-09-11"
+      "version": 2,
+      "updatedAt": "2026-10-18"
     },
     {
       "id": "REL-LOG-003",
@@ -151,6 +157,7 @@
         { "ref": "阿里巴巴Java开发手册 异常日志·日志规约【强制】", "type": "industry-standard", "quote": "异常信息应该包括两类信息：案发现场信息和异常堆栈信息。" }
       ],
       "rationale": "只打 e.getMessage() 会丢失堆栈，无法定位是哪一行抛的；只打堆栈不给参数，则不知道是哪个用户、哪个订单出的问题。两者缺一，线上排查就得靠猜。注意：Logger 只有把异常作为最后一个参数传入才会打印堆栈。",
+      "impact": "半夜被叫起来看日志，看到的是一句「操作失败」——哪一行、哪个用户、哪笔单子，全得靠猜。",
       "appliesTo": { "stack": ["java-17"], "scope": "server" },
       "bad": "catch (Exception e) {\n  log.error(\"保存失败: \" + e.getMessage());   // 无堆栈、无现场\n}",
       "good": "catch (Exception e) {\n  log.error(\"保存订单失败, userId={}, orderNo={}\", userId, orderNo, e);   // 异常作为最后一个参数\n}",
@@ -161,8 +168,8 @@
       "promptFragment": "在 catch 中记录日志时，必须把异常对象作为最后一个参数传给 log.error（如 log.error(\"保存失败, id={}\", id, e)），同时打印可定位的现场参数，如 userId、orderNo、taskId。禁止只打印 e.getMessage()。",
       "tags": ["logging", "p0"],
       "status": "active",
-      "version": 1,
-      "updatedAt": "2026-09-11"
+      "version": 2,
+      "updatedAt": "2026-10-18"
     },
     {
       "id": "REL-TIME-001",
@@ -175,6 +182,7 @@
         { "ref": "OWASP / 分布式系统可靠性通用基线", "type": "security-baseline" }
       ],
       "rationale": "没有超时的外部调用等于把线程的控制权交给下游。下游卡住 → 连接池耗尽 → 本服务全部接口不可用。这是「局部故障放大成全局故障」最常见的一条路径，也是本项目历史上踩过的坑（线程隔离）。",
+      "impact": "下游一卡线程全挂在等待上，连接池排满后本服务所有接口跟着超时，故障从下游一个点扩散成全站不可用。",
       "appliesTo": { "stack": ["spring-boot-3"], "scope": "server" },
       "bad": "HttpURLConnection conn = (HttpURLConnection) url.openConnection();\nconn.connect();\n// 默认 connectTimeout=0 表示无限等待",
       "good": "RequestConfig config = RequestConfig.custom()\n    .setConnectTimeout(3000)\n    .setConnectionRequestTimeout(2000)\n    .setSocketTimeout(10000)\n    .build();",
@@ -185,8 +193,8 @@
       "promptFragment": "所有外部调用必须显式设置超时：连接超时（建议 2-3 秒）与读取超时（建议 5-10 秒）。禁止使用默认的无超时配置。禁止使用裸 HttpURLConnection。",
       "tags": ["timeout", "p0", "高频踩坑"],
       "status": "active",
-      "version": 1,
-      "updatedAt": "2026-09-11"
+      "version": 2,
+      "updatedAt": "2026-10-18"
     },
     {
       "id": "REL-RETRY-001",
@@ -199,6 +207,7 @@
         { "ref": "本项目决策：休眠阻塞线程在请求链路中不可接受", "type": "project-decision" }
       ],
       "rationale": "Thread.sleep 会占住当前线程不放，在请求链路中等于每重试一次就阻塞一个 Tomcat 工作线程。必须限制重试次数并采用退避策略，否则重试本身就是一场自我 DDoS。",
+      "impact": "重试全堵在 sleep 上，工作线程一个个被占满；没有退避的重试还在下游喘口气之前又砸过去一轮。",
       "appliesTo": { "stack": ["java-17"], "scope": "server" },
       "bad": "for (int i = 0; i < 3; i++) {\n  if (tryCall()) break;\n  Thread.sleep(1000);   // 线程被占住，重试次数无上限保障\n}",
       "good": "// 使用带退避的重试模板：最大 3 次，间隔 200ms 起指数递增\nRetryTemplate.builder()\n    .maxAttempts(3)\n    .exponentialBackoff(200, 2, 2000)\n    .retryOn(IOException.class)\n    .build()\n    .execute(ctx -> call());",
@@ -209,8 +218,8 @@
       "promptFragment": "禁止使用 Thread.sleep 实现重试或等待。重试必须使用带指数退避的重试机制（RetryTemplate 或自研工具），并显式设置最大重试次数、退避间隔上限与可重试异常类型。",
       "tags": ["retry", "concurrency", "p0"],
       "status": "active",
-      "version": 1,
-      "updatedAt": "2026-09-11"
+      "version": 2,
+      "updatedAt": "2026-10-18"
     }
   ]
 }

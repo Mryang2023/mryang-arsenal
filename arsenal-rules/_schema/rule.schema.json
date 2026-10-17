@@ -98,6 +98,11 @@
       "minLength": 20,
       "description": "为什么要有这条规则。写给 AI 看（有理由的约束遵守率更高），也写给未来的自己看。禁止写「为了代码质量」这类空话。"
     },
+    "impact": {
+      "type": "string",
+      "maxLength": 120,
+      "description": "不修会出什么事。一句话说死后果 —— 必须能回答「然后呢」，写给做优先级决策的人看。与 rationale 的分工：rationale 回答「为什么定这条规」，impact 回答「违反了会怎样」；把 rationale 抄成 impact 是内容事故，review 必查。"
+    },
     "appliesTo": {
       "type": "object",
       "additionalProperties": false,

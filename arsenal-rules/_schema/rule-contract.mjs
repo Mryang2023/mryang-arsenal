@@ -130,6 +130,7 @@ export const RULE_ID_PATTERN = '^[A-Z][A-Z0-9]{2,7}-[A-Z0-9]{2,8}-[0-9]{3}$';
 export const TITLE_MAX = 80;
 export const RATIONALE_MIN = 20;
 export const PROMPT_FRAGMENT_MAX = 300;
+export const IMPACT_MAX = 120;
 
 /** 字段 kind → 判定原语 + Schema 形态的唯一映射（引擎在 scripts/lib/spec-validate.mjs）。 */
 const str = (o = {}) => ({ kind: 'string', ...o });
@@ -226,6 +227,11 @@ export const RULE_SPEC = obj(
       minLength: RATIONALE_MIN,
       description:
         '为什么要有这条规则。写给 AI 看（有理由的约束遵守率更高），也写给未来的自己看。禁止写「为了代码质量」这类空话。',
+    }),
+    impact: str({
+      maxLength: IMPACT_MAX,
+      description:
+        '不修会出什么事。一句话说死后果 —— 必须能回答「然后呢」，写给做优先级决策的人看。与 rationale 的分工：rationale 回答「为什么定这条规」，impact 回答「违反了会怎样」；把 rationale 抄成 impact 是内容事故，review 必查。',
     }),
     appliesTo: APPLIES_TO_SPEC,
     bad: str({

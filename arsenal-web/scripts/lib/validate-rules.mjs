@@ -47,6 +47,7 @@ export const RULE_DIAGNOSTIC_CODE = {
   budgetStaleNumber: 'RULE_BUDGET_STALE_NUMBER',
   regexUncompilable: 'RULE_REGEX_UNCOMPILABLE',
   severityPolicyEmpty: 'RULE_SEVERITY_POLICY_EMPTY',
+  impactMissing: 'RULE_IMPACT_MISSING',
 };
 
 /**
@@ -78,6 +79,7 @@ export function validateRuleSet({ files, meta }) {
   checkMetaFileCount(c, files, meta);
   checkDuplicateIds(c, files);
   checkRegexCompiles(c, files);
+  checkImpactPresent(c, files);
   checkBudget(c, files, meta);
 
   return { errors: c.errors(), warnings: c.warnings(), stats: statsOf(files) };
@@ -252,6 +254,40 @@ function checkRegexCompiles(c, files) {
 }
 
 /**
+ * active 规则必须写 impact（「不修会出什么事」）。
+ *
+ * 为什么值得单列一条：impact 在契约里是**可选**字段 —— 可选意味着漏写不会有任何
+ * 东西报错，而质检台报告里每条问题都要回答「不修的后果」。规则没有 impact，
+ * 报告就只能拿 rationale 派生顶替，并诚实标注「出自规则制定理由」——
+ * 那是过渡态，不是终点。这条断言把「69 条全部补写」变成机器守着的不变量：
+ * 以后新增 active 规则不带 impact，构建期就拦下来，而不是等页面上出现
+ * 「出自规则制定理由」才发现又漏了一条。
+ *
+ * 分级口径：active（参与校验与导出，报告会真展示）缺失 → error；
+ * draft / deprecated（不进校验）缺失 → warning，不拦构建。
+ */
+function checkImpactPresent(c, files) {
+  for (const { rule, at } of flatten(files)) {
+    const impact = rule?.impact;
+    const has = typeof impact === 'string' && impact.trim() !== '';
+    if (has) continue;
+    if (rule?.status === 'active') {
+      c.error(
+        RULE_DIAGNOSTIC_CODE.impactMissing,
+        join(at, 'impact'),
+        'active 规则缺少 impact（「不修会出什么事」）—— 质检台报告每条问题都要回答后果，缺失只能拿 rationale 派生顶替',
+      );
+    } else {
+      c.warn(
+        RULE_DIAGNOSTIC_CODE.impactMissing,
+        join(at, 'impact'),
+        `规则 status=${rule?.status ?? '未标注'} 且缺少 impact —— 非 active 不拦构建，转 active 前必须补写`,
+      );
+    }
+  }
+}
+
+/**
  * 手抄的数字必须由机器守住 —— `budget.mustCurrent` / `budget.totalCurrent`。
  *
  * 与 `categories[].fileCount` 同一类病：它们都是**统计结果被写成了字面量**，
@@ -384,7 +420,10 @@ function statsOf(files) {
       if (r?.check?.[layer] !== undefined) checkLayerCount[layer] += 1;
     }
   }
-  return { total: all.length, bySeverity, byCategory, mustClass, promptChars, checkLayerCount };
+  const withImpact = all.filter(
+    (r) => typeof r.impact === 'string' && r.impact.trim() !== '',
+  ).length;
+  return { total: all.length, bySeverity, byCategory, mustClass, promptChars, checkLayerCount, withImpact };
 }
 
 /** 把诊断排成可直接进构建日志的文本（错误在前，路径升序）。 */

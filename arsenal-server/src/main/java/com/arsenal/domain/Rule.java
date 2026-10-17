@@ -33,6 +33,7 @@ public record Rule(
         Severity severity,
         List<Source> sources,
         String rationale,
+        String impact,
         AppliesTo appliesTo,
         String bad,
         String good,

@@ -14,6 +14,7 @@
         { "ref": "Google Java Style Guide §5.2.1", "type": "industry-standard", "quote": "Package names use only lowercase letters and digits, no underscores." }
       ],
       "rationale": "包名是项目里被引用最多的标识符之一。下划线、大写、复数三种风格混用会让 import 语句无法靠肌肉记忆写出，也是 AI 生成代码时最常见的漂移点之一。",
+      "impact": "import 语句每次都要想一下大小写，AI 下次生成时又会换一种写法，review 时肉眼还看不出来。",
       "appliesTo": { "stack": ["java-17"], "scope": "server" },
       "bad": "package com.smarthub.util_tools.userInfos;",
       "good": "package com.smarthub.util.user;",
@@ -23,8 +24,8 @@
       "promptFragment": "包名必须全小写、点分隔、每段是单个自然语义的英文单词且用单数；禁止下划线、大写字母、复数形式；禁止拼音或拼音英文混合。",
       "tags": ["naming", "p0"],
       "status": "active",
-      "version": 1,
-      "updatedAt": "2026-09-11"
+      "version": 2,
+      "updatedAt": "2026-10-18"
     },
     {
       "id": "SKEL-STRC-002",
@@ -36,6 +37,7 @@
         { "ref": "Spring Boot 官方文档 · Structuring Your Code", "type": "framework-doc", "quote": "We generally recommend that you locate your main application class in a root package above other classes." }
       ],
       "rationale": "Spring Boot 的组件扫描、自动配置、@EntityScan、@EnableJpaRepositories 默认都从启动类所在包向下扫描。启动类放错位置会导致部分 Bean 扫描不到，而报错信息通常指向别处，排查代价极高。",
+      "impact": "启动就缺一半 Bean，报错还指向不相干的类，一个包名问题能烧掉半天。",
       "appliesTo": { "stack": ["spring-boot-3"], "scope": "server" },
       "bad": "启动类放在 com.smarthub.config.Application，导致 controller 包不被扫描",
       "good": "com.smarthub.ArenaApplication（@SpringBootApplication 置于 com.smarthub 根包）",
@@ -46,8 +48,8 @@
       "promptFragment": "启动类必须放在项目根包下，根包名 = groupId + artifactId（去连字符）。控制器、服务等所有代码包必须位于根包之下。",
       "tags": ["structure", "spring"],
       "status": "active",
-      "version": 1,
-      "updatedAt": "2026-09-11"
+      "version": 2,
+      "updatedAt": "2026-10-18"
     },
     {
       "id": "SKEL-DEP-001",
@@ -59,6 +61,7 @@
         { "ref": "Spring Boot 3.x 官方迁移指南 · Jakarta EE 10", "type": "framework-doc", "quote": "Spring Boot 3.0 requires Java 17 and Jakarta EE 9+ (jakarta.* namespace)." }
       ],
       "rationale": "Spring Boot 3 基于 Spring Framework 6，已从 Java EE 迁移到 Jakarta EE。javax.* 的包在依赖里可能仍然存在（来自旧库），编译期不一定报错，但运行时注解会静默失效——例如 @Valid 不生效、@Transactional 不回滚、启动直接失败。这是 AI 生成代码最高频的错误之一，因为它训练数据里 2.x 的样本远多于 3.x。",
+      "impact": "代码看着编译通过，上线后参数校验形同虚设、事务不回滚——非法数据直接进库，而且只在生产暴露。",
       "appliesTo": { "stack": ["spring-boot-3"], "scope": "server" },
       "bad": "import javax.validation.constraints.NotNull;\nimport javax.persistence.Entity;",
       "good": "import jakarta.validation.constraints.NotNull;\nimport jakarta.persistence.Entity;",
@@ -68,8 +71,8 @@
       "promptFragment": "项目基于 Spring Boot 3.x，所有 API 必须使用 jakarta.* 命名空间（jakarta.validation、jakarta.persistence、jakarta.servlet 等），严禁使用 javax.*。",
       "tags": ["spring", "migration", "高频踩坑", "p0"],
       "status": "active",
-      "version": 1,
-      "updatedAt": "2026-09-11"
+      "version": 2,
+      "updatedAt": "2026-10-18"
     },
     {
       "id": "SKEL-DEP-002",
@@ -82,6 +85,7 @@
         { "ref": "阿里巴巴Java开发手册 · 工程结构·依赖管理", "type": "industry-standard" }
       ],
       "rationale": "BOM 里的版本组合是经过 Spring 团队兼容性验证的。手写版本会产生版本漂移，典型后果是 jakarta/javax 冲突、Jackson 行为差异、Hibernate 与 Spring 版本不匹配，且这类问题往往在运行期才暴露。",
+      "impact": "本地跑得好好的，上线后 Jackson 序列化行为悄悄变了，或者两个依赖拽进来两套 jakarta——这类事只在运行期露头。",
       "appliesTo": { "stack": ["maven", "spring-boot-3"], "scope": "server" },
       "bad": "<dependency>\n  <groupId>org.springframework.boot</groupId>\n  <artifactId>spring-boot-starter-web</artifactId>\n  <version>3.2.5</version>\n</dependency>",
       "good": "<dependency>\n  <groupId>org.springframework.boot</groupId>\n  <artifactId>spring-boot-starter-web</artifactId>\n</dependency>",
@@ -92,8 +96,8 @@
       "promptFragment": "所有 Spring 生态依赖的版本必须由 spring-boot-starter-parent 的 BOM 管理，禁止在 <dependency> 上手写 <version>。三方库版本必须集中定义在 <properties> 中。",
       "tags": ["maven", "dependency"],
       "status": "active",
-      "version": 1,
-      "updatedAt": "2026-09-11"
+      "version": 2,
+      "updatedAt": "2026-10-18"
     },
     {
       "id": "SKEL-DEP-003",
@@ -105,6 +109,7 @@
         { "ref": "阿里巴巴Java开发手册 工程结构·二方库依赖 §1【强制】", "type": "industry-standard", "quote": "线上应用不要依赖 SNAPSHOT 版本（安全包除外）。" }
       ],
       "rationale": "SNAPSHOT 是可变版本，同一份源码在不同时间构建会得到不同产物，导致「本地能跑、线上不行」且无法复现。\n\n降级说明：本条在阿里手册中为「强制」，但本项目定位为单人开发、以内网部署为主，开发期依赖本地 SNAPSHOT 是常见需求，因此降级为 SHOULD，仅在进入发布流程时强制。",
+      "impact": "同一个 tag 三天前三天后不是同一个东西，线上出了事你按本地源码复现，怎么跑都复现不出来。",
       "appliesTo": { "stack": ["maven"], "scope": "server" },
       "bad": "<version>1.2.0-SNAPSHOT</version>",
       "good": "<version>1.2.0</version>",
@@ -114,8 +119,8 @@
       "promptFragment": "禁止在 pom.xml 中依赖任何 SNAPSHOT 版本，所有依赖必须是确定的发布版本。",
       "tags": ["maven", "release"],
       "status": "active",
-      "version": 1,
-      "updatedAt": "2026-09-11"
+      "version": 2,
+      "updatedAt": "2026-10-18"
     },
     {
       "id": "SKEL-CONF-001",
@@ -128,6 +133,7 @@
         { "ref": "OWASP Cheat Sheet · Secrets Management", "type": "security-baseline", "quote": "Never store secrets in code or version control." }
       ],
       "rationale": "硬编码密钥一旦进仓库，即使后来删除，Git 历史里仍然存在，且会被任何有仓库读权限的人拿到。同时环境配置混在一起会导致本地误连生产库这类事故。",
+      "impact": "密钥在 Git 历史里永久可翻；本地一次误连就能把测试数据写进生产库，两头都是事故。",
       "appliesTo": { "stack": ["spring-boot-3"], "scope": "server" },
       "bad": "spring.datasource.password=Prod@123456 直接写在 application.yml 并提交",
       "good": "application.yml 用 ${DB_PASSWORD:} 占位；application-dev.yml / application-prod.yml 分环境；密钥走环境变量或配置中心，并在 .gitignore 中排除本地覆盖文件",
@@ -138,8 +144,8 @@
       "promptFragment": "配置必须按环境分离（application-{env}.yml），密钥、密码、token 一律通过环境变量或配置中心注入，禁止硬编码，禁止在配置文件中出现明文密钥，禁止提交任何密钥文件到仓库。",
       "tags": ["config", "security", "p0"],
       "status": "active",
-      "version": 1,
-      "updatedAt": "2026-09-11"
+      "version": 2,
+      "updatedAt": "2026-10-18"
     }
   ]
 }

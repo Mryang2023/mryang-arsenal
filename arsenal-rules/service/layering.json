@@ -14,6 +14,7 @@
         { "ref": "Effective Java 3rd Edition · Item 17: Minimize mutability", "type": "book" }
       ],
       "rationale": "字段注入让依赖可以被绕过——单测时无法在不启动 Spring 容器的情况下注入替身，只能反射塞值；也让循环依赖在运行期才暴露。构造器注入让依赖在编译期就是不可变且必填的。",
+      "impact": "写单测先得把 Spring 容器跑起来，跑不起来的只能反射硬塞替身；循环依赖则留到运行期才炸。",
       "appliesTo": { "stack": ["spring-boot-3"], "scope": "server" },
       "bad": "@Service\npublic class UserService {\n  @Autowired private UserDao userDao;\n  @Resource private MailClient mailClient;\n}",
       "good": "@Service\npublic class UserService {\n  private final UserDao userDao;\n  private final MailClient mailClient;\n\n  public UserService(UserDao userDao, MailClient mailClient) {\n    this.userDao = userDao;\n    this.mailClient = mailClient;\n  }\n}",
@@ -24,8 +25,8 @@
       "promptFragment": "所有依赖注入必须使用构造器注入，注入字段声明为 private final。严禁使用 @Autowired / @Resource 字段注入。",
       "tags": ["di", "spring", "p0"],
       "status": "active",
-      "version": 1,
-      "updatedAt": "2026-09-11"
+      "version": 2,
+      "updatedAt": "2026-10-18"
     },
     {
       "id": "SVC-TX-001",
@@ -37,6 +38,7 @@
         { "ref": "Spring 官方文档 · Declarative Transaction Management", "type": "framework-doc", "quote": "Method visibility and @Transactional — when using proxies, you should apply the @Transactional annotation only to methods with public visibility." }
       ],
       "rationale": "@Transactional 基于 AOP 代理实现。标在 private/protected 方法上会被静默忽略；同一个类内部方法直接调用（this.method()）也会绕过代理，事务同样失效——两者都不报错，只是数据不再回滚。",
+      "impact": "注解等于没写：方法照常执行，异常一来数据却不回滚，留下半截脏数据，而且没有任何地方会告诉你。",
       "appliesTo": { "stack": ["spring-boot-3"], "scope": "server", "pathGlob": "**/service/**" },
       "bad": "@Service\npublic class OrderService {\n  public void create(Order o) {\n    this.saveItems(o);   // 同类内部调用，事务失效\n  }\n  @Transactional private void saveItems(Order o) { ... }   // private + 同调用，双重失效\n}",
       "good": "@Service\npublic class OrderService {\n  private final OrderItemService orderItemService;\n\n  @Transactional(rollbackFor = Exception.class)\n  public void create(Order o) {\n    orderItemService.saveItems(o);   // 跨 Bean 调用，走代理\n  }\n}",
@@ -47,8 +49,8 @@
       "promptFragment": "事务边界必须放在 Service 层。@Transactional 只能标注在 public 方法上，且不能被同类内部方法直接调用（必须跨 Bean 调用）。",
       "tags": ["transaction", "p0", "高频踩坑"],
       "status": "active",
-      "version": 1,
-      "updatedAt": "2026-09-11"
+      "version": 2,
+      "updatedAt": "2026-10-18"
     },
     {
       "id": "SVC-TX-002",
@@ -61,6 +63,7 @@
         { "ref": "Spring 官方文档 · Rolling Back a Transaction", "type": "framework-doc", "quote": "By default, a transaction will be rolling back on RuntimeException and Error but not on checked exceptions." }
       ],
       "rationale": "Spring 默认只对 RuntimeException 和 Error 回滚。业务代码一旦抛出受检异常，事务会静默提交，留下半截数据。必须写死 rollbackFor = Exception.class。",
+      "impact": "抛的是受检异常时，事务照提交不误——钱已扣、单未成，两边对不上半截数据。",
       "appliesTo": { "stack": ["spring-boot-3"], "scope": "server", "pathGlob": "**/service/**" },
       "bad": "@Transactional\npublic void transfer(Long from, Long to, BigDecimal amt) throws BizException { ... }",
       "good": "@Transactional(rollbackFor = Exception.class)\npublic void transfer(Long from, Long to, BigDecimal amt) { ... }",
@@ -71,8 +74,8 @@
       "promptFragment": "所有 @Transactional 必须显式写 rollbackFor = Exception.class，禁止使用默认回滚规则。只读事务用 @Transactional(readOnly = true)。",
       "tags": ["transaction", "p0", "高频踩坑"],
       "status": "active",
-      "version": 1,
-      "updatedAt": "2026-09-11"
+      "version": 2,
+      "updatedAt": "2026-10-18"
     },
     {
       "id": "SVC-EXCP-001",
@@ -85,6 +88,7 @@
         { "ref": "Effective Java 3rd Edition · Item 70/71: Use exceptions only for exceptional conditions", "type": "book" }
       ],
       "rationale": "裸 RuntimeException 没有错误码也没有语义，全局处理器无法把它映射成有意义的响应，也无法让调用方按类型分别处理。本项目把阿里的「推荐」升级为 MUST——因为没有错误码的接口无法被前端正确消费。",
+      "impact": "全局处理器无法把裸异常映射成有意义的错误码，前端只能显示「系统错误」，调用方也没法按类型分别处理。",
       "appliesTo": { "stack": ["spring-boot-3"], "scope": "server", "pathGlob": "**/service/**" },
       "bad": "if (user == null) throw new RuntimeException(\"用户不存在\");",
       "good": "if (user == null) throw new BizException(ErrorCode.USER_NOT_FOUND, \"用户不存在\");\n\n// 自定义异常继承 RuntimeException，携带错误码\npublic class BizException extends RuntimeException {\n  private final ErrorCode code;\n}",
@@ -95,8 +99,8 @@
       "promptFragment": "业务失败必须抛出继承自 RuntimeException 的自定义业务异常（如 BizException），并携带错误码。严禁直接抛 new RuntimeException()、new Exception() 或 new Throwable()。",
       "tags": ["exception", "api", "p0"],
       "status": "active",
-      "version": 1,
-      "updatedAt": "2026-09-11"
+      "version": 2,
+      "updatedAt": "2026-10-18"
     },
     {
       "id": "SVC-TX-003",
@@ -108,6 +112,7 @@
         { "ref": "阿里巴巴Java开发手册 并发处理 §7 说明", "type": "industry-standard", "quote": "尽可能使加锁的代码块工作量尽可能的小，避免在锁代码块中调用 RPC 方法。" }
       ],
       "rationale": "事务持有数据库连接。事务内做 RPC 意味着连接被网络延迟占住，下游一慢就会耗尽连接池，把局部故障放大成全站不可用。正确做法是把远程调用挪到事务外，或拆成「先调用、后落库」。",
+      "impact": "下游一慢，数据库连接全被压在等待上，紧接着每个要开事务的接口都开始拿不到连接。",
       "appliesTo": { "stack": ["spring-boot-3"], "scope": "server", "pathGlob": "**/service/**" },
       "bad": "@Transactional(rollbackFor = Exception.class)\npublic void pay(Long id) {\n  orderDao.update(id);\n  payClient.invoke(id);       // 事务内远程调用，连接被占住\n}",
       "good": "public void pay(Long id) {\n  PayResult r = payClient.invoke(id);        // 事务外远程调用\n  orderService.markPaid(id, r);              // 事务内只做本地写\n}",
@@ -117,8 +122,8 @@
       "promptFragment": "事务方法内只允许本地数据库操作。远程调用（HTTP/RPC/MQ）、文件 IO、长耗时计算必须移到事务外执行。",
       "tags": ["transaction", "performance"],
       "status": "active",
-      "version": 1,
-      "updatedAt": "2026-09-11"
+      "version": 2,
+      "updatedAt": "2026-10-18"
     },
     {
       "id": "SVC-LAYR-002",
@@ -131,6 +136,7 @@
         { "ref": "Spring 官方文档 · Layered Architecture", "type": "framework-doc" }
       ],
       "rationale": "Service 一旦接收 HttpServletRequest 或返回 ResponseEntity，就无法被定时任务、MQ 消费者复用，也无法脱离 Web 容器做单测。分层的目的就是让业务逻辑与传输协议解耦。",
+      "impact": "定时任务要调同一段逻辑时只能再抄一份，两份代码慢慢漂移，而你以为改一处就够。",
       "appliesTo": { "stack": ["spring-boot-3"], "scope": "server", "pathGlob": "**/service/**" },
       "bad": "public ResponseEntity<UserVO> get(HttpServletRequest request) {\n  String token = request.getHeader(\"Authorization\");\n}",
       "good": "public UserVO get(Long userId) { ... }   // 入参是业务标识，不是 HTTP 对象",
@@ -141,8 +147,8 @@
       "promptFragment": "Service 层的入参和返回值只能是业务对象，严禁出现 HttpServletRequest、HttpServletResponse、ResponseEntity 等 HTTP 类型。",
       "tags": ["layering"],
       "status": "active",
-      "version": 1,
-      "updatedAt": "2026-09-11"
+      "version": 2,
+      "updatedAt": "2026-10-18"
     },
     {
       "id": "SVC-LAYR-003",
@@ -155,6 +161,7 @@
         { "ref": "本项目决策：以行业实践为准，不做无意义抽象", "type": "project-decision" }
       ],
       "rationale": "这是本项目需要明确的风格选择。行业现状是：Spring 从 4.x 起默认使用 CGLIB 类代理，JDK 动态代理不再是必需，因此「一个接口配一个实现类」在只有一个实现时属于纯样板代码，反而增加维护面。仅在存在多个实现（策略模式）或需要为 AOP 明确接口契约时才拆。\n\n结论：不拆接口，直接用 class；但 Service 类必须是 public 且方法签名稳定，避免把一个类做成万能工具类。",
+      "impact": "强行拆出只有一个实现的接口，改一个方法要同步两个文件，抽象层慢慢追不上实现，读代码要先跳一层才看到逻辑。",
       "appliesTo": { "stack": ["spring-boot-3"], "scope": "server", "pathGlob": "**/service/**" },
       "bad": "UserService（接口，仅一个实现） + UserServiceImpl（唯一实现） —— 纯样板，改一个方法要动两个文件",
       "good": "UserService（public class，唯一实现） —— 简洁；当出现 UserServiceV2 或需要多实现时，再抽 UserService 接口",
@@ -164,8 +171,8 @@
       "promptFragment": "Service 层不强制接口/实现分离。只有一个实现时直接写 public class XxxService；只有在存在多个实现（策略模式）或需要明确的 AOP 接口契约时才抽取接口。",
       "tags": ["layering", "项目决策"],
       "status": "active",
-      "version": 1,
-      "updatedAt": "2026-09-11"
+      "version": 2,
+      "updatedAt": "2026-10-18"
     }
   ]
 }

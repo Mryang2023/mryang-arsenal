@@ -13,6 +13,7 @@
         { "ref": "阿里巴巴Java开发手册 并发处理 §3【强制】", "type": "industry-standard", "quote": "线程资源必须通过线程池提供，不允许在应用中自行显式创建线程。如果不使用线程池，有可能造成系统创建大量同类线程而导致消耗完内存或者「过度切换」的问题。" }
       ],
       "rationale": "每 new 一个 Thread 就新建一份栈空间（默认 1MB）和调度成本，且没有任何上限。在循环或请求处理里 new Thread，等价于把线程数量交给调用方决定，流量一上来就是 OOM。",
+      "impact": "流量一高峰线程只涨不消，1MB 栈很快吃光堆外内存，进程被 OOM 杀掉，重启只撑到下一波请求。",
       "appliesTo": { "stack": ["java-17"], "scope": "server" },
       "bad": "new Thread(() -> doSomething()).start();\nnew Thread(runnable).start();",
       "good": "taskExecutor.execute(() -> doSomething());\n// taskExecutor 为注入的 ThreadPoolTaskExecutor",
@@ -23,8 +24,8 @@
       "promptFragment": "禁止 new Thread()。所有异步/并发任务必须提交到统一管理的线程池（Spring 用 ThreadPoolTaskExecutor，JDK 用 ThreadPoolExecutor），线程池必须作为 Bean 注入使用。",
       "tags": ["concurrency", "p0", "高频踩坑"],
       "status": "active",
-      "version": 1,
-      "updatedAt": "2026-09-11"
+      "version": 2,
+      "updatedAt": "2026-10-18"
     },
     {
       "id": "CONC-POOL-002",
@@ -36,6 +37,7 @@
         { "ref": "阿里巴巴Java开发手册 并发处理 §4【强制】", "type": "industry-standard", "quote": "线程池不允许使用 Executors 去创建，而是通过 ThreadPoolExecutor 的方式。FixedThreadPool 和 SingleThreadPool 允许的请求队列长度为 Integer.MAX_VALUE，可能会堆积大量的请求，从而导致 OOM；CachedThreadPool 和 ScheduledThreadPool 允许的创建线程数量为 Integer.MAX_VALUE，可能会创建大量的线程，从而导致 OOM。" }
       ],
       "rationale": "Executors 的四个工厂方法全部埋了无界队列或无界线程数。这是「一行代码换来一个定时炸弹」的典型案例，且问题只在流量达到某个阈值后才出现。",
+      "impact": "平时毫无异样，流量一到阈值队列或线程数失控，OOM 杀进程——而那一刻通常正是业务最忙的时候。",
       "appliesTo": { "stack": ["java-17"], "scope": "server" },
       "bad": "ExecutorService pool = Executors.newFixedThreadPool(10);\nExecutorService pool = Executors.newCachedThreadPool();",
       "good": "ThreadPoolExecutor pool = new ThreadPoolExecutor(\n    8, 16, 60L, TimeUnit.SECONDS,\n    new LinkedBlockingQueue<>(500),\n    new NamedThreadFactory(\"bid-collect\"),\n    new ThreadPoolExecutor.CallerRunsPolicy());",
@@ -45,8 +47,8 @@
       "promptFragment": "禁止使用 Executors 创建线程池。必须显式 new ThreadPoolExecutor 并指定全部参数：核心线程数、最大线程数、空闲回收时间、有界队列容量、自定义线程工厂、明确的拒绝策略。",
       "tags": ["concurrency", "p0", "高频踩坑"],
       "status": "active",
-      "version": 1,
-      "updatedAt": "2026-09-11"
+      "version": 2,
+      "updatedAt": "2026-10-18"
     },
     {
       "id": "CONC-POOL-003",
@@ -58,6 +60,7 @@
         { "ref": "阿里巴巴Java开发手册 并发处理 §2【强制】", "type": "industry-standard", "quote": "创建线程或线程池时请指定有意义的线程名称，方便出错时回溯。" }
       ],
       "rationale": "默认线程名是 pool-1-thread-3，线上出问题时从 200 个线程的堆栈里无法看出这是哪个业务。加上业务前缀后，jstack 一眼定位。",
+      "impact": "线上 jstack 一打全是 pool-1-thread-N，看不出是哪个业务在拖垮系统，定位靠猜。",
       "appliesTo": { "stack": ["java-17"], "scope": "server" },
       "bad": "new ThreadPoolExecutor(8, 16, 60, SECONDS, new LinkedBlockingQueue<>(500));",
       "good": "new ThreadPoolExecutor(8, 16, 60, SECONDS, new LinkedBlockingQueue<>(500),\n    new ThreadFactory() {\n      private final AtomicInteger n = new AtomicInteger(1);\n      public Thread newThread(Runnable r) {\n        return new Thread(r, \"bid-collect-\" + n.getAndIncrement());\n      }\n    });",
@@ -67,8 +70,8 @@
       "promptFragment": "所有线程池必须通过自定义 ThreadFactory 指定有业务含义的线程名前缀（如 bid-collect-1、ai-assist-2），方便 jstack 时回溯。",
       "tags": ["concurrency", "observability"],
       "status": "active",
-      "version": 1,
-      "updatedAt": "2026-09-11"
+      "version": 2,
+      "updatedAt": "2026-10-18"
     },
     {
       "id": "CONC-POOL-004",
@@ -81,6 +84,7 @@
         { "ref": "Spring 官方文档 · Task Execution and Scheduling", "type": "framework-doc" }
       ],
       "rationale": "无界队列把「拒绝」变成「无限积压」，最终以 OOM 的形式失败；默认 AbortPolicy 抛 RejectedExecutionException，如果调用方没处理，任务被静默丢弃。必须按业务语义显式选择：能接受降级用 CallerRunsPolicy（回压），不能丢的必须捕获拒绝异常并记录。",
+      "impact": "积压的请求看不出是被拒了，只会看到内存一点点被吃光；被丢的任务连异常都没有，业务悄悄少做一堆事。",
       "appliesTo": { "stack": ["java-17"], "scope": "server" },
       "bad": "new ThreadPoolExecutor(8, 16, 60, SECONDS, new LinkedBlockingQueue<>());   // 无界队列\n// 或未指定拒绝策略，默认 AbortPolicy 静默抛异常",
       "good": "new ThreadPoolExecutor(8, 16, 60, SECONDS,\n    new LinkedBlockingQueue<>(500),\n    new NamedThreadFactory(\"ai-assist\"),\n    new ThreadPoolExecutor.CallerRunsPolicy())   // 明确回压",
@@ -91,8 +95,8 @@
       "promptFragment": "线程池必须使用有界队列并显式指定容量和拒绝策略。禁止使用无界队列（new LinkedBlockingQueue() 不给容量）。拒绝策略必须按业务语义明确选择并加注释说明。",
       "tags": ["concurrency", "p0"],
       "status": "active",
-      "version": 1,
-      "updatedAt": "2026-09-11"
+      "version": 2,
+      "updatedAt": "2026-10-18"
     },
     {
       "id": "CONC-POOL-005",
@@ -104,6 +108,7 @@
         { "ref": "Spring 官方文档 · @EnableAsync / Executor 配置", "type": "framework-doc", "quote": "By default, Spring uses a SimpleAsyncTaskExecutor... it does not reuse threads. You should provide a custom TaskExecutor." }
       ],
       "rationale": "Spring 默认的 SimpleAsyncTaskExecutor 每个任务新建一个线程、不复用、无上限——本质上等于「用注解的方式 new Thread」，比裸 new Thread 更隐蔽。必须显式绑定线程池。",
+      "impact": "注解看着人畜无害，压测时线程数却只涨不消，最后 OOM 的堆栈里全是 SimpleAsyncTaskExecutor。",
       "appliesTo": { "stack": ["spring-boot-3"], "scope": "server" },
       "bad": "@Async\npublic void sendMail(Long id) { ... }   // 落到 SimpleAsyncTaskExecutor，每次新建线程",
       "good": "@Async(\"mailExecutor\")\npublic void sendMail(Long id) { ... }\n\n@Bean(\"mailExecutor\")\npublic ThreadPoolTaskExecutor mailExecutor() {\n  ThreadPoolTaskExecutor e = new ThreadPoolTaskExecutor();\n  e.setCorePoolSize(4); e.setMaxPoolSize(8);\n  e.setQueueCapacity(200);\n  e.setThreadNamePrefix(\"mail-\");\n  e.setRejectedExecutionHandler(new ThreadPoolExecutor.CallerRunsPolicy());\n  e.initialize();\n  return e;\n}",
@@ -114,8 +119,8 @@
       "promptFragment": "@Async 必须显式指定线程池 Bean 名称（如 @Async(\"mailExecutor\")），且该线程池必须是显式配置的 ThreadPoolTaskExecutor。禁止使用默认执行器。",
       "tags": ["concurrency", "spring", "p0"],
       "status": "active",
-      "version": 1,
-      "updatedAt": "2026-09-11"
+      "version": 2,
+      "updatedAt": "2026-10-18"
     },
     {
       "id": "CONC-THRD-001",
@@ -127,6 +132,7 @@
         { "ref": "阿里巴巴Java开发手册 并发处理 §5【强制】", "type": "industry-standard", "quote": "SimpleDateFormat 是线程不安全的类，一般不要定义为 static 变量，如果定义为 static，必须加锁。JDK8 的应用可以使用 Instant 代替 Date，LocalDateTime 代替 Calendar，DateTimeFormatter 代替 SimpleDateFormat。" }
       ],
       "rationale": "SimpleDateFormat 内部持有可变的 Calendar 字段，多线程并发 format 会产生错乱的日期或抛 NumberFormatException。这个错误只在并发时出现，单测永远测不出来。",
+      "impact": "报表日期偶尔错乱、对账偶尔报解析错，本地怎么跑都是好的，最后靠线上客诉才发现。",
       "appliesTo": { "stack": ["java-17"], "scope": "server" },
       "bad": "private static final SimpleDateFormat SDF = new SimpleDateFormat(\"yyyy-MM-dd\");",
       "good": "private static final DateTimeFormatter DTF = DateTimeFormatter.ofPattern(\"yyyy-MM-dd\");\n// DateTimeFormatter 不可变且线程安全，可安全共享",
@@ -137,8 +143,8 @@
       "promptFragment": "禁止把 SimpleDateFormat 声明为 static 或作为实例字段跨线程共享。日期格式化统一使用 DateTimeFormatter（不可变、线程安全）；日期类型统一使用 LocalDate/LocalDateTime/Instant，禁止使用 Date/Calendar。",
       "tags": ["concurrency", "thread-safety", "p0"],
       "status": "active",
-      "version": 1,
-      "updatedAt": "2026-09-11"
+      "version": 2,
+      "updatedAt": "2026-10-18"
     },
     {
       "id": "CONC-THRD-002",
@@ -150,6 +156,7 @@
         { "ref": "阿里巴巴Java开发手册 并发处理 §6【强制】", "type": "industry-standard", "quote": "必须回收自定义的 ThreadLocal 变量，尤其在线程池场景下，线程经常会被复用，如果不清理自定义的 ThreadLocal 变量，可能会影响后续业务逻辑和造成内存泄露等问题。尽量在代理中使用 try-finally 块进行回收。" }
       ],
       "rationale": "线程池里线程是被复用的。上一个请求塞进 ThreadLocal 的用户身份不会被清理，下一个请求就会读到别人的身份——这是最典型的越权漏洞来源，同时也是内存泄漏点（key 弱引用但 value 强引用）。",
+      "impact": "下一个请求顶着别人的身份把数据读走了，查日志两边都是正常请求，value 不释放还在慢慢漏内存。",
       "appliesTo": { "stack": ["java-17"], "scope": "server" },
       "bad": "ThreadLocal<User> HOLDER = new ThreadLocal<>();\nHOLDER.set(user);\n// 请求结束未 remove → 线程复用时会读到上一个用户",
       "good": "ThreadLocal<User> HOLDER = new ThreadLocal<>();\ntry {\n  HOLDER.set(user);\n  doBusiness();\n} finally {\n  HOLDER.remove();   // 必须在 finally 中清理\n}",
@@ -160,8 +167,8 @@
       "promptFragment": "ThreadLocal 变量必须在 try-finally 的 finally 块中调用 remove() 清理，尤其是在拦截器、过滤器、线程池任务等线程复用场景。ThreadLocal 必须声明为 static。",
       "tags": ["concurrency", "security", "memory-leak", "p0"],
       "status": "active",
-      "version": 1,
-      "updatedAt": "2026-09-11"
+      "version": 2,
+      "updatedAt": "2026-10-18"
     },
     {
       "id": "CONC-LOCK-001",
@@ -173,6 +180,7 @@
         { "ref": "阿里巴巴Java开发手册 并发处理 §8【强制】", "type": "industry-standard", "quote": "对多个资源、数据库表、对象同时加锁时，需要保持一致的加锁顺序，否则可能会造成死锁。" }
       ],
       "rationale": "线程 A 按 (1,2) 顺序加锁、线程 B 按 (2,1) 顺序加锁，在资源竞争时必然死锁。死锁不一定立刻发生，往往在压力测试或大促时才出现，且只能重启恢复。",
+      "impact": "转账高峰时两个方向的请求互相按住对方的锁，线程全部挂死只能重启，重启后同样的流量会再死一次。",
       "appliesTo": { "stack": ["java-17"], "scope": "server" },
       "bad": "// 转账 A：先锁 from 再锁 to\nsynchronized (accountA) { synchronized (accountB) { ... } }\n// 转账 B：先锁 to 再锁 from —— 与上面相反，并发时死锁",
       "good": "// 统一按业务主键大小排序后加锁\nLong first  = Math.min(fromId, toId);\nLong second = Math.max(fromId, toId);\nlock(first);\nlock(second);",
@@ -182,8 +190,8 @@
       "promptFragment": "同时对多个资源加锁时，必须按固定顺序加锁（如按主键升序），并在方法上注释说明加锁顺序。禁止在不同方法中使用相反的加锁顺序。",
       "tags": ["concurrency", "deadlock"],
       "status": "active",
-      "version": 1,
-      "updatedAt": "2026-09-11"
+      "version": 2,
+      "updatedAt": "2026-10-18"
     },
     {
       "id": "CONC-LOCK-002",
@@ -195,6 +203,7 @@
         { "ref": "阿里巴巴Java开发手册 并发处理 §7【强制】", "type": "industry-standard", "quote": "高并发时，同步调用应该去考量锁的性能损耗。能用无锁数据结构，就不要用锁；能锁区块，就不要锁整个方法体；能用对象锁，就不要用类锁。尽可能使加锁的代码块工作量尽可能的小，避免在锁代码块中调用 RPC 方法。" }
       ],
       "rationale": "类锁是 JVM 级别的全局锁，会串行化所有实例；方法级 synchronized 会把参数校验、日志、序列化这些无需互斥的操作一起锁住。锁里的耗时操作会直接转化为吞吐下降。",
+      "impact": "类锁串行化所有实例，锁内的远程调用把网络延迟算进临界区，吞吐直接塌掉。",
       "appliesTo": { "stack": ["java-17"], "scope": "server" },
       "bad": "public synchronized void handle(Long id) {\n  validate(id);            // 无需互斥\n  remoteClient.call(id);   // 远程调用被锁住！\n  counter++;\n}",
       "good": "public void handle(Long id) {\n  validate(id);\n  remoteClient.call(id);\n  counter.incrementAndGet();   // LongAdder，无锁原子操作\n}",
@@ -204,8 +213,8 @@
       "promptFragment": "锁粒度必须最小化：优先使用无锁数据结构（LongAdder、ConcurrentHashMap、AtomicXxx）；必须加锁时只锁必要代码块，禁止 synchronized 修饰整个方法；禁止在锁内做远程调用、IO 或其他耗时操作。",
       "tags": ["concurrency", "performance"],
       "status": "active",
-      "version": 1,
-      "updatedAt": "2026-09-11"
+      "version": 2,
+      "updatedAt": "2026-10-18"
     }
   ]
 }

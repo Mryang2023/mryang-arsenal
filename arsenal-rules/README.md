@@ -42,6 +42,7 @@ arsenal-rules/
     { "ref": "阿里巴巴Java开发手册(嵩山版) 安全规约 §4【强制】", "type": "industry-standard" }
   ],
   "rationale": "缺 @Valid 时，DTO 上写的所有约束注解会静默失效……",
+  "impact": "约束注解看起来写了却不生效，非法数据直达业务层——要么把异常拖到数据库才炸，要么脏数据静默落库。",
   "appliesTo": { "stack": ["spring-boot-3"], "scope": "server" },
   "bad":  "public ApiResponse<Void> create(@RequestBody CreateUserRequest req) { ... }",
   "good": "public ApiResponse<Void> create(@Valid @RequestBody CreateUserRequest req) { ... }",
@@ -64,6 +65,21 @@ arsenal-rules/
 校验发生在 `npm run sync`（`arsenal-web/scripts/sync-rules.mjs`）：报错精确到字段路径，
 形如 `arsenal-rules/web/controller.json#rules[3].sources[1].ref`。只数「字段在不在」的那种粗校验
 已经换掉了 —— 它放过了 severity 拼错、id 形态坏掉、check 四层全空、正则编不过这些情况。
+
+### `impact` 与 `rationale 的分工
+
+两个字段都回答「说服」，但回答的问题不同：
+
+| 字段 | 回答的问题 | 读者 |
+|---|---|---|
+| `rationale` | **为什么定这条规**（规则的依据） | 未来的自己、AI |
+| `impact` | **违反了会怎样**（不修会出什么事） | 做优先级决策的人 |
+
+判据是**「然后呢」**：impact 必须能顺着后果继续说下去 —— 「连接池耗尽 → 本服务全部接口
+不可用」是合格的 impact，「为了代码质量」不是。把 rationale 抄成 impact 是内容事故：
+前者讲道理，后者讲后果，抄了就等于报告里没有「不修的后果」这一屏。
+`impact` 在契约里可选（上限 120 字），但 **active 规则缺它构建期直接红** ——
+质检台报告每条问题都要展示后果，规则不写，页面就只能拿 rationale 派生顶替。
 
 ## 怎么加一条规则
 

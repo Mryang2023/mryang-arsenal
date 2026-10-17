@@ -14,6 +14,7 @@
         { "ref": "Spring 官方文档 · Web MVC 分层约定", "type": "framework-doc" }
       ],
       "rationale": "Controller 一旦掺入业务逻辑，业务就同时存在于两个地方，无法被复用、无法被单测覆盖、事务也无法正确界定。判断标准很简单：Controller 里不应出现 if 业务分支、循环、SQL、多个 Service 调用的编排。",
+      "impact": "同一段业务逻辑被迫在定时任务、MQ 消费者里各抄一遍，漏改一处两个入口行为就不一致，出事时不知道该修哪份。",
       "appliesTo": { "stack": ["spring-boot-3"], "scope": "server", "pathGlob": "**/controller/**" },
       "bad": "@PostMapping(\"/user\")\npublic ApiResponse<User> create(@RequestBody User u) {\n  if (userMapper.exists(u.getEmail())) throw new RuntimeException(\"已存在\");\n  u.setPassword(MD5(u.getPassword()));\n  userMapper.insert(u);\n  return ApiResponse.ok(u);\n}",
       "good": "@PostMapping(\"/user\")\npublic ApiResponse<UserVO> create(@Valid @RequestBody CreateUserRequest req) {\n  return ApiResponse.ok(userService.create(req));\n}",
@@ -24,8 +25,8 @@
       "promptFragment": "Controller 只能做 HTTP 适配：参数绑定、触发校验、调用单个 Service、组装响应。严禁在 Controller 内写业务规则、条件分支、循环、SQL 或数据访问代码。",
       "tags": ["layering", "p0"],
       "status": "active",
-      "version": 1,
-      "updatedAt": "2026-09-11"
+      "version": 2,
+      "updatedAt": "2026-10-18"
     },
     {
       "id": "WEB-CTRL-002",
@@ -38,6 +39,7 @@
         { "ref": "Jakarta Bean Validation 规范 / Spring 官方文档 · Validation", "type": "spec" }
       ],
       "rationale": "缺 @Valid 时，DTO 上写的所有约束注解会静默失效——不报错、不告警，非法数据直达业务层。这是最隐蔽的一类缺陷，因为它「看起来写了校验」。",
+      "impact": "DTO 上的约束注解看起来写了却不生效，非法数据直达业务层——要么把异常拖到数据库才炸，要么脏数据静默落库。",
       "appliesTo": { "stack": ["spring-boot-3"], "scope": "server", "pathGlob": "**/controller/**" },
       "bad": "public ApiResponse<Void> create(@RequestBody CreateUserRequest req) { ... }   // DTO 上有 @NotBlank 但未生效",
       "good": "public ApiResponse<Void> create(@Valid @RequestBody CreateUserRequest req) { ... }\n\npublic class CreateUserRequest {\n  @NotBlank(message = \"用户名不能为空\")\n  @Size(max = 32)\n  private String username;\n}",
@@ -48,8 +50,8 @@
       "promptFragment": "所有 @RequestBody 入参必须加 @Valid。入参 DTO 的每个字段必须带对应的约束注解（@NotBlank/@NotNull/@Size/@Min/@Max/@Pattern/@Email），并提供中文 message。",
       "tags": ["api", "validation", "p0", "高频踩坑"],
       "status": "active",
-      "version": 1,
-      "updatedAt": "2026-09-11"
+      "version": 2,
+      "updatedAt": "2026-10-18"
     },
     {
       "id": "WEB-DTO-001",
@@ -62,6 +64,7 @@
         { "ref": "Spring 官方文档 · DTO 与实体隔离约定", "type": "framework-doc" }
       ],
       "rationale": "用 Map 收发参数意味着契约不存在——改一个字段名不会有人发现，接口直接静默坏掉。直接返回实体则会把内部字段（密码哈希、内部标记、租户 ID）暴露到 API 上，且数据库改字段就会破接口。",
+      "impact": "上游悄悄改个字段名你这边静默收不到；哪天库里加了敏感字段，它会自动出现在每个接口的响应里。",
       "appliesTo": { "stack": ["spring-boot-3"], "scope": "server" },
       "bad": "public Map<String,Object> query(@RequestBody Map<String,Object> params)\npublic User getById(@PathVariable Long id)   // 直接返回实体，password 字段被序列化出去",
       "good": "public ApiResponse<PageResult<UserVO>> query(@Valid @RequestBody UserQueryRequest req)\npublic ApiResponse<UserVO> getById(@PathVariable Long id)",
@@ -72,8 +75,8 @@
       "promptFragment": "接口的入参和出参必须使用专用 DTO：入参用 XxxRequest，出参用 XxxVO 或 DTO。严禁使用 Map 接收或返回参数，严禁直接序列化数据库实体。",
       "tags": ["api", "contract", "p0"],
       "status": "active",
-      "version": 1,
-      "updatedAt": "2026-09-11"
+      "version": 2,
+      "updatedAt": "2026-10-18"
     },
     {
       "id": "WEB-CTRL-003",
@@ -86,6 +89,7 @@
         { "ref": "Spring 官方文档 · REST 响应约定", "type": "framework-doc" }
       ],
       "rationale": "没有统一响应体时，调用方无法区分「空结果」和「失败」，前端需要为每个接口写不同的解析逻辑。统一响应体让成功/失败有唯一结构，也让全局异常处理有统一出口。",
+      "impact": "前端每接一个接口都要先猜它出错时长什么样，异常处理各有各的出口，错误码从第一天就不统一。",
       "appliesTo": { "stack": ["spring-boot-3"], "scope": "server", "pathGlob": "**/controller/**" },
       "bad": "@GetMapping(\"/{id}\")\npublic UserVO get(@PathVariable Long id) { return userService.get(id); }",
       "good": "@GetMapping(\"/{id}\")\npublic ApiResponse<UserVO> get(@PathVariable Long id) { return ApiResponse.ok(userService.get(id)); }",
@@ -96,8 +100,8 @@
       "promptFragment": "所有 Controller 方法必须返回统一响应体 ApiResponse<T>（或 ResponseEntity<ApiResponse<T>>），严禁直接返回实体、集合、Map 或 void。",
       "tags": ["api", "contract"],
       "status": "active",
-      "version": 1,
-      "updatedAt": "2026-09-11"
+      "version": 2,
+      "updatedAt": "2026-10-18"
     },
     {
       "id": "WEB-CTRL-004",
@@ -110,6 +114,7 @@
         { "ref": "Spring 官方文档 · @RestControllerAdvice / ProblemDetail", "type": "framework-doc" }
       ],
       "rationale": "每个 Controller 各写各的 try-catch，会导致同类异常在不同接口返回不同结构，且 53 个 Controller 就有 53 处遗漏点。全局处理器让异常到响应体的映射只存在一份。",
+      "impact": "同一个异常在不同接口长出不同响应结构，前端只能逐个接口适配；漏一处的接口会把 500 和堆栈直接抛给用户。",
       "appliesTo": { "stack": ["spring-boot-3"], "scope": "server", "pathGlob": "**/controller/**" },
       "bad": "@GetMapping(\"/{id}\")\npublic ApiResponse<UserVO> get(@PathVariable Long id) {\n  try { return ApiResponse.ok(userService.get(id)); }\n  catch (Exception e) { return ApiResponse.fail(\"查询失败\"); }\n}",
       "good": "@GetMapping(\"/{id}\")\npublic ApiResponse<UserVO> get(@PathVariable Long id) { return ApiResponse.ok(userService.get(id)); }\n\n// 全局唯一出口\n@RestControllerAdvice\npublic class GlobalExceptionHandler {\n  @ExceptionHandler(BizException.class)\n  public ApiResponse<Void> handle(BizException e) { return ApiResponse.fail(e.getCode(), e.getMessage()); }\n}",
@@ -120,8 +125,8 @@
       "promptFragment": "Controller 内禁止 try-catch 业务异常，一律向上抛出，由全局唯一的 @RestControllerAdvice 统一转换为响应体。",
       "tags": ["exception", "p0"],
       "status": "active",
-      "version": 1,
-      "updatedAt": "2026-09-11"
+      "version": 2,
+      "updatedAt": "2026-10-18"
     },
     {
       "id": "WEB-CTRL-005",
@@ -133,6 +138,7 @@
         { "ref": "阿里巴巴Java开发手册 安全规约 §4【强制】说明", "type": "industry-standard", "quote": "忽略参数校验可能导致：page size 过大导致内存溢出；恶意 order by 导致数据库慢查询。" }
       ],
       "rationale": "pageSize 不设上限等价于提供一个「一次拉全表」的公开接口。攻击者或误操作传 pageSize=1000000 就能把 JVM 内存打满，这是最廉价的拒绝服务方式。",
+      "impact": "一个请求就能把全表拖进内存，JVM 当场 OOM 重启，重启期间所有接口一起不可用。",
       "appliesTo": { "stack": ["spring-boot-3"], "scope": "server" },
       "bad": "public ApiResponse<PageResult<UserVO>> list(@RequestParam(defaultValue = \"10\") int pageSize)",
       "good": "public ApiResponse<PageResult<UserVO>> list(@RequestParam(defaultValue = \"10\") @Min(1) @Max(200) int pageSize)\n\n// 或统一在 PageQuery 基类里夹逼\npublic abstract class PageQuery {\n  private static final int MAX_SIZE = 200;\n  public int safeSize() { return Math.min(Math.max(size, 1), MAX_SIZE); }\n}",
@@ -143,8 +149,8 @@
       "promptFragment": "所有分页接口必须限制单页最大条数（建议上限 200），通过 @Max 注解或统一的 PageQuery 夹逼实现，禁止接受无上限的 pageSize。排序字段必须是白名单枚举，禁止直接透传 order by 字符串。",
       "tags": ["api", "security", "pagination", "p0"],
       "status": "active",
-      "version": 1,
-      "updatedAt": "2026-09-11"
+      "version": 2,
+      "updatedAt": "2026-10-18"
     },
     {
       "id": "WEB-CTRL-006",
@@ -156,6 +162,7 @@
         { "ref": "RFC 9110 · HTTP Semantics §9.2", "type": "spec", "quote": "GET, HEAD, OPTIONS and TRACE methods are defined to be safe." }
       ],
       "rationale": "GET 被浏览器预取、被爬虫抓取、被网关重试都会重复执行。用 GET 做删除或修改，会在无人操作的情况下改数据。",
+      "impact": "浏览器预取、爬虫抓取、网关重试都会重复触发这个 GET，无人操作的情况下数据被改被删，且没有任何日志线索。",
       "appliesTo": { "stack": ["spring-boot-3"], "scope": "server" },
       "bad": "@GetMapping(\"/user/delete/{id}\")  public void delete(@PathVariable Long id)",
       "good": "@DeleteMapping(\"/user/{id}\")  public ApiResponse<Void> delete(@PathVariable Long id)",
@@ -166,8 +173,8 @@
       "promptFragment": "HTTP 方法必须与语义一致：查询用 GET（幂等无副作用）、创建用 POST、全量更新用 PUT、局部更新用 PATCH、删除用 DELETE。禁止用 GET 执行任何写操作。",
       "tags": ["rest", "api"],
       "status": "active",
-      "version": 1,
-      "updatedAt": "2026-09-11"
+      "version": 2,
+      "updatedAt": "2026-10-18"
     }
   ]
 }

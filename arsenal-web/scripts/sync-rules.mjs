@@ -88,7 +88,8 @@ for (const cat of meta.categories ?? []) {
   console.log(
     `[arsenal] 契约校验通过：${stats.total} 条规则 · ` +
     `检测层 regex ${stats.checkLayerCount.regex} / ast ${stats.checkLayerCount.ast} / ` +
-    `llm ${stats.checkLayerCount.llm} / manual ${stats.checkLayerCount.manual}`
+    `llm ${stats.checkLayerCount.llm} / manual ${stats.checkLayerCount.manual} · ` +
+    `impact ${stats.withImpact}/${stats.total}`
   );
 }
 

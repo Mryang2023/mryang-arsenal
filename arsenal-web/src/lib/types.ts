@@ -40,6 +40,8 @@ export interface Rule {
   severity: Severity;
   sources: RuleSource[];
   rationale: string;
+  /** 不修会出什么事（一句话）。规则库 impact 字段，Q4 内容棒补写；缺失时消费方派生自 rationale 并标注来源。 */
+  impact?: string;
   appliesTo?: { stack?: string[]; scope?: string; pathGlob?: string };
   bad: string;
   good: string;
