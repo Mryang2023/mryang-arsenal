@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import type { ArchProfile, ProfileSummary } from '@/lib/arch-profile';
 import { adoptPicks, type PicksProvenance } from '@/lib/picks-store';
 import type { StackPicks } from '@/lib/content-types';
@@ -48,7 +48,12 @@ export default function ProfilePicker({
   activeId: string;
   onPick: (id: string, doc?: ArchProfile) => void;
 }) {
-  const [custom, setCustom] = useState<Record<string, ArchProfile>>(() => loadCustomProfiles());
+  // 初始空 + effect 加载（2026-10-17 图谱棒2 修 hydration）：SSR 读不到
+  // localStorage，初始值直接读会让服务端 HTML 与客户端水合对不上。
+  const [custom, setCustom] = useState<Record<string, ArchProfile>>({});
+  useEffect(() => {
+    setCustom(loadCustomProfiles());
+  }, []);
   const [open, setOpen] = useState(false);
   const [draft, setDraft] = useState('');
   const [issues, setIssues] = useState<string[]>([]);

@@ -42,6 +42,8 @@ import { scanStats } from '../src/lib/scan-rules';
 import { CANVAS_THEME_OPTIONS, buildTechArchSvg } from '../src/lib/arch-canvas';
 import { archifyIrIssues, archifyIrShapeIssues } from '../src/lib/archify-ir';
 import { buildProfileDraftFromFacts } from '../src/lib/profile-draft';
+import { composeArchViews } from '../src/lib/arch-views';
+import { buildMetrics, resolveProfile } from '../src/lib/arch-profile';
 import {
   buildCodeStructure,
   classBadge,
@@ -801,7 +803,23 @@ if (!skipAll) {
   // 这一节的断言都针对「草稿会不会把人带偏」：一份把 TODO 数成 0 的草稿，
   // 读的人会把没扫到的东西当成不存在；一份给数据存储写「单实例」的草稿，
   // 读的人会把我们编的部署形态当成事实。
-  section('【7】六视图档案草稿（`/arch` 的「从代码生成」入口）');
+  section('【7】六视图档案草稿（/arch「从代码生成」+ /autopsy 六视图子页签共用）');
+  // ⑥ 成熟度计数只从 draft 现读，不写死（2026-10-17 图谱棒2 六视图进台）——
+  //    写死一个数，扫描换了项目页面还在念旧值，而两边都不报错。
+  //    注释先剥：SixViewsPanel 的注释里也提到 filled / todos 字样，
+  //    不剥就会把「文档里写了」当成「代码真的读了」。
+  {
+    const sixSrc = fs
+      .readFileSync(path.join(webRoot, 'src/app/autopsy/SixViewsPanel.tsx'), 'utf8')
+      .replace(/\/\*[\s\S]*?\*\//g, '')
+      .replace(/^[ \t]*\/\/.*$/gm, '');
+    check(
+      '7-6 成熟度计数从 draft 现读：filled 与 todos.length 都上图（不写死）',
+      /\{draft\.filled\} 条来自扫描/.test(sixSrc) &&
+        /\{draft\.todos\.length\} 条待你补/.test(sixSrc),
+      '写死计数 = 扫描换了项目，页面还在念旧值'
+    );
+  }
   if (factsA) {
     const draft = buildProfileDraftFromFacts(factsA);
     check('7-1 草稿过档案形状校验（六视图齐 + 字段不缺 + token 可解）',
@@ -837,6 +855,15 @@ if (!skipAll) {
     check('7-5 数据存储不许写「单实例」这种没读到的断言（读不到就写「副本数未声明」）',
       draft.profile.data.assets.every((a) => a.metric !== '单实例' && a.metric.length > 0),
       JSON.stringify(draft.profile.data.assets.map((a) => a.metric)));
+
+    // ⑦ 草稿 → 六视图数据链（2026-10-17 图谱棒2）：页面右上角「自检 N 项」的 N
+    //    必须等于档案自己 verifyChain 的求和（resolveProfile 的口径）——
+    //    在别处另算一份，就是「同一个项目两个数字」的开头。
+    const sixData = composeArchViews(resolveProfile(draft.profile, buildMetrics()));
+    const chainSum = draft.profile.project.verifyChain.reduce((n, v) => n + (v.count ?? 0), 0);
+    check('7-7 六视图数据链：草稿解析后 verifyTotal = verifyChain 求和',
+      sixData.verifyTotal === chainSum && chainSum > 0,
+      `verifyTotal=${sixData.verifyTotal} chainSum=${chainSum}`);
   }
 
 }

@@ -43,6 +43,31 @@ export const ARCH_VIEW_IDENTITY: Record<ArchViewId, { name: string; english: str
   project: { name: '项目架构', english: 'Project', glyph: '▦', accent: '#C4453C' },
 };
 
+/**
+ * 每个视图的手绘图标（arch-glyphs）与封面插画（public/arch/*.webp）。
+ *
+ * 2026-10-17 六视图进台时从 ArchGallery 提升：消费方从一变二
+ * （/arch 画廊 + /autopsy 六视图子页签），映射抄两份就会漂移。
+ */
+export const ARCH_VIEW_ICONS: Record<ArchViewId, string> = {
+  business: 'layers',
+  data: 'stackDb',
+  app: 'browser',
+  tech: 'server',
+  product: 'spark',
+  project: 'flag',
+};
+
+/** 封面插画（AI 生成后裁水印压 512px webp）。装饰位，读图不靠它 */
+export const ARCH_VIEW_IMG: Record<ArchViewId, string> = {
+  business: '/arch/business.webp',
+  data: '/arch/data.webp',
+  app: '/arch/app.webp',
+  tech: '/arch/tech.webp',
+  product: '/arch/product.webp',
+  project: '/arch/project.webp',
+};
+
 // ── 档案形状 ────────────────────────────────────────────────
 
 export interface ProfileViewText {

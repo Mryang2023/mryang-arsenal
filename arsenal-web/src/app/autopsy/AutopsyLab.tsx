@@ -35,8 +35,14 @@ import {
   type SnapshotDiff,
 } from '@/lib/autopsy-snapshot';
 import { downloadText } from '@/lib/zip';
+import { DEFAULT_PROFILE_ID } from '@/lib/arch-views';
+import type { ArchProfile } from '@/lib/arch-profile';
+import { buildProfileDraftFromFacts, type ProfileDraft } from '@/lib/profile-draft';
+import { loadCustomProfiles, saveCustomProfiles } from '../arch/profile-store';
 import TechArch from '../stack/TechArch';
 import ArchPanel from './ArchPanel';
+import ProfileBar from './ProfileBar';
+import SixViewsPanel, { DRAFT_PROFILE_ID } from './SixViewsPanel';
 import CheckupPanel from './CheckupPanel';
 import HistoryPanel, { type DamagedEntry } from './HistoryPanel';
 import FunctionPanel from './FunctionPanel';
@@ -123,8 +129,24 @@ export default function AutopsyLab() {
   const [stage, setStage] = useState<Stage>({ kind: 'idle' });
   const [theme, setTheme] = useState<CanvasTheme>('doc');
   const [tab, setTab] = useState<'arch' | 'services' | 'checkup' | 'history' | 'vitals' | 'runtime' | 'functions'>('arch');
-  /** 架构面板内的子页签：技术架构画布（2026-10-17 合并进台）/ 应用分层图 */
-  const [archSub, setArchSub] = useState<'canvas' | 'layered' | 'structure'>('canvas');
+  /** 架构面板内的子页签：技术架构画布（2026-10-17 合并进台）/ 应用分层图 / 项目结构 / 六视图 */
+  const [archSub, setArchSub] = useState<'canvas' | 'layered' | 'structure' | 'six'>('canvas');
+  /**
+   * 六视图的当前档案。null = 没手动选过：有扫描讲草稿，没扫描讲内置默认档案。
+   * 提升到这一层（而不是 SixViewsPanel 内部）是为了**切子页签不丢** ——
+   * 放进面板里的话，切到画布看一眼再回来，选中的档案就静默回默认了。
+   */
+  const [archProfileId, setArchProfileId] = useState<string | null>(null);
+  /**
+   * 六视图导入的档案（只存在本机浏览器，照 profile-store 的老规矩，不进仓库）。
+   * 初始空 + effect 加载（照本页 snapshots / vitals 同款模式）：SSR 读不到
+   * localStorage，初始值直接读会让服务端 HTML 与客户端水合不一致 ——
+   * hydration failed 与「reload 后 chip 闪没」就是这么来的（E2E 实测抓到）。
+   */
+  const [customProfiles, setCustomProfiles] = useState<Record<string, ArchProfile>>({});
+  useEffect(() => {
+    setCustomProfiles(loadCustomProfiles());
+  }, []);
   const [checkup, setCheckup] = useState<CheckupStage>({ kind: 'idle' });
   const fileRef = useRef<HTMLInputElement>(null);
 
@@ -371,6 +393,35 @@ export default function AutopsyLab() {
 
   const trace: AutopsySourceTrace | null =
     stage.kind === 'done' ? traceSource(stage.requested, stage.facts) : null;
+
+  /**
+   * 扫描 → 六视图档案草稿（`buildProfileDraftFromFacts`，与 /arch「从代码生成」
+   * 是同一个函数，不自己拼第二份）。草稿不当成品卖：todos 由成熟度条逐条列出，
+   * `TODO ` 前缀原文上图。
+   */
+  const profileDraft: ProfileDraft | null = useMemo(
+    () => (stage.kind === 'done' ? buildProfileDraftFromFacts(stage.facts) : null),
+    [stage]
+  );
+
+  /**
+   * 当前档案（六视图子页签的数据源）：有扫描且没手动选过 → 草稿；
+   * 手动选过（内置 / 导入 / 切回草稿）→ 听用户的。
+   * 重新扫描不重置选择 —— 档案选择是独立意图，扫新项目不该把人正在看的那份抢走。
+   */
+  const effectiveArchProfileId =
+    archProfileId ?? (profileDraft ? DRAFT_PROFILE_ID : DEFAULT_PROFILE_ID);
+
+  const onArchProfilePick = useCallback((id: string, doc?: ArchProfile) => {
+    if (doc) {
+      setCustomProfiles((prev) => {
+        const next = { ...prev, [doc.id]: doc };
+        saveCustomProfiles(next);
+        return next;
+      });
+    }
+    setArchProfileId(id);
+  }, []);
 
   const safeName = artifacts ? artifacts.facts.root.replace(/[^\w.-]+/g, '-') : 'project';
 
@@ -632,8 +683,10 @@ export default function AutopsyLab() {
         </div>
       )}
 
-      {tab === 'arch' && artifacts && trace && stage.kind === 'done' && (
+      {tab === 'arch' && (
         <div className="space-y-3">
+          {stage.kind === 'done' && artifacts && trace && (
+            <>
           {/* ── 扫的到底是哪儿 ── */}
           <div className="panel px-3 py-2.5">
             <p className="mono text-[10px] uppercase tracking-wider text-fgFaint">
@@ -694,8 +747,10 @@ export default function AutopsyLab() {
               )}
             </div>
           </div>
+            </>
+          )}
 
-          {/* ── 架构面板：技术架构画布 / 应用分层图 ── */}
+          {/* ── 架构面板：技术架构画布 / 应用分层图 / 项目结构 / 六视图 ── */}
           <div className="panel px-3 py-2.5">
             <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
               <p className="mono text-[10px] uppercase tracking-wider text-fgFaint">三、架构面板</p>
@@ -705,7 +760,8 @@ export default function AutopsyLab() {
                     ['canvas', '技术架构'],
                     ['layered', '应用分层'],
                     ['structure', '项目结构'],
-                  ] as ['canvas' | 'layered' | 'structure', string][]
+                    ['six', '六视图'],
+                  ] as ['canvas' | 'layered' | 'structure' | 'six', string][]
                 ).map(([id, label]) => (
                   <button
                     key={id}
@@ -721,8 +777,32 @@ export default function AutopsyLab() {
                 ))}
               </div>
             </div>
+            {/* 档案条：切档案与看图同一视野（拍板项 2 推荐位）。没扫描默认落内置档案，六视图离线可看 */}
             <div className="mt-2">
-              {archSub === 'canvas' ? (
+              <ProfileBar
+                draft={profileDraft}
+                profileId={effectiveArchProfileId}
+                custom={customProfiles}
+                onPick={onArchProfilePick}
+              />
+            </div>
+            <div className="mt-2">
+              {stage.kind !== 'done' || !artifacts ? (
+                // 画布 / 分层 / 结构三个子页签都要读扫描事实；六视图不用（可离线讲内置档案）。
+                // 没扫描时默认子页签仍是 canvas —— 这里给一句人话，别让用户对着一块空白猜。
+                archSub === 'six' ? (
+                  <SixViewsPanel
+                    draft={profileDraft}
+                    profileId={effectiveArchProfileId}
+                    custom={customProfiles}
+                  />
+                ) : (
+                  <p className="text-[10.5px] leading-[16px] text-fgMuted">
+                    这个子页签要读扫描事实 —— 先在上面「一键分析」一个项目。
+                    没扫描也能看六视图：切到「六视图」子页签，它讲内置档案（构建期快照，不依赖后端）。
+                  </p>
+                )
+              ) : archSub === 'canvas' ? (
                 <TechArch
                   key={`canvas:${artifacts.facts.root}`}
                   picks={artifacts.picksRes.picks}
@@ -751,7 +831,7 @@ export default function AutopsyLab() {
                 />
               ) : archSub === 'layered' ? (
                 <ArchPanel artifacts={artifacts} safeName={safeName} />
-              ) : (
+              ) : archSub === 'structure' ? (
                 // key 按项目分：扫新项目必须重算「默认展开两层」的折叠态，
                 // 否则旧 collapsed 集合全不命中新树 → 深层默认全展开（万类仓库会卡）
                 <StructurePanel
@@ -759,10 +839,18 @@ export default function AutopsyLab() {
                   artifacts={artifacts}
                   safeName={safeName}
                 />
+              ) : (
+                <SixViewsPanel
+                  draft={profileDraft}
+                  profileId={effectiveArchProfileId}
+                  custom={customProfiles}
+                />
               )}
             </div>
           </div>
 
+          {stage.kind === 'done' && artifacts && (
+            <>
           {/* ── 未识别依赖 ── */}
           <div className="panel px-3 py-2.5">
             <p className="mono text-[10px] uppercase tracking-wider text-fgFaint">
@@ -826,6 +914,8 @@ export default function AutopsyLab() {
               </span>
             </div>
           </div>
+            </>
+          )}
         </div>
       )}
 

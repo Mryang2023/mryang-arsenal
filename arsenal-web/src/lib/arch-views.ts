@@ -27,7 +27,7 @@ import {
  */
 
 export type { ArchViewId } from './arch-profile';
-export { ARCH_VIEW_IDS } from './arch-profile';
+export { ARCH_VIEW_IDS, ARCH_VIEW_ICONS, ARCH_VIEW_IMG } from './arch-profile';
 
 // ── 档案装载 ────────────────────────────────────────────────
 

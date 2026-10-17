@@ -1,7 +1,9 @@
 'use client';
 
-import { useCallback, useMemo, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 import {
+  ARCH_VIEW_ICONS,
+  ARCH_VIEW_IMG,
   archViewMeta,
   composeArchViews,
   DEFAULT_PROFILE_ID,
@@ -37,31 +39,19 @@ import { CountUp, Glyph, GraphSkeleton, Reveal, useStageLoad } from './motion';
  * 全部动效在 prefers-reduced-motion 下自动停。
  */
 
-/** 每个视图的手绘图标（arch-glyphs） */
-const VIEW_ICONS: Record<ArchViewId, string> = {
-  business: 'layers',
-  data: 'stackDb',
-  app: 'browser',
-  tech: 'server',
-  product: 'spark',
-  project: 'flag',
-};
-
-/** 每个视图的封面插画（public/arch/*.webp，AI 生成后压缩到 512px） */
-const VIEW_IMG: Record<ArchViewId, string> = {
-  business: '/arch/business.webp',
-  data: '/arch/data.webp',
-  app: '/arch/app.webp',
-  tech: '/arch/tech.webp',
-  product: '/arch/product.webp',
-  project: '/arch/project.webp',
-};
+/** 每个视图的手绘图标（arch-glyphs）与封面插画（public/arch/*.webp）
+ *  已提升到 arch-profile.ts（ARCH_VIEW_ICONS / ARCH_VIEW_IMG）——
+ *  六视图进解剖台后有两个消费方，映射只有一份。 */
 
 export default function ArchGallery() {
   const [tab, setTab] = useState<ArchViewId>('business');
   const [activeId, setActiveId] = useState<string>(DEFAULT_PROFILE_ID);
-  /** 导入的档案：首屏从 localStorage 读，不参与构建快照 */
-  const [custom, setCustom] = useState<Record<string, ArchProfile>>(() => loadCustomProfiles());
+  /** 导入的档案：初始空 + effect 从 localStorage 读（2026-10-17 图谱棒2 修 hydration：
+   *  初始值直接读会让 SSR HTML 与客户端水合对不上），不参与构建快照 */
+  const [custom, setCustom] = useState<Record<string, ArchProfile>>({});
+  useEffect(() => {
+    setCustom(loadCustomProfiles());
+  }, []);
 
   const data: ArchViewData = useMemo(() => {
     const doc = custom[activeId];
@@ -101,7 +91,7 @@ export default function ArchGallery() {
                   fontWeight: on ? 650 : 400,
                 }}
               >
-                <Glyph name={VIEW_ICONS[v.id]} size={13} color={on ? v.accent : '#6A7F80'} />
+                <Glyph name={ARCH_VIEW_ICONS[v.id]} size={13} color={on ? v.accent : '#6A7F80'} />
                 {v.name}
               </button>
             </Reveal>
@@ -120,7 +110,7 @@ export default function ArchGallery() {
             className="mono ui-rise flex h-8 w-8 items-center justify-center rounded-md"
             style={{ background: `${view.accent}1A`, color: view.accent }}
           >
-            <Glyph name={VIEW_ICONS[tab]} size={17} color={view.accent} />
+            <Glyph name={ARCH_VIEW_ICONS[tab]} size={17} color={view.accent} />
           </span>
           <div className="min-w-0">
             <h1 className="text-[14px] font-bold text-fg">
@@ -136,7 +126,7 @@ export default function ArchGallery() {
           </div>
           {/* 封面插画：AI 生成，裁掉水印后压到 512px webp；装饰位，读图不靠它 */}
           <img
-            src={VIEW_IMG[tab]}
+            src={ARCH_VIEW_IMG[tab]}
             alt=""
             aria-hidden
             width={96}
