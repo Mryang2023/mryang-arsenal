@@ -820,11 +820,12 @@ if (!skipAll) {
       '写死计数 = 扫描换了项目，页面还在念旧值'
     );
   }
-  // ⑦ 扫描入口只有一处（2026-10-17 架构图谱合并棒3）：/arch 退役 + ProfilePicker
-  //    删除后，src/app 下直接调 scanFacts/scanUpload 的页面文件只许是 AutopsyLab.tsx。
-  //    判据按「页面级直接调用」算，不按「谁最终调到 scanFacts」算 —— 后者会把
-  //    /archify 出图台用的共用组件 CodeIntake 误判成第二个档案扫描入口（它喂的是
-  //    出图台，不是项目档案/解剖台）。注释先剥，文档里写函数名不算调用。
+  // ⑦ 扫描入口收口（2026-10-18 工坊棒3 改写）：/autopsy 只认当前项目、只读
+  //    服务器侧缓存（POST /api/projects/{id}/scan），不再有临时地址输入 ——
+  //    所以 src/app 下页面级直接调 scanFacts/scanUpload 的必须归零；源头扫描
+  //    只归 /archify 出图台的共用组件 CodeIntake（它喂的是出图台，不是侦察）。
+  //    判据按「页面级直接调用」算，注释先剥 —— 文档里写函数名不算调用。
+  //    反面钉法：侦察页若退回 scanFacts 直扫（0 之外的任何调用者）都算回退。
   {
     const appRoot = path.join(webRoot, 'src/app');
     const scanCallers: string[] = [];
@@ -841,10 +842,11 @@ if (!skipAll) {
       }
     };
     walk(appRoot);
+    const lab = fs.readFileSync(path.join(webRoot, 'src/app/autopsy/AutopsyLab.tsx'), 'utf8');
     check(
-      '7-8 扫描入口只有一处：src/app 下调 scanFacts/scanUpload 的只有 AutopsyLab.tsx',
-      scanCallers.length === 1 && scanCallers[0] === 'autopsy/AutopsyLab.tsx',
-      `实际: ${scanCallers.join('、') || '无'} —— 两个入口讲同一批事实，就是漂移温床（合并前 /arch 与 /autopsy 各有一个）`
+      '7-8 扫描入口收口：src/app 页面级零直接调 scanFacts/scanUpload（侦察只扫缓存，走 scanProject）',
+      scanCallers.length === 0 && lab.includes('scanProject(') && lab.includes('scanUpload') === false,
+      `实际调用者: ${scanCallers.join('、') || '无'} —— 侦察页回到临时地址直扫 = 工坊改造回退`
     );
   }
   // ⑧ CodeIntake 的 profile 变体零调用点：/arch 退役后「扫描 → 六视图档案草稿」

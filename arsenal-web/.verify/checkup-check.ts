@@ -318,8 +318,21 @@ section('【7】接口与页面契约');
 
   const lab = read(LAB);
   check('解剖台挂上了体检页签', lab.includes("'checkup'") && lab.includes('体检报告'), '页签没挂 = 功能不可达');
-  check('体检走 autopsyInspect（不另拼 fetch）', lab.includes('autopsyInspect(') && !/fetch\(\s*[^)]*autopsy\/inspect/.test(lab), '页面里再拼一次请求 = 第二份实现通道');
+  check('体检走 runProjectCheckup（不另拼 fetch）', lab.includes('runProjectCheckup(') && !/fetch\(\s*[^)]*autopsy\/inspect/.test(lab), '页面里再拼一次请求 = 第二份实现通道');
   check('前端 API 层有 autopsyInspect', read(path.join(webRoot, 'src/lib/arsenal-api.ts')).includes('export async function autopsyInspect'), '接口封装只在 arsenal-api.ts 一处');
+  // 2026-10-18 工坊棒3：L1 复用从「浏览器侧口头声明」升级为内容级校验 ——
+  // 服务端 checkup 报告盖 cacheFingerprint 戳，前端与注册表当前指纹比对，
+  // 相等才许复用（不发请求）。声明式的旧分支（「用户说没变」+本地快照）必须退场。
+  check(
+    '体检留档挂载即从服务端读回（facts / latest / history 三件接线在位）',
+    lab.includes('getProjectFacts(') && lab.includes('getCheckupLatest(') && lab.includes('getCheckupHistory('),
+    '挂载不读服务端留档 = 切菜单回来内容靠组件 state 撑着（计划 D7 的反面）'
+  );
+  check(
+    'L1 复用是内容级：报告指纹戳与缓存指纹比对（stamped === cacheFingerprint）',
+    lab.includes('computeL1') && /stamped === cacheFingerprint/.test(lab) && !/reuseInput && snapshots\.length > 0/.test(lab),
+    '比对不逐字节相等（或旧声明式分支还在）=「没变」又变回口头声明，指纹不同也敢复用'
+  );
 }
 
 // ═══════════════════════════════════════════════════════════════

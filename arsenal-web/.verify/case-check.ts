@@ -389,11 +389,16 @@ console.log('\n【11】页面契约：三层路由（L1/L2）、NAV 入口，以
   // 路由住在 wizard.ts、Shell 只消费 —— 地址同样要从两处收集，只扫 Shell 会把
   // /stack 误判成孤儿（实测：verify:cases 单独跑时当场抓到）。
   const wizardNav = fs.readFileSync(path.join(webRoot, 'src', 'app', 'stack', 'wizard.ts'), 'utf8');
+  // 2026-10-18 工坊棒2/棒3：「项目工坊」组菜单数据（PROJECT_NAV）住 projects/nav.ts、
+  // Shell 只消费 —— 与 wizard.ts 同一先例，地址也要从这第三处收集，
+  // 否则 /projects /autopsy /qa 会被误判成孤儿（实测：全链 verify 当场抓到）。
+  const projectNav = fs.readFileSync(path.join(webRoot, 'src', 'app', 'projects', 'nav.ts'), 'utf8');
   const appDir = path.join(webRoot, 'src', 'app');
   const navHrefs = [
     ...new Set([
       ...[...shell.matchAll(/\{\s*href:\s*'([^']+)'/g)].map((m) => m[1]),
       ...[...wizardNav.matchAll(/\broute:\s*'([^']+)'/g)].map((m) => m[1]),
+      ...[...projectNav.matchAll(/\{\s*href:\s*'([^']+)'/g)].map((m) => m[1]),
     ]),
   ];
   const dangling = navHrefs.filter(
