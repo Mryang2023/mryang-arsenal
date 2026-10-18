@@ -326,6 +326,13 @@ export interface AutopsyFinding {
   collapsed: number;
   /** 拼好的 `path:line`。铁律：每条结论必带证据 */
   evidence: string;
+  // ── v2（2026-10-18 质检台 Q1）——检查时点的规则快照 join。旧报告/规则查不到时缺键，前端 fallback。
+  /** 检查时点的规则快照（RuleIndex join，形状与 /api/rules 的 Rule 一致） */
+  rule?: QaRuleSnapshot;
+  /** 不修的后果。来源见 impactSource，不许把派生内容伪装成真 impact */
+  impact?: string;
+  /** rule-impact（规则库自带）| rule-rationale（从 rationale 派生，页面标注「出自规则制定理由」） */
+  impactSource?: string;
 }
 
 export interface AutopsyCoverage {
@@ -824,6 +831,60 @@ export interface QaLlmStatus {
   reason: string;
 }
 
+/**
+ * v2 契约（2026-10-18 质检台 Q1）：检查时点的规则快照。
+ * 形状 = 后端 Rule record 的 JSON（Jackson NON_NULL：没设置的字段不出现），
+ * 与 types.ts 的 Rule（静态规则库 + 前端注入字段）刻意不同名不同形 —— 别混用。
+ */
+export interface QaRuleSnapshot {
+  id: string;
+  category: string;
+  subcategory?: string;
+  title: string;
+  severity: string;
+  sources: { ref: string; type: string; quote?: string }[];
+  rationale: string;
+  /** 规则库自带 impact（Q4 起有）；draft/历史规则可能没有 */
+  impact?: string;
+  appliesTo?: { stack?: string[]; scope?: string; pathGlob?: string };
+  bad: string;
+  good: string;
+  check: { regex?: unknown; ast?: unknown; llm?: string; manual?: string };
+  promptFragment: string;
+  tags?: string[];
+  status?: string;
+  version: number;
+  supersedes?: string;
+  updatedAt?: string;
+}
+
+/** 报告级 ruleset stamp：检查时点的规则库账。loadedAt vs filesNewestMtime 支撑「已变更未重载」黄条。 */
+export interface QaRulesetStamp {
+  version: string;
+  releasedAt: string;
+  ruleCount: number;
+  activeCount: number;
+  llmLayerRules: number;
+  /** 本次规则库加载时间 */
+  loadedAt: string;
+  /** 规则库文件最新 mtime —— 晚于 loadedAt ⇒ 有文件改了没重载 */
+  filesNewestMtime: string;
+}
+
+/** 「按规则」聚合组。铁律：count === items.length === 平铺视图该规则该档条数（同源不同算法不许打架） */
+export interface QaRuleGroup {
+  ruleId: string;
+  title: string;
+  severity: string;
+  /** static（规则引擎）| semantic（LLM 语义深检）—— 两个判据来源不混组 */
+  tier: 'static' | 'semantic';
+  count: number;
+  /** 引擎折叠的重复命中总数 —— 只做披露，不混进 count */
+  collapsedTotal?: number;
+  /** static 组带 tier（p0/p1/other = 平铺档位）；semantic 组不带 */
+  items: { file: string; line: number; tier?: 'p0' | 'p1' | 'other' }[];
+}
+
 export interface QaReport {
   schemaVersion: number;
   jobId: string;
@@ -895,6 +956,10 @@ export interface QaReport {
       { ran: boolean; reason?: string; batches: number; issues: number; promptTokens: number; completionTokens: number }
     >;
   } | null;
+  // ── v2 契约（2026-10-18 质检台 Q1）—— 旧 v1 报告没有这些键，前端必须 fallback（Q2 落地文案）：
+  //    「这份报告出在规则快照 / 聚合视图之前」，不许把缺键渲染成 0 或空白。
+  ruleset?: QaRulesetStamp;
+  groupedByRule?: QaRuleGroup[];
   scannedFiles: string[];
 }
 

@@ -7,6 +7,10 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
@@ -16,27 +20,52 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.TreeMap;
+import java.util.stream.Stream;
 
 /**
- * 规则内存索引。进程启动时构建一次，之后只读。
+ * 规则内存索引。进程启动时构建一次，之后可经 {@link #refresh()} 热重载。
  *
- * 62 条规则这个规模不需要任何搜索引擎 —— 一个 HashMap 加几个 stream 足够，
+ * <p>62 条规则这个规模不需要任何搜索引擎 —— 一个 HashMap 加几个 stream 足够，
  * 而且零依赖、零运维。真正需要外部索引的规模至少要多两个数量级。
+ *
+ * <p><b>热加载（2026-10-18 质检台 Q1，B1）：</b>旧实现把索引字段当 final、启动后只读，
+ * 「改规则必重启」。现在所有索引状态收进不可变 {@link Snapshot}，单一 {@code volatile} 引用持有：
+ * 读方（LintEngine / AutopsyService / QaService / Controller 们）每次现读快照，改造对它们透明；
+ * 写方 {@link #refresh()} 重新 load 后整块换引用 —— 读到的一定是完整一致的快照，没有半新半旧。
+ * 重载失败时<b>保留旧快照</b>并抛错：服务不能因为一次坏 JSON 失去保护。
+ *
+ * <p><b>缓存核实（B3，先查再改）：</b>LintEngine 的 Compiled/AstCompiled 是 run() 内局部变量
+ * （每跑现编译）；AstEngine 的 checkers 是构造期代码注册（不是规则数据）——
+ * 两者都不持规则对象引用，热加载无死角，无需清任何派生缓存。
  */
 @Component
 public class RuleIndex {
 
     private static final Logger log = LoggerFactory.getLogger(RuleIndex.class);
 
-    private final LoadedRuleset loaded;
-    private final Map<String, Rule> byId;
-    private final Map<String, List<Rule>> byCategory;
-    private final Map<String, Long> sourceCounts;
-    private final Stats stats;
+    private final RuleLoader loader;
+    private volatile Snapshot snap;
+
+    /** 一次加载的完整只读快照。索引字段全部收在这里，refresh 整块换。 */
+    private record Snapshot(
+            LoadedRuleset loaded,
+            Map<String, Rule> byId,
+            Map<String, List<Rule>> byCategory,
+            Map<String, Long> sourceCounts,
+            Stats stats,
+            Instant loadedAt,
+            String filesNewestMtime
+    ) {
+    }
 
     public RuleIndex(RuleLoader loader) {
-        this.loaded = loader.load();
+        this.loader = loader;
+        this.snap = build(loader.load());
+        log.info("索引就绪：{} 个分类，{} 个溯源出处，可自动检出 {} 条（正则层）",
+                snap.byCategory().size(), snap.sourceCounts().size(), snap.stats().regexCapable());
+    }
 
+    private Snapshot build(LoadedRuleset loaded) {
         Map<String, Rule> idMap = new LinkedHashMap<>();
         Map<String, List<Rule>> catMap = new LinkedHashMap<>();
         Map<String, Long> srcMap = new TreeMap<>();
@@ -51,31 +80,115 @@ public class RuleIndex {
         }
 
         catMap.values().forEach(list -> list.sort(Comparator.comparing(Rule::id)));
-        this.byId = Map.copyOf(idMap);
-        this.byCategory = Map.copyOf(catMap);
-        this.sourceCounts = Map.copyOf(srcMap);
-        this.stats = computeStats(loaded);
 
-        log.info("索引就绪：{} 个分类，{} 个溯源出处，可自动检出 {} 条（正则层）",
-                byCategory.size(), sourceCounts.size(), stats.regexCapable());
+        Instant at = Instant.now();
+        String mtime = newestMtimeOfRuleset(loaded);
+        return new Snapshot(loaded, Map.copyOf(idMap), Map.copyOf(catMap), Map.copyOf(srcMap),
+                computeStats(loaded, srcMap.size()), at, mtime);
     }
 
-    // ──────────────────────────────────────────────── 只读访问
+    /**
+     * 规则库文件最新 mtime（B6）：启动与每次 reload 时各算一次，不每次 scan 都走 IO。
+     * 报告 stamp 带上它，前端才有依据亮「规则库文件已变更但未重载」的黄条。
+     */
+    private String newestMtimeOfRuleset(LoadedRuleset set) {
+        if (set.files().isEmpty()) {
+            return "";
+        }
+        Path root = set.files().get(0).getParent() == null
+                ? null : set.files().get(0).getParent().getParent();
+        if (root == null || !Files.isDirectory(root)) {
+            return "";
+        }
+        long newest = 0L;
+        try (Stream<Path> walk = Files.walk(root)) {
+            for (Path p : (Iterable<Path>) walk.filter(Files::isRegularFile)
+                    .filter(p -> p.getFileName().toString().endsWith(".json"))::iterator) {
+                try {
+                    long m = Files.getLastModifiedTime(p).toMillis();
+                    if (m > newest) {
+                        newest = m;
+                    }
+                } catch (IOException e) {
+                    log.warn("读规则文件 mtime 失败，跳过：{}", p);
+                }
+            }
+        } catch (IOException e) {
+            log.warn("规则库目录遍历失败，filesNewestMtime 记空：{}", root);
+            return "";
+        }
+        return newest == 0L ? "" : Instant.ofEpochMilli(newest).toString();
+    }
+
+    // ──────────────────────────────────────────────── 热重载
+
+    /**
+     * 重载结果：前后规则数与版本都出去 —— 「重载了但其实没重读」要靠这组数字现形。
+     */
+    public record ReloadResult(
+            int before,
+            int after,
+            String versionBefore,
+            String versionAfter,
+            String loadedAt,
+            String filesNewestMtime
+    ) {
+    }
+
+    /**
+     * 热重载：重新读盘、重建快照、整块换引用。
+     *
+     * <p>失败语义：<b>保留旧快照</b>再抛错 —— 坏 JSON / 缺文件只应该让「这次重载」失败，
+     * 不能让服务失去已经验证过的旧规则集。synchronized 串行化并发重载
+     * （端点层还有 AtomicBoolean 防重入，这里是最后防线）。
+     */
+    public synchronized ReloadResult refresh() {
+        Snapshot old = snap;
+        LoadedRuleset fresh;
+        try {
+            fresh = loader.load();
+        } catch (RuntimeException e) {
+            log.error("规则集重载失败，保留旧快照（版本 {}，{} 条）：{}",
+                    old.loaded().meta().version(), old.loaded().rules().size(), e.getMessage());
+            throw new IllegalStateException("规则集重载失败，已保留旧规则集（版本 "
+                    + old.loaded().meta().version() + "）：" + e.getMessage(), e);
+        }
+        this.snap = build(fresh);
+        log.info("规则集已热重载：{} 条 → {} 条　版本 {} → {}",
+                old.loaded().rules().size(), fresh.rules().size(),
+                old.loaded().meta().version(), fresh.meta().version());
+        return new ReloadResult(
+                old.loaded().rules().size(), fresh.rules().size(),
+                old.loaded().meta().version(), fresh.meta().version(),
+                snap.loadedAt().toString(), snap.filesNewestMtime());
+    }
+
+    // ──────────────────────────────────────────────── 只读访问（全部现读快照）
 
     public RulesetMeta meta() {
-        return loaded.meta();
+        return snap.loaded().meta();
     }
 
     public List<Rule> all() {
-        return loaded.rules();
+        return snap.loaded().rules();
     }
 
     public List<Rule> active() {
-        return loaded.rules().stream().filter(Rule::isActive).toList();
+        return snap.loaded().rules().stream().filter(Rule::isActive).toList();
+    }
+
+    /** 本次加载时间（报告 ruleset stamp 用）。 */
+    public Instant loadedAt() {
+        return snap.loadedAt();
+    }
+
+    /** 规则库文件最新 mtime（B6）。晚于 loadedAt ⇒ 有文件改了没重载。 */
+    public String filesNewestMtime() {
+        return snap.filesNewestMtime();
     }
 
     public Optional<Rule> byId(String id) {
-        return Optional.ofNullable(byId.get(id));
+        return Optional.ofNullable(snap.byId().get(id));
     }
 
     /**
@@ -87,15 +200,15 @@ public class RuleIndex {
      * 现在需要分组的地方一律对「手里那份列表」分组，不再回查全量索引。
      */
     public Map<String, List<Rule>> grouped() {
-        return byCategory;
+        return snap.byCategory();
     }
 
     public Map<String, Long> sourceCounts() {
-        return sourceCounts;
+        return snap.sourceCounts();
     }
 
     public Stats stats() {
-        return stats;
+        return snap.stats();
     }
 
     // ──────────────────────────────────────────────── 检索
@@ -163,7 +276,7 @@ public class RuleIndex {
 
     // ──────────────────────────────────────────────── 统计
 
-    private Stats computeStats(LoadedRuleset set) {
+    private Stats computeStats(LoadedRuleset set, int sourceCount) {
         List<Rule> rules = set.rules();
         Map<String, Integer> bySeverity = new LinkedHashMap<>();
         Map<String, Integer> byCategory = new LinkedHashMap<>();
@@ -214,7 +327,7 @@ public class RuleIndex {
                 ast,
                 llm,
                 rules.size() - regex,
-                sourceCounts.size(),
+                sourceCount,
                 promptChars,
                 Math.round(promptChars / 1.6f)
         );

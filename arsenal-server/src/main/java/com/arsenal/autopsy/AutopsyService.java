@@ -1,6 +1,7 @@
 package com.arsenal.autopsy;
 
 import com.arsenal.domain.Rule;
+import com.arsenal.domain.RuleImpact;
 import com.arsenal.domain.Severity;
 import com.arsenal.engine.LintEngine;
 import com.arsenal.engine.LintReport;
@@ -404,6 +405,15 @@ public class AutopsyService {
         return arr;
     }
 
+    /**
+     * 单条违规的对外形状 —— autopsy 与 qa 的<b>共用出口</b>。
+     *
+     * <p>2026-10-18 质检台 Q1（B4，拍板项 5 选 ①）：挂上检查时点的规则快照
+     * {@code rule}（join {@link RuleIndex}）与 {@code impact}/{@code impactSource} ——
+     * 解剖台详情也能展开「违反了哪条 / 出处 / 不修的后果」，qa 与 autopsy 口径统一（双赢）。
+     * 代价：每条 finding 多 ~1-2KB（sources/rationale/good 都在里面），两份报告一起接受。
+     * 规则快照是 join 现读 —— 报告留档后「当时的规则长什么样」可追溯（服务意见 9 的时序问题）。
+     */
     private ObjectNode violationNode(Violation v, Severity sev) {
         ObjectNode o = mapper.createObjectNode();
         o.put("ruleId", v.ruleId());
@@ -417,6 +427,15 @@ public class AutopsyService {
         o.put("message", v.message());
         o.put("collapsed", v.collapsed());
         o.put("evidence", v.file() + ":" + v.line());
+        Rule rule = index.byId(v.ruleId()).orElse(null);
+        if (rule != null) {
+            o.set("rule", mapper.valueToTree(rule));
+            RuleImpact.Impact imp = RuleImpact.of(rule);
+            o.put("impact", imp.text());
+            o.put("impactSource", imp.source());
+        }
+        // 规则查不到（规则库热重载间隙 / ID 被废弃回收）时**不塞空壳**：
+        // 缺键 = 前端走「这份报告出在规则快照之前」的 fallback，比一个假 rule 对象诚实。
         return o;
     }
 

@@ -2,6 +2,7 @@ package com.arsenal.qa;
 
 import com.arsenal.autopsy.AutopsyService;
 import com.arsenal.domain.Rule;
+import com.arsenal.domain.RulesetMeta;
 import com.arsenal.loader.RuleIndex;
 import com.arsenal.scan.ScanGuard;
 import com.arsenal.scan.SourceResolver;
@@ -461,7 +462,9 @@ public class QaService {
                                 SemanticJudge.Outcome semantic, String semanticSkip,
                                 ReproService.Outcome reproOutcome) {
         ObjectNode rep = mapper.createObjectNode();
-        rep.put("schemaVersion", 1);
+        // v2（2026-10-18 质检台 Q1）：新增 ruleset / groupedByRule / finding.rule|impact|impactSource。
+        // 全部 additive —— 旧 v1 报告缺这些键，前端按「这份报告出在 v2 之前」fallback。
+        rep.put("schemaVersion", 2);
         rep.put("jobId", job.id());
         rep.put("projectId", job.projectId());
         rep.put("scannedAt", Instant.now().toString());
@@ -540,6 +543,34 @@ public class QaService {
                     ? "语义深检未执行 —— 本次结论全部来自静态引擎" : semanticSkip);
             rep.putNull("llmUsage");
         }
+
+        // ── v2 报告级新增（质检台 Q1，B5）──
+        // ruleset stamp：检查时点的规则库快照账 —— 报告自带「当时用的是哪版规则、多少条、何时加载」。
+        // loadedAt 与 filesNewestMtime 配合，前端才有依据亮「规则库文件已变更但未重载」的黄条。
+        RulesetMeta rulesetMeta = index.meta();
+        ObjectNode rs = rep.putObject("ruleset");
+        rs.put("version", rulesetMeta.version() == null ? "" : rulesetMeta.version());
+        rs.put("releasedAt", rulesetMeta.releasedAt() == null ? "" : rulesetMeta.releasedAt());
+        rs.put("ruleCount", index.all().size());
+        rs.put("activeCount", index.active().size());
+        rs.put("llmLayerRules", index.stats().llmCapable());
+        rs.put("loadedAt", index.loadedAt().toString());
+        rs.put("filesNewestMtime", index.filesNewestMtime() == null ? "" : index.filesNewestMtime());
+
+        // groupedByRule：「按规则」视图的数据 —— 后端算（拍板项 3），与平铺同源（findings 分桶后、
+        // focus 圈内保留后的那份），count === items.length === 平铺计数，两视图打架在这条就断了根。
+        List<FindingGrouper.StaticF> statics = new ArrayList<>();
+        for (JsonNode v : findings.path("p0")) {
+            statics.add(new FindingGrouper.StaticF("p0", v));
+        }
+        for (JsonNode v : findings.path("p1")) {
+            statics.add(new FindingGrouper.StaticF("p1", v));
+        }
+        for (JsonNode v : findings.path("other")) {
+            statics.add(new FindingGrouper.StaticF("other", v));
+        }
+        rep.set("groupedByRule", FindingGrouper.group(mapper, index, statics,
+                semantic == null ? List.of() : toList(semantic.findings())));
 
         List<JsonNode> presented = new ArrayList<>();
         presented.addAll(toList(findings.path("p0")));

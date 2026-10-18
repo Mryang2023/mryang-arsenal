@@ -3724,9 +3724,75 @@ function archMergeChecks() {
   }
 }
 
+/**
+ * 【29】质检台 Q1 · 数据契约 v2 后端（2026-10-18）。
+ *
+ * qaReport v1→v2 是 additive 契约：RuleIndex 热加载（refresh）、reload 端点（防重入）、
+ * violationNode 挂规则快照（autopsy/qa 共用出口一起吃）、assemble 的 ruleset stamp 与
+ * groupedByRule。这些改动跨 5 个后端文件 + 1 个前端契约文件，任何一块「悄悄退回去」，
+ * 前端拿到的就是缺键报告而页面不红 —— 所以源码文本断言钉住关键形状。
+ * 行为级验证（热加载正反样本 / impact 派生 / 聚合一致性）在免 Spring 探针 Q1Probe 里，
+ * 本层只钉「关键接线还在」。
+ */
+function qaContractChecks() {
+  console.log('\n【29】质检台 Q1 数据契约（热加载 / reload 端点 / 规则快照 / groupedByRule）');
+  const strip = (s: string) => s.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^[ \t]*\/\/.*$/gm, '');
+  const srv = (rel: string) => strip(fs.readFileSync(
+    path.resolve(here, '../../arsenal-server/src/main/java/com/arsenal', rel), 'utf8'));
+  const api = strip(fs.readFileSync(path.resolve(here, '../src/lib/arsenal-api.ts'), 'utf8'));
+
+  const ruleIndex = srv('loader/RuleIndex.java');
+  check(
+    '29-1 RuleIndex 热加载：volatile 快照 + synchronized refresh（改规则不再必须重启）',
+    /volatile Snapshot/.test(ruleIndex) && /public synchronized ReloadResult refresh\(\)/.test(ruleIndex)
+      && /public Instant loadedAt\(\)/.test(ruleIndex) && /public String filesNewestMtime\(\)/.test(ruleIndex),
+    'refresh / loadedAt / filesNewestMtime 缺任何一个，报告的 ruleset stamp 就是假的'
+  );
+  const reloadCtl = srv('web/RulesReloadController.java');
+  check(
+    '29-2 reload 端点存在且防重入（AtomicBoolean）',
+    /@PostMapping\("\/reload"\)/.test(reloadCtl) && /AtomicBoolean/.test(reloadCtl),
+    '端点没了「明天用新规则」就是空头承诺；没防重入就是并发重载炸弹'
+  );
+  const autopsy = srv('autopsy/AutopsyService.java');
+  check(
+    '29-3 violationNode 挂规则快照 + impact/impactSource（autopsy 与 qa 共用出口一起吃）',
+    /mapper\.valueToTree\(rule\)/.test(autopsy) && /impactSource/.test(autopsy)
+      && /RuleImpact\.of\(rule\)/.test(autopsy),
+    '共用出口只吃一半 = 两份报告口径分裂（拍板项 5 选 ① 的接线证据）'
+  );
+  const qaService = srv('qa/QaService.java');
+  check(
+    '29-4 assemble 是 v2：schemaVersion=2 + ruleset stamp + groupedByRule 后端算',
+    /put\("schemaVersion", 2\)/.test(qaService) && /putObject\("ruleset"\)/.test(qaService)
+      && /FindingGrouper\.group\(/.test(qaService),
+    'schemaVersion 忘升 = 前端按 v1 fallback 渲染新报告；groupedByRule 前端算 = 口径打架'
+  );
+  const grouper = srv('qa/FindingGrouper.java');
+  check(
+    '29-5 groupedByRule 的 count 铁律：count = items.size()（不许另设计数器）',
+    /put\("count", acc\.items\.size\(\)\)/.test(grouper),
+    'count 与 items.length 打架 = 聚合视图与平铺视图数字不一致（验收写死的那条）'
+  );
+  const impact = srv('domain/RuleImpact.java');
+  check(
+    '29-6 impact 派生单一出处 + 两级来源标注（rule-impact / rule-rationale）',
+    /"rule-impact"/.test(impact) && /"rule-rationale"/.test(impact)
+      && /MAX_LEN = 120/.test(impact),
+    '派生逻辑散两处 / 来源标注丢了 = 派生内容伪装成真 impact（诚实披露纪律）'
+  );
+  check(
+    '29-7 前端契约 additive：QaReport 带 ruleset?/groupedByRule?，finding 带 rule?/impact?/impactSource?（全可选 = v1 报告仍能打开）',
+    /ruleset\?: QaRulesetStamp/.test(api) && /groupedByRule\?: QaRuleGroup\[\]/.test(api)
+      && /rule\?: QaRuleSnapshot/.test(api) && /impactSource\?: string/.test(api),
+    '写成必填 = 旧 v1 报告在类型层就打不开（P0② 反着验的锚点）'
+  );
+}
+
 zipChecks().then(() => {
   profileChecks();
   startupChecks();
   archMergeChecks();
+  qaContractChecks();
   process.exit(finish('project'));
 });
