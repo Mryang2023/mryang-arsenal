@@ -652,7 +652,7 @@ export async function lintRemote(files: LintSourceFile[]): Promise<LintRemoteOut
 }
 
 // ─────────────────────────────────────────────────────────────
-// 测试工程师（后端 /api/qa/*，异步 Job）
+// 质检台（后端 /api/qa/*，异步 Job）
 //
 // 与体检（/api/autopsy/inspect，同步）的分工：这条链路把 git clone 与
 // 后续 LLM 段都收进后台线程，前端只认「提交 → 轮询 → 取报告」三步。

@@ -106,7 +106,7 @@ public class AutopsyService {
     }
 
     /**
-     * 带文件过滤的体检 —— 测试工程师（/api/qa）的 review 模式复用这条通路：
+     * 带文件过滤的体检 —— 质检台（/api/qa）的 review 模式复用这条通路：
      * 「引擎入口裁剪」必须在 AutopsyService 这一层做（collect 与主链路同源），
      * 在外面套壳只会得到「跑了全仓再丢结果」的假严格局部。
      *

@@ -2,7 +2,7 @@
  * 项目工坊 · 导航菜单数据唯一出处（工坊棒2）。
  *
  * 这是「项目工坊」一级菜单组的**唯一数据来源**：Shell.tsx 只消费，不在这里
- * 另排一张表。三个子项 = 项目管理 / 项目侦察 / 测试工程师，各有真实路由。
+ * 另排一张表。三个子项 = 项目管理 / 项目侦察 / 质检台，各有真实路由。
  *
  * 双注册约定（仿 command-center 的 MenuCatalogService.BUILTIN 覆盖前端
  * NAV_ITEMS）：本仓没有后端菜单目录，等价机制是 `project-check.ts` 的导航
@@ -19,7 +19,7 @@ export interface ProjectNavChild {
 export const PROJECT_NAV: ProjectNavChild[] = [
   { href: '/projects', label: '项目管理', glyph: '◧', count: 0 },
   { href: '/autopsy', label: '项目侦察', glyph: '▧', count: 0 },
-  { href: '/qa', label: '测试工程师', glyph: '⚗', count: 0 },
+  { href: '/qa', label: '质检台', glyph: '⚗', count: 0 },
 ];
 
 /** 组标题（Shell 渲染分组标题用，不单独成链接）。 */

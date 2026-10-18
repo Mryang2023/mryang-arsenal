@@ -35,7 +35,7 @@ arsenal-web/.verify/_b_*.mjs
 #    2026-10-12 棒 3 实测：git status 里真的冒出了 `?? arsenal-web/.data/`，
 #    靠 10-2 的 git check-ignore 才抓出来 —— 别再写第三遍）。
 **/.data/autopsy/
-#    测试工程师（/qa）的 job 状态与报告快照同规矩：默认落仓库根 .data/qa/，
+#    质检台（/qa）的 job 状态与报告快照同规矩：默认落仓库根 .data/qa/，
 #    三档目录可被 arsenal.json / env ARSENAL_QA_DIR 覆盖，ignore 口径同上带 **/ 前缀。
 **/.data/qa/
 #    项目工坊（工坊棒1）的注册表 + 代码缓存同规矩：默认落仓库根 .data/projects/，

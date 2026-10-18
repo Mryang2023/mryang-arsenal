@@ -26,7 +26,7 @@ import RecsPanel from './RecsPanel';
 import TestsPanel from './TestsPanel';
 
 /**
- * 测试工程师 `/qa`（工坊棒4 改造）。
+ * 质检台 `/qa`（工坊棒4 改造）。
  *
  * 一句话：依托**当前项目**（项目管理页选定的）→ 异步 Job 深度审查 → 报告区
  * （边界卡 + 问题两视图 + 可信度 + 怎么改/怎么验），全程可圈定范围。
@@ -307,7 +307,7 @@ export default function QaLab() {
   return (
     <div className="space-y-3">
       <header>
-        <h1 className="text-[14px] font-bold text-fg">测试工程师</h1>
+        <h1 className="text-[14px] font-bold text-fg">质检台</h1>
         <p className="mt-1 text-[11px] leading-[17px] text-fgMuted">
           依托当前项目跑一轮异步深度审查：先跑规则找硬伤，再逐点给出带 before/after 的优化方案与该补的测试。
           可以整仓检，也可以只圈一部分代码检。提交秒回、后台执行，页面不卡死 —— 跑一半切走再回来，进度还在。

@@ -3886,6 +3886,74 @@ function structureBoundaryChecks() {
   }
 }
 
+/**
+ * 【33】质检台 Q3 · 命名门禁（2026-10-18）。
+ *
+ * 「测试工程师」→「质检台」全仓改名（质检台计划 §8/§9）。名字换过一次后，
+ * 最大的风险不是漏改（人眼 grep 一遍就有），而是**改过头**——把 ReproAuthor.java
+ * 里给 LLM 的角色指令「你是资深 Java 测试工程师」也换成产品名，prompt 语义就坏了。
+ * 所以门禁是双向的：白名单外必须为 0，白名单内必须恰好还在（1 处）。
+ * 历史计划书（docs 下各开发计划目录）不改写，不在扫描范围。
+ */
+function qaNamingGateChecks() {
+  console.log('\n【33】质检台命名门禁（旧词只剩白名单，白名单不许空）');
+  const OLD = '测试工程师';
+  const repoRoot = path.resolve(here, '..', '..');
+  // 活口径扫描面：两个源码树 + README + 截图脚本 + 截图台账（manifest 的 title
+  // 是页面 <title> 的落盘记录，随 shoot 重生成，也一起看守）。
+  const scanRoots = [
+    path.join(repoRoot, 'arsenal-web', 'src'),
+    path.join(repoRoot, 'arsenal-server', 'src', 'main'),
+  ];
+  const scanFiles = [
+    path.join(repoRoot, 'README.md'),
+    path.join(repoRoot, 'arsenal-web', 'visual', 'shoot.mjs'),
+    path.join(repoRoot, 'arsenal-web', 'visual', 'manifest.json'),
+  ];
+  const hits: string[] = [];
+  const walk = (dir: string) => {
+    for (const name of fs.readdirSync(dir)) {
+      const p = path.join(dir, name);
+      const st = fs.statSync(p);
+      if (st.isDirectory()) walk(p);
+      else if (fs.readFileSync(p, 'utf8').includes(OLD)) hits.push(path.relative(repoRoot, p).replace(/\\/g, '/'));
+    }
+  };
+  for (const root of scanRoots) walk(root);
+  for (const f of scanFiles) {
+    if (fs.readFileSync(f, 'utf8').includes(OLD)) hits.push(path.relative(repoRoot, f).replace(/\\/g, '/'));
+  }
+  const WHITELIST = new Set(['arsenal-server/src/main/java/com/arsenal/qa/ReproAuthor.java']);
+  const outside = hits.filter((h) => !WHITELIST.has(h));
+  check(
+    '33-1 全仓旧词「测试工程师」只剩白名单（活口径外 0 处）',
+    outside.length === 0,
+    outside.length ? `白名单外仍有旧词: ${outside.join('、')}` : '白名单 = ReproAuthor.java 的 LLM 角色指令（历史计划书不在扫描面）'
+  );
+  const reproSrc = fs.readFileSync(
+    path.join(repoRoot, 'arsenal-server/src/main/java/com/arsenal/qa/ReproAuthor.java'),
+    'utf8'
+  );
+  check(
+    '33-2 白名单内恰好还在：ReproAuthor.java 的 LLM 角色指令保留「测试工程师」（改过头 = prompt 语义坏）',
+    hits.filter((h) => WHITELIST.has(h)).length === 1 && reproSrc.includes('你是资深 Java 测试工程师'),
+    '白名单被清空或角色指令被误改 —— 角色指令是职业身份不是产品名，不许跟着改名走'
+  );
+  const navSrc = fs.readFileSync(path.join(repoRoot, 'arsenal-web/src/app/projects/nav.ts'), 'utf8');
+  check(
+    "33-3 导航 /qa 子项 label 是「质检台」",
+    /\{\s*href:\s*'\/qa',\s*label:\s*'质检台'/.test(navSrc) && !navSrc.includes(OLD),
+    '工坊组子项名与产品名脱节（nav.ts 是项目工坊菜单唯一出处，Shell 只消费）'
+  );
+  const qaPageSrc = fs.readFileSync(path.join(repoRoot, 'arsenal-web/src/app/qa/page.tsx'), 'utf8');
+  const qaLabSrc = fs.readFileSync(path.join(repoRoot, 'arsenal-web/src/app/qa/QaLab.tsx'), 'utf8');
+  check(
+    '33-4 /qa 页标题与 h1 都是「质检台」',
+    qaPageSrc.includes("title: '质检台'") && qaLabSrc.includes('>质检台</h1>'),
+    '页面级命名与导航不同步（metadata title / 面板 h1）'
+  );
+}
+
 zipChecks().then(() => {
   profileChecks();
   startupChecks();
@@ -3893,6 +3961,7 @@ zipChecks().then(() => {
   qaContractChecks();
   qaFrontendChecks();
   structureBoundaryChecks();
+  qaNamingGateChecks();
   projectIdsParityChecks();
   process.exit(finish('project'));
 });

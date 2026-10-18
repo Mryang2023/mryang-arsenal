@@ -44,7 +44,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.function.Predicate;
 
 /**
- * 测试工程师（/qa）的编排：Job 状态机 + qaReport v1 组装 + 快照落盘。
+ * 质检台（/qa）的编排：Job 状态机 + qaReport v1 组装 + 快照落盘。
  *
  * <p><b>静态链路与解剖台同源。</b>P0/P1 判定走的是同一个 {@link AutopsyService}（同一次 collect、
  * 同一台 LintEngine、同一份 coverage 口径）—— 「/qa 与 /autopsy 同地址数字必须一致」这条验收

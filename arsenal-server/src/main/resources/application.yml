@@ -61,7 +61,7 @@ arsenal:
   checkups:
     file: ${ARSENAL_CHECKUPS:../arsenal-checkups/checkups.json}
 
-  # 测试工程师（/qa）：异步深检的 job 状态与报告快照落盘处。
+  # 质检台（/qa）：异步深检的 job 状态与报告快照落盘处。
   # 默认在仓库根的 .data/qa/（与解剖台快照同一「别的项目的资料不入库」规矩，见 .gitignore）。
   qa:
     data-dir: ${ARSENAL_QA_DIR:../.data/qa}

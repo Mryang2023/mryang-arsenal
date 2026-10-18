@@ -165,7 +165,7 @@ export default function ProjectManager() {
       <header className="mb-6">
         <h1 className="text-xl font-semibold text-fg">项目管理</h1>
         <p className="mt-1 text-sm text-fgMuted">
-          项目工坊的第一个子项。先在这里选一个固定项目，再进「项目侦察」与「测试工程师」——
+          项目工坊的第一个子项。先在这里选一个固定项目，再进「项目侦察」与「质检台」——
           两个功能页只认当前项目，不再用临时地址。
         </p>
       </header>
@@ -379,7 +379,7 @@ export default function ProjectManager() {
             · <span className="text-fg">限额（与扫描同源）</span>：单文件 2MB / 总 500MB / 2 万文件 / 深度 20；超限整份拒绝，不留半份缓存。
           </li>
           <li>
-            · <span className="text-fg">缓存位置</span>：<span className="mono">.data/projects/&lt;projectId&gt;/</span>（不进 git）。代码缓存是后续侦察与测试工程师读的那一份，两个功能页同源。
+            · <span className="text-fg">缓存位置</span>：<span className="mono">.data/projects/&lt;projectId&gt;/</span>（不进 git）。代码缓存是后续侦察与质检台读的那一份，两个功能页同源。
           </li>
           <li>
             · <span className="text-fg">删除语义</span>：摘出注册表 + 删除本地代码缓存与侦察/体检留档；<span className="text-fg">QA 历史报告（.data/qa/&lt;projectId&gt;/）会保留</span>作为审计痕迹，不会随项目一起消失。
@@ -398,7 +398,7 @@ export default function ProjectManager() {
             <p className="mt-2 text-xs leading-relaxed text-fgMuted">
               将摘出注册表、删除本地代码缓存与侦察 / 体检留档。
               <span className="text-fg">QA 历史报告（.data/qa/{pendingDelete.id}/）会保留</span>
-              作为审计痕迹 —— 即便项目删了，它的测试工程师报告依然可查。
+              作为审计痕迹 —— 即便项目删了，它的质检台报告依然可查。
             </p>
             <div className="mt-4 flex justify-end gap-2">
               <button
@@ -460,7 +460,7 @@ function RowActions({
         onClick={() => onOpen(entry, '/qa')}
         className="rounded border border-line px-2 py-1 text-2xs text-fgMuted hover:bg-canvas"
       >
-        打开测试工程师
+        打开质检台
       </button>
       <button
         type="button"

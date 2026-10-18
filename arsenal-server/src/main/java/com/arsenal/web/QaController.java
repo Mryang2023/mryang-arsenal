@@ -11,7 +11,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
- * 测试工程师接口（/qa 页面的后端）。
+ * 质检台接口（/qa 页面的后端）。
  *
  * <p>与同步的 /api/autopsy 的分工：这里全部走「提交 → 轮询 → 取报告」的异步 Job，
  * 因为这条链路把 git clone（60s）和后续 LLM 段（分钟级）都收进来了。
