@@ -1184,3 +1184,29 @@ export async function qaLlmStatus(): Promise<QaOutcome<QaLlmStatus>> {
   }
   return readQa<QaLlmStatus>(res);
 }
+
+/** POST /api/rules/reload 的回包（Q1 的 ReloadResult record）：前后计数与版本都出去，「重载了但其实没重读」靠这组数字现形 */
+export interface RulesReloadResult {
+  before: number;
+  after: number;
+  versionBefore: string;
+  versionAfter: string;
+  loadedAt: string;
+  filesNewestMtime: string;
+}
+
+/** 规则库热重载（质检台 Q2 黄条按钮）。失败时后端保留旧规则集，rejected 带原因 */
+export async function rulesReload(): Promise<QaOutcome<RulesReloadResult>> {
+  const base = arsenalApiBase();
+  let res: Response;
+  try {
+    res = await fetchWithTimeout(
+      `${base}/api/rules/reload`,
+      { method: 'POST', headers: { 'Content-Type': 'application/json' } },
+      15_000
+    );
+  } catch (e) {
+    return { kind: 'offline', message: offlineMessage(e) };
+  }
+  return readQa<RulesReloadResult>(res);
+}

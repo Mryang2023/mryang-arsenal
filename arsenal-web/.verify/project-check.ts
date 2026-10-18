@@ -3789,10 +3789,72 @@ function qaContractChecks() {
   );
 }
 
+/** 质检台 Q2（2026-10-18）：前端重构的结构断言 —— 7 组件 / 两视图对账 / 六段详情 / v1 fallback / 黄条 */
+function qaFrontendChecks() {
+  const qaDir = path.resolve(here, '../src/app/qa');
+  const strip = (s: string) => s.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^[ \t]*\/\/.*$/gm, '');
+  const qa = (f: string) => strip(fs.readFileSync(path.resolve(qaDir, f), 'utf8'));
+  const files = [
+    'BoundaryCard.tsx',
+    'FindingsView.tsx',
+    'FindingRow.tsx',
+    'RuleGroupCard.tsx',
+    'SourceNote.tsx',
+    'RecsPanel.tsx',
+    'TestsPanel.tsx',
+  ];
+  check(
+    '30-1 QaLab 拆 7 组件齐活（src/app/qa/，QaLab 只剩状态机与编排）',
+    files.every((f) => fs.existsSync(path.resolve(qaDir, f)))
+      && !/function (HardPanel|SemanticPanel|CommitteePanel|RecsPanel|TestsPanel)\b/.test(qa('QaLab.tsx')),
+    '组件没拆出去 = 单文件继续膨胀；旧面板函数还留在 QaLab 里 = 假拆'
+  );
+  const fv = qa('FindingsView.tsx');
+  check(
+    '30-2 两视图对账是页面的一部分：crossCheck 逐档比对 + 打架上墙（不只测试里）',
+    /export function crossCheck/.test(fv)
+      && /两视图对账/.test(fv)
+      && /mismatches\.map/.test(fv)
+      && /≠/.test(fv),
+    '对账只活在测试里 = 用户看到的还是打架的页面'
+  );
+  const fr = qa('FindingRow.tsx');
+  check(
+    '30-3 静态 finding 六段详情固定顺序齐活 + 复制降级（file:// 不给必失败按钮）',
+    /① 问题是什么/.test(fr)
+      && /② 在哪/.test(fr)
+      && /③ 违反了哪条/.test(fr)
+      && /④ 依据出处/.test(fr)
+      && /⑤ 不修的后果/.test(fr)
+      && /⑥ 正例（规则库自带）/.test(fr)
+      && /file:/.test(fr)
+      && /禁写剪贴板/.test(fr),
+    '六段缺段 / file:// 下塞一个点了必失败的复制按钮 = 验收⑤落空'
+  );
+  const bc = qa('BoundaryCard.tsx');
+  check(
+    '30-4 规则库账 + 黄条 + 一键 reload（意见 9 落地：已变更未重载必须可见可执行）',
+    /filesNewestMtime/.test(bc)
+      && /loadedAt/.test(bc)
+      && /规则库文件已变更但未重载/.test(bc)
+      && /rulesReload\(\)/.test(bc)
+      && /versionBefore/.test(bc),
+    '黄条没了 = 「明天用新规则」退回空头承诺'
+  );
+  check(
+    '30-5 v1 fallback 纪律：缺键渲染人话，不许渲染成 0 或空白',
+    /这份报告没带「按规则」聚合数据/.test(fv)
+      && /这份报告没带规则库账/.test(bc)
+      && /这份报告没带规则快照/.test(fr),
+    '缺键渲染成 0 = 把「没数据」说成「没违规」（措辞层第 4 条铁律）'
+  );
+}
+
 zipChecks().then(() => {
   profileChecks();
   startupChecks();
   archMergeChecks();
   qaContractChecks();
+  qaFrontendChecks();
   process.exit(finish('project'));
 });
