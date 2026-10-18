@@ -245,6 +245,18 @@ public class ProjectController {
         if (repo == null) return ApiResponse.fail("NOT_FOUND", "缓存不存在：" + safe(id));
         try {
             ObjectNode report = autopsy.inspect(SourceResolver.fromPath(repo.toString()));
+            // 内容级指纹戳（工坊棒3）：L1 复用判据的比对锚点。留档时把「这次体检
+            // 对着哪份缓存内容」钉进报告 —— 前端拿它与注册表当前 cache.fingerprint
+            // 比对，相等才许复用；旧留档没有戳 → 前端照实说「无法内容级校验」并真扫。
+            // 不盖章的话，「缓存换过内容」与「报告还是那份」在页面上长得一模一样。
+            String cacheFingerprint = null;
+            ObjectNode entry = registry.find(id).orElse(null);
+            if (entry != null && entry.has("cache") && entry.get("cache").has("fingerprint")
+                    && !entry.get("cache").get("fingerprint").isNull()) {
+                cacheFingerprint = entry.get("cache").get("fingerprint").asText();
+            }
+            report.put("cacheFingerprint", cacheFingerprint);
+            report.put("checkedAt", nowIso());
             store.writeCheckup(id, report);
             return ApiResponse.ok(report);
         } catch (Exception e) {
