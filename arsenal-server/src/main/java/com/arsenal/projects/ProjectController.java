@@ -52,11 +52,15 @@ public class ProjectController {
     public ProjectController(
             @Value("${arsenal.projects.dir:}") String ymlDir,
             ObjectMapper mapper,
+            ProjectRegistry registry,
+            ProjectCache cache,
             ProjectScanner scanner,
             AutopsyService autopsy) {
+        // registry / cache 走共享 bean（ProjectBeans，工坊棒4）：QA 侧也要读注册表与缓存根，
+        // 各自 new 会造成两个内存快照互相覆盖（lastJobId 写丢、注册项被旧列表冲掉）。
         Path root = ProjectPaths.resolveRoot(ymlDir);
-        this.registry = new ProjectRegistry(root, mapper);
-        this.cache = new ProjectCache(root, mapper);
+        this.registry = registry;
+        this.cache = cache;
         this.store = new ProjectStore(root, mapper);
         this.scanner = scanner;
         this.autopsy = autopsy;

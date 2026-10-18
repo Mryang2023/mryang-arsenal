@@ -88,6 +88,10 @@ public class QaService {
     private final TwinAsk twin;
     /** 静态层 facts 的唯一出处 —— 问诊的静态层也走它，不自己拼一份。 */
     private final com.arsenal.scan.ProjectScanner scanner;
+    /** 项目注册表（工坊棒4）：submit 收 projectId 时按它解析缓存根。共享 bean，勿 new。 */
+    private final com.arsenal.projects.ProjectRegistry registry;
+    /** 项目缓存根解析（工坊棒4）：深检读缓存而不是每请求现 clone。 */
+    private final com.arsenal.projects.ProjectCache projectCache;
     /** 本地 maven 仓库 —— 编译与跑复现测试都要它。找不到就如实说「没跑」。 */
     private final Path m2Repo;
 
@@ -97,6 +101,8 @@ public class QaService {
     public QaService(AutopsyService autopsy, RuleIndex index, ObjectMapper mapper,
                      LlmClient llm, SemanticJudge judge, ReproService repro, CommitteeJudge committee,
                      TwinAsk twin, com.arsenal.scan.ProjectScanner scanner,
+                     com.arsenal.projects.ProjectRegistry registry,
+                     com.arsenal.projects.ProjectCache projectCache,
                      @Value("${arsenal.qa.data-dir:../.data/qa}") String dataDir,
                      @Value("${arsenal.qa.pool-size:2}") int poolSize,
                      @Value("${arsenal.m2.repo:}") String m2RepoEnv) {
@@ -109,6 +115,8 @@ public class QaService {
         this.committee = committee;
         this.twin = twin;
         this.scanner = scanner;
+        this.registry = registry;
+        this.projectCache = projectCache;
         this.baseDir = Path.of(dataDir).toAbsolutePath().normalize();
         this.poolSize = Math.max(1, poolSize);
         // 与 AutopsyController#m2Repo 同一个口径：env 优先，否则 ~/.m2/repository。
@@ -171,6 +179,36 @@ public class QaService {
      * submit 必须秒回，这正是本功能与同步 /api/autopsy 的分工。
      */
     public ObjectNode submit(JsonNode body) {
+        // ── 工坊棒4：收 projectId（新增路）——深检读项目缓存根，不碰源头 ──
+        // 口径（计划 §3.4）：传 projectId 时 CLONING 段退场，job 直接从 SCANNING 起（fromPath
+        // 打开缓存目录是毫秒级，照常走完 CLONING 段但不 clone）。git 项目的注册表 source.value
+        // 是脱敏值，重新 clone 会失败 —— 所以有缓存就必须读缓存，这是语义而不是妥协。
+        String pidInput = body == null ? "" : body.path("projectId").asText("");
+        if (!pidInput.isBlank()) {
+            String pid = safeSegment(pidInput.trim());
+            if (registry.find(pid).isEmpty()) {
+                throw new IllegalArgumentException(
+                        "projectId 不在项目注册表里：" + pid + " —— 先到「项目管理」添加并摄取该项目");
+            }
+            Path cacheRoot = projectCache.resolve(pid); // 缓存不存在时回 null（契约如此）
+            if (cacheRoot == null || !Files.isDirectory(cacheRoot)) {
+                throw new IllegalArgumentException(
+                        "该项目的代码缓存不在了：" + pid + " —— 到「项目管理」重新摄取后再审查");
+            }
+            String jobId = UUID.randomUUID().toString().replace("-", "").substring(0, 16);
+            // projectId 用注册表 id（= 源地址统一算法的结果），kind 记 path：缓存根就是本地目录
+            QaJob job = new QaJob(jobId, pid, "path", cacheRoot.toString(),
+                    QaRange.fromJson(body.get("range")), body.path("deepCheck").asBoolean(false));
+            jobs.put(jobId, job);
+            persistJob(job);
+            executor.submit(() -> run(job));
+            ObjectNode out = mapper.createObjectNode();
+            out.put("jobId", jobId);
+            out.put("projectId", pid);
+            out.put("status", job.status());
+            return out;
+        }
+        // ── source 老路：逐字节不变（/archify、CLI、临时地址调用方不受伤）──
         JsonNode source = body == null ? null : body.get("source");
         if (source == null || !source.isObject()) {
             throw new IllegalArgumentException(

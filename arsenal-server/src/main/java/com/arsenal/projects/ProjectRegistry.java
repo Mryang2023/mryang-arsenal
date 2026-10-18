@@ -83,6 +83,25 @@ public final class ProjectRegistry {
         add(entry);
     }
 
+    /**
+     * QA submit 后回写 {@code lastJobId}（工坊棒4）——「切走再回来续跑」的唯一线索。
+     *
+     * <p>项目不在注册表里就静默跳过：QA 的 source 老路（/archify、CLI、临时地址）没有
+     * 注册项，那是正常形态不是错误。只在真找到条目时才 {@code saveAtomic}，不无谓重写盘。
+     */
+    public synchronized void touchLastJob(String projectId, String jobId) {
+        if (projectId == null || projectId.isBlank() || jobId == null || jobId.isBlank()) {
+            return;
+        }
+        for (ObjectNode e : entries) {
+            if (projectId.equals(e.path("id").asText(""))) {
+                e.put("lastJobId", jobId);
+                saveAtomic();
+                return;
+            }
+        }
+    }
+
     // ─────────────────────────────────────────────────────────────
     // 落盘
     // ─────────────────────────────────────────────────────────────

@@ -23,9 +23,12 @@ import org.springframework.web.bind.annotation.RestController;
 public class QaController {
 
     private final QaService qa;
+    /** 注册表（工坊棒4，共享 bean）：submit 成功后回写 lastJobId ——「切走再回来续跑」的唯一线索。 */
+    private final com.arsenal.projects.ProjectRegistry registry;
 
-    public QaController(QaService qa) {
+    public QaController(QaService qa, com.arsenal.projects.ProjectRegistry registry) {
         this.qa = qa;
+        this.registry = registry;
     }
 
     /**
@@ -58,7 +61,10 @@ public class QaController {
      */
     @PostMapping("/submit")
     public ApiResponse<JsonNode> submit(@RequestBody JsonNode body) {
-        return ApiResponse.ok(qa.submit(body));
+        JsonNode out = qa.submit(body);
+        // 工坊棒4：lastJobId 回写。项目不在注册表（source 老路）时 touchLastJob 静默跳过。
+        registry.touchLastJob(out.path("projectId").asText(""), out.path("jobId").asText(""));
+        return ApiResponse.ok(out);
     }
 
     /** Job 状态与 4 段进度（轮询用）。 */

@@ -1114,6 +1114,33 @@ export async function qaSubmit(
   return readQa<QaSubmitResult>(res);
 }
 
+/**
+ * 受理一次深检（工坊棒4：按当前项目）。请求体带 projectId，后端从注册表解析
+ * 缓存根 —— 深检读缓存而不是每请求现 clone，与侦察/体检同一份代码。
+ */
+export async function qaSubmitProject(
+  projectId: string,
+  range: QaRange,
+  deepCheck: boolean
+): Promise<QaOutcome<QaSubmitResult>> {
+  const base = arsenalApiBase();
+  let res: Response;
+  try {
+    res = await fetchWithTimeout(
+      `${base}/api/qa/submit`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ projectId, range, deepCheck }),
+      },
+      QA_TIMEOUT_MS
+    );
+  } catch (e) {
+    return { kind: 'offline', message: offlineMessage(e) };
+  }
+  return readQa<QaSubmitResult>(res);
+}
+
 /** 轮询 job 状态。单次失败不掐断轮询 —— 返回 rejected 由调用方决定停不停 */
 export async function qaJob(jobId: string): Promise<QaOutcome<QaJobNode>> {
   const base = arsenalApiBase();
