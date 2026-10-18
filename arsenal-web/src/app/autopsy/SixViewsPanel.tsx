@@ -138,6 +138,7 @@ export default function SixViewsPanel({
           <p className="mt-1 text-[10.5px] leading-[15px] text-fgMuted">
             这是扫描草稿，不是成品档案：带「TODO 」前缀的条目是代码里读不到的东西（业务定位、消费方、非目标、路线图）。
             数字全部来自扫描事实，没有一个是估的。
+            草稿替代不了手写档案 —— 完整度取决于你补不补这些 TODO；这里只保证补的地方亮出来，没补的不装成补了。
           </p>
           {todosOpen && draft.todos.length > 0 && (
             <ul className="mt-1.5 max-h-[180px] space-y-0.5 overflow-y-auto border-t border-line pt-1.5">

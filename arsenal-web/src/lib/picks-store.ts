@@ -4,9 +4,11 @@ import { emptyMeta, normalizePicks, toPickDetails, type StackPicksMeta } from '@
 /**
  * 装配台选型的跨页共享。
  *
- * 装配台是选型的唯一属主；架构图谱页只读 —— 从 localStorage 取最近一次
- * 选型快照。静态导出没有全局状态容器，localStorage 就是最低限度的总线：
- * 装配台每次变更写入，架构图谱挂载时读取一次（同一次会话内导航必然
+ * 装配台是选型的唯一属主；原「架构图谱」页只读 —— 从 localStorage 取最近一次
+ * 选型快照（该页 2026-10-17 随 /arch 退役：画布搬进 /autopsy 后选型改由扫描传入，
+ * TechArch 的不传 props 兼容路径仍从总线读，当前无宿主走这条路）。
+ * 静态导出没有全局状态容器，localStorage 就是最低限度的总线：
+ * 装配台每次变更写入，读取方挂载时读取一次（同一次会话内导航必然
  * 读到刚写入的值），跨页签靠 storage 事件兜底。
  *
  * ── 两条通道分两个键（扩展自集群形态那一版） ──

@@ -885,7 +885,8 @@ export default function AutopsyLab() {
                       <span className="text-fgMuted">
                         这张图来自<span className="text-fg">项目缓存扫描</span>（{artifacts.facts.root}）——
                         不是装配台选型快照。副本数读自部署清单，读不到就不画徽章、不兜底 1；
-                        拖动与改名只影响这张交付图，不改扫描结论。
+                        拖动、改名、加节点、加连线都只影响这张交付图，不改扫描结论 ——
+                        选型判定仍归扫描与装配台。
                       </span>
                     </p>
                   }

@@ -153,8 +153,10 @@ export default function TechArch({
    */
   irOverride?: { ir: ArchifyIr; issues: string[]; name: string };
 }) {
-  // 装配台传选型进来；架构图谱页不传 —— 读 localStorage 里的最新快照，
+  // 宿主传选型进来；不传 = 兼容路径 —— 读 localStorage 里的最新快照，
   // 在装配台改选型，这里挂载时自动跟上。没有快照（首次访问）回落 standard 预设。
+  // （原「架构图谱」页是唯一不传 props 的宿主，2026-10-17 随 /arch 退役；
+  //   现在 /autopsy 画布传扫描选型，这条兼容路径暂无宿主，保留不删。）
   const [storedPicks, setStoredPicks] = useState<StackPicks | null>(null);
   /**
    * 形态与参数。**必须和选型一起读** —— 只读选型的话，装配台上把数据库切成
