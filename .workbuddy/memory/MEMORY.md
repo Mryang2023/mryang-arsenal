@@ -4,7 +4,8 @@
 
 ## 口径
 
-- 后端 arsenal-server Boot 3.2.5 : **3011**；前端 arsenal-web Next.js 14 : **3010**（`output:'export'`）。
+- 后端 arsenal-server Boot **4.1.1** : **3011**；前端 arsenal-web Next.js 14 : **3010**（`output:'export'`）。
+- **（10-18）工坊 projects 目录三档**：env `ARSENAL_PROJECTS_DIR` > yml `arsenal.projects-dir`（kebab，`ProjectPaths.resolveRoot` 里 System.getenv 保证 env 优先）> 默认 `D:/arsenal-projects-cache`（**仓库外**，10-18 起；曾是 DEFAULT_DIR `.data/projects` 相对进程 cwd，IDEA 跑仓库根时缓存落仓库内触发 BAD_SOURCE）。⚠ **`@Value` 不做 relaxed binding**：yml kebab 键必须 kebab 查（`${arsenal.projects-dir:}`），点分查静默查不到——该键曾因此从上线起整层失效（ProjectBeans javadoc 记着）。
 - 事实源：`arsenal-rules/**`（69 条）、`arsenal-cookbook/`、`arsenal-cases/`（9 场景/67 切片/193 锚点）、`arsenal-stacks/*.json`、`arsenal-icons/`。
 - 蓝图三层：技术→场景→方案，路由 `/blueprints/[topic]/[scenario]` 动态。案例 L1 目录页（`CASE_GROUPS` 唯一维护点）；L2 空壳 HTML 是既有设计；L3 实测必须真；`playground[]` 纯 JDK。
 - 选型台 **33 维/127 选项/6 预设**；装配台三段十步向导：software ①定义②基底③主题框架(19 维唯一选型处)④校核台 / frontend-env ⑤前端⑥环境⑦模块 / delivery-run ⑧交付运行⑨部署形态⑩交付；`stepOfDim` 唯一归属出处。
