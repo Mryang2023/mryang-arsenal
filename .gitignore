@@ -38,6 +38,9 @@ arsenal-web/.verify/_b_*.mjs
 #    测试工程师（/qa）的 job 状态与报告快照同规矩：默认落仓库根 .data/qa/，
 #    三档目录可被 arsenal.json / env ARSENAL_QA_DIR 覆盖，ignore 口径同上带 **/ 前缀。
 **/.data/qa/
+#    项目工坊（工坊棒1）的注册表 + 代码缓存同规矩：默认落仓库根 .data/projects/，
+#    三档目录可被 arsenal.json#project.projectsDir / env ARSENAL_PROJECTS_DIR 覆盖，ignore 口径同上带 **/ 前缀。
+**/.data/projects/
 
 # ── 示例导出包：装配台随时可重新导出，不占仓库 ────────────────
 arsenal-demo-*.zip

@@ -16,6 +16,8 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import url from 'node:url';
+import { createHash } from 'node:crypto';
+import { projectIdOf, sha256hex } from '../scripts/lib/autopsy-snapshot-shape.mjs';
 import { auditArchitecture, arch } from '@/lib/arch';
 import { defaultPicks, dimensions, presetPicks, presets } from '@/lib/stack';
 import { buildExportPlan, projectDoc, renderAppClass, renderTreeText, treeFromFiles, type TreeNode } from '@/lib/project';
@@ -3856,5 +3858,68 @@ zipChecks().then(() => {
   archMergeChecks();
   qaContractChecks();
   qaFrontendChecks();
+  projectIdsParityChecks();
   process.exit(finish('project'));
 });
+
+// ═══════════════════════════════════════════════════════════════
+// 【31】统一 projectId：Node 与后端逐字节一致（治「两套算法对不上」暗伤）
+// ═══════════════════════════════════════════════════════════════
+function projectIdsParityChecks() {
+  console.log('\n【31】统一 projectId：Node 与后端（ProjectIds）逐字节一致');
+  const strip = (s: string) => s.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^[ \t]*\/\/.*$/gm, '');
+  const serverRoot = path.resolve(here, '../../arsenal-server/src/main/java/com/arsenal');
+  const projectIdsSrc = strip(fs.readFileSync(path.join(serverRoot, 'projects/ProjectIds.java'), 'utf8'));
+  const qaServiceSrc = strip(fs.readFileSync(path.join(serverRoot, 'qa/QaService.java'), 'utf8'));
+
+  // 固定向量：规范化 = kind + ":" + value.trim().replace('\\','/').replaceAll("/+$","")
+  // 后端用 MessageDigest SHA-256，与 node:crypto 输出逐字节一致（标准算法）。
+  const vectors: Array<[string, string]> = [
+    ['path', 'D:/work/order-service'],
+    ['git', 'https://github.com/foo/bar.git'],
+    ['path', '  ./local/ '],
+    ['git', 'https://u:token@github.com/secret/repo.git'],
+    ['path', 'C:\\\\projects\\\\demo'],
+    ['path', '/home/user/proj/'],
+    ['path', '/home/user/proj//'],
+  ];
+  let allMatch = true;
+  for (const [kind, value] of vectors) {
+    const got = projectIdOf(kind, value);
+    const norm = `${kind}:${value.trim().replace(/\\/g, '/').replace(/\/+$/, '')}`;
+    const ref = createHash('sha256').update(Buffer.from(norm, 'utf8')).digest('hex').slice(0, 12);
+    if (got !== ref) allMatch = false;
+  }
+  check(
+    '31-1 Node projectIdOf 与 SHA-256 前 12 位逐字节一致（固定向量对拍，含尾斜杠归一与大小写反例）',
+    allMatch,
+    'Node 与后端算法不一致 = 缓存目录 <id>/ 与 QA 历史 <id>/ 永远对不上'
+  );
+
+  // 反例：差一个字符必须得到不同 id（断言「判据方向没写反」：用了不同输入确实会变）
+  const a = projectIdOf('path', 'D:/work/order-service');
+  const b = projectIdOf('path', 'D:/work/order-servicE');
+  check(
+    '31-2 反例：kind+value 差一个字符 → 不同 id（防止「算两份」各算各的都恰好撞上）',
+    a !== b,
+    '单字符差异都得同 id = 算法退化为常量，两套系统照样对不上'
+  );
+
+  // 后端源码断言：ProjectIds 用 SHA-256 + HexFormat 取前 12 位
+  check(
+    '31-3 后端 ProjectIds.projectIdOf 用 SHA-256 + HexFormat 取前 12 位（单一事实源）',
+    /MessageDigest\.getInstance\("SHA-256"\)/.test(projectIdsSrc)
+      && /formatHex\(d\)\.substring\(0, 12\)/.test(projectIdsSrc)
+      && /public static String projectIdOf/.test(projectIdsSrc),
+    '后端算法写成别的形式 = 与 Node 对拍向量会漂移'
+  );
+
+  // QaService 必须委托，不再自带第二份算法
+  const delegates = /return ProjectIds\.projectIdOf\(kind, ref\);/.test(qaServiceSrc);
+  const hasOwnSha = /MessageDigest\.getInstance\("SHA-256"\)/.test(qaServiceSrc);
+  check(
+    '31-4 QaService.projectIdOf 委托给 ProjectIds（单一事实源，无第二份 sha256 副本）',
+    delegates && !hasOwnSha,
+    'QaService 里还藏着一份 sha256 = 两套算法迟早漂移'
+  );
+}

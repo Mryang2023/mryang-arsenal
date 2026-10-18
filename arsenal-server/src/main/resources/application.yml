@@ -30,6 +30,11 @@ arsenal:
     # 单次请求允许扫描的总字节上限，防止一个请求把内存打满
     max-scan-bytes: 2097152
 
+  # 项目工坊（工坊棒1）：注册表 + 代码缓存根目录。
+  # 三档（照 charter-dir.mjs 先例）：env ARSENAL_PROJECTS_DIR > 此值 > 默认 .data/projects
+  # 默认落仓库根 .data/projects/（与 .data/qa 同规矩：别的项目的资料不入库）
+  projects-dir: ${ARSENAL_PROJECTS_DIR:../.data/projects}
+
   # 通用绘图器（Archify / 扳手AI.Archify）—— 选型 IR 的第二个渲染出口。
   # 版式引擎是别人那套 Node 渲染器，不在本仓库里；这里是「页面里点一下出图」需要的那个 Node 环境。
   # 装不装它都不影响军火库其它功能：没装时接口如实报不可用，页面回落到「下载 IR JSON」。

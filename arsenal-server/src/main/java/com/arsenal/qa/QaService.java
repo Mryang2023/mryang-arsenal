@@ -4,6 +4,7 @@ import com.arsenal.autopsy.AutopsyService;
 import com.arsenal.domain.Rule;
 import com.arsenal.domain.RulesetMeta;
 import com.arsenal.loader.RuleIndex;
+import com.arsenal.projects.ProjectIds;
 import com.arsenal.scan.ScanGuard;
 import com.arsenal.scan.SourceResolver;
 import tools.jackson.databind.JsonNode;
@@ -962,15 +963,9 @@ public class QaService {
         return job;
     }
 
-    /** projectId = sha256(kind + ":" + 规范化 ref) 前 12 位 —— 同一地址重启后仍对得上历史。 */
+    /** projectId = sha256(kind + ":" + 规范化 ref) 前 12 位 —— 委托全仓唯一实现 com.arsenal.projects.ProjectIds。 */
     static String projectIdOf(String kind, String ref) {
-        String normalized = kind + ":" + ref.trim().replace('\\', '/').replaceAll("/+$", "");
-        try {
-            byte[] d = MessageDigest.getInstance("SHA-256").digest(normalized.getBytes(StandardCharsets.UTF_8));
-            return HexFormat.of().formatHex(d).substring(0, 12);
-        } catch (Exception e) {
-            throw new IllegalStateException(e); // JDK 必有 SHA-256
-        }
+        return ProjectIds.projectIdOf(kind, ref);
     }
 
     /** projectId 参与拼路径，先回炉当外部输入消毒（防有人手拼 ../）。 */
