@@ -1,4 +1,4 @@
-ar#!/usr/bin/env bash
+#!/usr/bin/env bash
 #
 # arsenal-server 本地启动（无需 Maven）
 #
@@ -91,6 +91,13 @@ DEPS=(
   "org/apache/tomcat/embed/tomcat-embed-core:11.0.24:tomcat-embed-core"
   "org/apache/tomcat/embed/tomcat-embed-el:11.0.24:tomcat-embed-el"
   "org/apache/tomcat/embed/tomcat-embed-websocket:11.0.24:tomcat-embed-websocket"
+  # Boot 4 把 servlet web server 抽象拆成了独立 artifact：ServletWebServerFactory
+  # 只在 spring-boot-web-server / spring-boot-tomcat 里（实测全 .m2 只有这两个 jar 有）。
+  # 漏了它们：WebMvc Deducer 三判据全在场 → 推断 SERVLET，但自动配置条件类缺失 →
+  # 静默不建 web server → 应用「Started」后无保活线程、code=0 退出，端口从不监听。
+  # 2026-10-18 冒烟测试实测：表象是「java 在 harness 里常驻不了」，真相是类路径缺件。
+  "org/springframework/boot/spring-boot-web-server:4.1.1:spring-boot-web-server"
+  "org/springframework/boot/spring-boot-tomcat:4.1.1:spring-boot-tomcat"
 )
 
 CP=""
