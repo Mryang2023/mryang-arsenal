@@ -109,21 +109,27 @@ public final class ProjectCache {
 
                 @Override
                 public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) {
+                    Path rel = source.relativize(file);
                     if (++count[0] > ScanGuard.MAX_FILES) {
-                        throw new ProjectIngestException("文件数超过上限 " + ScanGuard.MAX_FILES);
+                        throw new ProjectIngestException("文件数超过上限 " + ScanGuard.MAX_FILES
+                                + "（第 " + count[0] + "个：" + rel + "）");
                     }
                     long size = attrs.size();
                     if (size > ScanGuard.MAX_FILE_BYTES) {
-                        throw new ProjectIngestException("单文件超过上限 " + ScanGuard.MAX_FILE_BYTES / 1024 / 1024 + "MB");
+                        throw new ProjectIngestException("单文件超过上限 "
+                                + ScanGuard.MAX_FILE_BYTES / 1024 / 1024 + "MB："
+                                + rel + "（" + size / 1024 / 1024 + "MB）");
                     }
                     total[0] += size;
                     if (total[0] > ScanGuard.MAX_TOTAL_BYTES) {
-                        throw new ProjectIngestException("总大小超过上限 " + ScanGuard.MAX_TOTAL_BYTES / 1024 / 1024 + "MB");
+                        throw new ProjectIngestException("总大小超过上限 "
+                                + ScanGuard.MAX_TOTAL_BYTES / 1024 / 1024 + "MB"
+                                + "（已累计 " + total[0] / 1024 / 1024 + "MB，卡在 " + rel + "）");
                     }
                     if (ScanGuard.depth(source, file) > ScanGuard.MAX_DEPTH) {
-                        throw new ProjectIngestException("目录深度超过上限 " + ScanGuard.MAX_DEPTH);
+                        throw new ProjectIngestException("目录深度超过上限 " + ScanGuard.MAX_DEPTH
+                                + "（" + rel + "）");
                     }
-                    Path rel = source.relativize(file);
                     Path out = repo.resolve(rel.toString());
                     try {
                         Files.createDirectories(out.getParent());

@@ -35,7 +35,7 @@ public final class ScanGuard {
 
     /** 这些目录既大又不包含架构事实，扫它们只会拖慢并放大攻击面 */
     private static final Set<String> SKIP_DIRS = Set.of(
-            ".git", "node_modules", "target", "build", "dist", "out", ".next", ".nuxt",
+            ".git", "node_modules", "target", "build", "dist", "out", ".next", ".next-dev", ".nuxt",
             ".idea", ".vscode", ".gradle", ".mvn", "bin", "obj", "vendor", "__pycache__",
             ".svn", ".hg", "coverage", ".turbo", ".cache");
 

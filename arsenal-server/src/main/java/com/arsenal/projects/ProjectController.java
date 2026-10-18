@@ -51,7 +51,7 @@ public class ProjectController {
     private final ObjectMapper mapper;
 
     public ProjectController(
-            @Value("${arsenal.projects.dir:}") String ymlDir,
+            @Value("${arsenal.projects-dir:}") String ymlDir,
             ObjectMapper mapper,
             ProjectRegistry registry,
             ProjectCache cache,

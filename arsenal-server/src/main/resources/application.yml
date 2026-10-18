@@ -31,9 +31,14 @@ arsenal:
     max-scan-bytes: 2097152
 
   # 项目工坊（工坊棒1）：注册表 + 代码缓存根目录。
-  # 三档（照 charter-dir.mjs 先例）：env ARSENAL_PROJECTS_DIR > 此值 > 默认 .data/projects
-  # 默认落仓库根 .data/projects/（与 .data/qa 同规矩：别的项目的资料不入库）
-  projects-dir: ${ARSENAL_PROJECTS_DIR:../.data/projects}
+  # 2026-10-18：默认值改到仓库外 D:/arsenal-projects-cache —— 曾经默认落 .data/projects/
+  # （相对进程 cwd），用户在仓库根跑服务时缓存落进仓库内，把「军火库仓库自己」添加进工坊
+  # 会被 BAD_SOURCE 拒绝（那正是递归复制事故的结构，见 ProjectCache.requireDisjoint）。
+  # 工坊分析的是别人的项目，资料一律不入军火库自己的 .data。
+  # 注意：此处刻意不写 ${ARSENAL_PROJECTS_DIR:…} 占位符 —— env 优先级由
+  # ProjectPaths.resolveRoot（System.getenv）保证，yml 只兜底；且 @Value 对
+  # kebab 键不做 relaxed binding（见 ProjectBeans javadoc）。
+  projects-dir: D:/arsenal-projects-cache
 
   # 通用绘图器（Archify / 扳手AI.Archify）—— 选型 IR 的第二个渲染出口。
   # 版式引擎是别人那套 Node 渲染器，不在本仓库里；这里是「页面里点一下出图」需要的那个 Node 环境。
