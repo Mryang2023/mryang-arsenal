@@ -45,16 +45,34 @@ if (canStore()) {
 /**
  * 读当前项目。读不到 / 形状不对 → null，永不返回半截对象
  * （半截的当前项目会让界面写出「当前：undefined」这种更像谣言的东西）。
+ *
+ * ★ 快照按原始串缓存（工坊棒3 E2E 抓到的真 bug）：useSyncExternalStore 要求
+ *   getSnapshot 返回**引用稳定**的值 —— 这里每次 parse 都会造新对象，React
+ *   会判「快照变了」无限重渲染（Maximum update depth exceeded），页面直接崩
+ *   （「This page couldn't load」）。只有 active 为 null 时恰好返回同一引用才
+ *   没炸过 —— 所以 /projects 的空态 smoke 一直是绿的，一设当前项目就爆。
+ *   修法：原始串没变就返回上一次 parse 的同一个对象引用。
  */
+let snapRaw: string | null = null;
+let snapVal: ActiveProject | null = null;
+
 export function getActiveProject(): ActiveProject | null {
   if (!canStore()) return null;
   try {
     const raw = window.localStorage.getItem(ACTIVE_KEY);
-    if (!raw) return null;
+    if (raw === snapRaw) return snapVal;
+    if (!raw) {
+      snapRaw = null;
+      snapVal = null;
+      return null;
+    }
     const p = JSON.parse(raw) as Partial<ActiveProject>;
-    if (typeof p.id !== 'string' || !p.id) return null;
-    return { id: p.id, name: typeof p.name === 'string' ? p.name : undefined };
+    snapRaw = raw;
+    snapVal = typeof p.id === 'string' && p.id ? { id: p.id, name: typeof p.name === 'string' ? p.name : undefined } : null;
+    return snapVal;
   } catch {
+    snapRaw = null;
+    snapVal = null;
     return null;
   }
 }

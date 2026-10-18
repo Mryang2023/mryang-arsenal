@@ -155,6 +155,37 @@ export function refreshProject(id: string): Promise<ProjectsOutcome<ProjectDetai
   return call<ProjectDetail>(`/api/projects/${encodeURIComponent(id)}/refresh`, { method: 'POST' });
 }
 
+// ── 侦察 / 体检的服务端留档端点（工坊棒3）──
+//
+// 这五个函数是 /autopsy 页读「按项目留档」的唯一出口：facts 缓存、体检 latest +
+// history、重扫缓存、跑体检。404（NOT_FOUND）不是故障 —— 是「还没扫过 / 还没体检过」
+// 的正常空态，页面据 rejected.code === 'NOT_FOUND' 分辨它，与真失败分开说。
+
+/** 缓存事实。还没扫过 → rejected(NOT_FOUND)（空态，不是故障）。 */
+export function getProjectFacts(id: string): Promise<ProjectsOutcome<unknown>> {
+  return call<unknown>(`/api/projects/${encodeURIComponent(id)}/facts`);
+}
+
+/** 重扫缓存 → 更新 facts 留档，返回 facts。缓存不存在 → rejected(NOT_FOUND)。 */
+export function scanProject(id: string): Promise<ProjectsOutcome<unknown>> {
+  return call<unknown>(`/api/projects/${encodeURIComponent(id)}/scan`, { method: 'POST' });
+}
+
+/** 体检历史摘要列表（无内嵌整报告）。 */
+export function getCheckupHistory(id: string): Promise<ProjectsOutcome<unknown[]>> {
+  return call<unknown[]>(`/api/projects/${encodeURIComponent(id)}/checkups`);
+}
+
+/** 最近一次体检。还没体检过 → rejected(NOT_FOUND)。 */
+export function getCheckupLatest(id: string): Promise<ProjectsOutcome<unknown>> {
+  return call<unknown>(`/api/projects/${encodeURIComponent(id)}/checkups/latest`);
+}
+
+/** 跑一次体检（读缓存）→ 服务端写 latest + history，返回报告。 */
+export function runProjectCheckup(id: string): Promise<ProjectsOutcome<unknown>> {
+  return call<unknown>(`/api/projects/${encodeURIComponent(id)}/checkup`, { method: 'POST' });
+}
+
 /** 删除：摘注册项 + 删缓存 / facts / 体检留档；QA 历史保留。 */
 export function deleteProject(id: string): Promise<ProjectsOutcome<DeleteResult>> {
   return call<DeleteResult>(`/api/projects/${encodeURIComponent(id)}`, { method: 'DELETE' });
