@@ -22,10 +22,14 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import url from 'node:url';
-import { check, finish, knowinglySkipped } from './lib/report';
+import { spawnSync } from 'node:child_process';
+import { check, finish, knowinglySkipped, skipItems } from './lib/report';
 // 静态 import（不用 await import）—— 本仓 tsx 是 cjs 输出，顶层 await 编译失败。
 // 缺文件时是**加载期报错**而不是「静默 undefined」，这比 await 的写法更早暴露问题。
 import { validateCheckups, OPERATOR_VALUE_TYPES, CHECKUP_LEVELS } from '../scripts/lib/validate-checkups.mjs';
+// 摄取安全（【10】）的措辞层判据直接 import 产品代码里的两个文案构造函数 ——
+// 判据与出口是同一份实现，改文案不改判据的漂移在这里当场红。
+import { isAbortError, offlineMessage, timeoutMessage } from '../src/lib/projects-api';
 
 const here = path.dirname(url.fileURLToPath(import.meta.url));
 const webRoot = path.resolve(here, '..');
@@ -355,6 +359,224 @@ section('【8】结构自检：每条判据都真的会红');
   missing((d) => { delete d.rules[0].when; }, 'CHECKUP_REQUIRED_MISSING', '观察项缺 when');
   missing((d) => { d.rules[0].level = 'p0'; }, 'CHECKUP_LEVEL_UNKNOWN', '档位非法');
   missing((d) => { d.rules[0].when.fact = '  '; }, 'CHECKUP_FACT_BLANK', 'fact 空白');
+}
+
+// ═══════════════════════════════════════════════════════════════
+// 【10】工坊棒4：摄取安全回归（2026-10-18 递归复制事故）
+//
+// 事故形态：用户把仓库根当源添加 → 缓存落点（.data/projects/<id>/repo）
+// 就在源里面 → 遍历 descend 进自己正在写的产物 → 3872 层空目录天梯 →
+// 前端 15 秒 abort → 页面说「连不上后端」（假话：后端一直在埋头建目录）。
+//
+// 三条修复各配一组判据：源码写法（stripComments 后）+ 探针实跑（真删真拒）
+// + 前端措辞（超时与连不上必须说两句不同的话）。探针跑不起来就照实说
+// 「没跑」，不装作通过 —— 与第 9 节同一条规矩。
+section('【10】工坊棒4：摄取安全（递归复制 / 回滚 / 措辞）');
+{
+  const PC = path.join(serverRoot, 'src/main/java/com/arsenal/projects/ProjectCache.java');
+  const CTRL = path.join(serverRoot, 'src/main/java/com/arsenal/projects/ProjectController.java');
+  const strip = (s: string) =>
+    s.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^[ \t]*\/\/.*$/gm, '');
+  const pc = strip(read(PC));
+  const ctrl = strip(read(CTRL));
+
+  // ── 10-A 源码写法 ──
+  check(
+    'ProjectCache 用 walkFileTree + SKIP_SUBTREE 剪枝（不是 Files.walk + continue）',
+    pc.includes('walkFileTree') && pc.includes('SKIP_SUBTREE') && !pc.includes('Files.walk(source)'),
+    'Files.walk + continue 只跳过目录本身那一条记录，不阻止 descend —— node_modules 八千文件吃光配额的同款写法',
+  );
+  check(
+    '摄取侧跳过目录含 .data',
+    /cacheSkipDir[\s\S]{0,200}?\.data/.test(pc) || pc.includes('name.equals(".data")'),
+    '缓存根默认在仓库 .data 下；不跳它，源里的一切缓存/留档都会进项目缓存',
+  );
+  check(
+    'ingestPath 有「落点与源不许重叠」前置校验',
+    pc.includes('requireDisjoint') && /requireDisjoint\(source, target\)/.test(pc),
+    '递归复制的根：落点在源里，遍历会把自己正在写的产物当源头',
+  );
+  check(
+    '摄取失败一律回滚（catch 的是 Exception，不只是 ProjectIngestException）',
+    /catch \(Exception e\)\s*\{\s*deleteQuietly\(target\)/.test(pc) &&
+      !pc.includes('catch (ProjectIngestException'),
+    'IOException 曾经不走回滚分支 —— 「绝不留下半份缓存」这句注释唯一没兑现的路径；' +
+      '只写正例不够：ingestGit 里也有同款 catch，窄化 ingestPath 一处正则照样匹配，必须加反例',
+  );
+  check(
+    '删除有「搬了再删」第二遍（长路径删除被内核拦时的退路）',
+    pc.includes('deleteByMove') && pc.includes('Files.move(e, temp)'),
+    '本机实测：>260 路径的删除被内核一律拒绝（DeleteFileW err=5），改名却通',
+  );
+  check(
+    'ProjectController 把重叠校验的失败落成 BAD_SOURCE（不被 Exception 吞成 SOURCE_UNREACHABLE）',
+    ctrl.includes('"BAD_SOURCE"'),
+    'SOURCE_UNREACHABLE 的意思是「源头不可达」，而实际是源头选错了 —— 排查方向整个反了',
+  );
+
+  // ── 10-B 前端措辞层（独立出口，单独配断言）──
+  // 2026-10-18：15 秒 abort 一律报「连不上后端」，用户据此反复重启而后端根本没坏。
+  // 所以判据分两句：超时那句不许出现「连不上」，真连不上那句必须出现。
+  const api = read(path.join(webRoot, 'src/lib/projects-api.ts'));
+  check(
+    '超时文案不说「连不上」、说「没有响应完」',
+    (() => {
+      const m = timeoutMessage(120_000);
+      return m.includes('没有响应完') && m.includes('120') && !m.includes('连不上');
+    })(),
+    '把「后端在忙」说成「后端没起」正是这次事故的文案根因',
+  );
+  check(
+    '真连不上的文案仍然说「连不上后端」',
+    offlineMessage(new Error('boom')).includes('连不上后端'),
+    '拆句不是把两种状态说混，是该说连不上的时候仍然说',
+  );
+  check(
+    'abort 与网络错误分辨得开（AbortError/TimeoutError → 超时文案）',
+    (() => {
+      const abort = Object.assign(new Error('signal is aborted without reason'), { name: 'AbortError' });
+      const refused = new TypeError('Failed to fetch');
+      return isAbortError(abort) && !isAbortError(refused);
+    })(),
+    '浏览器 abort 是 DOMException(AbortError)，连接被拒是 TypeError —— 名字不一样，分支才成立',
+  );
+  check(
+    'addProject 用更长的摄取超时（INGEST_TIMEOUT_MS，不是共用的 15 秒）',
+    /INGEST_TIMEOUT_MS/.test(api) && /call<ProjectEntry>\('\/api\/projects'[\s\S]{0,240}INGEST_TIMEOUT_MS/.test(api),
+    '摄取要整树复制源码，15 秒远远不够；与 autopsy 层「前端等待要比后端墙钟宽」同思路',
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════
+// 【11】摄取探针实跑（后端编译 + Java 探针，四组行为判据）
+//
+// 源码断言看得见写法，看不见行为 —— 剪枝有没有真的发生、重叠有没有真的被拒、
+// 深树有没有真的删掉，只有真跑才知道。跑不起来（bash 被瞬时拒绝 / 编译失败）
+// 就照实说没跑，不装作通过。
+section('【11】摄取探针：gate / overlap / quota / delete-deep 真跑');
+{
+  const probeScript = path.join(serverRoot, 'scripts', 'projects-probe.sh');
+  const workDir = path.join(here, 'tmp', 'projects');
+  const PC = path.join(serverRoot, 'src/main/java/com/arsenal/projects/ProjectCache.java');
+  const pc = read(PC).replace(/\/\*[\s\S]*?\*\//g, '').replace(/^[ \t]*\/\/.*$/gm, '');
+
+  // 探 bash：EBUSY/EAGAIN/EPERM 是瞬时态，重试 3 次再判（与 scan-check 同一条教训：
+  // 把「本环境瞬时拒绝了 spawn」写成「bash 不可用」会让整组判据变成没跑过）
+  const probeBash = (attempts = 3): { ok: boolean; detail: string } => {
+    let detail = '';
+    for (let i = 0; i < attempts; i++) {
+      const r = spawnSync('bash', ['--version'], { encoding: 'utf8' });
+      if (r.status === 0) return { ok: true, detail: '' };
+      detail = (r.error as NodeJS.ErrnoException | undefined)?.code || `status=${r.status}`;
+      if (detail !== 'EBUSY' && detail !== 'EAGAIN' && detail !== 'EPERM') {
+        return { ok: false, detail };
+      }
+    }
+    return { ok: false, detail };
+  };
+
+  const bashOk = probeBash().ok;
+  const hasProbe = fs.existsSync(probeScript);
+  if (!bashOk || !hasProbe) {
+    // 走 skipItems 而不是 knowinglySkipped：这 7 条是「环境好了就能跑」，
+    // 记成未执行（进 skip 计数，退出码 2），账才平 —— 记账不平比跳过更脏。
+    skipItems(
+      '【11】摄取探针 7 条：bash 不可用或探针脚本缺失',
+      !bashOk
+        ? '连续 3 次 spawn bash 都被本环境拒绝 —— 这不是「bash 不可用」，是这一组一次都没能起跑'
+        : `探针脚本不存在：${probeScript}`,
+      7,
+    );
+  } else {
+    fs.mkdirSync(workDir, { recursive: true });
+    const outFile = path.join(workDir, 'probe.json');
+    const win = (p: string) => p.replace(/\\/g, '/');
+    // 陈旧回执防线：探针编译失败（脚本 exit 1）时不会写新 JSON，盘上会留着
+    // 上一轮的回执 —— 不删就被这一轮读到，「没跑」伪装成「跑了」。
+    // 2026-10-18 实测过一次：注入让 javac 报错，删除探针的绿全是陈旧回执喂的。
+    fs.rmSync(outFile, { force: true });
+    const res = spawnSync(
+      'bash',
+      [
+        win(probeScript),
+        win(outFile),
+        `gate:${win(path.join(workDir, 'work-gate'))}`,
+        `overlap:${win(path.join(workDir, 'work-overlap'))}`,
+        `quota:${win(path.join(workDir, 'work-quota'))}`,
+        `delete-deep:${win(path.join(workDir, 'work-delete'))}`,
+      ],
+      { cwd: serverRoot, encoding: 'utf8', timeout: 300_000 },
+    );
+
+    type Receipt = {
+      action: string;
+      ok: boolean;
+      message?: string;
+      files?: number;
+      rels?: string[];
+      hasData?: boolean;
+      hasNodeModules?: boolean;
+      hasGit?: boolean;
+      fixtureHadData?: boolean;
+      fixtureHadNodeModules?: boolean;
+      fixtureHadGit?: boolean;
+      targetLeft?: boolean;
+      maxPathLen?: number;
+      before?: boolean;
+      after?: boolean;
+    };
+    let receipts: Receipt[] = [];
+    try {
+      receipts = JSON.parse(fs.readFileSync(outFile, 'utf8')) as Receipt[];
+    } catch {
+      receipts = [];
+    }
+    const by = (verb: string) => receipts.find((r) => r.action.startsWith(verb + ':'));
+
+    if (receipts.length === 0) {
+      check('摄取探针跑出了回执', false, `探针没产出 JSON（status=${res.status}）：${(res.stderr || '').slice(0, 200)}`);
+    } else {
+      const gate = by('gate');
+      check(
+        'gate：.data / node_modules / .git 被剪枝，manifest 只剩真源码',
+        !!gate?.ok && gate.files === 2 && [...(gate.rels ?? [])].sort().join(',') === 'Top.java,pkg/Deep.java',
+        `files=${gate?.files} rels=${JSON.stringify(gate?.rels)}`,
+      );
+      check(
+        'gate：夹具确实建了那三类目录（判据不是白跑）',
+        !!gate?.fixtureHadData && !!gate?.fixtureHadNodeModules && !!gate?.fixtureHadGit,
+        '「manifest 里没有」必须搭配「夹具里有」才构成剪枝证据，否则可能只是夹具从来没有',
+      );
+      check(
+        'gate：三类跳过目录一个都不在 manifest 里',
+        !!gate && gate.hasData === false && gate.hasNodeModules === false && gate.hasGit === false,
+        `hasData=${gate?.hasData} hasNodeModules=${gate?.hasNodeModules} hasGit=${gate?.hasGit}`,
+      );
+      const overlap = by('overlap');
+      check(
+        'overlap：源与缓存落点重叠 → 拒绝且不留空目录',
+        !!overlap?.ok && (overlap.message ?? '').includes('重叠') && overlap.targetLeft === false,
+        `message=${(overlap?.message ?? '').slice(0, 120)} targetLeft=${overlap?.targetLeft}`,
+      );
+      const quota = by('quota');
+      check(
+        'quota：单文件超限 → QUOTA 语义拒绝且整份回滚',
+        !!quota?.ok && (quota.message ?? '').includes('单文件超过上限') && quota.targetLeft === false,
+        `message=${(quota?.message ?? '').slice(0, 120)} targetLeft=${quota?.targetLeft}`,
+      );
+      const deep = by('delete-deep');
+      check(
+        'delete-deep：>260 字符的树真被删掉（本机内核拦长路径删除，走「搬了再删」）',
+        !!deep?.ok && (deep.maxPathLen ?? 0) > 260 && deep.before === true && deep.after === false,
+        `maxPathLen=${deep?.maxPathLen} before=${deep?.before} after=${deep?.after}`,
+      );
+      check(
+        'delete-deep：最短也有 512 层深的兜底（collectDeepestFirst 深度上限在）',
+        /depth > 512/.test(pc),
+        '3872 层的天梯教会我们：没有深度上限的递归收集自己会炸',
+      );
+    }
+  }
 }
 
 // ═══════════════════════════════════════════════════════════════
