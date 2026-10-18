@@ -70,10 +70,33 @@ export type ProjectsOutcome<T> =
   /** 后端连不上 —— 不是故障，是静态站的正常形态 */
   | { kind: 'offline'; message: string };
 
-function offlineMessage(e: unknown): string {
+/**
+ * 真连不上（连接被拒 / 网络层错误）。不是故障，是静态站的正常形态。
+ * 与「等超时」是两件事，见 {@link timeoutMessage}。
+ */
+export function offlineMessage(e: unknown): string {
   const base = arsenalApiBase();
   const detail = e instanceof Error ? e.message : String(e);
   return `连不上后端 ${base}（${detail}）。项目工坊整组功能需要后端 :3011 —— 起服务的命令是 bash arsenal-server/scripts/run.sh。`;
+}
+
+/**
+ * 等超时（abort）。**与服务还起着、只是这一步没在 N 秒内跑完**是同一件事，
+ * 与「连不上」完全是两件事。
+ *
+ * 2026-10-18：这一句曾经把两种情况说成同一句话（15 秒 abort 一律报「连不上后端」），
+ * 用户据此判断「后端没起」并反复重启，而实际后端在埋头给「添加项目」做摄取 ——
+ * 措辞层是独立出口，两种状态必须说两句不同的话。
+ */
+export function timeoutMessage(timeoutMs: number): string {
+  const base = arsenalApiBase();
+  const sec = Math.round(timeoutMs / 1000);
+  return `后端 ${base} 超过 ${sec} 秒没有响应完 —— 服务可能还在摄取（添加项目会整树复制源码），也可能请求被拦在了半路。这一步没有结论，稍后重试或看服务端日志。起服务的命令是 bash arsenal-server/scripts/run.sh。`;
+}
+
+/** 是「等超时」还是「真连不上」。浏览器 abort → DOMException(AbortError)；node → TimeoutError。 */
+export function isAbortError(e: unknown): boolean {
+  return e instanceof Error && (e.name === 'AbortError' || e.name === 'TimeoutError' || /abort/i.test(e.message));
 }
 
 async function fetchWithTimeout(url: string, init: RequestInit, timeoutMs: number): Promise<Response> {
@@ -119,15 +142,22 @@ async function readEnvelope<T>(res: Response): Promise<ProjectsOutcome<T>> {
 }
 
 const PROJECTS_TIMEOUT_MS = 15_000;
+/**
+ * 摄取要整树复制源码，慢是常态：单独给 120 秒。
+ * 与 autopsy 层同款思路（前端等待必须比后端墙钟宽）—— 但超时了说
+ * 「没响应完」，不许说「连不上」，见 {@link timeoutMessage}。
+ */
+const INGEST_TIMEOUT_MS = 120_000;
 
-async function call<T>(path: string, init?: RequestInit): Promise<ProjectsOutcome<T>> {
+async function call<T>(path: string, init?: RequestInit, timeoutMs: number = PROJECTS_TIMEOUT_MS): Promise<ProjectsOutcome<T>> {
   const base = arsenalApiBase();
   try {
     return await readEnvelope<T>(
-      await fetchWithTimeout(`${base}${path}`, init ?? {}, PROJECTS_TIMEOUT_MS)
+      await fetchWithTimeout(`${base}${path}`, init ?? {}, timeoutMs)
     );
   } catch (e) {
-    return { kind: 'offline', message: offlineMessage(e) };
+    // 等超时与真连不上说两句不同的话（2026-10-18：合成一句的代价是用户反复重启后端）
+    return { kind: 'offline', message: isAbortError(e) ? timeoutMessage(timeoutMs) : offlineMessage(e) };
   }
 }
 
@@ -136,13 +166,14 @@ export function listProjects(): Promise<ProjectsOutcome<ProjectEntry[]>> {
   return call<ProjectEntry[]>('/api/projects');
 }
 
-/** 加项目 + 摄取缓存。重复 id → CONFLICT（不建第二份）；限额超限 → QUOTA_EXCEEDED（不留半份）。 */
+/** 加项目 + 摄取缓存。重复 id → CONFLICT（不建第二份）；限额超限 → QUOTA_EXCEEDED（不留半份）。
+ *  摄取慢是常态：单独 120 秒超时（{@link INGEST_TIMEOUT_MS}），超时了说「没响应完」不说「连不上」。 */
 export function addProject(input: { name: string; source: ProjectSource }): Promise<ProjectsOutcome<ProjectEntry>> {
   return call<ProjectEntry>('/api/projects', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(input),
-  });
+  }, INGEST_TIMEOUT_MS);
 }
 
 /** 详情 + 新鲜度。项目不在了 → rejected(NOT_FOUND)。 */

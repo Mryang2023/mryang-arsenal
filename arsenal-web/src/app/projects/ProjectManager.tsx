@@ -228,7 +228,7 @@ export default function ProjectManager() {
               onClick={submitAdd}
               className="rounded bg-brass px-4 py-2 text-sm font-medium text-canvas transition-colors hover:opacity-90 disabled:opacity-50"
             >
-              {adding ? '摄取中…' : '摄取并添加'}
+              {adding ? '摄取中（大项目要等，最多 120 秒）…' : '摄取并添加'}
             </button>
           </div>
         )}

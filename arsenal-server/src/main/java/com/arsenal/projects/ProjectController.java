@@ -31,9 +31,10 @@ import java.util.List;
  * 之后扫描 / 体检 / 深检读缓存，不再每请求现 clone（治「慢」的大头，见计划 D4）。
  *
  * <p>错误口径：入参形态错（缺字段 / kind 不认识 / 路径不存在）→ {@link IllegalArgumentException}
- * （由 {@code GlobalExceptionHandler} 落成 400）；业务冲突（重复 id / 限额超限 / 源头不可达）
- * 走 {@link ApiResponse#fail} 的 {@code code} 字段（CONFLICT / QUOTA_EXCEEDED / SOURCE_UNREACHABLE），
- * 与计划书「409 / 400」语义对应 —— 单一信封，调用方按 {@code success} + {@code code} 分支。
+ * （由 {@code GlobalExceptionHandler} 落成 400）；业务冲突（重复 id / 限额超限 / 源头不可达 /
+ * 源与缓存落点重叠）走 {@link ApiResponse#fail} 的 {@code code} 字段（CONFLICT / QUOTA_EXCEEDED /
+ * SOURCE_UNREACHABLE / BAD_SOURCE），与计划书「409 / 400」语义对应 —— 单一信封，调用方按
+ * {@code success} + {@code code} 分支。
  *
  * <p>projectId 算法：一律走 {@link ProjectIds#projectIdOf}（全仓唯一一份），
  * 与既有 QA 的 {@code .data/qa/<id>/} 历史逐字节对齐（暗伤止血）。
@@ -73,7 +74,10 @@ public class ProjectController {
         return ApiResponse.ok(registry.list());
     }
 
-    /** 加项目 + 摄取缓存。重复 id → CONFLICT（不创建第二个）；限额超限 → QUOTA_EXCEEDED（不留半份缓存）。 */
+    /**
+     * 加项目 + 摄取缓存。重复 id → CONFLICT（不创建第二个）；限额超限 → QUOTA_EXCEEDED（不留半份缓存）；
+     * 源与缓存落点重叠 → BAD_SOURCE（2026-10-18：递归自我复制事故的前置拦截）。
+     */
     @PostMapping
     public ApiResponse<ObjectNode> add(@RequestBody JsonNode body) {
         String name = body.path("name").asText("").trim();
@@ -105,6 +109,11 @@ public class ProjectController {
             }
         } catch (ProjectIngestException e) {
             return ApiResponse.fail("QUOTA_EXCEEDED", e.getMessage());
+        } catch (IllegalArgumentException e) {
+            // 摄取前置校验（源与缓存落点重叠等）。这是「调用方改一下输入就好」的问题，
+            // 曾被你下面的 Exception 分支吞成 SOURCE_UNREACHABLE —— 那个码的意思是
+            // 「源头不可达」，而实际是源头选错了，排查方向整个反了。
+            return ApiResponse.fail("BAD_SOURCE", e.getMessage());
         } catch (ScanException e) {
             return ApiResponse.fail("SOURCE_UNREACHABLE", e.getMessage());
         } catch (Exception e) {
@@ -172,6 +181,9 @@ public class ProjectController {
             }
         } catch (ProjectIngestException e) {
             return ApiResponse.fail("QUOTA_EXCEEDED", e.getMessage());
+        } catch (IllegalArgumentException e) {
+            // 与 add 同口径：源与缓存落点重叠 → BAD_SOURCE（源头选错，不是服务端故障）
+            return ApiResponse.fail("BAD_SOURCE", e.getMessage());
         } catch (Exception e) {
             return ApiResponse.fail("SOURCE_UNREACHABLE", "刷新失败，旧缓存原样保留：" + e.getMessage());
         }
