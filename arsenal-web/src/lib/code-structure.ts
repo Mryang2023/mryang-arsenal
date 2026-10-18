@@ -11,6 +11,9 @@
  *
  * 设计原则（计划书 §1）：判定带依据 / 分类机一份 / 词汇表一份 /
  * 判不出就是未分类 / 0 和空也是结论。
+ *
+ * 边界（2026-10-18 结构面板棒4 钉死，scan-check【1c】+ project-check【32】盯着）：
+ * 命名推断只能起名（徽标），不划业务边界 —— 猜业务语义是功能视图与项目档案的职责。
  */
 import { BAND_DESC, BAND_NAME, BAND_ORDER, type LayerBandId } from './arch-layered';
 
@@ -223,6 +226,9 @@ export function buildCodeStructure(facts: {
     );
   }
   notes.push('被 ScanGuard 跳过的目录（.git / node_modules / target 等）不在树里 —— 树是「读过的文件」，不是磁盘全貌');
+  notes.push(
+    '层级徽标只用于标注角色（命名推断只能起名，不划业务边界）—— 猜「这是什么业务模块」是功能视图与项目档案的职责，不是本面板的'
+  );
 
   return {
     root: facts.root,

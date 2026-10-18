@@ -3857,12 +3857,42 @@ function qaFrontendChecks() {
   );
 }
 
+/**
+ * 【32】结构面板 · 棒4 边界收尾（2026-10-18）。
+ *
+ * 10-11 总纲：猜业务语义是功能视图（调用闭包）与项目档案的职责，
+ * 命名推断只能起名（徽标），不能划边界。行为级三条在 scan-check【1c】
+ * （树分组只来自目录路径 / 类只挂真实文件路径 / 声明句常驻 notes 与 Markdown）——
+ * 但那组在探针（bash+JDK）拿不到 facts 时整组记跳过，措辞会失去看守。
+ * 这里用不依赖探针的源码文本断言兜底，顺带钉住 README 能力面的边界行。
+ */
+function structureBoundaryChecks() {
+  console.log('\n【32】结构面板边界收尾（命名推断只能起名，不划业务边界）');
+  {
+    const cs = fs.readFileSync(path.resolve(here, '../src/lib/code-structure.ts'), 'utf8');
+    check(
+      '32-1 派生层运行时出口带边界声明句（notes.push 字面量在源码里：命名推断只能起名、不划业务边界）',
+      cs.includes('层级徽标只用于标注角色（命名推断只能起名，不划业务边界）')
+        && cs.includes('功能视图与项目档案的职责'),
+      '声明句被删 = 面板出口（notes 与 Markdown）不再自报边界，下一个人往派生层塞业务词典没人拦'
+    );
+    const repoRoot = path.resolve(here, '..', '..');
+    const readmeSrc = fs.readFileSync(path.join(repoRoot, 'README.md'), 'utf8');
+    check(
+      '32-2 README「解剖台能回答什么」含项目结构边界段（能力面与实现同说一件事）',
+      readmeSrc.includes('项目结构这一格的边界') && readmeSrc.includes('不划业务边界'),
+      'README 少了边界段 = 能力面夸大或缩水，与 32-1 的实现措辞对不上'
+    );
+  }
+}
+
 zipChecks().then(() => {
   profileChecks();
   startupChecks();
   archMergeChecks();
   qaContractChecks();
   qaFrontendChecks();
+  structureBoundaryChecks();
   projectIdsParityChecks();
   process.exit(finish('project'));
 });

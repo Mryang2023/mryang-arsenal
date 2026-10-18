@@ -556,6 +556,41 @@ if (!skipAll) {
     check('1c-13 反例自证 B：只加类不改 layers 聚合使「派生↔聚合」判负（口径不恒真）',
       driftBandUtilSum === layerSum + 1,
       `派生 ${driftBandUtilSum} vs 聚合 ${layerSum}（聚合未动、派生 +1 → 判负正确）`);
+
+    // ⑩ 边界（2026-10-18 结构面板棒4）：10-11 总纲 —— 猜业务语义是功能视图与项目
+    //    档案的职责，命名推断只能起名（徽标），不能划边界。钉三条行为判据：
+    //    树分组只来自目录路径 / 类只挂真实文件路径 / 边界声明句常驻 notes 与 Markdown。
+    const dirPaths = new Set<string>((factsA.code?.dirs ?? []).map((d: any) => d.path as string));
+    const treePaths: string[] = [];
+    (function collectPaths(n: any) {
+      if (n.path) treePaths.push(n.path as string);
+      for (const c of n.children ?? []) collectPaths(c);
+    })(structA.tree);
+    const knownOrAncestor = (p: string) =>
+      dirPaths.has(p) || [...dirPaths].some((d) => d.startsWith(p + '/'));
+    check('1c-15 边界①：树的分组节点只来自目录路径（没有按层 / 按类名 / 按业务猜测造出的分组桶）',
+      treePaths.length > 0 && treePaths.every(knownOrAncestor),
+      `树上 ${treePaths.length} 个分组节点；越界样本: ${treePaths.filter((p) => !knownOrAncestor(p)).slice(0, 3).join('、') || '无'}`);
+
+    let placedTotal = 0;
+    const misplaced: string[] = [];
+    (function collectClasses(n: any) {
+      for (const c of n.classes ?? []) {
+        placedTotal++;
+        const slash = (c.file as string).lastIndexOf('/');
+        const expected = slash > 0 ? (c.file as string).slice(0, slash) : '';
+        if (n.path !== expected) misplaced.push(`${(c as any).name ?? '?'}:挂在${n.path || '根'}应在${expected || '根'}`);
+      }
+      for (const ch of n.children ?? []) collectClasses(ch);
+    })(structA.tree);
+    check('1c-16 边界②：类只挂在文件真实路径的目录节点上（命名推断不挪类、不按层分桶）',
+      placedTotal === clsA.length && misplaced.length === 0,
+      `树挂 ${placedTotal} vs facts ${clsA.length}；错挂样本: ${misplaced.slice(0, 3).join(' / ') || '无'}`);
+
+    check('1c-17 边界③：边界声明句常驻 notes 与 Markdown（命名推断只能起名，不划业务边界）',
+      structA.notes.some((n) => n.includes('不划业务边界') && n.includes('功能视图'))
+      && md.includes('不划业务边界') && md.includes('命名推断只能起名'),
+      `notes 命中 ${structA.notes.filter((n) => n.includes('不划业务边界')).length} 条；md 含声明: ${md.includes('不划业务边界')}`);
   } else {
     check('1c-1 派生层拿到 factsA', false, 'fixture facts 没拿到 —— 这一组因此没测，不是通过');
   }
