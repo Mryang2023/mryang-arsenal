@@ -3,7 +3,7 @@
 import { useRef, useState } from 'react';
 import { PROFILE_SUMMARIES } from '@/lib/arch-views';
 import type { ArchProfile, ProfileSummary } from '@/lib/arch-profile';
-import { validateImport } from '../arch/profile-store';
+import { validateImport } from './profile-store';
 import type { ProfileDraft } from '@/lib/profile-draft';
 import { DRAFT_PROFILE_ID } from './SixViewsPanel';
 
@@ -45,8 +45,8 @@ export default function ProfileBar({
   /**
    * 导入一份档案 JSON。两道关都过才允许切：
    *   ① JSON 解析；② `validateImport`（形状 + token）。
-   * 与 ProfilePicker 的 doImport 同判据（validateImport 是单一出处）——
-   * 交互外壳两份是暂时的：棒3 /arch 退役后 ProfilePicker 整体消失，
+   * 判据与已退役的 ProfilePicker 的 doImport 同源（validateImport 是单一出处）——
+   * /arch 退役（2026-10-17 架构图谱合并棒3）后 ProfilePicker 整体消失，
    * 这里成为唯一入口。
    */
   const doImport = (raw: string): boolean => {

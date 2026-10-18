@@ -65,7 +65,8 @@ const NAV: NavItem[] = [
     // 步骤的路由 / 名字 / 序号都以 STEPS 为唯一出处。
     children: STACK_NAV,
   },
-  { href: '/arch', label: '架构图谱', glyph: '▣', count: 6 },
+  // /arch（架构图谱）2026-10-17 架构图谱合并棒3 退役为重定向页 → /autopsy：
+  // 六视图与可拖拽画布已并进「项目侦察」架构面板，入口只留一处。
   { href: '/autopsy', label: '项目侦察', glyph: '▧', count: 0 },
   { href: '/qa', label: '测试工程师', glyph: '⚗', count: 0 },
   { href: '/icons', label: '图标库', glyph: '❖', count: iconStats.total },

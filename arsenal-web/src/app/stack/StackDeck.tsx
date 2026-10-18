@@ -196,12 +196,12 @@ export default function StackDeck({
             看架构图
           </button>
           <Link
-            href="/arch"
+            href="/autopsy"
             className="flex items-center gap-1.5 rounded-md border border-line px-2.5 py-1 text-[11px] text-fgMuted transition-colors hover:border-lineHi hover:text-fg"
-            title="六大架构图谱：业务 / 数据 / 应用 / 技术 / 产品 / 项目"
+            title="项目侦察的六视图子页签：业务 / 数据 / 应用 / 产品 / 项目（技术架构是可拖拽画布，与它同页）"
           >
             <span className="mono text-[12px] leading-none">▣</span>
-            六大架构
+            六视图
           </Link>
         </div>
 
@@ -689,8 +689,8 @@ function ProvenanceBanner({
           </ul>
           <p className="mt-2 text-[10px] text-fgFaint">
             未识别的依赖不会静默丢弃 —— 明细在
-            <Link href="/arch" className="text-fgMuted underline underline-offset-2">
-              「六大架构」页的代码扫描入口
+            <Link href="/autopsy" className="text-fgMuted underline underline-offset-2">
+              项目侦察（/autopsy）的「未识别依赖」清单
             </Link>
             里逐条列出。
             {provenance.scannedAt && <>　扫描时间 {provenance.scannedAt}</>}

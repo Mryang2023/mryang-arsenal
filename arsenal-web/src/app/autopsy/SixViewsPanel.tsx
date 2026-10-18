@@ -16,8 +16,8 @@ import {
   DataDiagram,
   ProductDiagram,
   ProjectDiagram,
-} from '../arch/diagrams';
-import { CountUp, Glyph, GraphSkeleton, Reveal, useStageLoad } from '../arch/motion';
+} from './diagrams';
+import { CountUp, Glyph, GraphSkeleton, Reveal, useStageLoad } from './motion';
 import type { ProfileDraft } from '@/lib/profile-draft';
 
 /**
@@ -66,7 +66,7 @@ export default function SixViewsPanel({
       return composeArchViews(resolveProfile(draft.profile, buildMetrics()));
     }
     const doc = custom[profileId];
-    // 导入档案当场解析（与 ArchGallery 同口径：档案不大，切换重建一遍比缓存省心）
+    // 导入档案当场解析（档案不大，切换重建一遍比缓存省心）
     if (doc) return composeArchViews(resolveProfile(doc, buildMetrics()));
     return composeArchViews(getProfile(profileId));
   }, [profileId, draft, custom]);

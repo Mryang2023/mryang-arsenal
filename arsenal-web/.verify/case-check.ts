@@ -409,7 +409,9 @@ console.log('\n【11】页面契约：三层路由（L1/L2）、NAV 入口，以
     // /charter 是 /standards 重定向后的迁移页（2026-10-05）：有意不进导航。
     // 与 project-check【13】② 的 ORPHAN_OK 同一份口径 —— 两层判据不许各留一份白名单，
     // 否则「加一个迁移页」这种动作在两层里的结论会不一样。
-    .filter((h) => !navHrefs.includes(h) && h !== '/charter');
+    .filter((h) => !navHrefs.includes(h) && h !== '/charter' && h !== '/arch');
+  // ^ /arch 也是迁移页（2026-10-17 架构图谱合并棒3）：退役为 → /autopsy 重定向，
+  //   有意不进导航。与 project-check【13】② 的 ORPHAN_OK 同步加豁免 —— 两层口径一致。
   check('【13】② 口径：没有孤儿页面（页面存在但导航里没有入口）', orphans.length === 0,
     `孤儿：${orphans.join('、')}`);
 

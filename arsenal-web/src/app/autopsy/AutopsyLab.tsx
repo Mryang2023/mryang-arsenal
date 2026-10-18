@@ -38,7 +38,7 @@ import { downloadText } from '@/lib/zip';
 import { DEFAULT_PROFILE_ID } from '@/lib/arch-views';
 import type { ArchProfile } from '@/lib/arch-profile';
 import { buildProfileDraftFromFacts, type ProfileDraft } from '@/lib/profile-draft';
-import { loadCustomProfiles, saveCustomProfiles } from '../arch/profile-store';
+import { loadCustomProfiles, saveCustomProfiles } from './profile-store';
 import TechArch from '../stack/TechArch';
 import ArchPanel from './ArchPanel';
 import ProfileBar from './ProfileBar';
@@ -395,9 +395,9 @@ export default function AutopsyLab() {
     stage.kind === 'done' ? traceSource(stage.requested, stage.facts) : null;
 
   /**
-   * 扫描 → 六视图档案草稿（`buildProfileDraftFromFacts`，与 /arch「从代码生成」
-   * 是同一个函数，不自己拼第二份）。草稿不当成品卖：todos 由成熟度条逐条列出，
-   * `TODO ` 前缀原文上图。
+   * 扫描 → 六视图档案草稿（`buildProfileDraftFromFacts`；/arch 退役后这里是
+   * 唯一的「扫描 → 档案草稿」入口，不自己拼第二份）。草稿不当成品卖：
+   * todos 由成熟度条逐条列出，`TODO ` 前缀原文上图。
    */
   const profileDraft: ProfileDraft | null = useMemo(
     () => (stage.kind === 'done' ? buildProfileDraftFromFacts(stage.facts) : null),

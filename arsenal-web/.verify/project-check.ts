@@ -517,10 +517,12 @@ console.log('\n【9】六大架构视图数据层');
     );
   }
 
-  // ④ 应用视图：路由含新增的 /arch，接口全部带方法前缀
+  // ④ 应用视图：路由含 /autopsy（2026-10-17 架构图谱合并棒3：/arch 退役为
+  //    重定向页，路由行的主角换成项目侦察 —— 六视图与画布都并进了它），
+  //    接口全部带方法前缀
   check(
-    '应用视图：路由含 /arch 且路径唯一',
-    APP_ROUTES.some((r) => r.path === '/arch') &&
+    '应用视图：路由含 /autopsy 且路径唯一',
+    APP_ROUTES.some((r) => r.path === '/autopsy') &&
       new Set(APP_ROUTES.map((r) => r.path)).size === APP_ROUTES.length
   );
   check(
@@ -1129,6 +1131,10 @@ console.log('\n【13】导航与页签契约');
     // /charter → /standards 重定向后的迁移页（2026-10-05）。它只给旧书签跳转用，
     // 侧栏留两个入口等于两个心智模型。有 meta refresh，不靠人点。
     '/charter',
+    // /arch → /autopsy 重定向后的迁移页（2026-10-17 架构图谱合并棒3）。六视图与
+    // 可拖拽画布整体并进项目侦察的架构面板后，原画廊页只给旧书签跳转用；
+    // 它仍是矩阵里的页面（截图验它真跳），但不该在侧栏占第二个入口。
+    '/arch',
   ]);
   const appDir = path.resolve(here, '../src/app');
   const orphans = fs
@@ -1137,6 +1143,36 @@ console.log('\n【13】导航与页签契约');
     .map((d) => `/${d.name}`)
     .filter((h) => !navHrefs.includes(h) && !ORPHAN_OK.has(h));
   check('导航：没有孤儿页面（页面存在但导航里没有入口）', orphans.length === 0, `孤儿: ${orphans.join('、')}`);
+
+  // ②′ /arch 退役收口（2026-10-17 架构图谱合并棒3）：迁移页真的会跳，且全仓 src
+  //     不许再出现指向 /arch 路由的链接（导航 / <Link> / router.push 都算）。
+  //     判据用「引号包住的整串 /arch」：资产路径 `/arch/business.webp`
+  //     （public/arch/ 六张封面插画，计划书明确不挪位）不是路由链接，不会误伤；
+  //     注释先剥（文档里提一嘴 /arch 不算链接）。
+  check(
+    '/arch 迁移页真的会跳：meta refresh 指向 /autopsy',
+    /url=\/autopsy\//.test(code('app/arch/page.tsx')),
+    '迁移页不跳 = 旧书签落在一页不会动的死文字上（照 /charter 先例，它必须真跳）'
+  );
+  const srcTreeRoot = path.resolve(here, '../src');
+  const archLinkResidue: string[] = [];
+  const walkSrcForArchLinks = (dir: string) => {
+    for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
+      const p = path.join(dir, e.name);
+      if (e.isDirectory()) walkSrcForArchLinks(p);
+      else if (/\.(ts|tsx)$/.test(e.name)) {
+        if (/['"]\/arch['"]/.test(code(path.relative(srcTreeRoot, p)))) {
+          archLinkResidue.push(path.relative(srcTreeRoot, p));
+        }
+      }
+    }
+  };
+  walkSrcForArchLinks(srcTreeRoot);
+  check(
+    '退役收口：src 全仓没有指向 /arch 路由的链接（封面插画 /arch/*.webp 是资产路径，不算）',
+    archLinkResidue.length === 0,
+    `残留: ${archLinkResidue.join('、') || '无'} —— 漏一处的后果是用户点进一张迁移页，而断言全绿`
+  );
 
   // ③ 导航高亮：判定必须按**路径边界**，而且判据只有一份
   //
@@ -1153,12 +1189,14 @@ console.log('\n【13】导航与页签契约');
   );
   // 场景库三层路由（2026-09-26 第 2 棒）：`[caseId]` 是二层子路径，
   // 高亮判定是路径边界匹配，`/cases/<真实场景 id>` 必须仍然只点亮「场景库」这一项。
+  // （2026-10-17 架构图谱合并棒3：`/arch/any-view` 随 /arch 退役一并移除 ——
+  //  导航里没有 /arch 了，这条路由的点亮期望从「恰好 1 项」变成「0 项」，
+  //  留着就是一条必红的死数据。）
   const navRoutes = [
     ...navHrefs,
     '/rules/WEB-DTO-001',
     '/cases/any-page',
     '/cases/hotspot-cache',
-    '/arch/any-view',
   ];
   const highlight = navRoutes.map((r) => ({
     route: r,
@@ -1244,8 +1282,8 @@ console.log('\n【13】导航与页签契约');
       );
   const writers = callers('savePicksSnapshot');
   const readers = callers('loadPicksSnapshot');
-  check('选型快照：有写入点（装配台写）', writers.length > 0, '没人写等于 /arch 永远按 standard 预设出图');
-  check('选型快照：有读取点（架构图谱读）', readers.length > 0, '没人读等于白写');
+  check('选型快照：有写入点（装配台写）', writers.length > 0, '没人写等于画布永远按 standard 预设出图');
+  check('选型快照：有读取点（出图服务读）', readers.length > 0, '没人读等于白写');
   check(
     '选型快照：localStorage key 只在一处定义',
     (picksStore.match(/['"]arsenal-stack-picks-v1['"]/g) ?? []).length === 1,
@@ -1291,14 +1329,23 @@ console.log('\n【13】导航与页签契约');
     '写了没人显示 → 用户分不清哪几格是扫描读的、哪几格是自己点的'
   );
 
-  // ⑤ 六大架构页签同样守一遍（同一类错在 /arch 也犯得起）
-  const gallery = code('app/arch/ArchGallery.tsx');
-  const viewIds = [...gallery.matchAll(/\{tab === '([a-z]+)' &&/g)].map((m) => m[1]);
-  const metaIds = ARCH_VIEWS.map((v) => v.id);
+  // ⑤ 六视图页签同样守一遍（2026-10-17 棒3：/arch 退役后宿主是 SixViewsPanel；
+  //    tech 不在五张静态图里是刻意的 —— 它是可拖拽画布，在「技术架构」子页签，
+  //    同一张图上两遍 = 两个真相）
+  const six = code('app/autopsy/SixViewsPanel.tsx');
+  const staticIds = (/const STATIC_VIEWS[^=]*=\s*\[([^\]]*)\]/.exec(six)?.[1] ?? '')
+    .split(',')
+    .map((s) => s.trim().replace(/['"]/g, ''))
+    .filter(Boolean);
+  const diagramIds = [...six.matchAll(/^\s{2}(\w+): \w+Diagram,/gm)].map((m) => m[1]);
+  const metaIds = ARCH_VIEWS.map((v) => v.id).filter((id) => id !== 'tech');
   check(
-    `架构图谱：${metaIds.length} 个视图都有渲染分支`,
-    uniq(metaIds).every((id) => viewIds.includes(id)),
-    `缺分支: ${metaIds.filter((id) => !viewIds.includes(id)).join('、') || '无'}`
+    `六视图：${metaIds.length} 张静态图都有渲染组件（页签表与组件表一致，tech 归画布）`,
+    uniq(staticIds).join(',') === uniq(diagramIds).join(',') &&
+      metaIds.every((id) => diagramIds.includes(id)) &&
+      !staticIds.includes('tech'),
+    `缺组件: ${metaIds.filter((id) => !diagramIds.includes(id)).join('、') || '无'}；` +
+      `页签表: ${staticIds.join('、') || '无'}；组件表: ${diagramIds.join('、') || '无'}`
   );
 
   // ⑤′ 侧栏分组折叠（2026-10-12）：菜单默认不再全开，人所在的那个组自动展开
@@ -1315,7 +1362,9 @@ console.log('\n【13】导航与页签契约');
       ...STACK_NAV.flatMap((e) => (e.children ?? []).map((c) => c.href)),
     ]),
   ];
-  const otherHrefs = ['/', '/rules', '/arch', '/archify', '/autopsy', '/icons', '/check', '/export'];
+  // 2026-10-17 架构图谱合并棒3：/arch 退役，折叠表里少它一行
+  // （它本来就不是 /stack 家族，期望态「收起」不变，只是不再出现在表里）。
+  const otherHrefs = ['/', '/rules', '/archify', '/autopsy', '/icons', '/check', '/export'];
   // trailingSlash: true 下 usePathname() 带尾巴，两种写法都得判对
   const openTable = [...stackNavHrefs, ...otherHrefs, '/stack/env/', '/cases/hotspot-cache/'].map((p) => ({
     pathname: p,
@@ -1448,7 +1497,7 @@ console.log('\n【14】项目档案契约');
     .filter((f) => f.endsWith('.json'))
     .sort();
 
-  check('档案：至少一份内置档案', files.length >= 1, '没有档案 /arch 只能讲一份故事');
+  check('档案：至少一份内置档案', files.length >= 1, '没有档案六视图只能讲一份故事');
 
   const docs = files.map((f) => ({
     file: f,
@@ -1506,7 +1555,8 @@ console.log('\n【14】项目档案契约');
   );
 
   // ⑥ 渲染器不认默认档案：只能从 arch-views 引类型
-  const diaSrc = stripComments(srcFile('app/arch/diagrams.tsx'));
+  // （2026-10-17 棒3：diagrams.tsx 随合并搬进 app/autopsy/，路径连改）
+  const diaSrc = stripComments(srcFile('app/autopsy/diagrams.tsx'));
   check(
     '渲染器：五张图只从 arch-views 引类型',
     /import type \{[^}]*ArchViewData[^}]*\} from '@\/lib\/arch-views'/.test(diaSrc) &&
@@ -1514,15 +1564,18 @@ console.log('\n【14】项目档案契约');
     '渲染器读常量的话，切档案要等一次重新构建'
   );
 
-  // ⑦ 页签 ↔ 渲染分支 ↔ 传参：五个静态图都必须收到当前档案
-  const gallerySrc = stripComments(srcFile('app/arch/ArchGallery.tsx'));
-  const withData = [...gallerySrc.matchAll(/<(Business|Data|App|Product|Project)Diagram data=\{data\} \/>/g)].map(
-    (m) => m[1]
-  );
+  // ⑦ 页签 ↔ 渲染 ↔ 传参（2026-10-17 棒3：/arch 退役后宿主是 SixViewsPanel）：
+  //    当前视图的图必须拿到 `composeArchViews(resolveProfile(当前档案, buildMetrics()))`
+  //    算出来的 data，且草稿 / 导入 / 内置三条取数路都在 —— 少一条，
+  //    切到那种档案时图上还是旧内容，而两边都不报错。
+  const sixSrc = stripComments(srcFile('app/autopsy/SixViewsPanel.tsx'));
   check(
-    `架构图谱：${withData.length} 张静态图都拿到当前档案`,
-    withData.length === 5,
-    `没传 data 的图会渲染成空 —— 五个都传: ${['Business', 'Data', 'App', 'Product', 'Project'].filter((x) => !withData.includes(x)).join('、')}`
+    '六视图：当前图拿到当前档案（data={data}，草稿 / 导入 / 内置三条取数路齐）',
+    /<Diagram data=\{data\} \/>/.test(sixSrc) &&
+      /composeArchViews\(resolveProfile\(draft\.profile, buildMetrics\(\)\)\)/.test(sixSrc) &&
+      /composeArchViews\(resolveProfile\(doc, buildMetrics\(\)\)\)/.test(sixSrc) &&
+      /composeArchViews\(getProfile\(profileId\)\)/.test(sixSrc),
+    '没传 data 的图会渲染成空；三条取数路少一条，切到那种档案时图还是旧的'
   );
 
   // ⑧ 档案选择器与页面元信息同源
@@ -3593,7 +3646,8 @@ function startupChecks() {
  * 三件容易静默发生的事 —— ① 画布没接扫描事实（挂个空壳还在讲装配台快照）
  * ② IR 二义（画布自己从 picks 重建一份，图上与 IR 各说各话，两边全绿）
  * ③ 编辑态串项目（扫 A 拖好的布局原样出现在 B 的图上，计划坑 1）。
- * 默认路径（/arch 不传 props）字节级不变由 28-8 与 graph/archify 两层共守。
+ * 2026-10-17 棒3 起 /arch 退役为重定向页，「默认路径字节级不变」失去保护对象，
+ * 28-8 随之改钉「TechArch 只有一个宿主」；几何与 IR 仍由 graph/archify 两层共守。
  */
 function archMergeChecks() {
   console.log('\n【28】架构图谱合并 · 画布进台');
@@ -3644,10 +3698,28 @@ function archMergeChecks() {
       !panel.includes('技术栈部署图') && panel.includes('应用分层图'),
       '卡片还在 = 下载入口两处，副本徽章与卡片数字会对不上'
     );
+    // 28-8（2026-10-17 棒3 改写）：/arch 退役 + ArchGallery 删除后，「默认路径
+    // （不传 props）字节级不变」失去了保护对象 —— 没有页面再渲染裸 <TechArch />。
+    // 换成钉那个还活着的不变量：TechArch 只许有一个宿主，且就是解剖台
+    // （零宿主 = 画布根本没上台；多宿主 = 两份接线迟早分家，而两边都全绿）。
+    const techArchHosts: string[] = [];
+    const walkTechArch = (dir: string) => {
+      for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
+        const p = path.join(dir, e.name);
+        if (e.isDirectory()) walkTechArch(p);
+        else if (/\.(ts|tsx)$/.test(e.name)) {
+          const s = fs.readFileSync(p, 'utf8')
+            .replace(/\/\*[\s\S]*?\*\//g, '')
+            .replace(/^[ \t]*\/\/.*$/gm, '');
+          if (/<TechArch[\s/>]/.test(s)) techArchHosts.push(path.relative(path.resolve(here, '../src'), p).replace(/\\/g, '/'));
+        }
+      }
+    };
+    walkTechArch(path.resolve(here, '../src'));
     check(
-      '28-8 默认路径字节级不变：/arch 的 ArchGallery 仍是不带任何 props 的 <TechArch />',
-      /<TechArch\s*\/>/.test(srcFile('app/arch/ArchGallery.tsx')),
-      'ArchGallery 多传一个 prop，「维持现状」就不再成立'
+      '28-8 TechArch 只有一个宿主：渲染点在 AutopsyLab（/arch 退役后画廊已删）',
+      techArchHosts.length === 1 && techArchHosts[0] === 'app/autopsy/AutopsyLab.tsx',
+      `实际宿主: ${techArchHosts.join('、') || '无'} —— 零宿主 = 画布没上台；多宿主 = 两份接线迟早分家`
     );
   }
 }

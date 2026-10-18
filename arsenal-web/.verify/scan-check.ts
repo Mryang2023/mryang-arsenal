@@ -803,7 +803,7 @@ if (!skipAll) {
   // 这一节的断言都针对「草稿会不会把人带偏」：一份把 TODO 数成 0 的草稿，
   // 读的人会把没扫到的东西当成不存在；一份给数据存储写「单实例」的草稿，
   // 读的人会把我们编的部署形态当成事实。
-  section('【7】六视图档案草稿（/arch「从代码生成」+ /autopsy 六视图子页签共用）');
+  section('【7】六视图档案草稿（/autopsy 六视图子页签；/arch 已于 2026-10-17 退役为重定向页）');
   // ⑥ 成熟度计数只从 draft 现读，不写死（2026-10-17 图谱棒2 六视图进台）——
   //    写死一个数，扫描换了项目页面还在念旧值，而两边都不报错。
   //    注释先剥：SixViewsPanel 的注释里也提到 filled / todos 字样，
@@ -818,6 +818,59 @@ if (!skipAll) {
       /\{draft\.filled\} 条来自扫描/.test(sixSrc) &&
         /\{draft\.todos\.length\} 条待你补/.test(sixSrc),
       '写死计数 = 扫描换了项目，页面还在念旧值'
+    );
+  }
+  // ⑦ 扫描入口只有一处（2026-10-17 架构图谱合并棒3）：/arch 退役 + ProfilePicker
+  //    删除后，src/app 下直接调 scanFacts/scanUpload 的页面文件只许是 AutopsyLab.tsx。
+  //    判据按「页面级直接调用」算，不按「谁最终调到 scanFacts」算 —— 后者会把
+  //    /archify 出图台用的共用组件 CodeIntake 误判成第二个档案扫描入口（它喂的是
+  //    出图台，不是项目档案/解剖台）。注释先剥，文档里写函数名不算调用。
+  {
+    const appRoot = path.join(webRoot, 'src/app');
+    const scanCallers: string[] = [];
+    const walk = (dir: string) => {
+      for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
+        const p = path.join(dir, e.name);
+        if (e.isDirectory()) walk(p);
+        else if (/\.(ts|tsx)$/.test(e.name)) {
+          const s = fs.readFileSync(p, 'utf8')
+            .replace(/\/\*[\s\S]*?\*\//g, '')
+            .replace(/^[ \t]*\/\/.*$/gm, '');
+          if (/\b(scanFacts|scanUpload)\s*\(/.test(s)) scanCallers.push(path.relative(appRoot, p).replace(/\\/g, '/'));
+        }
+      }
+    };
+    walk(appRoot);
+    check(
+      '7-8 扫描入口只有一处：src/app 下调 scanFacts/scanUpload 的只有 AutopsyLab.tsx',
+      scanCallers.length === 1 && scanCallers[0] === 'autopsy/AutopsyLab.tsx',
+      `实际: ${scanCallers.join('、') || '无'} —— 两个入口讲同一批事实，就是漂移温床（合并前 /arch 与 /autopsy 各有一个）`
+    );
+  }
+  // ⑧ CodeIntake 的 profile 变体零调用点：/arch 退役后「扫描 → 六视图档案草稿」
+  //    只从解剖台出。组件本身不动（/archify 的「从代码生成」继续用同一件，
+  //    计划书明说），但 variant="profile" 不许再出现调用方 —— 出现一个，
+  //    就是第二个档案扫描入口复活，而 7-8 按页面级直接调用还看不出来。
+  {
+    const srcRoot = path.join(webRoot, 'src');
+    const profileVariantUsers: string[] = [];
+    const walk = (dir: string) => {
+      for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
+        const p = path.join(dir, e.name);
+        if (e.isDirectory()) walk(p);
+        else if (/\.(ts|tsx)$/.test(e.name)) {
+          const s = fs.readFileSync(p, 'utf8')
+            .replace(/\/\*[\s\S]*?\*\//g, '')
+            .replace(/^[ \t]*\/\/.*$/gm, '');
+          if (/variant=["']profile["']/.test(s)) profileVariantUsers.push(path.relative(srcRoot, p));
+        }
+      }
+    };
+    walk(srcRoot);
+    check(
+      '7-9 CodeIntake 的 variant="profile" 零调用点（档案草稿只从解剖台出）',
+      profileVariantUsers.length === 0,
+      `实际: ${profileVariantUsers.join('、') || '无'} —— profile 变体一被调用，第二个档案扫描入口就复活了`
     );
   }
   if (factsA) {
