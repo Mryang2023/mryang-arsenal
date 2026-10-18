@@ -53,7 +53,8 @@
 - Git Bash 下 `npm run` exit 1 → 用 node 直跑 npm-cli.js 或脚本本体。`trailingSlash: true`；视觉新增路由归进 shoot.mjs 清单。
 - 无头浏览器用 `visual/browser.mjs`；curl 读写不了 /tmp；给 node/python 用 Windows 路径。**本机没有 Chrome**，playwright chromium 脚本要显式 `ARSENAL_CHROME="C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe"`。
 - **`spawnSync(process.execPath, …)` 在本环境返回 EBUSY** → `verify:archify` 调外部 CLI 恒失败 3 项，shell 手工跑是好的。**看到 Archify 红先验 EBUSY，别改代码。**
-- **（10-12）java 在本 harness 里常驻不了**：`run.sh`（exec）后台任务约 35s 后静默死；`start-server.mjs`（spawn + 父 node setInterval 常驻）**没能救活** —— java 在父 node、父 bash 都活着时就 `code=0` 自退（Started 后约 1s，无 shutdown 日志），文件头「父 node 常驻即存活」的前提被证伪；schtasks 路线（`start-hidden.cmd`）未验。探活可用姿势：启动 + sleep 13 + fetch + kill 放**同一条** bash 命令（Boot 4.1.1 起 5.5s，窗口约 6s）。
+- **（10-18 推翻 10-12 旧结论）java「常驻不了」是误判，根因是 run.sh 类路径缺件**：Boot 4 把 `ServletWebServerFactory` 拆进 `spring-boot-web-server` / `spring-boot-tomcat`（全 .m2 只这两个 jar 有该类），迁移提交 daf2c80 没补 → WebMvc Deducer 三判据全在场推断 SERVLET、自动配置条件类缺失静默不建 web server → Started 后无保活线程 code=0 退出、端口从不监听。**表象（35s 静默死 / 父活着也自退）与「harness 杀后台进程」一模一样，别再把「连不上本地服务」归因于环境** —— 先看日志有没有 Tomcat/DispatcherServlet 行。已修（d508c17），冒烟 7/7 过，服务正常保活。探活仍建议「启动 + fetch + kill 同一条 bash 命令」图省事，但不是必须了。
+- **javac/java 的 `-cp` 首条目用相对路径会让其余条目静默失效**（报「程序包 X 不存在」而 CP 明明有）：一律绝对 Windows 路径（`cygpath -m`）。探针脚本用 `to_win` 从未踩到。
 - 多会话并发：动文件前两次 md5；它的绿不归你背书。
 
 ## 待推进（详见 docs/开发计划-*）
