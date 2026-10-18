@@ -114,14 +114,18 @@ const KNOWN_BASELINE = [
   {
     id: 'archify-backend-down',
     reason:
-      'src/lib/arsenal-api.ts:16 硬编码 DEFAULT_BASE = http://localhost:3011；静态导出站（output:export）挂载即请求 /api/archify，后端未起则必然失败。真实缺陷，见 findings.md F-06。',
+      'src/lib/arsenal-api.ts:16 硬编码 DEFAULT_BASE = http://localhost:3011；静态导出站（output:export）挂载即请求 /api/archify，后端未起则必然失败。真实缺陷，见 findings.md F-06。2026-10-18 工坊上线后扩到同族端点：/api/projects（项目管理页挂载探测）与 /api/qa/llm-status（质检台挂载探测）—— 两页对后端离线有设计好的降级态（守卫话术/卡片照显），静态站无后端时该失败属预期。',
     match: (e) =>
       // 后端未起：失败事件（requestfailed / http 40x）自带完整 url
       /\/api\/archify$/.test(String(e.url || '')) ||
+      /\/api\/projects$/.test(String(e.url || '')) ||
+      /\/api\/qa\/llm-status$/.test(String(e.url || '')) ||
       // 后端活着但未开 CORS：3 条 CORS console.error 由 Chromium 生成，无脚本 location（url 为空），
       // 报错原文（e.text）里带目标 URL，如 "Access to fetch at 'http://localhost:3011/api/archify' … CORS policy"。
       // 只归入本条基线，不涉及其它 console.error。
-      /\/api\/archify/.test(String(e.text || '')),
+      /\/api\/archify/.test(String(e.text || '')) ||
+      /\/api\/projects/.test(String(e.text || '')) ||
+      /\/api\/qa\/llm-status/.test(String(e.text || '')),
   },
   {
     // 2026-10-04：矩阵从 63 张扩到 66 张（/charter 上线）后首次爆量（423 条）。
