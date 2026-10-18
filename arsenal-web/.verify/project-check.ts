@@ -1106,15 +1106,20 @@ console.log('\n【13】导航与页签契约');
   // ① 导航 ↔ 路由：NAV 里指过去的每个地址都得真有一个页面。
   // 2026-10-05 拆细菜单后，「装配台」的页→步两级菜单数据（STACK_NAV）与
   // 十条步骤路由（StepSpec.route）都住在 wizard.ts，Shell 只消费 ——
-  // 地址要从两处收集，只扫 Shell 会把十条步骤路由漏在契约外面。
+  // 地址要从三处收集，只扫 Shell 会把步骤路由与项目工坊子项漏在契约外面。
   const shell = code('components/Shell.tsx');
   const wizardSrc = code('app/stack/wizard.ts');
+  // 工坊棒2（2026-10-18）：项目工坊组的子项数据住在 app/projects/nav.ts 的
+  // PROJECT_NAV（唯一出处，Shell 只消费），所以这里也要扫它 —— 漏扫会让
+  // /projects / /autopsy / /qa 从 navHrefs 消失，② 孤儿检查与 ③ 高亮表同时失守。
+  const navSrc = code('app/projects/nav.ts');
   // wizard 的 STACK_PAGES 页路由与 Shell 的 href 重复 → 必须去重，
   // 否则 ③ 的高亮表会把同一条路由点亮两次（hits.length !== 1 假红）。
   const navHrefs = [
     ...new Set([
       ...[...shell.matchAll(/\{\s*href:\s*'([^']+)'/g)].map((m) => m[1]),
       ...[...wizardSrc.matchAll(/\broute:\s*'([^']+)'/g)].map((m) => m[1]),
+      ...[...navSrc.matchAll(/\bhref:\s*'([^']+)'/g)].map((m) => m[1]),
     ]),
   ];
   const pageExists = (href: string) =>

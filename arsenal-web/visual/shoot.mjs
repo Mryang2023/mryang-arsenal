@@ -59,7 +59,8 @@ const EXPECTED = {
   // 架构图谱合并（2026-10-17 超级夜棒3）：/arch 退役为重定向页（照 /charter 先例，
   // 六视图与画布并进 /autopsy）。迁移页仍是矩阵里的页面 —— 截图要验它真的跳 ——
   // 固定页 / URL / 截图三数字都不变，只是 /arch 那张的内容从画廊变成迁移页。
-  fixedPages: 27,
+  // 项目工坊（2026-10-18 超级夜棒2）：/projects 上线，固定页 27 → 28，矩阵 35 → 36 URL、105 → 108 张。
+  fixedPages: 28,
   rulePicks: 3,
   // 2026-09-29 修正：上面这句「只剩 1 个」早就过期了 —— 蓝图主题已回到 6 个
   // （connection-pool / local-cache / retry-timeout / untrusted-data / web-layer +
@@ -72,8 +73,8 @@ const EXPECTED = {
   // 那时池子非空后这里的 slicePicks 必须改成 2（首/末），脚本会当场报警。
   casePicks: 3,
   slicePicks: 0,
-  urls: 35,
-  shots: 105,
+  urls: 36,
+  shots: 108,
   minBytes: 8 * 1024,
 };
 

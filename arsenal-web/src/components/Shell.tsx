@@ -12,6 +12,8 @@ import { isNavActive, groupShouldOpen } from '@/lib/nav-active';
 import { charterTotals } from '@/lib/charter';
 import { STACK_NAV, STEP_ROUTES } from '@/app/stack/wizard';
 import { currentStep, subscribeStep } from '@/app/stack/step-bus';
+import { PROJECT_NAV } from '@/app/projects/nav';
+import { useActiveProject } from '@/lib/active-project';
 
 /**
  * 侧边栏。
@@ -67,8 +69,14 @@ const NAV: NavItem[] = [
   },
   // /arch（架构图谱）2026-10-17 架构图谱合并棒3 退役为重定向页 → /autopsy：
   // 六视图与可拖拽画布已并进「项目侦察」架构面板，入口只留一处。
-  { href: '/autopsy', label: '项目侦察', glyph: '▧', count: 0 },
-  { href: '/qa', label: '测试工程师', glyph: '⚗', count: 0 },
+  // 项目工坊（工坊棒2 2026-10-18）：原 /autopsy / /qa 两个平铺项收进同一组，
+  // 子项数据来自 app/projects/nav.ts 的 PROJECT_NAV（唯一出处），Shell 只消费。
+  {
+    label: '项目工坊',
+    glyph: '⚙',
+    count: 0,
+    children: PROJECT_NAV,
+  },
   { href: '/icons', label: '图标库', glyph: '❖', count: iconStats.total },
   { href: '/archify', label: '出图服务', glyph: '⚒', count: 0 },
   { href: '/check', label: '校验台', glyph: '⛨', count: 0 },
@@ -104,6 +112,8 @@ export default function Shell({ children }: { children: React.ReactNode }) {
   // 装配台的当前步骤（页内换步不导航，pathname 不动 —— 见 step-bus.ts 顶部说明）。
   // 总线为 null（不在装配台，或还没哪个装配台页面挂载）时整体退回 pathname 判定。
   const busStep = useSyncExternalStore(subscribeStep, currentStep, () => null);
+  // 当前项目（项目工坊跨页总线）：组标题下显示其名字，跨页签/跨标签页靠它保持一致。
+  const activeProject = useActiveProject();
   // 判定按路径边界，不是裸前缀 —— 判据本体在 lib/nav-active.ts，
   // 那里也被校验层当数据跑（`/archify` 曾经把 `/arch` 一起点亮）。
   const isActive = (href: string) => isNavActive(pathname, href);
@@ -207,7 +217,12 @@ export default function Shell({ children }: { children: React.ReactNode }) {
                   style={{ color: open ? '#93A39C' : '#5E6E67' }}
                 >
                   <span className="w-4 text-center text-sm">{n.glyph}</span>
-                  <span className="flex-1 text-left">{n.label}</span>
+                  <span className="flex-1 text-left">
+                    {n.label}
+                    {n.label === '项目工坊' && activeProject?.name && (
+                      <span className="block text-2xs text-fgFaint">{activeProject.name}</span>
+                    )}
+                  </span>
                   <span className="mono w-3 text-center">{open ? '▾' : '▸'}</span>
                 </button>
               );
