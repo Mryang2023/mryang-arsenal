@@ -217,7 +217,489 @@ export function runProjectCheckup(id: string): Promise<ProjectsOutcome<unknown>>
   return call<unknown>(`/api/projects/${encodeURIComponent(id)}/checkup`, { method: 'POST' });
 }
 
+// ── 项目档案（只读索引 docs/ + @TableName）──
+//
+// 与 facts / checkup 是两条路：那两条回答「代码是什么样」，这条回答「项目自己记了什么」。
+// 档案来自缓存里的文档，重扫不会变 —— 文档是人写的承诺，扫不出来。
+
+/** 解析过程中的补充说明（缺目录 / 行数不足 / 有表没文档）。页面照实展示，不当错误。 */
+export interface DossierNote {
+  level: 'info' | 'warn' | string;
+  code: string;
+  message: string;
+}
+
+export interface DossierColumn {
+  no: number;
+  name: string;
+  type: string;
+  nullable: string;
+  defaultValue: string;
+  comment: string;
+  enumOrUnit: string;
+  index: string;
+  javaField: string;
+  javaType: string;
+}
+
+export interface DossierTable {
+  table: string;
+  title: string;
+  /** true = 有 docs/db/tables/<表名>.md；false = 只有实体，列是从 Java 字段反推的 */
+  documented: boolean;
+  source?: 'entity' | string;
+  file?: string;
+  updatedAt?: string;
+  entityClass?: string;
+  entityFile?: string;
+  entityExtends?: string;
+  basic?: Record<string, string>;
+  columns: DossierColumn[];
+  indexes: { name: string; type: string; fields: string; purpose: string }[];
+  relations: { field: string; targetTable: string; targetField: string; relation: string; onDelete: string }[];
+  changes: { date: string; script: string; summary: string }[];
+}
+
+export interface DossierChangelogEntry {
+  date: string;
+  script: string;
+  table: string;
+  operation: string;
+  before: string;
+  after: string;
+  reason: string;
+  impact: string;
+  rollback: string;
+  envResult: string;
+  tableDoc: string;
+  entity: string;
+}
+
+export interface DossierScript {
+  file: string;
+  template: boolean;
+  bytes: number;
+  lines: number;
+  statements: number;
+  tables: string[];
+  updatedAt: string;
+}
+
+export interface Dossier {
+  schemaVersion: number;
+  root: string;
+  indexedAt: string;
+  available: boolean;
+  notes: DossierNote[];
+  stats: {
+    tables: number;
+    tablesDocumented: number;
+    tablesUndocumented: number;
+    changelogEntries: number;
+    scripts: number;
+    entities: number;
+    charterLines: number;
+  };
+  charter: {
+    found: boolean;
+    file?: string;
+    title?: string;
+    lines?: number;
+    bytes?: number;
+    readable?: boolean;
+    updatedAt?: string;
+    outline: { level: number; number?: string; title: string; line: number }[];
+  };
+  db: {
+    present: boolean;
+    changelog: {
+      found: boolean;
+      file?: string;
+      count?: number;
+      skippedRows?: number;
+      entries?: DossierChangelogEntry[];
+    };
+    tables: DossierTable[];
+    scripts: DossierScript[];
+    entities: { table: string; class: string; file: string; extends: string }[];
+  };
+}
+
+/** 档案索引。缓存不存在 → rejected(NOT_FOUND)（空态，不是故障）。 */
+export function getProjectDossier(id: string): Promise<ProjectsOutcome<Dossier>> {
+  return call<Dossier>(`/api/projects/${encodeURIComponent(id)}/dossier`);
+}
+
+/** 读一份文档原文（.md / .sql，512KB 上限，路径由后端做边界校验）。 */
+export function getProjectDoc(id: string, path: string): Promise<ProjectsOutcome<{ path: string; bytes: number; content: string }>> {
+  return call<{ path: string; bytes: number; content: string }>(
+    `/api/projects/${encodeURIComponent(id)}/doc?path=${encodeURIComponent(path)}`,
+  );
+}
+
 /** 删除：摘注册项 + 删缓存 / facts / 体检留档；QA 历史保留。 */
 export function deleteProject(id: string): Promise<ProjectsOutcome<DeleteResult>> {
   return call<DeleteResult>(`/api/projects/${encodeURIComponent(id)}`, { method: 'DELETE' });
+}
+
+// ── DDL 四件套：校验 / 变更计划（Phase 2）──
+//
+// 三件事刻意分开命名，因为语义不同：
+//   verify 是「现在缺什么」的只读审计；
+//   plan   是「这次改表要写哪四份文件」的生成器（writes:false，军火库不落盘）；
+//   plans  是军火库自己的计划留档（记录 ≠ 操作）。
+// 客户端不提供 apply —— 后端也没有这个端点，别在这里补。
+
+export type DdlIssueLevel = 'error' | 'warn' | 'info';
+
+export interface DdlIssue {
+  level: DdlIssueLevel;
+  code: string;
+  field?: string;
+  message: string;
+}
+
+export interface DdlArtifact {
+  /** 建议落点（相对被管理项目根）。只是建议，军火库不写。 */
+  path: string;
+  action: 'create' | 'update' | 'append' | 'fragment' | 'none';
+  content: string;
+}
+
+export interface DdlPlanChecklistItem {
+  key: 'sql' | 'changelog' | 'tableDoc' | 'entity';
+  label: string;
+  ok: boolean;
+  path: string;
+  note: string;
+}
+
+export interface DdlPlan {
+  schemaVersion: number;
+  planId: string;
+  generatedAt: string;
+  recordedAt?: string;
+  recorded?: boolean;
+  /** 永远是 false：军火库只生成、不操作被管理项目。 */
+  writes: false;
+  note: string;
+  table: string;
+  title: string;
+  operation: string;
+  module: string;
+  date: string;
+  paths: { sql: string; changelog: string; tableDoc: string; entity: string };
+  artifacts: { sql: DdlArtifact; changelog: DdlArtifact; tableDoc: DdlArtifact; entity: DdlArtifact };
+  warnings: DdlIssue[];
+  checklist: DdlPlanChecklistItem[];
+  stats: { businessColumns: number; totalColumns: number; indexes: number; errors: number; warns: number };
+}
+
+/** 列表摘要不带 artifacts（正文太长），problems 只留 warn/error。 */
+export interface DdlPlanSummary {
+  planId: string;
+  recordedAt: string;
+  generatedAt: string;
+  table: string;
+  title: string;
+  operation: string;
+  module: string;
+  date: string;
+  paths: DdlPlan['paths'];
+  stats: DdlPlan['stats'];
+  problems: DdlIssue[];
+}
+
+export interface DdlTableAudit {
+  table: string;
+  title: string;
+  module: string;
+  status: 'complete' | 'partial' | 'missing';
+  okPieces: number;
+  totalPieces: number;
+  pieces: {
+    sql: { ok: boolean; count: number; statements: number; files: string[] };
+    changelog: { ok: boolean; count: number; lastDate: string };
+    tableDoc: {
+      ok: boolean;
+      file: string;
+      columns: number;
+      entityDerivedColumns: number;
+      missingSections: number[];
+      sectionsFound?: number;
+      placeholders?: number;
+      businessColumns: number;
+      entityFields: number;
+    };
+    entity: { ok: boolean; class: string; file: string; fields: number; extendsBaseEntity: boolean };
+  };
+  reconcile: {
+    docBusinessFields: number;
+    entityBusinessFields: number;
+    comparable: boolean;
+    match: boolean;
+  };
+  issues: DdlIssue[];
+}
+
+export interface DdlVerify {
+  schemaVersion: number;
+  generatedAt: string;
+  writes: false;
+  note: string;
+  available: boolean;
+  score: number;
+  summary: {
+    tables: number;
+    complete: number;
+    partial: number;
+    missing: number;
+    scripts: number;
+    templateScripts: number;
+    changelogEntries: number;
+    entities: number;
+    documented: number;
+    score: number;
+  };
+  checks: { key: string; label: string; covered: number; total: number; ok: boolean; percent: number }[];
+  tables: DdlTableAudit[];
+  findings: DdlIssue[];
+}
+
+/** 四件套完整性审计。只读，可反复调用。 */
+export function getProjectDdlVerify(id: string): Promise<ProjectsOutcome<DdlVerify>> {
+  return call<DdlVerify>(`/api/projects/${encodeURIComponent(id)}/ddl/verify`);
+}
+
+/** 生成变更计划。record:false 只看不留档。 */
+export function planDdlChange(id: string, body: Record<string, unknown>): Promise<ProjectsOutcome<DdlPlan>> {
+  return call<DdlPlan>(`/api/projects/${encodeURIComponent(id)}/ddl/plan`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+}
+
+/** 计划留档列表（摘要，按记录时间倒序）。 */
+export function listDdlPlans(id: string): Promise<ProjectsOutcome<DdlPlanSummary[]>> {
+  return call<DdlPlanSummary[]>(`/api/projects/${encodeURIComponent(id)}/ddl/plans`);
+}
+
+/** 单份计划全文（含四件套正文）。 */
+export function getDdlPlan(id: string, planId: string): Promise<ProjectsOutcome<DdlPlan>> {
+  return call<DdlPlan>(
+    `/api/projects/${encodeURIComponent(id)}/ddl/plans/${encodeURIComponent(planId)}`,
+  );
+}
+
+// ─────────────────────────────────────────────────────────────
+// 模块开发看板（只读推断）
+// ─────────────────────────────────────────────────────────────
+
+export type ModuleStageStatus = 'done' | 'partial' | 'todo' | 'ready';
+export type ModuleRoot = 'backend' | 'frontend';
+
+export interface ModuleEvidence {
+  path: string;
+  root: ModuleRoot;
+  note: string;
+}
+
+export interface ModuleMissing {
+  path: string;
+  root: ModuleRoot;
+}
+
+/** 一个阶段的格子。detail 是给人看的一句话，evidence/missing 是给「凭什么」看的路径。 */
+export interface ModuleStage {
+  no: number;
+  key: string;
+  name: string;
+  status: ModuleStageStatus;
+  detail: string;
+  evidence: ModuleEvidence[];
+  missing: ModuleMissing[];
+  /** ④ 后端实现 */
+  endpointCount?: number;
+  controllerCount?: number;
+  /** ⑤ 接口文档 */
+  codeEndpoints?: number;
+  docEndpoints?: number;
+  missingCount?: number;
+  extraCount?: number;
+  /** ⑥ 前端实现 */
+  detected?: boolean;
+  apiFiles?: number;
+  viewFiles?: number;
+}
+
+export interface ModuleEntry {
+  module: string;
+  label: string;
+  stages: ModuleStage[];
+  progress: { done: number; total: number; percent: number };
+  acceptReady: boolean;
+  nextAction: string;
+}
+
+export interface ModuleBoard {
+  schemaVersion: number;
+  generatedAt: string;
+  writes: false;
+  note: string;
+  available: boolean;
+  project: { id: string; name: string; path: string };
+  frontend: {
+    detected: boolean;
+    id?: string;
+    name?: string;
+    path?: string;
+    root?: string;
+    fromCache?: boolean;
+  };
+  playbook: { file: string; found: boolean; apiReadme: boolean };
+  notes: DdlIssue[];
+  modules: ModuleEntry[];
+  summary: {
+    modules: number;
+    acceptReady: number;
+    inProgress: number;
+    notStarted: number;
+    stageDone: Record<string, number>;
+  };
+}
+
+/** 模块开发看板。状态完全由仓库文件推断，不存第二份进度。 */
+export function getModuleBoard(id: string): Promise<ProjectsOutcome<ModuleBoard>> {
+  return call<ModuleBoard>(`/api/projects/${encodeURIComponent(id)}/modules`);
+}
+
+// ─────────────────────────────────────────────────────────────
+// 接口文档（只对账 + 只出稿）
+// ─────────────────────────────────────────────────────────────
+
+export interface ApiDocEndpoint {
+  method: string;
+  path: string;
+  backendPath?: string;
+  summary?: string;
+  permission?: string;
+  line?: number;
+}
+
+export interface ApiDocFileStat {
+  present: boolean;
+  path: string;
+  endpointCount: number;
+  extra?: string[];
+  readable?: boolean;
+  error?: string;
+}
+
+export interface ApiDocVerify {
+  schemaVersion: number;
+  generatedAt: string;
+  writes: false;
+  note: string;
+  module: string;
+  status: 'ok' | 'incomplete' | 'missing';
+  ok: boolean;
+  code: {
+    controllerCount: number;
+    endpointCount: number;
+    paths: string[];
+    controllers: { file: string; class: string; tag: string; base: string }[];
+  };
+  doc: { markdown: ApiDocFileStat; openapi: ApiDocFileStat };
+  matched: ApiDocEndpoint[];
+  missing: ApiDocEndpoint[];
+  extra: ApiDocEndpoint[];
+  summary: {
+    codeEndpoints: number;
+    docEndpoints: number;
+    matched: number;
+    missing: number;
+    extra: number;
+  };
+  notes: DdlIssue[];
+}
+
+export interface ApiDocArtifact {
+  path: string;
+  action: 'create' | 'update' | 'none' | string;
+  content: string;
+}
+
+export interface ApiDocPlan {
+  schemaVersion: number;
+  planId: string;
+  generatedAt: string;
+  writes: false;
+  note: string;
+  module: string;
+  date: string;
+  code: { endpointCount: number; controllers: { file: string; class: string; base: string }[] };
+  artifacts: { markdown: ApiDocArtifact; openapi: ApiDocArtifact };
+  stats: {
+    endpoints: number;
+    controllers: number;
+    resources: number;
+    withPermission: number;
+    withSummary: number;
+  };
+  recorded?: boolean;
+  recordedAt?: string;
+  recordError?: string;
+}
+
+export interface ApiDocPlanResponse {
+  schemaVersion: number;
+  kind: string;
+  generatedAt: string;
+  writes: false;
+  note: string;
+  module: string;
+  notes: DdlIssue[];
+  plan: ApiDocPlan;
+}
+
+export interface ApiDocPlanSummary {
+  planId: string;
+  recordedAt: string;
+  generatedAt: string;
+  module: string;
+  stats: ApiDocPlan['stats'];
+  files: { kind: string; path: string; action: string; chars: number }[];
+}
+
+/** 文档与代码对账。只读，可反复调用。 */
+export function getApiDocVerify(id: string, module: string): Promise<ProjectsOutcome<ApiDocVerify>> {
+  return call<ApiDocVerify>(
+    `/api/projects/${encodeURIComponent(id)}/apidoc/verify?module=${encodeURIComponent(module)}`,
+  );
+}
+
+/** 按代码生成 Markdown + OpenAPI 草稿。record:false 只看不留档。 */
+export function planApiDoc(
+  id: string,
+  module: string,
+  record = true,
+): Promise<ProjectsOutcome<ApiDocPlanResponse>> {
+  return call<ApiDocPlanResponse>(`/api/projects/${encodeURIComponent(id)}/apidoc/plan`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ module, record }),
+  });
+}
+
+/** 草稿留档列表（摘要，按记录时间倒序）。 */
+export function listApiDocPlans(id: string): Promise<ProjectsOutcome<ApiDocPlanSummary[]>> {
+  return call<ApiDocPlanSummary[]>(`/api/projects/${encodeURIComponent(id)}/apidoc/plans`);
+}
+
+/** 单份草稿全文（含两份文档正文）。 */
+export function getApiDocPlan(id: string, planId: string): Promise<ProjectsOutcome<ApiDocPlan>> {
+  return call<ApiDocPlan>(
+    `/api/projects/${encodeURIComponent(id)}/apidoc/plans/${encodeURIComponent(planId)}`,
+  );
 }

@@ -22,6 +22,7 @@
  * ═══════════════════════════════════════════════════════════════════════
  */
 
+import Link from 'next/link';
 import { useMemo, useState } from 'react';
 
 import { charters, primaryCharter, charterSnapshotAt, todayOf, budgetView, l0View } from '@/lib/charter';
@@ -69,6 +70,11 @@ export default function StandardsConsole() {
         <span className="text-xs text-fgMuted">
           多人开发同一个项目时的规范治理：谁认领、谁欠着、哪里在破、什么时候到期、门禁接没接上。
         </span>
+        {/* 本页管的是「章程条款」；当前项目自己写下的章程全文与数据库留档在档案页。
+            两个问题不同（该守什么 / 实际记了什么），入口放一起但页面不合并。 */}
+        <Link href="/dossier" className="text-xs text-brass underline decoration-dotted underline-offset-2">
+          当前项目的开发章程与数据库留档 →
+        </Link>
       </header>
 
       <dl className="mt-3 flex flex-wrap gap-x-6 gap-y-1 text-xs text-fgMuted">
