@@ -41,6 +41,13 @@ arsenal-web/.verify/_b_*.mjs
 #    项目工坊（工坊棒1）的注册表 + 代码缓存同规矩：默认落仓库根 .data/projects/，
 #    三档目录可被 arsenal.json#project.projectsDir / env ARSENAL_PROJECTS_DIR 覆盖，ignore 口径同上带 **/ 前缀。
 **/.data/projects/
+#    仓库根还有两类同性质的产物没被上面的目录规则挡住（2026-10-22 收口时浮出来的）：
+#      .data/qa-*-report.json  质检台跑批报告
+#      .verify/tmp/**          监视测试的 series.jsonl
+#    它们都是脚本跑出来的，按上面的判定原则不进 Git。**只锚定仓库根**（前导 `/`）：
+#    arsenal-web/.verify/*.ts 是自检代码，属资产，不能被这条连带忽略。
+/.data/
+/.verify/
 
 # ── 示例导出包：装配台随时可重新导出，不占仓库 ────────────────
 arsenal-demo-*.zip
