@@ -66,6 +66,21 @@ public final class ScanGuard {
     }
 
     /**
+     * 超限文件能否跳过，而不是整份拒绝。
+     *
+     * <p>2MB 这条线的本意是挡「不是源码的大文件」。对源码来说，超限通常意味着生成物
+     * 混进来了，应当拒绝并让人看见；对二进制资源（.xdb / .jar / .png / 字体）来说，
+     * 它本来就不参与任何静态分析 —— 为一个 10MB 的 ip2region 库把整个项目拒之门外，
+     * 换来的只是一个「加不进来」的结论，没有信息量。
+     *
+     * <p>判定复用 {@link #readable}：不读内容的文件 = 可以跳过。跳过的事实会记进
+     * manifest 与 cache 统计（{@code skippedFiles}），不是静默消失。
+     */
+    public static boolean skippableOversize(String fileName) {
+        return !readable(fileName);
+    }
+
+    /**
      * 路径是否安全：真实路径必须落在 root 的真实路径之内。
      *
      * 先 toRealPath 是关键 —— 软链接 {@code link -> /etc} 的字符串形式完全正常，

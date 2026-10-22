@@ -31,6 +31,8 @@ import java.util.concurrent.TimeUnit;
  *
  * <p>限额与 {@link ScanGuard} 同源（不抄数字）：单文件 2MB / 总 500MB / 2 万文件 / 深度 20。
  * 超限<b>整份拒绝</b>并回滚已复制的部分 —— 绝不留下半份缓存（验收③）。
+ * 唯一例外：超过 2MB 的<b>非源码</b>文件（.xdb / .jar / 字体）不进缓存但仍记入 manifest，
+ * 并在 cache 统计里计 {@code skippedFiles}；源码超限照旧整份拒绝。
  *
  * <p><b>2026-10-18 事故止血（三条，都在这一个类里）</b>：
  * <ol>
@@ -83,6 +85,9 @@ public final class ProjectCache {
 
         final long[] total = {0};
         final int[] count = {0};
+        // 跳过的超限二进制资源数。**必须单独计数**：它不在 repo/ 里，
+        // 但真实存在，报告里要能说清「缓存少了什么、为什么少」。
+        final int[] skippedCount = {0};
         final List<ObjectNode> manifest = new ArrayList<>();
         try {
             // 前置校验放在 try 里：失败了连空目录也不留（prepareTarget 已经删过旧缓存，
@@ -115,11 +120,21 @@ public final class ProjectCache {
                                 + "（第 " + count[0] + "个：" + rel + "）");
                     }
                     long size = attrs.size();
+                    boolean skipped = false;
                     if (size > ScanGuard.MAX_FILE_BYTES) {
-                        throw new ProjectIngestException("单文件超过上限 "
-                                + ScanGuard.MAX_FILE_BYTES / 1024 / 1024 + "MB："
-                                + rel + "（" + size / 1024 / 1024 + "MB）");
+                        // 源码超限照旧拒绝：那通常意味着生成物混进了源码目录，
+                        // 静默跳过一个 .java 会让后续扫描得出错误结论。
+                        // 二进制资源（.xdb / .jar / 字体）跳过并记账 —— 它不参与分析。
+                        String name = file.getFileName() == null ? "" : file.getFileName().toString();
+                        if (!ScanGuard.skippableOversize(name)) {
+                            throw new ProjectIngestException("单文件超过上限 "
+                                    + ScanGuard.MAX_FILE_BYTES / 1024 / 1024 + "MB："
+                                    + rel + "（" + size / 1024 / 1024 + "MB）");
+                        }
+                        skipped = true;
+                        skippedCount[0]++;
                     }
+                    // 跳过的文件仍计入总配额：否则「跳过」就成了绕过 500MB 总闸门的后门
                     total[0] += size;
                     if (total[0] > ScanGuard.MAX_TOTAL_BYTES) {
                         throw new ProjectIngestException("总大小超过上限 "
@@ -130,18 +145,21 @@ public final class ProjectCache {
                         throw new ProjectIngestException("目录深度超过上限 " + ScanGuard.MAX_DEPTH
                                 + "（" + rel + "）");
                     }
-                    Path out = repo.resolve(rel.toString());
-                    try {
-                        Files.createDirectories(out.getParent());
-                        // 深路径两侧都走长路径形式：源或缓存任何一侧超过 260 字符，
-                        // 普通形式会在这里抛 IOException（然后被回滚，但用户白白等一场）。
-                        Files.copy(longPath(file), longPath(out));
-                    } catch (IOException e) {
-                        throw new ProjectIngestException("复制失败 " + rel + "：" + e.getMessage());
+                    if (!skipped) {
+                        Path out = repo.resolve(rel.toString());
+                        try {
+                            Files.createDirectories(out.getParent());
+                            // 深路径两侧都走长路径形式：源或缓存任何一侧超过 260 字符，
+                            // 普通形式会在这里抛 IOException（然后被回滚，但用户白白等一场）。
+                            Files.copy(longPath(file), longPath(out));
+                        } catch (IOException e) {
+                            throw new ProjectIngestException("复制失败 " + rel + "：" + e.getMessage());
+                        }
                     }
                     ObjectNode m = mapper.createObjectNode();
                     m.put("rel", rel.toString().replace('\\', '/'));
                     m.put("size", size);
+                    if (skipped) m.put("skipped", true);
                     try {
                         m.put("mtimeMs", Files.getLastModifiedTime(file).toMillis());
                     } catch (IOException ignored) {
@@ -175,6 +193,7 @@ public final class ProjectCache {
         ObjectNode cache = mapper.createObjectNode();
         cache.put("files", count[0]);
         cache.put("bytes", total[0]);
+        cache.put("skippedFiles", skippedCount[0]);
         cache.put("ingestedAt", nowIso());
         cache.put("fingerprint", "dir:" + count[0] + ":" + total[0]);
         cache.putNull("lastRefresh");
@@ -274,6 +293,8 @@ public final class ProjectCache {
         java.util.Map<String, ObjectNode> cur = new java.util.HashMap<>();
         collectSourceFiles(source, cur);
         for (var e : cur.entrySet()) {
+            // 摄取时跳过的超限二进制，刷新时也不复制 —— 否则「添加得进、刷新就炸」
+            if (e.getValue().path("skipped").asBoolean(false)) continue;
             Path out = repo.resolve(e.getKey());
             Files.createDirectories(longPath(out.getParent()));
             Files.copy(longPath(source.resolve(e.getKey())), longPath(out), java.nio.file.StandardCopyOption.REPLACE_EXISTING);
@@ -326,6 +347,12 @@ public final class ProjectCache {
                 String rel = source.relativize(file).toString().replace('\\', '/');
                 ObjectNode m = mapper.createObjectNode();
                 m.put("size", attrs.size());
+                // 与摄取侧同一判据：超限的二进制资源不进缓存，但必须留在清单里 ——
+                // 漏记会让 freshness 每次把它报成「新增」，refresh 又会试图复制它。
+                String name = file.getFileName() == null ? "" : file.getFileName().toString();
+                if (attrs.size() > ScanGuard.MAX_FILE_BYTES && ScanGuard.skippableOversize(name)) {
+                    m.put("skipped", true);
+                }
                 long mt = 0L;
                 try {
                     mt = Files.getLastModifiedTime(file).toMillis();
@@ -569,6 +596,7 @@ public final class ProjectCache {
             m.put("rel", e.getKey());
             m.put("size", e.getValue().path("size").asLong());
             m.put("mtimeMs", e.getValue().path("mtimeMs").asLong());
+            if (e.getValue().path("skipped").asBoolean(false)) m.put("skipped", true);
             files.add(m);
         }
         mapper.writerWithDefaultPrettyPrinter().writeValue(target.resolve("manifest.json").toFile(), manifestRoot);
