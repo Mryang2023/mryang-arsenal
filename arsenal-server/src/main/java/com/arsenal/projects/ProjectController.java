@@ -49,6 +49,8 @@ public class ProjectController {
     private final ProjectScanner scanner;
     private final AutopsyService autopsy;
     private final ObjectMapper mapper;
+    /** 档案索引器（只读 docs/ 与 @TableName）。不建 Spring bean：它不持有任何状态。 */
+    private final DossierService dossier;
 
     public ProjectController(
             @Value("${arsenal.projects-dir:}") String ymlDir,
@@ -66,6 +68,7 @@ public class ProjectController {
         this.scanner = scanner;
         this.autopsy = autopsy;
         this.mapper = mapper;
+        this.dossier = new DossierService(mapper);
     }
 
     /** 列表（摘要，不 walk 源头）。 */
@@ -277,6 +280,53 @@ public class ProjectController {
             return ApiResponse.ok(report);
         } catch (Exception e) {
             return ApiResponse.fail("CHECKUP_ERROR", e.getMessage());
+        }
+    }
+
+    // ── 项目档案（只读索引 docs/ + @TableName）──
+
+    /**
+     * 档案索引：章程目录、CHANGELOG 记录、表结构说明、DDL 脚本、表→实体映射。
+     *
+     * <p>全部读缓存 repo/，不读源头、不执行 SQL。缓存不在 → NOT_FOUND（页面空态），
+     * 解析不出东西 → 200 + notes 明说缺什么（文档没写不是接口故障）。
+     */
+    @GetMapping("/{id}/dossier")
+    public ApiResponse<JsonNode> dossier(@PathVariable("id") String id) {
+        if (registry.find(id).isEmpty()) return ApiResponse.fail("NOT_FOUND", "项目不在了：" + safe(id));
+        Path repo = cache.resolve(id);
+        if (repo == null) return ApiResponse.fail("NOT_FOUND", "缓存不存在：" + safe(id));
+        try {
+            return ApiResponse.ok(dossier.build(repo));
+        } catch (Exception e) {
+            return ApiResponse.fail("READ_ERROR", "档案索引失败：" + e.getMessage());
+        }
+    }
+
+    /**
+     * 读一份文档原文（章程正文 / 表说明 / DDL 脚本）。
+     *
+     * <p>路径由调用方给相对路径，服务端替它做边界：只许 .md / .sql，只许落在缓存内，
+     * 单份 512KB 上限。这是「档案页点开某一节」的唯一读出口 —— 不给它，
+     * 页面就只能把整份章程塞进一次列表响应。
+     */
+    @GetMapping("/{id}/doc")
+    public ApiResponse<ObjectNode> doc(@PathVariable("id") String id,
+                                       @org.springframework.web.bind.annotation.RequestParam("path") String path) {
+        if (registry.find(id).isEmpty()) return ApiResponse.fail("NOT_FOUND", "项目不在了：" + safe(id));
+        Path repo = cache.resolve(id);
+        if (repo == null) return ApiResponse.fail("NOT_FOUND", "缓存不存在：" + safe(id));
+        try {
+            String text = dossier.readDoc(repo, path);
+            ObjectNode out = mapper.createObjectNode();
+            out.put("path", path);
+            out.put("bytes", text.getBytes(java.nio.charset.StandardCharsets.UTF_8).length);
+            out.put("content", text);
+            return ApiResponse.ok(out);
+        } catch (IllegalArgumentException e) {
+            return ApiResponse.fail("BAD_SOURCE", e.getMessage());
+        } catch (Exception e) {
+            return ApiResponse.fail("READ_ERROR", e.getMessage());
         }
     }
 
