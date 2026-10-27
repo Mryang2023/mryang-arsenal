@@ -2073,7 +2073,12 @@ if (!skipAll) {
     && rt.health?.probed === true && rt.health.httpStatus === 200
     && String(rt.health.body).includes('UP'),
     rt === null ? '采集没跑起来（见上方 [采集失败]）'
-      : `status=${rt.status} port=${rt.port?.value} line=${rt.port?.evidence?.line} health=${rt.health?.httpStatus}`);
+      // 判定不放宽，但把探针自己的 reason + 降版构件一并带出来（r9 P1-5）：
+      // 只有 status/port 这行时，「.m2 混版」会表现成一条 Spring 内部 condition 异常，
+      // 读的人分不清是项目 bug 还是环境问题（BLOCKERS B-7 最初就被带偏过一次）。
+      : `status=${rt.status} port=${rt.port?.value} line=${rt.port?.evidence?.line} health=${rt.health?.httpStatus}`
+        + (rt.missingDeps?.length ? `\n      缺/降版构件 ${rt.missingDeps.length} 个：${rt.missingDeps.join(' / ')}` : '')
+        + (rt.reason ? `\n      探针原因：${rt.reason.slice(0, 400)}` : ''));
 
   // ── 13-2 安全红线：跑完必须死干净 ────────────────────────────
   // 拿启动日志里那个**真实 PID** 去查，不是数 java 进程总数 ——

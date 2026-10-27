@@ -4,23 +4,22 @@
   "push_remote": false,
   "started_at": "2026-10-27T15:34:57Z",
   "end_at": "2026-10-27T21:34:57Z",
-  "current_round": 8,
+  "current_round": 9,
   "round_status": "completed",
   "in_progress": null,
   "next_round_plan": {
-    "round": 9,
-    "task_id": "P1-5",
-    "task": "_rtcp.sh 的 _rt_add() 对缺件静默跳过，导致 13-1 的失败信息被 Spring 的 condition 异常带偏。让缺的 jar 如实进探针输出的 missingDeps 通道，只改可读性、不改判定、不放宽断言",
-    "priority": "P1",
+    "round": 10,
+    "task_id": "P3-4（原 P1-5 遗留半条）",
+    "task": "_rtcp.sh 的 _rt_add() 静默跳过缺件：让它把缺的 jar 名如实打到 stderr（不改 RTCP 的拼装结果、不改判定），这样跑探针那台 JVM 自己缺依赖时也不再是「莫名其妙 ClassNotFound」",
+    "priority": "P3",
     "expected_files": [
-      "arsenal-server/scripts/_rtcp.sh",
-      "arsenal-server/.verify/RuntimeProbe.java（视 needed）"
+      "arsenal-server/scripts/_rtcp.sh"
     ],
     "gates": [
-      "bash arsenal-server/scripts/runtime-probe.sh 手跑 fixture 看失败信息",
-      "npm run verify:scan（约 116s）"
+      "bash arsenal-server/scripts/runtime-probe.sh 手跑 fixture 仍全绿产出 JSON",
+      "npm run verify:parity（15s）"
     ],
-    "notes": "判据：13-1/13-2/13-7 仍红（不伪装成绿），但红的原因要一眼读出「缺哪 4 个构件」"
+    "notes": "上一轮的教训：先读代码确认这条到底影响什么，别按计划的旧假设动手"
   },
   "commands": {
     "web_typecheck": "cd arsenal-web && npm run typecheck",
@@ -106,7 +105,8 @@
       },
       "meta": "73/0/0 exit 0（十三层声明==实测全部对上）",
       "note": "相对 r1 基线：失败 6→4、新增失败 0、实测 2270→2290（archify 逐例断言 +20）"
-    }
+    },
+    "scan_after_r9": "167 通过 / 3 失败 / 项数 170（与基线同数，未新增；失败详情改为自带缺/降版构件清单）"
   },
   "wakeup": {
     "mechanism": "DEGRADED：无排程工具 → r3–r6 改为同会话连续跑；r7 起需人唤醒或恢复 mcp__builtin__qoder_cron（见 B-5）",
@@ -137,7 +137,7 @@
       "B-3 CI 配置",
       "B-4 maven 环境待判定"
     ],
-    "rounds_completed": 7
+    "rounds_completed": 9
   },
   "stop_reason": null,
   "tools_or_environment": {

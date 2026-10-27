@@ -136,15 +136,24 @@ public final class RuntimeClasspath {
 
         Map<String, String> props = readBomProperties(m2Repo, boot, note);
         List<String> jars = new ArrayList<>();
+        List<String> downgraded = new ArrayList<>();
         for (Spec s : REQUIRED) {
-            Path jar = findJar(m2Repo, s, boot, props);
+            Path jar = findJar(m2Repo, s, boot, props, downgraded);
             if (jar == null) missing.add(s.groupPath().replace('/', '.') + ":" + s.artifact());
             else jars.add(jar.toString());
         }
         for (Spec s : OPTIONAL) {
-            Path jar = findJar(m2Repo, s, boot, props);
+            Path jar = findJar(m2Repo, s, boot, props, downgraded);
             if (jar == null) missing.add(s.groupPath().replace('/', '.') + ":" + s.artifact() + "(可选)");
             else jars.add(jar.toString());
+        }
+        // 降过版本的那些坐标同样记进 missing —— 「缺 4.1.1」和「完全没装」都得让用户看见，
+        // 区别只在后缀：前者是混版（能凑出 42 个 jar、真跑起来才炸），后者是压根没有。
+        if (!downgraded.isEmpty()) {
+            downgraded.forEach(missing::add);
+            note.append("其中 ").append(downgraded.size())
+                    .append(" 个构件按 pom 要的版本在本地 .m2 没有，已退到本地最高版本（混版跑，可能启动即崩）：")
+                    .append(String.join(" / ", downgraded)).append("。");
         }
         return new Resolved(jars, missing, boot, note.toString());
     }
@@ -186,7 +195,8 @@ public final class RuntimeClasspath {
         return props;
     }
 
-    private static Path findJar(Path m2Repo, Spec s, String boot, Map<String, String> props) {
+    private static Path findJar(Path m2Repo, Spec s, String boot, Map<String, String> props,
+                                List<String> downgraded) {
         Path dir = m2Repo.resolve(s.groupPath()).resolve(s.artifact());
         if (!Files.isDirectory(dir)) return null;
         String want = switch (s.versionKey()) {
@@ -198,15 +208,23 @@ public final class RuntimeClasspath {
             Path exact = dir.resolve(want).resolve(s.artifact() + "-" + want + ".jar");
             if (Files.isRegularFile(exact)) return exact;
         }
-        // 退到「该 artifact 在 .m2 里的最高版本」。这一步是不精确的，但比直接放弃好，
-        // 而且它会被记进 note —— 用户能看见「这个版本是猜的」。
+        // 退到「该 artifact 在 .m2 里的最高版本」。这一步是不精确的，但比直接放弃好 ——
+        // 前提是它**必须被说出来**：注释一旦宣称「记进 note」而代码没记，读报错的人就会被
+        // 带偏成「缺构件」（2026-10-27 r9 实测：actuator-autoconfigure 退到 3.3.6 混进
+        // 4.1.1 家族，崩在 Spring 的 condition 上，missingDeps 却只报了另外两个真缺的）。
         try (var walk = Files.list(dir)) {
-            return walk.filter(Files::isDirectory)
+            Path fallback = walk.filter(Files::isDirectory)
                     .sorted(RuntimeClasspath::compareDirNamesDesc)
                     .map(v -> v.resolve(s.artifact() + "-" + v.getFileName() + ".jar"))
                     .filter(Files::isRegularFile)
                     .findFirst()
                     .orElse(null);
+            if (fallback != null && want != null
+                    && !fallback.getFileName().toString().equals(s.artifact() + "-" + want + ".jar")) {
+                downgraded.add(s.groupPath().replace('/', '.') + ":" + s.artifact()
+                        + "(" + want + " 未装，退到 " + fallback.getParent().getFileName() + ")");
+            }
+            return fallback;
         } catch (IOException e) {
             return null;
         }

@@ -267,7 +267,16 @@ public final class RuntimeProbe {
             out.put("reason", "墙钟 " + wallClockMs + "ms 内没起来，进程树已杀 —— 这是「起不来」，不是「起来了但没端口」");
         } else {
             out.put("status", "not-executed");
-            out.put("reason", "起不来：" + shortErrors(ran.stderr(), ran.stdout()));
+            // 先说哪几个构件降了版，再贴异常原文。否则读到的永远是 Spring 内部的
+            // condition 报错，看不出「其实是要的那版没装、退到了 3.x 混进 4.1.1 家族」
+            // ——2026-10-27 r9 实测的误导路径（登记为 B-7 时把它当成了「缺 4 个构件」）。
+            String mixed = cp.missing().stream()
+                    .filter(m -> m.contains("退到"))
+                    .reduce((a, b) -> a + " / " + b)
+                    .map(s -> "类路径里有降版构件 [" + s + "]，混版起跑")
+                    .orElse("");
+            out.put("reason", "起不来：" + (mixed.isEmpty() ? "" : mixed + "；")
+                    + shortErrors(ran.stderr(), ran.stdout()));
         }
         return out;
     }

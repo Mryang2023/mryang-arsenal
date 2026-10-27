@@ -38,5 +38,10 @@ if [ -f "$HERE/_rtcp.sh" ]; then
   CPALL="$CPALL;${RTCP#;}"
 fi
 
-exec "$JDK_DIR/bin/java" -Dfile.encoding=UTF-8 -cp "$CPALL" \
+# 编码参数与 archify-probe.sh / projects-probe.sh / scan-probe.sh 同款：
+# JDK 18+ 里 -Dfile.encoding **不再管 System.out**，输出字符集取自 stdout.encoding，
+# 而它在 Windows 上默认跟随控制台码页（本机 GBK）。缺这两个参数时探针写出的是 GBK 字节 JSON，
+# 前端 spawnSync(encoding:'utf8') 解出来 reason/missingDeps 全是乱码，
+# 「失败信息可读」直接落空（2026-10-27 r9 实测：utf8 解码报 invalid start byte）。
+exec "$JDK_DIR/bin/java" -Dsun.stdout.encoding=UTF-8 -Dsun.stderr.encoding=UTF-8 -Dfile.encoding=UTF-8 -cp "$CPALL" \
   com.arsenal.autopsy.RuntimeProbe "$@"

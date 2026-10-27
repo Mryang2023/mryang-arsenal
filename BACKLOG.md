@@ -91,9 +91,12 @@
   现在红例与「校验器拿不到 JSON」两条路都产出一条红断言；注入回归实测：`31 项 / 13 失败`、`declaredMismatch: null`、逐例点名到预设。
   全绿态仍是 31 项不变 ⇒ 档案声明不用动。穷举模式（`ARCHIFY_SWEEP=1`）保持只报例外。
 
-- **P1-5 [证据，r4] `_rtcp.sh` 的 `_rt_add()` 对缺件静默跳过。** 后果不是「少个 jar」而是失败信息被带偏：
-  13-1 报的是 Spring 的 `EndpointCondition must be used on @Bean methods…`，读不出「其实是有 4 个构件没装」。
-  做法：缺件时把 artifact 名收进探针输出（`missingDeps` 那条现成的通道），断言仍如实红 —— 只改可读性，不改判定。
+- **P1-5 [证据，r4] ~~`_rtcp.sh` 的 `_rt_add()` 对缺件静默跳过~~ → r9 已修（但真位置不是这里，见下）。**
+  r9 实跑复核把根因更正了：把失败信息带偏的是 **`RuntimeClasspath.findJar()` 的降版分支**（注释宣称「会记进 note」，代码一个字没记），
+  不是 `_rt_add`。已修：降版构件如实进 `missing()` + `note`，`RuntimeProbe` 的 `reason` 先点名混版再贴异常，
+  `scan-check.ts` 的 13-1 失败详情带上清单（判定条件与项数 170 未动，三条红仍红）。代码 4 文件 / +46 −9。
+  **剩下没做的半条**：`_rtcp.sh` 的 `_rt_add()` 依旧对缺件静默跳过 —— 但它只影响跑探针那台 JVM 自己的类路径，
+  不参与 fixture 的类路径解析，实测不影响 13-1 的判定；优先级降到 P3。
 
 
 ---

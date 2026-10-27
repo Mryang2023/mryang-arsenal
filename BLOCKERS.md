@@ -35,7 +35,7 @@
 - **循环的处置**：只提交 `arsenal-profiles/arsenal.json` + 两个 src/lib 文件；README 的改动**原样留在工作区**（verify 链读工作区，链已复绿；HEAD 里没有这 6 处）。
 - **需要人**：用户提交自己那批 README 改动时把这两组数字一并带走；或确认由循环单独带走。
 
-## B-7 [r4] 扫描层 13-1/13-2/13-7 的根因是**本机 .m2 缺 4 个 Spring Boot 4.1.1 家族构件**，不是 maven、也不是断言造假
+## B-7 [r4，根因已被 r9 更正 → 见文末「B-7 更正」] 扫描层 13-1/13-2/13-7 的红是本机镜像不全，不是 maven、也不是断言造假
 - **实测证据**（`bash arsenal-server/scripts/runtime-probe.sh …/runtime-demo demo.DemoApplication spring-boot 60000` 手跑一次）：
   进程真起来了、真失败，失败在 Spring 自动配置阶段：
   `IllegalStateException: EndpointCondition must be used on @Bean methods when the endpoint is not specified`
@@ -66,3 +66,21 @@
   ③ 导出产物由 `verify:parity` 逐字节守着，语料一改 markdown 必变，需要确认口径（`javaparser` → `jdk.compiler` 还是 `arsenal-ast`）。
 - **需要人**：拍板一个引擎名口径。建议值：`jdk.compiler`（与 `AstEngine` 自述一致、零依赖事实）。
   拿到口径后循环可一次做完：20 处语料 + `Rule.engineOrDefault()` + `Rule.java:80` javadoc + `page.tsx:207` 兜底 + `npm run sync` + 复跑 `verify:parity`/`verify:project`。
+
+## B-7 更正 [r9] 真根因是**降版混用**，不是「缺 4 个构件」—— 需要人批的清单随之变化
+- **本条上面的 r4 记录有一半是错的**，且错法正是它自己要防的那种：拿「读不出的失败信息」倒推了根因。
+  r9 把披露修好后同一条命令实测：`missingDeps` 从 2 条变 7 条 ——
+  - 真缺（本地一个版本都没有）：`spring-boot-health`、`spring-boot-micrometer-observation`；
+  - **降版**（要的那版没装，`RuntimeClasspath.findJar()` 悄悄退到本地最高版）：
+    `spring-boot-actuator` 4.1.1→**3.3.6**、`spring-boot-actuator-autoconfigure` 4.1.1→**3.3.6**、
+    `spring-jcl` 7.0.9→6.1.6、`spring-tx` 7.0.9→6.1.6、`micrometer-core` 1.17.1→1.13.8。
+- **崩溃主因是那对 3.3.6 的 actuator-autoconfigure**：栈帧 `OnAvailableEndpointCondition… [spring-boot-actuator-autoconfigure-3.3.6.jar]`
+  直接指着它，被 4.1.1 的 `spring-boot-autoconfigure` 处理 condition 时炸出 `EndpointCondition must be used on @Bean methods…`。
+  原记录说的「`_rt_add` 静默跳过导致类路径里 actuator 缺席」不成立 —— fixture 的类路径不是 `_rtcp.sh` 拼的那份，
+  而是探针里 `RuntimeClasspath.resolve()` 现解析的 42 个 jar，那份里 actuator **在场，但是 3.x 的**。
+- **需要人的清单更正为**（仍是「批准联网拉构件」这一件事，但项目变多且优先级变了）：
+  1. `org.springframework.boot:spring-boot-actuator:4.1.1`、`spring-boot-actuator-autoconfigure:4.1.1` —— 拉到这俩，13-1 大概率直接转绿（混版消失）；
+  2. `spring-boot-health:4.1.1`、`spring-boot-micrometer-observation:4.1.1`、`io.micrometer:micrometer-core:1.17.1`；
+  3. `org.springframework:spring-jcl:7.0.9`、`spring-tx:7.0.9`（与已在场的 spring-core 7.0.9 同代）。
+  或按原样认可：这 3 条红是**本机镜像不全**，不是代码缺陷（断言已不再伪装成绿）。
+- **循环仍不擅自拉**：改 `.m2` 内容属供应链动作（安全红线第 3 条），且混用 3.x/4.x 本身就是这次要防的病。

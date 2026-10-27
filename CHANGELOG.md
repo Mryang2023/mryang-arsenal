@@ -56,3 +56,20 @@
     后端起不来 → 直接退出 1 并甩出启动日志尾巴，**不把「跳过」写成「通过」**。
   - 未跑过的分支：`--keep` 与「已有外部后端」两条只做静态审查，没有实测（本机每次都是干净起停）。
 - `README.md`：新增这段用法说明（**仍未提交**，同 B-6 —— 该文件捆着用户在途改动，现累计 7 处待带走）。
+
+## r9 · 2026-10-27
+- `arsenal-server/scripts/runtime-probe.sh`：JVM 参数补 `-Dsun.stdout.encoding=UTF-8 -Dsun.stderr.encoding=UTF-8`（与 `archify-probe.sh` / `projects-probe.sh` / `scan-probe.sh` 同款写法）。
+  - 实测根因：JDK 18+ 里 `-Dfile.encoding` **不再决定 `System.out` 的字符集**，它跟随控制台码页（本机 GBK）——
+    探针吐出的 JSON 因此是 GBK 字节，前端 `spawnSync(encoding:'utf8')` 解出来 `reason` / `missingDeps` 里的中文全是乱码
+    （复现：utf-8 解码报 `invalid start byte`，GBK 解码才通）。这是 r2 起就在的缺陷，之前没人拿中文文本去解它。
+- `arsenal-server/src/main/java/com/arsenal/autopsy/RuntimeClasspath.java`：`findJar()` 的「退到本地最高版本」这条降级分支**开始如实上报**（新增 `downgraded` 收集，同时进 `missing()` 与 `note`）。
+  - 原注释宣称「会被记进 note —— 用户能看见『这个版本是猜的』」，但那条分支一个字都没记，注释与代码不符（P1-5 的真实位置，见下条 B-7 更正）。
+  - 只改披露，**不改选包逻辑**：类路径解析结果与之前逐 jar 相同，13-1/13-2/13-7 该红仍然红。
+- `arsenal-server/src/main/java/com/arsenal/autopsy/RuntimeProbe.java`：进程起不来时，`reason` 先点名「哪几个构件降了版」再贴 Spring 异常原文。
+- `arsenal-web/.verify/scan-check.ts`：13-1 的失败详情带上 `缺/降版构件 N 个：<清单>` 与 `探针原因：<reason 前 400 字>`。
+  - 判定条件、项数（170）一律未动；改前失败信息只有 `status=not-executed port=null`，读的人分不清是项目 bug 还是环境问题。
+- 本机实测（fixture `runtime-demo` 真跑）：`missingDeps` 从 2 条变 7 条 —— 2 条真缺（`spring-boot-health`、`spring-boot-micrometer-observation`）
+  + 5 条降版（`spring-boot-actuator` / `spring-boot-actuator-autoconfigure` 4.1.1→3.3.6、`spring-jcl` / `spring-tx` 7.0.9→6.1.6、`micrometer-core` 1.17.1→1.13.8）。
+  **崩溃主因正是那对 3.3.6 的 actuator-autoconfigure**（栈帧直接指着它），不是「缺构件」本身 —— B-7 原记录被本轮实测更正。
+- 门禁：`verify:parity 13/0/3跳`（含 compile-check 100 源文件 → 208 class）、`verify:scan 167/0/3`（同 3 条红、无新增）、`typecheck` 与 `typecheck:verify` 均 exit 0。
+- 代码改动 4 个文件 / +46 −9 行。

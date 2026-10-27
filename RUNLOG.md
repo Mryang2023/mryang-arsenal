@@ -220,3 +220,37 @@ AST【6】与 MCP【7】两组守门全绿。失败面未新增（链仍是 scan
 
 **运维教训（已写进 state.commands）**：改前端 `src/**` 之后 visual 层会自己判旧并整层跳过 ——
 下一轮只要碰前端源码，就得先 `node scripts/next-run.mjs build` 再跑链，否则「13 项未执行」会被当成没事。
+
+## r9 · 2026-10-27 17:00Z — P1-5：让 13-1 的失败信息自己说清「缺哪几个构件」
+
+**计划**（r8 写的 next_round_plan）：`_rtcp.sh` 的 `_rt_add()` 对缺件静默跳过，让缺件进 `missingDeps` 通道。
+
+**做完判定才发现计划本身错位** —— 按计划读了 `RuntimeClasspath` 才看清：fixture 的类路径**不是** `_rtcp.sh` 拼的那份，
+而是探针里 `resolve()` 现解析的 42 个 jar。真凶是 `findJar()` 的降版分支：它退到本地最高版本，
+而注释写着「会被记进 note —— 用户能看见『这个版本是猜的』」—— **那条分支一个字都没记**。注释与代码不符，
+且不符的方向恰好是让失败信息读起来像「缺构件」。r4 把它记成「.m2 缺 4 个构件」（B-7）就是被这条假披露带偏的。
+
+**改动（4 文件 / +46 −9，只改披露不改判定）**
+| 文件 | 改了什么 |
+|---|---|
+| `autopsy/RuntimeClasspath.java` | `findJar()` 收集降版坐标 → 同时进 `missing()`（带 `4.1.1 未装，退到 3.3.6` 这样的后缀）与 `note`；选包逻辑一行没动 |
+| `autopsy/RuntimeProbe.java` | 进程起不来时 `reason` 先点名混版构件，再贴 Spring 异常原文 |
+| `scripts/runtime-probe.sh` | 补 `-Dsun.stdout.encoding=UTF-8 -Dsun.stderr.encoding=UTF-8`（与 archify/projects/scan 三个探针脚本同款）—— JDK 18+ 里 `-Dfile.encoding` 已不管 `System.out`，本机探针一直吐的是 **GBK 字节的 JSON**，前端按 utf8 解 → 中文全乱码 |
+| `.verify/scan-check.ts` | 13-1 失败详情追加「缺/降版构件 7 个：<清单>」+「探针原因：<400 字>」 |
+
+**实跑对照**（同一命令 `runtime-probe.sh …/runtime-demo demo.DemoApplication spring-boot 60000`）
+- 改前：`missingDeps` 2 条、`reason` 只有 Spring 的 `EndpointCondition must be used on @Bean methods…`。
+- 改后：`missingDeps` **7 条** = 2 真缺（`spring-boot-health`、`spring-boot-micrometer-observation`）
+  + 5 降版（`actuator` / `actuator-autoconfigure` → 3.3.6、`spring-jcl` / `spring-tx` → 6.1.6、`micrometer-core` → 1.13.8），
+  `reason` 开头即「类路径里有降版构件 […]，混版起跑」；崩溃主因确认是那对 **3.3.6 的 actuator-autoconfigure**（栈帧点名），不是「没装」。
+- 编码那条是本轮的意外收获：r2 起就存在，之前没人拿中文文本去解探针的 stdout。
+
+**门禁**：`bash scripts/compile-check.sh` → 100 源文件 / 208 class OK；
+`verify:parity` 13 通过 / 0 失败（含 compile-check + AstProbe + MCP 守门）；
+`verify:scan` **167 通过 / 3 失败 / 项数仍 170**（13-1/13-2/13-7 三条红原样保留 —— 没有为了让链好看而放宽）；
+`typecheck` + `typecheck:verify` exit 0。
+
+**账**：链失败面仍是 4（scan 3 + visual 1），与 r8 全量一致，未新增；新增的是「这 3 条红现在一眼读得出根因」。
+
+**遗留半条**：`_rtcp.sh` 的 `_rt_add()` 仍静默跳过缺件 —— 实测它只影响跑探针那台 JVM 自己的类路径，不参与 fixture 解析，降到 P3（r10 候选）。
+**BLOCKERS**：B-7 追加「更正」段 —— r4 那半条诊断作废，需人批准的构件清单从 4 个变 7 个（且前 2 个到位大概率直接转绿）。
