@@ -4,19 +4,23 @@
   "push_remote": false,
   "started_at": "2026-10-27T15:34:57Z",
   "end_at": "2026-10-27T21:34:57Z",
-  "current_round": 7,
+  "current_round": 8,
   "round_status": "completed",
   "in_progress": null,
   "next_round_plan": {
-    "round": 8,
-    "task_id": "确认轮",
-    "task": "重跑全量 npm run verify（≈228s）核对 r2–r7 累计账目：失败应仍是 scan 3 + visual 1 = 4、meta 全绿；结论写进 RUNLOG，不开新代码面",
-    "priority": "P0",
+    "round": 9,
+    "task_id": "P1-5",
+    "task": "_rtcp.sh 的 _rt_add() 对缺件静默跳过，导致 13-1 的失败信息被 Spring 的 condition 异常带偏。让缺的 jar 如实进探针输出的 missingDeps 通道，只改可读性、不改判定、不放宽断言",
+    "priority": "P1",
     "expected_files": [
-      "RUNLOG.md",
-      "state/RUN_STATE.json"
+      "arsenal-server/scripts/_rtcp.sh",
+      "arsenal-server/.verify/RuntimeProbe.java（视 needed）"
     ],
-    "notes": "r8 之后再评估：剩 BACKLOG 项全部依赖人工决策（B-2/B-3/B-7/B-8）"
+    "gates": [
+      "bash arsenal-server/scripts/runtime-probe.sh 手跑 fixture 看失败信息",
+      "npm run verify:scan（约 116s）"
+    ],
+    "notes": "判据：13-1/13-2/13-7 仍红（不伪装成绿），但红的原因要一眼读出「缺哪 4 个构件」"
   },
   "commands": {
     "web_typecheck": "cd arsenal-web && npm run typecheck",
@@ -30,7 +34,9 @@
     "server_port": 3011,
     "web_port": 3010,
     "round_time_budget_verify_s": 228,
-    "typecheck_s": 10
+    "typecheck_s": 10,
+    "web_rebuild": "cd arsenal-web && node scripts/next-run.mjs build   # 改前端 src 后必须重建，否则 verify:visual 判产物过期、整层 13 项未执行",
+    "verify_full_s": 231
   },
   "toolchain": {
     "node": "v24.21.0",
@@ -85,7 +91,22 @@
     "scan_after_r4": "167 通过 / 3 失败（与 r1 同数）—— 3 条红判定为环境缺口：.m2 缺 4 个 Spring Boot 4.1.1 家族构件 + _rtcp.sh 静默跳过缺件（B-7）；代码零改动",
     "archify_count_stable": "r5 起：archify 层实测项数恒为 31（绿 31/0，注入回归 31/13 失败），不再随红绿缩水；declaredMismatch 恒 null",
     "with_backend_script": "npm run verify:with-backend：parity 16/16 + checkup 99/99 真跑全绿，脚本自行关停并归还 3011；--keep 与「已有外部后端」两条分支未实测",
-    "note_after_r7": "判定轮无代码改动；链失败面仍 4（scan 3 + visual 1），后端类未执行 12 项已由 r6 脚本可一键真跑"
+    "note_after_r7": "判定轮无代码改动；链失败面仍 4（scan 3 + visual 1），后端类未执行 12 项已由 r6 脚本可一键真跑",
+    "verify_after_r8": {
+      "at": "2026-10-27T16:41Z",
+      "exit_code": 1,
+      "measured": 2290,
+      "pass": 2273,
+      "skip": 13,
+      "fail": 4,
+      "duration_s": 231.4,
+      "red_layers": {
+        "scan": "3 fail（B-7 .m2 缺构件）",
+        "visual": "1 fail（B-2 矩阵 111 vs 截图台 108）"
+      },
+      "meta": "73/0/0 exit 0（十三层声明==实测全部对上）",
+      "note": "相对 r1 基线：失败 6→4、新增失败 0、实测 2270→2290（archify 逐例断言 +20）"
+    }
   },
   "wakeup": {
     "mechanism": "DEGRADED：无排程工具 → r3–r6 改为同会话连续跑；r7 起需人唤醒或恢复 mcp__builtin__qoder_cron（见 B-5）",
