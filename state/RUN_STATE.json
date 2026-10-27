@@ -4,22 +4,21 @@
   "push_remote": false,
   "started_at": "2026-10-27T15:34:57Z",
   "end_at": "2026-10-27T21:34:57Z",
-  "current_round": 10,
+  "current_round": 11,
   "round_status": "completed",
   "in_progress": null,
   "next_round_plan": {
-    "round": 11,
-    "task_id": "P3-2",
-    "task": "docs/功能缺口清单-2026-09-22.md 已 35 天未更新，r7/r9 又推翻了它若干条前提（前端 AST 已闭环、AstProbe 已守门、LLM 客户端已存在、B-7 根因是降版混用而非缺构件）。做法：不改写那份历史报告，另起一份 docs/现状复核-2026-10-27.md 记录「哪些条目已被实测推翻、证据是什么」",
+    "round": 12,
+    "task_id": "P3-5（r11 派生）",
+    "task": "给 docs/功能缺口清单-2026-09-22.md 顶部加一行「本报告的若干前提已被 2026-10-27 实测推翻，复核见 docs/现状复核-2026-10-27.md」的指针——不改正文（那是历史取证）。1 文件、约 3 行",
     "priority": "P3",
     "expected_files": [
-      "docs/现状复核-2026-10-27.md（新建）"
+      "docs/功能缺口清单-2026-09-22.md"
     ],
     "gates": [
-      "npm run verify:project（文档项数口径不受影响则 1547/0/0）",
-      "npm run verify:charter"
+      "npm run verify:project（docs 不被项数口径枚举，预期仍 1547/0/0）"
     ],
-    "notes": "纯文档轮，不碰代码；README 仍不动（B-6）"
+    "notes": "已确认该文件工作区干净（git status 无 M）；docs/arsenal-runtime.architecture.json 带着用户在途改动，本轮不碰（B-6 同类）"
   },
   "commands": {
     "web_typecheck": "cd arsenal-web && npm run typecheck",
@@ -138,7 +137,7 @@
       "B-3 CI 配置",
       "B-4 maven 环境待判定"
     ],
-    "rounds_completed": 10
+    "rounds_completed": 11
   },
   "stop_reason": null,
   "tools_or_environment": {
