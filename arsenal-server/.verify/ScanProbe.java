@@ -220,6 +220,45 @@ public class ScanProbe {
                         receipt.put("ok", true);
                         receipt.set("guard", n);
                     }
+                    case "guard-pure" -> {
+                        // 纯判定函数的逐分支判定。为什么没有黑盒路径：zip 条目名只要出圈，
+                        // 观测到的永远是同一个整包 SCAN_BAD_REQUEST（见 3-1），五个分支之间
+                        // 区分不开 —— 喂十种坏条目名，得到的回执一模一样。
+                        // 沿用 guard-timeout 的先例（「不真等 180s」）：直接调函数、原样回吐，
+                        // **期望值留在前端** —— 探针不判对错，否则失败信息又是自己编的。
+                        ArrayNode entries = mapper.createArrayNode();
+                        // NUL 用 (char) 0 拼，不写反斜杠-u 转义：一来落盘是 UTF-8，转义被编辑器吞成
+                        // U+00A0 是本轮实测发生过的，吞掉之后这条用例会静默地测错东西（NUL 分支根本
+                        // 没被喂到）；二来 javac 的词法预处理对**注释里**的反斜杠-u 同样生效，实测
+                        // 当场报「非法的 Unicode 逃逸」—— 注释都编译不过，比测试写错更糟。
+                        String nulName = "a" + (char) 0 + "b.txt";
+                        for (String nm : new String[]{
+                                "src/Ok.java",                          // 正常条目，必须放行
+                                "../escape.txt", "/abs.txt",            // POSIX 两种出圈
+                                "..\\..\\win.txt",                      // 反斜杠：只查 / 会漏的那条
+                                "C:/Windows/win.ini", "c:/x.txt",       // Windows 盘符（大小写都过）
+                                "//unc/share.txt",                      // UNC
+                                "./x.txt", nulName, ""          // 点分段 / NUL / 空名
+                        }) {
+                            ObjectNode e = entries.addObject();
+                            e.put("name", nm);
+                            e.put("safe", ScanGuard.zipEntrySafe(nm));
+                        }
+                        ArrayNode redacts = mapper.createArrayNode();
+                        String pem = "head\n-----BEGIN RSA PRIVATE KEY-----\nMIISECRETBODY\n-----END RSA PRIVATE KEY-----\ntail";
+                        for (String[] kv : new String[][]{
+                                {"spring.datasource.password", "RealSecret"},
+                                {"banner", pem},   // 键名不敏感，靠值级 PEM 兜底
+                                {"note", "plain text"}
+                        }) {
+                            ObjectNode r = redacts.addObject();
+                            r.put("key", kv[0]);
+                            r.put("out", ScanGuard.redact(kv[0], kv[1]));
+                        }
+                        receipt.put("ok", true);
+                        receipt.set("zipEntry", entries);
+                        receipt.set("redact", redacts);
+                    }
                     case "guard-timeout" -> {
                         // 超时闸门：不真等 180s，直接造一个已经过期的 ScanContext，
                         // 验 tick() 真的抛 SCAN_TIMEOUT（超时后 code 正确）

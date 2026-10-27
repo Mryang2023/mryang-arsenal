@@ -211,6 +211,10 @@ type Receipt = {
   rules?: any;
   symlink?: any;
   guard?: any;
+  /** `guard-pure` 回执：条目名逐条判定 [{name, safe}] */
+  zipEntry?: any;
+  /** `guard-pure` 回执：脱敏逐条结果 [{key, out}] */
+  redact?: any;
 };
 
 /**
@@ -635,8 +639,12 @@ if (!skipAll) {
     'git:ssh://git@github.com/foo/bar.git',
     'git:git://github.com/foo/bar.git',
     'facts:../arsenal-web/不存在的目录',
+    // 闸门纯函数的逐分支判定，搭这趟探针的车 —— 单跑一次探针要 4 分钟（见 :217 那条注释），
+    // 为三条断言起一趟不划算。带尾冒号是刻意的：`attackGot` 按 `kind:值` 拆，
+    // 写成裸 'guard-pure' 会让它取到的 kind 少一个字符，整批齐全性检查当场失真。
+    'guard-pure:',
   ];
-  // 整批 attack 记录是否齐全(6 条都在 = 探针与后端的往返真实发生过)
+  // 整批 attack 记录是否齐全(7 条都在 = 探针与后端的往返真实发生过)
   const attackGot = (rr: Receipt[]) =>
     ATTACK_ACTIONS.every((a) => {
       const i = a.indexOf(':');
@@ -694,6 +702,48 @@ if (!skipAll) {
     skip('3-7 软链外跳：仓库外目标文件没有被扫进来',
       '本机无法创建符号链接（Files.createSymbolicLink 失败：Windows 非管理员 / 未开开发者模式）—— 闸门未被这一条验证');
   }
+
+  // 条目名出圈的五条分支，黑盒区分不开：只要名字出圈，观测到的永远是同一个整包
+  // SCAN_BAD_REQUEST（就是 3-1）—— 喂十种坏名字回来十张一模一样的回执，谁也没被单独证明过。
+  // 所以这里直接问函数本身，与 8-5「不真等 180s」同先例。期望表留在前端、
+  // 判定由产品代码给：探针只回吐逐条 verdict，不替断言下结论。
+  const gpure = r3.find((r) => r.kind === 'guard-pure');
+  const ze = gpure?.zipEntry as { name: string; safe: boolean }[] | undefined;
+  const NUL = String.fromCharCode(0);
+  /** 九个坏名字，各自走 `zipEntrySafe` 的一条独立分支 */
+  const OUT_OF_BOUNDS: [string, string][] = [
+    ['../escape.txt', 'POSIX 上跳'],
+    ['/abs.txt', '绝对路径'],
+    ['..\\..\\win.txt', '反斜杠（只查 / 会漏的那条）'],
+    ['C:/Windows/win.ini', '大写盘符'],
+    ['c:/x.txt', '小写盘符'],
+    ['//unc/share.txt', 'UNC'],
+    ['./x.txt', '点分段'],
+    [`a${NUL}b.txt`, 'NUL 截断'],
+    ['', '空名'],
+  ];
+  const notRejected = OUT_OF_BOUNDS
+    .filter(([name]) => !ze?.some((e) => e.name === name && e.safe === false))
+    .map(([name, why]) => `${name || '<空>'}(${why})`);
+  check(
+    `3-8 zip 条目名出圈的 ${OUT_OF_BOUNDS.length} 条分支逐条被拒（反斜杠 / 大小写盘符 / UNC / NUL / 点分段 / 空名）`,
+    !!ze && ze.length === OUT_OF_BOUNDS.length + 1 && notRejected.length === 0,
+    `探针回 ${ze?.length ?? 0} 条（应为 9 坏 + 1 好）；漏拒：${JSON.stringify(notRejected)}`
+  );
+  check('3-9 正常条目 src/Ok.java 仍放行（闸门不许把合法名字一起拒了 —— 全拒也是一样的红，必须反着验）',
+    ze?.some((e) => e.name === 'src/Ok.java' && e.safe === true) === true,
+    `实测 ${JSON.stringify(ze?.find((e) => e.name === 'src/Ok.java'))}`);
+
+  const rd = gpure?.redact as { key: string; out: string }[] | undefined;
+  const rdOf = (k: string) => rd?.find((x) => x.key === k)?.out;
+  check(
+    '3-10 脱敏三层齐：敏感键→*** · 键名不敏感但值里藏着私钥→PEM 块抹掉 · 普通值原样透传',
+    rdOf('spring.datasource.password') === '***' &&
+      rdOf('banner') === `head\n***PEM-PRIVATE-KEY***\ntail` &&
+      rdOf('note') === 'plain text' &&
+      !String(rdOf('banner')).includes('MIISECRETBODY'),
+    `实际 ${JSON.stringify(rd)}`
+  );
 
   // ── 【4】三条出图链路：真实 facts → 三张图 ────────────────────
   //
