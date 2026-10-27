@@ -46,8 +46,9 @@
   修法机械：`node visual/shoot.mjs`。
   ⚠️ 代价：会一次改动 100+ 张 PNG，**远超单轮 8 文件上限**，且属批量产物重写 → 需单独一轮并先中人工确认（已登记 BLOCKERS）。
 
-- **P0-5 [证据] 前后端一致性层 3 项跳过 + 视觉层 1 项未适用。** 根因是后端 3011 未运行。
-  非代码缺陷，属环境。做法：加「起后端 → 跑 verify → 关后端」一键脚本（复用现成的 `target/arsenal-server-0.1.0.jar`），让一致性层真能验。不改 verify 链本身。
+- **P0-5 [证据] ~~前后端一致性层 3 项跳过 + 体检端到端 9 项未执行~~ → r6 已交付 `npm run verify:with-backend`。**
+  实测：parity 16/16 跳过 0、checkup 99/99 跳过 0，脚本按 3011 持有者 PID 收尾并归还端口。
+  不改 verify 链的判定，只把「起—跑—关」绑成一个动作；`--keep` 与「已有外部后端」两条分支未实测（见 RUNLOG r6）。
 - **P0-5b [证据，r2 新证] 后端「真跑」本机可用，不需要 maven。**
   `SKIP_COMPILE=1 bash arsenal-server/scripts/run.sh` 实测 **3.6s 起、3011 正常服务**（吃现成 `target/classes` + `.m2` 里的 Spring Boot 4.1.1；JDK 由 `_cp.sh` 定位，本机 corretto-21.0.4）。
   ⇒ P0-5 与 parity 的 3 项跳过、checkup 的 9 项未执行只差这条「起—跑—关」脚本。

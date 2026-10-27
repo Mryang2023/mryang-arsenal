@@ -33,6 +33,7 @@
     "verify:checkup": "tsx .verify/checkup-check.ts",
     "verify:engine": "tsx .verify/run.ts",
     "verify:parity": "tsx .verify/parity-check.ts",
+    "verify:with-backend": "node scripts/verify-with-backend.mjs",
     "verify:archify": "tsx .verify/archify-check.ts",
     "verify:scan": "tsx .verify/scan-check.ts",
 
