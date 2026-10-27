@@ -3,20 +3,22 @@
   "branch": "auto/iterate-20261027-mvquivjb",
   "push_remote": false,
   "started_at": "2026-10-27T15:34:57Z",
-  "end_at": "2026-10-27T21:34:57Z",
-  "current_round": 12,
+  "end_at": "2026-10-28T05:41:43Z",
+  "current_round": 14,
   "round_status": "completed",
   "in_progress": null,
   "next_round_plan": {
-    "round": 13,
-    "task_id": "P1-1",
-    "task": "复核「后端零单元测试」：今天实测扫描层的 13-4（路径逃逸入参被拒、进程一个没起）等安全断言已经通过黑盒探针覆盖了 ScanGuard。判定 P1-1 是不是已被这些探针实质覆盖；若是→关闭并说明；若仍有真空→精确列出哪几条逻辑没有守卫（不许泛泛说「零测试」）",
+    "round": 15,
+    "task_id": "P1-1b",
+    "task": "接着 r14 的判定办法，把 ScanGuard 剩下的纯判定函数按分支数一遍真空：readable / skippableOversize（超限时「源码拒绝 vs 二进制跳过」这条分岔）、isInside 的 toRealPath 失败分支、depth、fileTooLarge、gitUrlAllowed 的 trim/大小写。黑盒同样分不清具体分支，先只读判定哪几条 0 断言，再决定补哪几条 —— 不许为了凑项数把已经覆盖的再验一遍。",
     "priority": "P1",
     "expected_files": [
-      "arsenal-web/.verify/scan-check.ts（只读）",
-      "arsenal-server/src/main/java/com/arsenal/scan/*（只读）"
+      "arsenal-server/src/main/java/com/arsenal/scan/ScanGuard.java（只读）",
+      "arsenal-server/.verify/ScanProbe.java",
+      "arsenal-web/.verify/scan-check.ts",
+      "arsenal-profiles/arsenal.json"
     ],
-    "notes": "判定轮，不改代码；上一轮 r7 的教训是先读代码再下结论，别按 BACKLOG 的旧假设动手"
+    "notes": "沿用 guard-pure 的先例与三条踩坑教训：① 注释里不出现反斜杠-u；② 特殊字符用 (char) 拼、落盘后按字节复核；③ 探针动作名必须带尾冒号，否则 attackGot 的 kind 少一个字符、齐全性检查被伪造。若本轮判定为「已全覆盖、无真空」，如实写成判定轮并记 consecutive_no_progress，不算失败。"
   },
   "commands": {
     "web_typecheck": "cd arsenal-web && npm run typecheck",
@@ -135,7 +137,7 @@
       "B-3 CI 配置",
       "B-4 maven 环境待判定"
     ],
-    "rounds_completed": 12
+    "rounds_completed": 13
   },
   "stop_reason": null,
   "tools_or_environment": {
@@ -144,5 +146,23 @@
     "typecheck_scope": "根 tsconfig 的 **/*.ts 不匹配点目录 → 不覆盖 .verify；改断言层要跑 npm run typecheck:verify"
   },
   "last_round_commit": "853c8c9",
-  "last_round_summary": "P0-5 完成：verify:with-backend 一键起—跑—关（parity 16/16、checkup 99/99 真跑全绿，端口归还）；r6 提交 853c8c9"
+  "last_round_summary": "P0-5 完成：verify:with-backend 一键起—跑—关（parity 16/16、checkup 99/99 真跑全绿，端口归还）；r6 提交 853c8c9",
+  "end_at_note": "原 6 小时窗口 2026-10-27T21:34:57Z 已于 2 小时前到期；用户 2026-10-28 07:41 明确要求「继续优化」，故重新锚定 end_at = 续期时刻 + 6h。r13 的判定轮未收尾，本轮把它做完并补掉真空。",
+  "last_round": {
+    "round": 14,
+    "completed_at": "2026-10-27T23:55:38Z",
+    "commit": "42079cd",
+    "task_id": "P1-1",
+    "files": 4,
+    "lines": "+98 -9",
+    "verify": {
+      "typecheck_verify": "exit 0",
+      "verify:scan": "pass 170 / fail 3 / measured 173 == declared 173",
+      "verify:meta": "73/0/0"
+    },
+    "outcome": "未发现缺陷；补的是回归护栏（zipEntrySafe 7 条未测分支 + redactValue PEM 层）。失败面 4 未变，0 新增。",
+    "docs_closed": [
+      "P1-1"
+    ]
+  }
 }
