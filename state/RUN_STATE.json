@@ -87,11 +87,11 @@
     "with_backend_script": "npm run verify:with-backend：parity 16/16 + checkup 99/99 真跑全绿，脚本自行关停并归还 3011；--keep 与「已有外部后端」两条分支未实测"
   },
   "wakeup": {
-    "mechanism": "DEGRADED（r2 收尾）：mcp__builtin__qoder_cron 在本会话不可见，无法排 120s 唤醒 —— 见 BLOCKERS B-5。r3 起改为同一会话内连续轮次",
+    "mechanism": "DEGRADED：无排程工具 → r3–r6 改为同会话连续跑；r7 起需人唤醒或恢复 mcp__builtin__qoder_cron（见 B-5）",
     "interval_seconds": 120,
     "interval_history": "初版按 900–1200 排了 r2（15:56:35Z）；用户 2026-10-27T15:50Z 要求压到 120，已 update 同一任务（revision 2，r2 改到 15:52:16Z）",
     "job_id": "42beb80d-573a-4a39-b7d1-8fb24735da6a",
-    "next_wake_at": "(无定时任务；r3 在 r2 之后同会话直接开始)",
+    "next_wake_at": "(未安排)",
     "note": "120s 小于全量 verify 的 228s —— 每轮只跑与改动相关的层，全量 verify 留给专门的确认轮",
     "job_id_r1": "42beb80d-573a-4a39-b7d1-8fb24735da6a"
   },
@@ -117,12 +117,12 @@
     ],
     "rounds_completed": 6
   },
-  "stop_reason": null,
+  "stop_reason": "已排到 r7 但无法自动唤醒：排程工具 mcp__builtin__qoder_cron 在本会话不可见（BLOCKERS B-5）。r2–r6 五个轮次在同一会话内连续完成（4 个代码/脚本改动轮 + 1 个判定轮），未到 end_at（2026-10-27T21:34:57Z），剩余任务见 next_round_plan 与 BACKLOG。",
   "tools_or_environment": {
     "backend_startup_needs_maven": false,
     "backend_run_cmd": "SKIP_COMPILE=1 bash arsenal-server/scripts/run.sh (3.6s 起，用完要按 3011 PID Stop-Process)",
     "typecheck_scope": "根 tsconfig 的 **/*.ts 不匹配点目录 → 不覆盖 .verify；改断言层要跑 npm run typecheck:verify"
   },
-  "last_round_commit": "b2d263b",
-  "last_round_summary": "P1-4 完成：archify 逐例断言无条件产出（1 文件 +11 −4），注入回归证明 total 恒 31；上一条 commit 是同一轮的占位提交（循环自己的噪声，仅动 state/RUN_STATE.json）"
+  "last_round_commit": "853c8c9",
+  "last_round_summary": "P0-5 完成：verify:with-backend 一键起—跑—关（parity 16/16、checkup 99/99 真跑全绿，端口归还）；r6 提交 853c8c9"
 }
