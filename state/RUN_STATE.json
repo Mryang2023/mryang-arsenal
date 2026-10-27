@@ -122,6 +122,6 @@
     "backend_run_cmd": "SKIP_COMPILE=1 bash arsenal-server/scripts/run.sh (3.6s 起，用完要按 3011 PID Stop-Process)",
     "typecheck_scope": "根 tsconfig 的 **/*.ts 不匹配点目录 → 不覆盖 .verify；改断言层要跑 npm run typecheck:verify"
   },
-  "last_round_commit": "(待填 r5)",
-  "last_round_summary": "P0-2 完成：入口链直连边 labelDy=24（2 代码文件 +15）+ archify 声明 20→31 校正；archify/project/graph/arch/cases/topology/meta 全绿，链失败面 6→4；README 口径改动留工作区（B-6）"
+  "last_round_commit": "b2d263b",
+  "last_round_summary": "P1-4 完成：archify 逐例断言无条件产出（1 文件 +11 −4），注入回归证明 total 恒 31；上一条 commit 是同一轮的占位提交（循环自己的噪声，仅动 state/RUN_STATE.json）"
 }
