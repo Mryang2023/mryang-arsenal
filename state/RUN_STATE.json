@@ -112,10 +112,12 @@
     "mechanism": "DEGRADED：无排程工具 → r3–r6 改为同会话连续跑；r7 起需人唤醒或恢复 mcp__builtin__qoder_cron（见 B-5）",
     "interval_seconds": 120,
     "interval_history": "初版按 900–1200 排了 r2（15:56:35Z）；用户 2026-10-27T15:50Z 要求压到 120，已 update 同一任务（revision 2，r2 改到 15:52:16Z）",
-    "job_id": "42beb80d-573a-4a39-b7d1-8fb24735da6a",
+    "job_id": "8a477844-7ead-4ca9-8657-07ad5cfb5a9d",
     "next_wake_at": "(未安排)",
     "note": "120s 小于全量 verify 的 228s —— 每轮只跑与改动相关的层，全量 verify 留给专门的确认轮",
-    "job_id_r1": "42beb80d-573a-4a39-b7d1-8fb24735da6a"
+    "job_id_r1": "42beb80d-573a-4a39-b7d1-8fb24735da6a",
+    "next_fire_at": "2026-10-28T00:01:30Z",
+    "next_fire_local": "2026-10-28 08:01:30 +0800"
   },
   "safety": {
     "pre_existing_uncommitted_work": "main 上有用户在途工作：docs 归档到 docs/archive/（31 文件已暂存，含 17703 行删除）+ 28 文件工作区改动 + 3 未跟踪文件 —— 见 BLOCKERS B-1",
@@ -163,6 +165,7 @@
     "outcome": "未发现缺陷；补的是回归护栏（zipEntrySafe 7 条未测分支 + redactValue PEM 层）。失败面 4 未变，0 新增。",
     "docs_closed": [
       "P1-1"
-    ]
+    ],
+    "scheduled_next": "r15 @ 2026-10-28T00:01:30Z"
   }
 }
