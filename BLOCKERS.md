@@ -21,6 +21,7 @@
 - **为什么不擅自处理**：若为迁就本机而放宽断言或加跳过，就是「把没跑当成通过」——正是 verify 链注释里点名要防的两种说谎的绿。
 - **r2 新证（部分改写本条前提）**：本机起后端服务**不需要 mvn** —— `SKIP_COMPILE=1 bash arsenal-server/scripts/run.sh` 3.6s 起、3011 正常（吃现成 `target/classes`，JDK 走 `_cp.sh`）。所以「后端真跑」类断言（parity / checkup 端到端）不是被 maven 卡住的，只是脚本没写；**本条剩下的真缺口只有 scan 层 fixture 需要从源码编译起 Spring Boot**。
 - **计划**：r4 先复现、定位探针到底调哪个 maven 命令；若是探针硬编码 `mvn`，则改为走 wrapper（属代码缺陷，可修）；若纯是本机缺件，则留红并写清复跑条件。
+- **r4 判定完成（本条前提被推翻）**：这条链路**根本不经过 maven**（`runtime-probe.sh` 用 `target/classes` + `.m2` 直起 java）。真缺口见 **B-7**。
 
 ## B-5 [r2] 排程工具 `mcp__builtin__qoder_cron` 在本轮会话不可见 —— 120s 唤醒机制断裂
 - **事实**：r1 用 `mcp__builtin__qoder_cron` 成功建过 r2 任务（job_id `42beb80d-…`，revision 2）。r2 收尾时 `mcp_get` / `mcp_call` 都报 "not found"，`mcp_list` 全量 98 个工具里没有任何 cron / 定时类工具（builtin 只剩 chat/session/team_task 等 12 个）。
@@ -33,3 +34,20 @@
   但 `README.md` **同时带着用户在途改动**（`docs/archive/` 目录树那一处，属 B-1 那批）—— 对它做 `git commit --only README.md` 会把用户那份一起提交掉。
 - **循环的处置**：只提交 `arsenal-profiles/arsenal.json` + 两个 src/lib 文件；README 的改动**原样留在工作区**（verify 链读工作区，链已复绿；HEAD 里没有这 6 处）。
 - **需要人**：用户提交自己那批 README 改动时把这两组数字一并带走；或确认由循环单独带走。
+
+## B-7 [r4] 扫描层 13-1/13-2/13-7 的根因是**本机 .m2 缺 4 个 Spring Boot 4.1.1 家族构件**，不是 maven、也不是断言造假
+- **实测证据**（`bash arsenal-server/scripts/runtime-probe.sh …/runtime-demo demo.DemoApplication spring-boot 60000` 手跑一次）：
+  进程真起来了、真失败，失败在 Spring 自动配置阶段：
+  `IllegalStateException: EndpointCondition must be used on @Bean methods when the endpoint is not specified`
+  ← `Error processing condition on o.s.boot.servlet.autoconfigure.actuate.web.mappings.ServletMappingsAutoConfiguration`
+  → 采集器如实报 `status=not-executed`（13-2 的 `stoppedBy=exited`、13-7 的 `端口 null vs null` 都是它的级联，三条红一个根因）。
+- **为什么**：`arsenal-server/scripts/_rtcp.sh` 把运行时类路径钉在 `B=4.1.1`，但本机 `.m2` 里
+  `spring-boot-actuator` / `spring-boot-actuator-autoconfigure` **只有 3.2.0 / 3.2.12 / 3.3.6**，
+  `spring-boot-health` / `spring-boot-micrometer-observation` **目录都没有**。
+  `_rt_add()` 对缺的 jar 是 `if [ -f ]` **静默跳过** —— 于是 spring-boot-servlet 的 actuator 集成类在场、它依赖的 actuator 构件缺席，
+  Boot 处理 condition 时炸。`mvn` 根本不在链路上（这条探针刻意无 maven，`target/classes` + `.m2` 直起）。
+- **为什么不擅自修**：补齐需要联网拉 4 个构件（改依赖来源属供应链动作，且本循环不装来源不明依赖）；
+  混用 3.x actuator 与 4.1.1 家族更是把不匹配藏进类路径。放宽 13-1 的断言同样不许。
+- **需要人**：批准拉取 `spring-boot-{actuator,actuator-autoconfigure,health,micrometer-observation}:4.1.1`（或确认这台机器就该让这 3 条红着、把这 3 项登记为环境未覆盖）。
+- **顺带可做的代码项**（不阻塞，见 BACKLOG P1-5）：`_rt_add` 静默跳过缺件 —— 让它把「缺了哪几个 jar」如实进 `missingDeps`，
+  这样 13-1 的失败信息一眼可读，而不是被 Spring 的 condition 异常带偏。

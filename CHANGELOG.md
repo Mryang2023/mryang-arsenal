@@ -30,3 +30,10 @@
     修好后 14 条逐例断言 + 汇总全部执行，实测 31 与档案对不上 —— 由本层自己的「记账对不上」红抓出来，改的是档案侧的真值。
 - `README.md`：项数口径 2279 → 2290（3 处）+ archify 的 3 处 20 → 31。**未提交** —— 该文件同时带着用户在途改动（`docs/archive/` 目录树那一处），
   按 B-1 的规矩不做整文件 `--only` 提交，改动留在工作区等用户带走（`verify:project` 读的是工作区，链已复绿）。
+
+## r4 · 2026-10-27
+- **代码零改动**（判定轮）。`npm run verify:scan` 的 3 条红（13-1/13-2/13-7）判定为环境缺口：
+  本机 `.m2` 缺 `spring-boot-actuator` / `-actuator-autoconfigure` / `-health` / `-micrometer-observation` 的 4.1.1 构件，
+  `_rtcp.sh` 的 `_rt_add()` 静默跳过缺件，fixture 在 Spring 自动配置阶段抛 `EndpointCondition …` → `not-executed`。
+  原 BACKLOG/B-4 猜的「硬编码 mvn」经实测推翻：`runtime-probe.sh` 走 `target/classes` + `.m2` 直起 java，不碰 maven。
+- 资料改动：`BLOCKERS.md`（新增 B-7、B-4 前提修正）、`BACKLOG.md`（P0-3 判毕、新增 P1-5、P0-5b 表述修正）、`RUNLOG.md`（r4）。

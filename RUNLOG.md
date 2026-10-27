@@ -103,3 +103,23 @@
 跳过面不变（parity 3 + checkup 9 = 12 项环境未执行 + visual 1）。全量 `npm run verify` 待确认轮重跑（约 228s）。
 
 **提交面**：代码 2 文件 + 档案 1 文件（+17 −2 行）。README 的 6 处数字**留在工作区未提交**（该文件捆着用户在途改动，见 B-1 / B-6）。
+
+## r4 · 2026-10-27 16:16Z — P0-3：scan 层 3 条红的根因判定（判定轮，代码零改动）
+
+**结论先说**：不是 maven，不是断言造假，是**本机 `.m2` 缺 4 个 Spring Boot 4.1.1 家族构件** → 已登记 BLOCKERS **B-7**，代码一行没动。
+
+1. 复跑本层：`npm run verify:scan` → 实测 167 通过 / 3 失败 / 0 跳过（与 r1 基线同数，本轮没有引入回归）。
+   三条红的细节彼此是级联：`13-1 status=not-executed port=null` ⇒ `13-2 stoppedBy=exited`（自己退的，不是我们杀的）⇒ `13-7 端口 null vs null`。
+2. 手跑那条探针，拿到第一手证据（不是读断言转述）：
+   `bash arsenal-server/scripts/runtime-probe.sh …fixtures/runtime-demo demo.DemoApplication spring-boot 60000`
+   → 进程真起、Spring 自动配置阶段抛
+   `IllegalStateException: EndpointCondition must be used on @Bean methods when the endpoint is not specified`
+   ← `Error processing condition on …servlet.autoconfigure.actuate.web.mappings.ServletMappingsAutoConfiguration`，采集器如实回 `not-executed`。
+3. **B-4 的前提被推翻**：这条链路**根本不碰 maven** —— `runtime-probe.sh` 是 `target/classes` + `.m2` 直起 `java`（脚本头部注释就写着「无需 Maven」）。
+4. 定位到类路径装配：`_rtcp.sh` 钉 `B=4.1.1`，逐个 `_rt_add`，而 `_rt_add()` 是 `if [ -f … ]; then 加进去; fi` —— **缺件静默跳过**。
+   实测本机 `.m2`：`spring-boot-actuator` / `spring-boot-actuator-autoconfigure` 只有 3.2.0 / 3.2.12 / 3.3.6；`spring-boot-health` / `spring-boot-micrometer-observation` **目录都不存在**。
+   ⇒ `spring-boot-servlet` 的 actuator 集成类在场、它要的 actuator 构件缺席，condition 处理当场炸。
+5. 为什么不修：补齐要联网拉 4 个构件（供应链动作，循环红线外）；混 3.x 进 4.1.1 类路径是把不匹配藏起来；放宽 13-1 更不许。
+   顺带登记可独立做的小修 **P1-5**：让 `_rt_add` 把缺件如实进 `missingDeps`，失败信息就不会被 Spring 的异常带偏。
+
+**产出**：BLOCKERS B-7（含手跑命令与逐构件核对表）、B-4 前提修正、BACKLOG P0-3 判毕 / P1-5 新增 / P0-5b 表述修正、RUNLOG 本条。

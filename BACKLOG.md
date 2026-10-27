@@ -34,11 +34,12 @@
   「字节无损」经核对是**产物自洽 sha**（写回一致），不是 golden 快照 ⇒ 无快照耦合面。
   ⚠️ README 的 6 处数字改动未提交（捆着用户在途改动）→ BLOCKERS B-6。**→ r3 候选**
 
-- **P0-3 [证据] 代码扫描层 3 项失败（13-1 / 13-2 / 13-7）—— fixture spring-boot 真跑不起来。**
-  症状：`status=not-executed port=null line=undefined health=undefined`；13-2 的 `stoppedBy=exited` 与 13-7 的 `端口 null vs null` 都是它的级联。
-  源码注释 `.verify/scan-check.ts:1852`：13-1~13-7 需要「bash + JDK + .m2」。
-  本机 `mvn` **不在 PATH**（只有 `arsenal-server/mvnw`），`.m2` 仓库存在 → 先判定是环境缺口还是代码缺陷，**不许为了让它变绿而跳过或伪造**。
-  若是环境：登记 BLOCKERS，不动代码。**→ r4 候选**
+- **P0-3 [证据] ~~代码扫描层 3 项失败（13-1 / 13-2 / 13-7）~~ → r4 判定完成：环境缺口，已登记 B-7，不动代码。**
+  三条红同一根因：`_rtcp.sh` 把运行时类路径钉在 Spring Boot 4.1.1，而本机 `.m2` 缺
+  `spring-boot-actuator` / `spring-boot-actuator-autoconfigure`（只有 3.x）/ `spring-boot-health` / `spring-boot-micrometer-observation`（完全没有），
+  `_rt_add()` 静默跳过缺件 → Boot 处理 actuator condition 时抛 `IllegalStateException`，fixture 起不来，采集器如实报 `not-executed`。
+  **`mvn` 不在这条链路上**（`runtime-probe.sh` 用 `target/classes` + `.m2` 直起 java）—— 原任务描述里「可能硬编码 mvn」的前提被实测推翻。
+  修法需人批准（联网拉 4 个构件 or 认可这 3 项就是本机未覆盖）；见 B-7。
 
 - **P0-4 [证据] 视觉断言层 1 项失败 —— 截图台陈旧。**
   `visual/manifest.json` 记 108 张，本次矩阵 111 张 → 页面路由增删后没重跑截图台。
@@ -49,20 +50,19 @@
   非代码缺陷，属环境。做法：加「起后端 → 跑 verify → 关后端」一键脚本（复用现成的 `target/arsenal-server-0.1.0.jar`），让一致性层真能验。不改 verify 链本身。
 - **P0-5b [证据，r2 新证] 后端「真跑」本机可用，不需要 maven。**
   `SKIP_COMPILE=1 bash arsenal-server/scripts/run.sh` 实测 **3.6s 起、3011 正常服务**（吃现成 `target/classes` + `.m2` 里的 Spring Boot 4.1.1；JDK 由 `_cp.sh` 定位，本机 corretto-21.0.4）。
-  ⇒ P0-5 与 parity 的 3 项跳过、checkup 的 9 项未执行只差这条「起—跑—关」脚本；B-4 的 maven 缺口只卡 scan 层的 fixture 真跑。
+  ⇒ P0-5 与 parity 的 3 项跳过、checkup 的 9 项未执行只差这条「起—跑—关」脚本。
+  （r4 修正：scan 层的 fixture 真跑也不经过 maven，卡在 `.m2` 缺 4 个 4.1.1 构件 —— 见 B-7，不是 B-4 说的那件事。）
   ⚠️ 用完必须真关：后台任务只杀 bash 包装，java 子进程要按 3011 监听 PID `Stop-Process` 掉，否则端口留成常态。
 
 （无已知安全漏洞。`ScanGuard` 的路径逃逸 / 超大文件 / file:///ssh:///git:// 拒绝等安全断言在 r1 基线全部为绿。）
-
-- **P1-4 [证据，r3] `archify-check.ts:295` 的逐例断言只在该例全绿时才 `check()`** —— 一个例子红了，它的断言就**消失**而不是变红，
-  本层项数随之缩水（31 → 20 就是这么来的）。失败信息全挤在汇总那条里，账面还顺带骗过元核对。
-  做法：把逐例 `check(name, clean && nineOk, detail)` 改成无条件产出（汇总那条保留），失败时项数不抖、且点名到例。单轮小改。
 
 > **r2 后的账**：checkup 层不再判负（99 == 99，常态下 90 通过 + 9 环境未执行），meta 层 73 项全绿。
 > 链的**失败面**只剩 archify 2 / scan 3 / visual 1 三条独立根因（= P0-2 / P0-3 / P0-4）；**跳过面**变大（4 → 13），是同一批环境缺口的诚实记账，不是新增红灯。
 > 全量 `npm run verify` 需重跑确认（228s > 120s 唤醒间隔，留给专门的确认轮）。
 > **r3 后的账**：Archify 链路那 2 条红消除（修的是出图几何，不是校验器），且该层项数从「残数 20」校正为全绿真值 **31**，README 口径随之 2279 → 2290。
 > 失败面 = scan 3 + visual 1 = **4**（r1 是 6）；未跑 = parity 3 + checkup 9（都要后端）+ visual 1。
+> **r4 后的账**：scan 那 3 条红判定为**环境缺口**（B-7：`.m2` 缺 4 个 Spring Boot 4.1.1 家族构件，与 maven 无关），代码零改动、不放宽断言。
+> 于是**真代码红只剩 visual 1**（P0-4，需批准 B-2 的批量截图重写）；剩下的都挂在「本机跑不了」上：scan 3 条红（B-7）+ parity 3 与 checkup 9 共 12 项未执行（后端类，见 P0-5b）。
 
 ---
 
@@ -74,6 +74,14 @@
 - **P1-2 [待复核] 前端 AST 层 0/20。** 出自 `docs/功能缺口清单-2026-09-22.md` §1.1，该文档自称是「刻意设计不是 bug」。
   → 先复核代码现状再决定是否算缺口；若确实是设计意图，降级为 P3 文档项。
 - **P1-3 [待复核] LLM 层 43 条规则全项目 0 条被执行。** 同上文档 §0.2。属功能方向，非单轮可完成，先记录不排期。
+- **P1-4 [证据，r3] `archify-check.ts:295` 的逐例断言只在该例全绿时才 `check()`** —— 一个例子红了，它的断言就**消失**而不是变红，
+  本层项数随之缩水（31 → 20 就是这么来的）。失败信息全挤在汇总那条里，账面还顺带骗过元核对。
+  做法：把逐例 `check(name, clean && nineOk, detail)` 改成无条件产出（汇总那条保留），失败时项数不抖、且点名到例。单轮小改。
+
+- **P1-5 [证据，r4] `_rtcp.sh` 的 `_rt_add()` 对缺件静默跳过。** 后果不是「少个 jar」而是失败信息被带偏：
+  13-1 报的是 Spring 的 `EndpointCondition must be used on @Bean methods…`，读不出「其实是有 4 个构件没装」。
+  做法：缺件时把 artifact 名收进探针输出（`missingDeps` 那条现成的通道），断言仍如实红 —— 只改可读性，不改判定。
+
 
 ---
 
