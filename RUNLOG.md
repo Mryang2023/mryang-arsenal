@@ -66,3 +66,40 @@
 （`.verify/tmp/layer-*.json` 现值：archify 2 失败 / scan 3 失败 / visual 1 失败 1 跳过）。checkup 层从「层判负」变成「9 项环境未执行」，
 跳过口径 4 → 13（parity 3 + checkup 9），性质与 r1 基线里 parity 的跳过同类 —— 不是新增失败，也不拿它换绿。
 **收尾**：后端已 `Stop-Process` 关掉、3011 归还，环境回到本轮开始时状态（后端未运行）。
+
+## r3 · 2026-10-27 16:05Z — P0-2：Archify 边标签与组件重叠（2 项失败）
+
+**注**：本轮起改为同一会话内连续跑（排程工具 `mcp__builtin__qoder_cron` 在 r2 收尾时已不可见，见 BLOCKERS B-5），120s 唤醒节奏不再成立。
+
+**根因定位**（照 BACKLOG P0-2 给的两处源）
+- 失败详情：`Label "路由转发" overlaps component "ingress"` —— label rect `[1138,1806,48,14]`，ingress rect `[1060,1752,204,74]`；
+  校验器自己给建议 `labelDy +24 (below)`。云/企业/HA/数据密集等多个预设连带红，汇总成 2 条断言：
+  【2】14 例逐例九项 + 【4】后端实跑 3 例（`07.json` 直接「没出图」）。
+- 看 IR 才知道红的是哪条边：`.verify/tmp/archify-check/02.json` 里 `c_ingress_gateway` 是**没有任何 via / fromSide / labelSegment 的直连边**
+  （`arch-canvas.ts` 的入口改道链 `client→ingress→gateway→app`，只有第一条拿得到车道折线）。直连边的默认标签位置落在源框内 → 绘图器 `layout/constraint` 判负。
+
+**修法**（几何值由画布模型给，适配器不猜）
+1. `CanvasEdge` 加可选 `labelDy`（arch-canvas.ts:159 那块类型定义）。
+2. `rerouteEntryThroughGateway()`：链上 `i>0` 的直连边带 `labelDy: 24`（校验器建议值）。
+3. `archify-ir.ts:420`：直连分支透传 `conn.labelDy = edge.labelDy`。
+4. **没动校验器、没放宽任何断言、没加 skip** —— 改的是出图侧的几何声明。
+
+**连带发现并处理**：修好后本层实测从 20 涨到 **31**，被自己的「记账对不上」红点出来。
+查清才改：`archify-check.ts:295` 的逐例断言**只在该例全绿时才产出**，所以「20」是 11 例红着时的残数 —— 全绿态的真值是 31，于是改 `arsenal-profiles/arsenal.json` 的声明值（20 → 31）并同步 README 的项数口径（2279 → 2290，另 3 处 archify 20 → 31）。
+⇒ 与 r2 相反的两种错法都要防：**别把残数当真值**，也别把真值改成残数。
+
+**验证**（只跑相关层）
+| 命令 | 结果 |
+|---|---|
+| `npm run verify:archify` | 实测 31 / 跳过 0 / 失败 0 · exit 0（r1 是 18 通过 + 2 失败）；后端实跑 3 例 00/07/13 全部 9/9、0 错 0 警 |
+| `npm run verify:project` | 实测 1547 / 跳过 0 / 失败 0（README 口径第一版红 1 条，补齐 6 处数字后复绿） |
+| `npm run verify:graph` | 75 / 0 / 0 |
+| `npm run verify:arch` / `verify:cases` / `verify:topology` | 35 / 48 / 21，全 0 红 |
+| `npm run verify:meta` | 73 / 跳过 0 / 失败 0 · 13 层声明与实测**全行对得上**（含 archify 31） |
+| `npm run verify:checkup` | 90 通过 + 9 环境未执行（与 r2 一致，未受本轮影响） |
+| `npm run typecheck` / `typecheck:verify` | 均 exit 0 |
+
+**与基线差值**：链的**失败面** r1 是 archify 2 + scan 3 + visual 1 = 6；r2 消掉 meta 的连带红；本轮再消掉 archify 2 ⇒ **剩 scan 3 + visual 1 = 4**。
+跳过面不变（parity 3 + checkup 9 = 12 项环境未执行 + visual 1）。全量 `npm run verify` 待确认轮重跑（约 228s）。
+
+**提交面**：代码 2 文件 + 档案 1 文件（+17 −2 行）。README 的 6 处数字**留在工作区未提交**（该文件捆着用户在途改动，见 B-1 / B-6）。

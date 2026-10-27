@@ -19,3 +19,14 @@
 - 抓取全量验证基线：`npm run verify` = 2270 项 / 通过 2260 / 跳过 4 / **失败 6** → 退出码 1。
   四个独立真根因（archify 标签重叠、scan fixture 真跑未执行、checkup 档案项数漂移、visual 截图台陈旧）已逐一定位并排入 BACKLOG P0-1…P0-5。
 - 代码零改动：本轮只做初始化与基线验证。
+
+## r3 · 2026-10-27
+- `arsenal-web/src/lib/arch-canvas.ts`：`CanvasEdge` 新增可选 `labelDy`；`rerouteEntryThroughGateway()` 给入口链的非首段直连边（`ingress→gateway` / `gateway→app`）显式带 `labelDy = 24`。
+- `arsenal-web/src/lib/archify-ir.ts`：适配器在「既不走车道也不走导轨」的直连分支把 `edge.labelDy` 透传成 `conn.labelDy`；几何值仍由画布模型给，**适配器不自己猜**。
+  - 治的根因：绘图器对 IR 的硬约束 —— 直连边的默认标签位置骑在源节点框内，`layout/constraint` 当场判负
+    （`Label "路由转发" overlaps component "ingress"`，校验器建议 `labelDy +24`）。14 例全绿，后端实跑 `07.json` 从「没出图」变成 732512 字节 / 检查 9/9。
+- `arsenal-profiles/arsenal.json`：`Archify 链路` 声明项数 20 → **31**。
+  - 这不是「改档案掩盖」：该层的逐例九项断言只在**该例全绿时**才产出（`archify-check.ts:295`），所以 20 是「有 11 例红着」时的残数；
+    修好后 14 条逐例断言 + 汇总全部执行，实测 31 与档案对不上 —— 由本层自己的「记账对不上」红抓出来，改的是档案侧的真值。
+- `README.md`：项数口径 2279 → 2290（3 处）+ archify 的 3 处 20 → 31。**未提交** —— 该文件同时带着用户在途改动（`docs/archive/` 目录树那一处），
+  按 B-1 的规矩不做整文件 `--only` 提交，改动留在工作区等用户带走（`verify:project` 读的是工作区，链已复绿）。

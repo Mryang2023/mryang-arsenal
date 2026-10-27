@@ -417,6 +417,11 @@ export function buildArchifyIr(model: TechArch, opts: ArchifyIrOptions = {}): Ar
       // 标签默认骑在第 2 段（那条最右边的竖轨）上，右半边会探出画布；
       // 改骑顶部横轨 —— 那一段上方是空的
       conn.labelSegment = 2;
+    } else if (edge.labelDy !== undefined) {
+      // 既不走车道也不走导轨 = 上下直连：默认标签位置在源节点框里，绘图器按
+      // layout/constraint 判负（2026-10-27 实测：Label "路由转发" overlaps component "ingress"）。
+      // 挪多少由上游的画布模型显式给，适配器不自己猜几何。
+      conn.labelDy = edge.labelDy;
     }
     connections.push(conn);
   });

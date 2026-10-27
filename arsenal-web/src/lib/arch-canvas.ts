@@ -170,6 +170,12 @@ export interface CanvasEdge {
    */
   lane?: number;
   lanes?: number;
+  /**
+   * 连线标签的纵向微调（绘图器 IR 的 `labelDy`）。
+   * 上下直连的边默认位置会把标签骑在源节点框里，通用绘图器按
+   * `layout/constraint` 当场判负 —— 这种边必须自己说挪多少。
+   */
+  labelDy?: number;
 }
 
 export interface CanvasEdits {
@@ -597,6 +603,10 @@ function rerouteEntryThroughGateway(
       label: i === 0 ? 'HTTPS' : from === 'ingress' ? '路由转发' : 'HTTP',
       kind: 'solid',
       port,
+      // 入口链的第一条走车道（有 via 折线，标签骑竖段）；后面的都是上下直连，
+      // 默认标签位置落在源节点框内 —— 绘图器实跑出图会按 layout/constraint 判负。
+      // 24 = 校验器给的建议值（把标签压到源框下沿之外的走廊里）。
+      labelDy: i === 0 ? undefined : 24,
     });
   }
 }

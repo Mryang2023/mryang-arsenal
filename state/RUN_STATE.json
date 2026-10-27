@@ -4,19 +4,19 @@
   "push_remote": false,
   "started_at": "2026-10-27T15:34:57Z",
   "end_at": "2026-10-27T21:34:57Z",
-  "current_round": 2,
+  "current_round": 3,
   "round_status": "completed",
   "in_progress": null,
   "next_round_plan": {
-    "round": 3,
-    "task_id": "P0-2",
-    "task": "Archify 链路 2 项失败：边标签「路由转发」与组件 ingress 重叠 —— 校验器建议 labelDy +24；改前先确认「字节无损」快照的耦合面，不许放宽校验器",
+    "round": 4,
+    "task_id": "P0-3",
+    "task": "代码扫描层 3 项失败（13-1/13-2/13-7）：fixture spring-boot 真跑 not-executed —— 先判定是探针硬编码 mvn（可修的代码缺陷）还是本机缺件（登记 BLOCKERS 不动代码），不许为变绿而跳过或伪造",
     "priority": "P0",
     "expected_files": [
-      "arsenal-web/src/lib/archify-ir.ts",
-      "arsenal-web/src/lib/arch-canvas.ts (只读定位)"
+      "arsenal-web/.verify/scan-check.ts (先读 13-x 那组怎么起 fixture)",
+      "arsenal-server/scripts/* (探针脚本，只读判定)"
     ],
-    "notes": "风险：动 IR 可能撞快照断言；若连带 project/graph 层红就回滚，登记 BLOCKERS"
+    "notes": "r2 新证：起后端不需要 mvn（SKIP_COMPILE=1 run.sh 3.6s）；但 scan 的 fixture 需要从源码编译 Spring Boot，可能真卡在 mvn/mvnw 上 —— 判据要落在「探针调用的是哪个命令、为什么失败」"
   },
   "commands": {
     "web_typecheck": "cd arsenal-web && npm run typecheck",
@@ -79,7 +79,9 @@
     "log_artifact": ".verify-baseline-r1.log (被 .gitignore 的 *.log 规则忽略，数字已抄进 RUNLOG.md)",
     "checkup_after_r2": "后端在：99/99 exit 0；后端关（常态）：通过 90 + 未执行 9，total 99 == 声明 99，exit 2（不再是记账对不上）",
     "meta_after_r2": "73 项 / 跳过 0 / 失败 0 / exit 0（r1 是 1 失败）；13 层声明/实测全行对得上",
-    "chain_fail_after_r2": "失败面 = archify 2 + scan 3 + visual 1（与 r1 的 6 同数，meta 的连带失败已消）；跳过面 4 → 13（parity 3 + checkup 9，同一批环境缺口的诚实记账）。全量 verify 待确认轮重跑"
+    "chain_fail_after_r2": "失败面 = archify 2 + scan 3 + visual 1（与 r1 的 6 同数，meta 的连带失败已消）；跳过面 4 → 13（parity 3 + checkup 9，同一批环境缺口的诚实记账）。全量 verify 待确认轮重跑",
+    "archify_after_r3": "31 项全绿 exit 0（r1：18 通过 + 2 失败）；根因=入口链直连边默认标签骑在源框内，CanvasEdge.labelDy=24 + IR 透传修好；档案声明从残数 20 校正为全绿真值 31",
+    "chain_fail_after_r3": "失败面 = scan 3 + visual 1 = 4（r1 为 6）；未跑 = parity 3 + checkup 9 + visual 1；README 项数口径已同步 2279→2290 但未提交（B-6）"
   },
   "wakeup": {
     "mechanism": "DEGRADED（r2 收尾）：mcp__builtin__qoder_cron 在本会话不可见，无法排 120s 唤醒 —— 见 BLOCKERS B-5。r3 起改为同一会话内连续轮次",
@@ -110,7 +112,7 @@
       "B-3 CI 配置",
       "B-4 maven 环境待判定"
     ],
-    "rounds_completed": 2
+    "rounds_completed": 3
   },
   "stop_reason": null,
   "tools_or_environment": {
@@ -118,6 +120,6 @@
     "backend_run_cmd": "SKIP_COMPILE=1 bash arsenal-server/scripts/run.sh (3.6s 起，用完要按 3011 PID Stop-Process)",
     "typecheck_scope": "根 tsconfig 的 **/*.ts 不匹配点目录 → 不覆盖 .verify；改断言层要跑 npm run typecheck:verify"
   },
-  "last_round_commit": "1bb20c7",
+  "last_round_commit": "(待填 r3)",
   "last_round_summary": "P0-1 完成：checkup【9】归类修正（1 代码文件 +11/-3）；verify:checkup 后端在 99/99 exit 0、后端关 total 99==声明、verify:meta 73 项全绿、两个 typecheck 均 exit 0"
 }

@@ -27,12 +27,12 @@
   修法：`knowinglySkipped` → `skipItems(…, 9)`；`verify:meta` 恢复全绿（73 项 / 0 失败）。详见 RUNLOG r2。
   遗留：常态（后端未起）本层 9 项未执行 → 链需 `--allow-skip`，属 P0-5 环境项，不是代码缺陷。
 
-- **P0-2 [证据] Archify 链路 2 项失败 —— 边标签与组件重叠。**
-  布局校验器报 `layout/constraint` error：`Label "路由转发" overlaps component "ingress"`，多个预设（cloud / enterprise / ha / data-intensive…）连带判负。
-  源：`arsenal-web/src/lib/arch-canvas.ts:597`（入口改道生成 `ingress→app` 边）+ `arsenal-web/src/lib/archify-ir.ts:386-420`（`labelSegment` / `labelDy` 定位）。
-  校验器给了明确建议：`labelDy +24`（移到框下方）。
-  ⚠️ 已知遗留：`.workbuddy/night-chain/2026-10-17/{01,02}-done.json` 记为「白天基线既有」，一直没修。
-  ⚠️ 风险：动 IR 可能撞到「字节无损」的快照断言，改前要先确认快照耦合面。**→ r3 候选**
+- **P0-2 [证据] ~~Archify 链路 2 项失败 —— 边标签与组件重叠~~ → r3 已修（改出图几何，未放宽校验器）。**
+  根因：入口改道链里 `ingress→gateway` / `gateway→app` 是**没有 via 的直连边**，绘图器把标签默认放在源框内 → `layout/constraint` 判负。
+  修法：`CanvasEdge.labelDy`（arch-canvas.ts）+ 适配器直连分支透传（archify-ir.ts:420），取校验器建议值 24。
+  连带：该层逐例断言只在「该例全绿」时产出 ⇒ 残数 20 不是真值，全绿实测 **31**；档案与 README 口径一起校正（2279 → 2290）。
+  「字节无损」经核对是**产物自洽 sha**（写回一致），不是 golden 快照 ⇒ 无快照耦合面。
+  ⚠️ README 的 6 处数字改动未提交（捆着用户在途改动）→ BLOCKERS B-6。**→ r3 候选**
 
 - **P0-3 [证据] 代码扫描层 3 项失败（13-1 / 13-2 / 13-7）—— fixture spring-boot 真跑不起来。**
   症状：`status=not-executed port=null line=undefined health=undefined`；13-2 的 `stoppedBy=exited` 与 13-7 的 `端口 null vs null` 都是它的级联。
@@ -54,9 +54,15 @@
 
 （无已知安全漏洞。`ScanGuard` 的路径逃逸 / 超大文件 / file:///ssh:///git:// 拒绝等安全断言在 r1 基线全部为绿。）
 
+- **P1-4 [证据，r3] `archify-check.ts:295` 的逐例断言只在该例全绿时才 `check()`** —— 一个例子红了，它的断言就**消失**而不是变红，
+  本层项数随之缩水（31 → 20 就是这么来的）。失败信息全挤在汇总那条里，账面还顺带骗过元核对。
+  做法：把逐例 `check(name, clean && nineOk, detail)` 改成无条件产出（汇总那条保留），失败时项数不抖、且点名到例。单轮小改。
+
 > **r2 后的账**：checkup 层不再判负（99 == 99，常态下 90 通过 + 9 环境未执行），meta 层 73 项全绿。
 > 链的**失败面**只剩 archify 2 / scan 3 / visual 1 三条独立根因（= P0-2 / P0-3 / P0-4）；**跳过面**变大（4 → 13），是同一批环境缺口的诚实记账，不是新增红灯。
 > 全量 `npm run verify` 需重跑确认（228s > 120s 唤醒间隔，留给专门的确认轮）。
+> **r3 后的账**：Archify 链路那 2 条红消除（修的是出图几何，不是校验器），且该层项数从「残数 20」校正为全绿真值 **31**，README 口径随之 2279 → 2290。
+> 失败面 = scan 3 + visual 1 = **4**（r1 是 6）；未跑 = parity 3 + checkup 9（都要后端）+ visual 1。
 
 ---
 
