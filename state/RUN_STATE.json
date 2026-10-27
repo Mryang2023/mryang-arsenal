@@ -116,5 +116,7 @@
     "backend_startup_needs_maven": false,
     "backend_run_cmd": "SKIP_COMPILE=1 bash arsenal-server/scripts/run.sh (3.6s 起，用完要按 3011 PID Stop-Process)",
     "typecheck_scope": "根 tsconfig 的 **/*.ts 不匹配点目录 → 不覆盖 .verify；改断言层要跑 npm run typecheck:verify"
-  }
+  },
+  "last_round_commit": "1bb20c7",
+  "last_round_summary": "P0-1 完成：checkup【9】归类修正（1 代码文件 +11/-3）；verify:checkup 后端在 99/99 exit 0、后端关 total 99==声明、verify:meta 73 项全绿、两个 typecheck 均 exit 0"
 }
