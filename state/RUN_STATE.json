@@ -82,12 +82,13 @@
     "chain_fail_after_r2": "失败面 = archify 2 + scan 3 + visual 1（与 r1 的 6 同数，meta 的连带失败已消）；跳过面 4 → 13（parity 3 + checkup 9，同一批环境缺口的诚实记账）。全量 verify 待确认轮重跑"
   },
   "wakeup": {
-    "mechanism": "mcp__builtin__qoder_cron（本平台无 ScheduleWakeup 工具）",
+    "mechanism": "DEGRADED（r2 收尾）：mcp__builtin__qoder_cron 在本会话不可见，无法排 120s 唤醒 —— 见 BLOCKERS B-5。r3 起改为同一会话内连续轮次",
     "interval_seconds": 120,
     "interval_history": "初版按 900–1200 排了 r2（15:56:35Z）；用户 2026-10-27T15:50Z 要求压到 120，已 update 同一任务（revision 2，r2 改到 15:52:16Z）",
     "job_id": "42beb80d-573a-4a39-b7d1-8fb24735da6a",
-    "next_wake_at": "(填于 r2 收尾)",
-    "note": "120s 小于全量 verify 的 228s —— 每轮只跑与改动相关的层，全量 verify 留给专门的确认轮"
+    "next_wake_at": "(无定时任务；r3 在 r2 之后同会话直接开始)",
+    "note": "120s 小于全量 verify 的 228s —— 每轮只跑与改动相关的层，全量 verify 留给专门的确认轮",
+    "job_id_r1": "42beb80d-573a-4a39-b7d1-8fb24735da6a"
   },
   "safety": {
     "pre_existing_uncommitted_work": "main 上有用户在途工作：docs 归档到 docs/archive/（31 文件已暂存，含 17703 行删除）+ 28 文件工作区改动 + 3 未跟踪文件 —— 见 BLOCKERS B-1",

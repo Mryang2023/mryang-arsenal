@@ -21,3 +21,9 @@
 - **为什么不擅自处理**：若为迁就本机而放宽断言或加跳过，就是「把没跑当成通过」——正是 verify 链注释里点名要防的两种说谎的绿。
 - **r2 新证（部分改写本条前提）**：本机起后端服务**不需要 mvn** —— `SKIP_COMPILE=1 bash arsenal-server/scripts/run.sh` 3.6s 起、3011 正常（吃现成 `target/classes`，JDK 走 `_cp.sh`）。所以「后端真跑」类断言（parity / checkup 端到端）不是被 maven 卡住的，只是脚本没写；**本条剩下的真缺口只有 scan 层 fixture 需要从源码编译起 Spring Boot**。
 - **计划**：r4 先复现、定位探针到底调哪个 maven 命令；若是探针硬编码 `mvn`，则改为走 wrapper（属代码缺陷，可修）；若纯是本机缺件，则留红并写清复跑条件。
+
+## B-5 [r2] 排程工具 `mcp__builtin__qoder_cron` 在本轮会话不可见 —— 120s 唤醒机制断裂
+- **事实**：r1 用 `mcp__builtin__qoder_cron` 成功建过 r2 任务（job_id `42beb80d-…`，revision 2）。r2 收尾时 `mcp_get` / `mcp_call` 都报 "not found"，`mcp_list` 全量 98 个工具里没有任何 cron / 定时类工具（builtin 只剩 chat/session/team_task 等 12 个）。
+- **不擅自替代**：`create_chat_session` 是**立刻**起新会话，没有延时 —— 用它续跑等于把 120s 节奏改成背靠背，还会让多轮叠在同一时刻；直接写 `.qoder-cn` 里的应用私有存储属于改别人家的状态。两条都不做。
+- **本轮的处置**：r3 起改为**同一会话内连续轮次**（先做完再歇），RUN_STATE.wakeup.mechanism 标成 degraded，节奏与「独立唤醒」不再一致；每轮仍然自己读状态文件、自己提交。
+- **需要人**：确认这个定时工具是被下线了还是本会话没挂载；若要恢复「独立唤醒 + 120s」，需要把它重新暴露出来。
