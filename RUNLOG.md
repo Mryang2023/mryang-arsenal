@@ -254,3 +254,20 @@ AST【6】与 MCP【7】两组守门全绿。失败面未新增（链仍是 scan
 
 **遗留半条**：`_rtcp.sh` 的 `_rt_add()` 仍静默跳过缺件 —— 实测它只影响跑探针那台 JVM 自己的类路径，不参与 fixture 解析，降到 P3（r10 候选）。
 **BLOCKERS**：B-7 追加「更正」段 —— r4 那半条诊断作废，需人批准的构件清单从 4 个变 7 个（且前 2 个到位大概率直接转绿）。
+
+## r10 · 2026-10-27 17:04Z — P3-4（P1-5 遗留半条）：`_rt_add()` 不再静默跳过缺件
+
+**改动**：`arsenal-server/scripts/_rtcp.sh` 1 文件 / +14 −1。缺件攒进 `RT_MISSING`，脚本末尾一次性说到 **stderr**
+（stdout 要留给探针那份单行 JSON —— `scan-check.ts:2039` 只挑以 `{` 开头的行，混进 stdout 会把断言解挂）。
+
+**为什么这条值得做（r9 的教训回 Applied）**：原注释写「缺了……不在这里静默跳过」，但它描述的是 fixture 那一路；
+这台跑探针的 JVM 自己的类路径**恰恰就在静默跳过**。又是一处「注释宣称已披露、代码没披露」。
+
+**实跑验证**：
+- stderr 现说出：`[rtcp] 本机 .m2 缺 5 个运行期构件（类路径按现有 jar 拼）：spring-boot-{actuator, actuator-autoconfigure, health, micrometer-observation}:4.1.1 + micrometer-core:1.17.1`
+  —— 与 r9 的降版证据完全对上（就是这 5 个害得 fixture 退到 3.3.6 / 6.1.6 / 1.13.8）。
+- stdout 仍是可解析单行 JSON、`missingDeps` 7 条 —— 拼装结果与判定一字未动。
+
+**门禁**：`verify:scan` 167 通过 / 3 失败 / 项数 170（与 r9 同，未新增）；`verify:parity` 13 通过 / 0 失败 / 3 跳（与 r8 同）。
+
+**链的账（r10 后）**：失败面 4（scan 3 + visual 1）不变；B-7 的人工清单证据现在有两处独立来源（探针 JSON + 脚本 stderr）。

@@ -13,16 +13,23 @@ B=4.1.1
 T=11.0.24
 
 RTCP=""
+RT_MISSING=()
 _rt_add() {
   local p="$1" v="$2" a="$3"
   local f="$M2_RT/$p/$v/$a-$v.jar"
   if [ -f "$f" ]; then
     RTCP="$RTCP;$(to_win "$f")"
+  else
+    # 以前这里是一个光秃秃的 `if [ -f ]`：缺件既不进 RTCP 也不吭声。
+    # 「由采集器如实报出」说的是 fixture 那一路（RuntimeClasspath 解析），
+    # 但**这台跑探针的 JVM 自己**缺件时同样会 ClassNotFound，而读的人看不见清单
+    # —— 与 r9 在 findJar() 里修的同一类病。攒起来在末尾一次性说到 stderr。
+    RT_MISSING+=("$p:$a:$v")
   fi
 }
 
 # Spring Boot 4.x 家族（3.x 没有 web-server / http-converter 这些模块，
-# 缺了只是「跑不起来」，由采集器如实报出，不在这里静默跳过）
+# 缺了不阻断拼装，但**必须在末尾说出来** —— 见 _rt_add 的 else 分支）
 for a in spring-boot-jackson spring-boot-http-converter spring-boot-webmvc \
          spring-boot-servlet spring-boot-web-server spring-boot-tomcat \
          spring-boot-actuator spring-boot-actuator-autoconfigure spring-boot-health \
@@ -53,5 +60,11 @@ _rt_add tools/jackson/core/jackson-core 3.1.5 jackson-core
 _rt_add com/fasterxml/jackson/core/jackson-annotations 2.21 jackson-annotations
 _rt_add org/slf4j/slf4j-api 2.0.18 slf4j-api
 _rt_add org/slf4j/jul-to-slf4j 2.0.18 jul-to-slf4j
+
+# 缺件清单说到 stderr：stdout 要留给探针那份**单行 JSON**，混进去就把断言解挂了。
+if [ "${#RT_MISSING[@]}" -gt 0 ]; then
+  printf '[rtcp] 本机 .m2 缺 %d 个运行期构件（类路径按现有 jar 拼）：%s
+'     "${#RT_MISSING[@]}" "$(IFS=' , '; echo "${RT_MISSING[*]}")" >&2
+fi
 
 export RTCP

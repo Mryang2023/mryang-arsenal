@@ -73,3 +73,13 @@
   **崩溃主因正是那对 3.3.6 的 actuator-autoconfigure**（栈帧直接指着它），不是「缺构件」本身 —— B-7 原记录被本轮实测更正。
 - 门禁：`verify:parity 13/0/3跳`（含 compile-check 100 源文件 → 208 class）、`verify:scan 167/0/3`（同 3 条红、无新增）、`typecheck` 与 `typecheck:verify` 均 exit 0。
 - 代码改动 4 个文件 / +46 −9 行。
+
+## r10 · 2026-10-27 17:04Z
+- `arsenal-server/scripts/_rtcp.sh`：`_rt_add()` 的缺件分支从**静默跳过**改为攒进 `RT_MISSING`，
+  脚本末尾一次性把清单说到 **stderr**（stdout 必须留给探针那份单行 JSON，混进去就把断言解挂了）。
+  - 顺带修掉一处注释与代码不符：原话「缺了……不在这里静默跳过」描述的其实是 fixture 那一路（`RuntimeClasspath`），
+    而这台跑探针的 JVM 自己的类路径**就是**在静默跳过 —— 与 r9 在 `findJar()` 修的同一类病。
+  - 本机实测：stderr 现说出 `缺 5 个运行期构件` —— `spring-boot-{actuator,actuator-autoconfigure,health,micrometer-observation}:4.1.1`
+    与 `micrometer-core:1.17.1`（这正是 r9 里 fixture 被迫降版的根因，两条证据对上）。
+  - 拼装结果与判定**一字未动**：`RTCP` 内容不变、`runtime-probe.sh` 的 stdout 仍是可解析的单行 JSON（实测 `missingDeps` 7 条）。
+- 代码改动 1 个文件 / +14 −1 行。
