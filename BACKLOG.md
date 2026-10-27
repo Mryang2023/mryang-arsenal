@@ -72,9 +72,21 @@
 - **P1-1 [证据] 后端零单元测试。** `arsenal-server` 没有任何 `src/test`。后端逻辑（`ScanGuard`、`AstEngine`、`ProjectStore`、`QaService`）全靠前端 `.verify` 黑盒打。
   风险：前端链跳过时后端等于裸奔；重构无保护网。
   做法：**小步**补最小冒烟测试 —— 第一个只测 `ScanGuard` 的 zip 路径穿越拒绝（README 明写的铁律，最容易写成纯单元测试）。一次只加 1 个测试类。
-- **P1-2 [待复核] 前端 AST 层 0/20。** 出自 `docs/功能缺口清单-2026-09-22.md` §1.1，该文档自称是「刻意设计不是 bug」。
-  → 先复核代码现状再决定是否算缺口；若确实是设计意图，降级为 P3 文档项。
-- **P1-3 [待复核] LLM 层 43 条规则全项目 0 条被执行。** 同上文档 §0.2。属功能方向，非单轮可完成，先记录不排期。
+- **P1-2 [证据，r7 复核完成] ~~前端 AST 层 0/20（待复核）~~ → 前提过期，判为「设计意图 + 缺口已闭环」，不是缺口。**
+  出自 `docs/功能缺口清单-2026-09-22.md` §1.1（35 天未更新）。2026-10-27 逐条实测：
+  ① 语料现状未变：69 条规则 / 正则 35 / AST 20 / `AstEngine` 注册 15 个检查器（另 5 条需类型解析，诚实进 skipped）。
+  ② 前端本地确实只跑正则层，`engine.ts:163-183` 把 ast/llm/manual 一律如实披露为不伪造判定 —— 这是**离线优先的刻意设计**（静态站首屏零网络请求）。
+  ③ 文档 §3.3「前端从不调 `POST /api/lint`」**已不成立**：`arsenal-api.ts:617 lintRemote()` 存在，`CheckConsole.tsx:10 / :76 / :287-288` 三态接线（idle/running/report + 「代码已改动」过期标记 + RemotePanel）。→ 20 条 AST 规则的结论**用户可达**。
+  ④ 文档 §6.2「AST 层零自动化覆盖」**已不成立**：`arsenal-server/scripts/ast-probe.sh` 存在并接进 `verify:parity`【6】；r7 实跑 `npm run verify:parity` → 该 2 项全绿、层 `13 通过 / 3 未执行（后端类）/ 0 失败`。
+  ⑤ `arsenal-profiles/arsenal.json:377` 的 L2 AST `status` 已是 `done`（文档 A3 那条「渲染在 /arch 上的 todo」已修）。
+  ⑥ 前端 `src` 全域再无 `JavaParser` 字样（文档 A5–A8 已修）。
+  ⇒ 本条**关闭、不降级为 P3 文档项**（因为文档本身只是历史证据，不是待办）。真正遗留的是下面这条名实不一，r7 新证。
+- **P1-2b [证据，r7 新证] 20 条 AST 规则的数据仍自称引擎是 `javaparser`，与实际 `jdk.compiler` 名实不一。**
+  位置：`arsenal-rules/**/*.json` 9 个文件共 20 处 `"engine": "javaparser"` → 同步进 `arsenal-web/src/generated/rules.json` 20 处 → 渲染在规则详情页 `arsenal-web/src/app/rules/[id]/page.tsx:207`（`engine=${check.ast.engine ?? 'javaparser'}`，兜底默认值也是这个名字）→ 由 `ExporterService.java:270` 写进导出产物（「AST：`query`（引擎 javaparser）」）→ 后端默认值 `Rule.java:85-87 engineOrDefault()` 与 `:80` javadoc 同错。而 `AstEngine.java:37` 明写「零新增依赖，不需要 JavaParser」。
+  影响：用户与接入方（含 AI）读到的引擎名是错的，可能据此以为要引 JavaParser 依赖。属**规则语料内容**改动 → 需本人过目，已登记 **BLOCKERS B-8**，循环不擅改语料。
+- **P1-3 [证据，r7 更新前提] LLM 层 43 条规则 0 条被执行 —— 结论仍成立，但「全项目没有任何 LLM 调用代码」这句前提已过期。**
+  现已存在 `arsenal-server/src/main/java/com/arsenal/qa/LlmClient.java`（`java.net.http.HttpClient` + OpenAI 兼容 `/chat/completions`，默认 base-url deepseek，key 走 `ARSENAL_LLM_KEY`，`statusNode()` 只披露状态不外泄 key），被 QA 会诊链路使用；该类 `:26` 明写「同步链路永不碰这里：/autopsy、/api/lint 的调用方不注入本类」。
+  ⇒ 缺口精确化为「lint 的 43 条 llm 规则没有复用这条现成客户端」，而不是「要先从零搭 LLM 调用」。仍属功能方向、非单轮可完成，不排期。
 - **P1-4 [证据，r3] ~~archify 逐例断言只在全绿时产出~~ → r5 已修（1 文件 / +11 −4）。**
   现在红例与「校验器拿不到 JSON」两条路都产出一条红断言；注入回归实测：`31 项 / 13 失败`、`declaredMismatch: null`、逐例点名到预设。
   全绿态仍是 31 项不变 ⇒ 档案声明不用动。穷举模式（`ARCHIFY_SWEEP=1`）保持只报例外。

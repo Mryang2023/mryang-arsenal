@@ -51,3 +51,18 @@
 - **需要人**：批准拉取 `spring-boot-{actuator,actuator-autoconfigure,health,micrometer-observation}:4.1.1`（或确认这台机器就该让这 3 条红着、把这 3 项登记为环境未覆盖）。
 - **顺带可做的代码项**（不阻塞，见 BACKLOG P1-5）：`_rt_add` 静默跳过缺件 —— 让它把「缺了哪几个 jar」如实进 `missingDeps`，
   这样 13-1 的失败信息一眼可读，而不是被 Spring 的 condition 异常带偏。
+
+## B-8 [r7] 20 条 AST 规则的 `engine` 数据自称 `javaparser`，与实际 `jdk.compiler` 名实不一 —— 改的是规则语料，需本人拍板
+- **事实链（全部 2026-10-27 实测）**：
+  `arsenal-rules/**/*.json` 9 个文件共 **20 处** `"engine": "javaparser"`
+  → `arsenal-web/src/generated/rules.json` **20 处**（同一份数据同步产物）
+  → 规则详情页 `arsenal-web/src/app/rules/[id]/page.tsx:207` 把它渲染成 `engine=javaparser`（兜底默认值也写死同一个词）
+  → 后端导出 `ExporterService.java:270` 把「（引擎 javaparser）」写进 6 个载体的导出产物
+  → `Rule.java:80` javadoc 与 `:85-87 engineOrDefault()` 的默认值同错。
+  而真正跑的那台引擎是 `AstEngine.java:37` 自述的 **JDK 自带 `jdk.compiler`，零新增依赖、不需要 JavaParser**。
+- **为什么这是产品面而不是注释面**：它出现在**用户看得见的页面与导出文档**里，且是「引哪个依赖」的信号 —— 后续 AI 会话很可能据此以为要引入 JavaParser。r7 复核 P1-2 时前端 `src` 里的 JavaParser 字样已全部清零，唯独这份**数据**还留着。
+- **为什么不擅自修**：① 这 20 处是规则语料内容，`arsenal-profiles/arsenal.json` 自认「69 条没过目就不算军火库」，改语料字段属本人决策；
+  ② 改后要走 `npm run sync` 重生成 `src/generated/rules.json`，并**同时**改后端默认值与前端兜底字符串，否则三处不一致；
+  ③ 导出产物由 `verify:parity` 逐字节守着，语料一改 markdown 必变，需要确认口径（`javaparser` → `jdk.compiler` 还是 `arsenal-ast`）。
+- **需要人**：拍板一个引擎名口径。建议值：`jdk.compiler`（与 `AstEngine` 自述一致、零依赖事实）。
+  拿到口径后循环可一次做完：20 处语料 + `Rule.engineOrDefault()` + `Rule.java:80` javadoc + `page.tsx:207` 兜底 + `npm run sync` + 复跑 `verify:parity`/`verify:project`。

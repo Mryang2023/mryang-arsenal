@@ -4,19 +4,19 @@
   "push_remote": false,
   "started_at": "2026-10-27T15:34:57Z",
   "end_at": "2026-10-27T21:34:57Z",
-  "current_round": 6,
+  "current_round": 7,
   "round_status": "completed",
   "in_progress": null,
   "next_round_plan": {
-    "round": 7,
-    "task_id": "P1-2",
-    "task": "复核「前端 AST 层 0/20」：出自 docs/功能缺口清单-2026-09-22.md §1.1（35 天未更新），该文档自称「刻意设计不是 bug」—— 读代码判定是真缺口还是设计意图；若设计意图则降级 P3 文档项，不改代码",
-    "priority": "P1",
+    "round": 8,
+    "task_id": "确认轮",
+    "task": "重跑全量 npm run verify（≈228s）核对 r2–r7 累计账目：失败应仍是 scan 3 + visual 1 = 4、meta 全绿；结论写进 RUNLOG，不开新代码面",
+    "priority": "P0",
     "expected_files": [
-      "arsenal-server/src/main/java/com/arsenal/engine/* (只读)",
-      "docs/功能缺口清单-2026-09-22.md (只读)"
+      "RUNLOG.md",
+      "state/RUN_STATE.json"
     ],
-    "notes": "判定轮，目标产出是 BACKLOG 的一条 [证据] 结论而不是代码改动"
+    "notes": "r8 之后再评估：剩 BACKLOG 项全部依赖人工决策（B-2/B-3/B-7/B-8）"
   },
   "commands": {
     "web_typecheck": "cd arsenal-web && npm run typecheck",
@@ -84,7 +84,8 @@
     "chain_fail_after_r3": "失败面 = scan 3 + visual 1 = 4（r1 为 6）；未跑 = parity 3 + checkup 9 + visual 1；README 项数口径已同步 2279→2290 但未提交（B-6）",
     "scan_after_r4": "167 通过 / 3 失败（与 r1 同数）—— 3 条红判定为环境缺口：.m2 缺 4 个 Spring Boot 4.1.1 家族构件 + _rtcp.sh 静默跳过缺件（B-7）；代码零改动",
     "archify_count_stable": "r5 起：archify 层实测项数恒为 31（绿 31/0，注入回归 31/13 失败），不再随红绿缩水；declaredMismatch 恒 null",
-    "with_backend_script": "npm run verify:with-backend：parity 16/16 + checkup 99/99 真跑全绿，脚本自行关停并归还 3011；--keep 与「已有外部后端」两条分支未实测"
+    "with_backend_script": "npm run verify:with-backend：parity 16/16 + checkup 99/99 真跑全绿，脚本自行关停并归还 3011；--keep 与「已有外部后端」两条分支未实测",
+    "note_after_r7": "判定轮无代码改动；链失败面仍 4（scan 3 + visual 1），后端类未执行 12 项已由 r6 脚本可一键真跑"
   },
   "wakeup": {
     "mechanism": "DEGRADED：无排程工具 → r3–r6 改为同会话连续跑；r7 起需人唤醒或恢复 mcp__builtin__qoder_cron（见 B-5）",
@@ -115,9 +116,9 @@
       "B-3 CI 配置",
       "B-4 maven 环境待判定"
     ],
-    "rounds_completed": 6
+    "rounds_completed": 7
   },
-  "stop_reason": "已排到 r7 但无法自动唤醒：排程工具 mcp__builtin__qoder_cron 在本会话不可见（BLOCKERS B-5）。r2–r6 五个轮次在同一会话内连续完成（4 个代码/脚本改动轮 + 1 个判定轮），未到 end_at（2026-10-27T21:34:57Z），剩余任务见 next_round_plan 与 BACKLOG。",
+  "stop_reason": null,
   "tools_or_environment": {
     "backend_startup_needs_maven": false,
     "backend_run_cmd": "SKIP_COMPILE=1 bash arsenal-server/scripts/run.sh (3.6s 起，用完要按 3011 PID Stop-Process)",

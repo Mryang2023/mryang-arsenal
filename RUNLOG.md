@@ -161,3 +161,32 @@ java 留在 3011 上（r2 踩过）。所以脚本里 `finally` 一定执行关�
 
 **链的账（r6 后）**：常态（不起后端）失败面仍是 scan 3 + visual 1 = 4，未执行 12 项后端类；
 按需跑 `verify:with-backend` 就能把那 12 项变成真跑，且这次真跑已验证为全绿。
+
+## r7 · 2026-10-27 16:31Z — P1-2：复核「前端 AST 层 0/20」（判定轮，代码零改动）
+
+**任务**：`docs/功能缺口清单-2026-09-22.md` §1.1（35 天未更新）说前端只跑正则层、AST 层 0/20，自称「刻意设计不是 bug」。
+BACKLOG 要求先判真缺口还是设计意图，**不许为凑绿灯改档案**。
+
+**判定：前提已过期 —— 既不是缺口，也不只是「设计意图」四个字，而是「设计意图 + 缺口已被后来的实现闭环」。**
+
+| # | 复核点 | 2026-10-27 实测 |
+|---|---|---|
+| ① | 语料规模 | 69 条规则 / 正则 35 / AST 20 / `AstEngine.java:199-215` 注册 **15** 个检查器（另 5 条需类型解析，如实进 skipped）→ 与文档一致，未变 |
+| ② | 前端本地是否只跑正则 | 是。`engine.ts:163-183` 显式「不在这里伪造判定」，ast/llm/manual 全进 skipped 披露 → **刻意设计**（静态站首屏零网络） |
+| ③ | 文档 §3.3「前端从不调 `POST /api/lint`」 | **已不成立**：`arsenal-api.ts:617 lintRemote()` + `CheckConsole.tsx:10/:76/:287-288` 三态接线（含「代码已改动」过期标记、RemotePanel）→ 20 条 AST 结论**用户可达** |
+| ④ | 文档 §6.2「AST 层零自动化覆盖」 | **已不成立**：`arsenal-server/scripts/ast-probe.sh` 存在、接进 `verify:parity`【6】；本轮实跑 2 项全绿 |
+| ⑤ | 档案 `arsenal.json:377` L2 AST | `status` 已是 `done`（文档 A3 那条渲染在 `/arch` 上的 todo 已修） |
+| ⑥ | 前端 `JavaParser` 字样 | `arsenal-web/src` 全域 0 命中（文档 A5–A8 已修） |
+
+**处理**：P1-2 关闭（不降级为 P3 —— 文档是历史证据不是待办）。顺带把 P1-3 的前提更新为准确说法：
+LLM 客户端**已存在**（`qa/LlmClient.java`，OpenAI 兼容 + `ARSENAL_LLM_KEY`，`:26` 明写同步链路不注入），
+缺的只是「lint 的 43 条 llm 规则没复用它」，而非「要先从零搭 LLM」。
+
+**新发现（登记 B-8，不改代码）**：20 条 AST 规则的**数据**仍自称 `engine: "javaparser"`
+（`arsenal-rules` 9 文件 20 处 → `generated/rules.json` 20 处 → 详情页 `rules/[id]/page.tsx:207`（兜底默认值同词）→ `ExporterService.java:270` 写进导出产物 → `Rule.java:80/:85-87` 同错），
+而真引擎是 `jdk.compiler`（`AstEngine.java:37` 自述零依赖）。属规则语料内容 + 被 parity 逐字节守着的导出面 → 需本人拍板口径。
+
+**门禁**：判定轮无代码改动。`verify:parity` 实跑 = 13 通过 / 0 失败 / 3 未执行（后端类，与基线同数）· exit 2；
+AST【6】与 MCP【7】两组守门全绿。失败面未新增（链仍是 scan 3 + visual 1 = 4）。
+
+**改动文件**：`BACKLOG.md`、`BLOCKERS.md`、`RUNLOG.md`、`state/RUN_STATE.json`（纯流水与结论，产品代码 0 处）。
