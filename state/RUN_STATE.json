@@ -4,21 +4,19 @@
   "push_remote": false,
   "started_at": "2026-10-27T15:34:57Z",
   "end_at": "2026-10-27T21:34:57Z",
-  "current_round": 11,
+  "current_round": 12,
   "round_status": "completed",
   "in_progress": null,
   "next_round_plan": {
-    "round": 12,
-    "task_id": "P3-5（r11 派生）",
-    "task": "给 docs/功能缺口清单-2026-09-22.md 顶部加一行「本报告的若干前提已被 2026-10-27 实测推翻，复核见 docs/现状复核-2026-10-27.md」的指针——不改正文（那是历史取证）。1 文件、约 3 行",
-    "priority": "P3",
+    "round": 13,
+    "task_id": "P1-1",
+    "task": "复核「后端零单元测试」：今天实测扫描层的 13-4（路径逃逸入参被拒、进程一个没起）等安全断言已经通过黑盒探针覆盖了 ScanGuard。判定 P1-1 是不是已被这些探针实质覆盖；若是→关闭并说明；若仍有真空→精确列出哪几条逻辑没有守卫（不许泛泛说「零测试」）",
+    "priority": "P1",
     "expected_files": [
-      "docs/功能缺口清单-2026-09-22.md"
+      "arsenal-web/.verify/scan-check.ts（只读）",
+      "arsenal-server/src/main/java/com/arsenal/scan/*（只读）"
     ],
-    "gates": [
-      "npm run verify:project（docs 不被项数口径枚举，预期仍 1547/0/0）"
-    ],
-    "notes": "已确认该文件工作区干净（git status 无 M）；docs/arsenal-runtime.architecture.json 带着用户在途改动，本轮不碰（B-6 同类）"
+    "notes": "判定轮，不改代码；上一轮 r7 的教训是先读代码再下结论，别按 BACKLOG 的旧假设动手"
   },
   "commands": {
     "web_typecheck": "cd arsenal-web && npm run typecheck",
@@ -137,7 +135,7 @@
       "B-3 CI 配置",
       "B-4 maven 环境待判定"
     ],
-    "rounds_completed": 11
+    "rounds_completed": 12
   },
   "stop_reason": null,
   "tools_or_environment": {
