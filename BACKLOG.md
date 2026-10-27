@@ -20,11 +20,12 @@
 
 **基线总账（r1 实测，2026-10-27 15:41Z，耗时 227.7s）：`npm run verify` = 2270 项 / 通过 2260 / 跳过 4 / 失败 6 → 退出码 1。链是红的。** 四个独立根因：
 
-- **P0-1 [证据] 体检报告层「声明 99 / 实测 90」→ 连带 `verify:meta` 元核对判负。**
-  `arsenal-profiles/arsenal.json` 的 `project.verifyChain` 给 checkup 层声明 99 项，实跑只有 90 项。
-  这一条是**整条链唯一的「非环境」机械性红灯**，单文件、影响面最小。
-  动手前必须先判定：是 90 为真值（档案数字陈旧 → 改档案），还是**有 9 条断言被静默删掉**（→ 那是真 bug，不许改档案掩盖）。
-  验证：`npm run verify:checkup` + `npm run verify:meta`。**→ r2 选定**
+- **P0-1 [证据] ~~体检报告层「声明 99 / 实测 90」~~ → r2 已修（改归类，未改档案）。**
+  判定结论：**档案 99 是真值，9 条端到端断言一条都没丢**（`checkup-check.ts:627-644`）。
+  起后端实跑 `verify:checkup` = 99/99 全绿 exit 0；后端不在时该组按 `report.ts` 的语义应进 `skip` 计数（与同层【11】的 7 条同类），
+  原先误用 `knowinglySkipped()`（那个不进项数比对，专指「配好环境也不会跑」）→ 账恒差 9。
+  修法：`knowinglySkipped` → `skipItems(…, 9)`；`verify:meta` 恢复全绿（73 项 / 0 失败）。详见 RUNLOG r2。
+  遗留：常态（后端未起）本层 9 项未执行 → 链需 `--allow-skip`，属 P0-5 环境项，不是代码缺陷。
 
 - **P0-2 [证据] Archify 链路 2 项失败 —— 边标签与组件重叠。**
   布局校验器报 `layout/constraint` error：`Label "路由转发" overlaps component "ingress"`，多个预设（cloud / enterprise / ha / data-intensive…）连带判负。
@@ -46,8 +47,16 @@
 
 - **P0-5 [证据] 前后端一致性层 3 项跳过 + 视觉层 1 项未适用。** 根因是后端 3011 未运行。
   非代码缺陷，属环境。做法：加「起后端 → 跑 verify → 关后端」一键脚本（复用现成的 `target/arsenal-server-0.1.0.jar`），让一致性层真能验。不改 verify 链本身。
+- **P0-5b [证据，r2 新证] 后端「真跑」本机可用，不需要 maven。**
+  `SKIP_COMPILE=1 bash arsenal-server/scripts/run.sh` 实测 **3.6s 起、3011 正常服务**（吃现成 `target/classes` + `.m2` 里的 Spring Boot 4.1.1；JDK 由 `_cp.sh` 定位，本机 corretto-21.0.4）。
+  ⇒ P0-5 与 parity 的 3 项跳过、checkup 的 9 项未执行只差这条「起—跑—关」脚本；B-4 的 maven 缺口只卡 scan 层的 fixture 真跑。
+  ⚠️ 用完必须真关：后台任务只杀 bash 包装，java 子进程要按 3011 监听 PID `Stop-Process` 掉，否则端口留成常态。
 
 （无已知安全漏洞。`ScanGuard` 的路径逃逸 / 超大文件 / file:///ssh:///git:// 拒绝等安全断言在 r1 基线全部为绿。）
+
+> **r2 后的账**：checkup 层不再判负（99 == 99，常态下 90 通过 + 9 环境未执行），meta 层 73 项全绿。
+> 链的**失败面**只剩 archify 2 / scan 3 / visual 1 三条独立根因（= P0-2 / P0-3 / P0-4）；**跳过面**变大（4 → 13），是同一批环境缺口的诚实记账，不是新增红灯。
+> 全量 `npm run verify` 需重跑确认（228s > 120s 唤醒间隔，留给专门的确认轮）。
 
 ---
 
@@ -73,3 +82,5 @@
 
 - **P3-1 [证据] 根目录散落审计产物。** `.verify/`、`.data/`、`.workbuddy/`、`.zcode/` 混在仓库根，近期已有 commit 在做清理（`52feeb3`）。跟进但要避开用户在途的归档工作。
 - **P3-2 [待复核] `docs/功能缺口清单-2026-09-22.md` 已 35 天未更新**，其中 P0-1/P0-2 标注「已修」，可整理成现状稿。
+- **P3-3 [证据，r2] README 的类型闸门只写了 `npm run typecheck` 一种。** 实测根 tsconfig 的 `**/*.ts` 不匹配点目录（`tsc --listFiles` 里 `.verify/` 0 个文件），
+  改断言层必须另有 `npm run typecheck:verify`；`scripts/verify-all.mjs:206` 两个都跑，所以**链没漏，是文档口径不全**（README:353）。单轮小改。

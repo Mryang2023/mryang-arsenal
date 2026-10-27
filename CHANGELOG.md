@@ -1,5 +1,17 @@
 # CHANGELOG · 自动迭代改动
 
+## r2 · 2026-10-27
+- `arsenal-web/.verify/checkup-check.ts`：【9】端到端那组（9 条断言）的记账从 `knowinglySkipped()` 改为 `skipItems(…, 9)`。
+  - 判定过程（先查「90 是真值还是 9 条断言被删」）：9 条 `check()` 仍在 [checkup-check.ts:627-644](file:///D:/workspace/2026/mryang-arsenal/arsenal-web/.verify/checkup-check.ts#L627-L644)，**没有断言被静默删除**；
+    起后端（`SKIP_COMPILE=1 bash arsenal-server/scripts/run.sh`，3.6s 起来）再跑本层 → **实测 99 / 跳过 0 / 失败 0，exit 0**，端到端 9 条全真跑全绿
+    → 档案声明的 99 是真值，不该改成 90（改了会在后端在的时候反向对不上）。
+  - 红的是**归类**：`report.ts` 定义 `knowinglySkipped` 只装「配好环境也不会跑」（造用例代价过大）且**不进项数比对**；
+    「后端未启动」是环境缺口，本层【11】那 7 条同类情况早就写明要走 `skipItems`（「记账不平比跳过更脏」）。归到 `skipItems` 后
+    `total = 90 + 9 = 99 = 声明`，`verify:meta` 的 checkup 行恢复「对得上」、meta 层 73 项全绿 exit 0。
+  - 没有为了让绿灯而放宽任何断言：后端不在时这 9 条依然显式记为「未执行」，退出码 2，不加 `--allow-skip` 依旧不放行。
+  - 后端用完已关掉，3011 端口归还（环境与本轮开始时一致）。
+- 代码改动 1 个文件 / +11 −3 行。资料文件（CHANGELOG / RUNLOG / BACKLOG / BLOCKERS / state）另计。
+
 ## r1 · 2026-10-27
 - 新增 `state/RUN_STATE.json`：循环状态机（分支、截止时间、探测到的构建/测试命令、安全策略、计数器）。
 - 新增 `BACKLOG.md`：基于实测（非猜测）建立的任务池，逐条标注 `[证据]` / `[待复核]`。

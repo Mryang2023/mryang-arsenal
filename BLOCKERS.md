@@ -19,4 +19,5 @@
 ## B-4 [r1] 后端「真跑」类断言依赖本机 Maven —— 待判定是环境还是代码
 - **事实**：`mvn` 不在 PATH（只有 `arsenal-server/mvnw`）；`.m2` 本地仓库存在；扫描层 13-1/13-2/13-7 需要 bash + JDK + .m2 才能把 fixture spring-boot 项目真跑起来，现全部 `not-executed`。
 - **为什么不擅自处理**：若为迁就本机而放宽断言或加跳过，就是「把没跑当成通过」——正是 verify 链注释里点名要防的两种说谎的绿。
+- **r2 新证（部分改写本条前提）**：本机起后端服务**不需要 mvn** —— `SKIP_COMPILE=1 bash arsenal-server/scripts/run.sh` 3.6s 起、3011 正常（吃现成 `target/classes`，JDK 走 `_cp.sh`）。所以「后端真跑」类断言（parity / checkup 端到端）不是被 maven 卡住的，只是脚本没写；**本条剩下的真缺口只有 scan 层 fixture 需要从源码编译起 Spring Boot**。
 - **计划**：r4 先复现、定位探针到底调哪个 maven 命令；若是探针硬编码 `mvn`，则改为走 wrapper（属代码缺陷，可修）；若纯是本机缺件，则留红并写清复跑条件。

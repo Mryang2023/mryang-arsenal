@@ -23,7 +23,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import url from 'node:url';
 import { spawnSync } from 'node:child_process';
-import { check, finish, knowinglySkipped, skipItems } from './lib/report';
+import { check, finish, skipItems } from './lib/report';
 // 静态 import（不用 await import）—— 本仓 tsx 是 cjs 输出，顶层 await 编译失败。
 // 缺文件时是**加载期报错**而不是「静默 undefined」，这比 await 的写法更早暴露问题。
 import { validateCheckups, OPERATOR_VALUE_TYPES, CHECKUP_LEVELS } from '../scripts/lib/validate-checkups.mjs';
@@ -609,12 +609,20 @@ void (async () => {
 
   if (data === null) {
     // 不能用 skipLayer：本层前 8 节是真跑过的（纯数据与源码断言，不需要后端），
-    // 整层记成「跳过」会把它们一起抹掉。这里只把端到端那几条记成刻意未跑。
-    knowinglySkipped(
+    // 整层记成「跳过」会把它们一起抹掉。
+    //
+    // 走 skipItems 而不是 knowinglySkipped（与【11】同一条判据）：这 9 条是
+    // 「后端起了就能跑」，属于环境缺口；knowinglySkipped 按 report.ts 的定义只装
+    // 「配好环境也不会跑」（造用例代价过大），而且它**不进项数比对** ——
+    // 用它就等于档案声明 99、实测 90，账永远不平（2026-10-27 r2 的实测红灯）。
+    skipItems(
       '【9】端到端 9 条：后端未启动（起法 SKIP_COMPILE=1 bash arsenal-server/scripts/run.sh）',
       '后端不在就没法真跑 inspect；这 9 条不是「跑了但失败」，是压根没跑 —— 不装作通过',
+      9,
     );
   } else {
+    // ⚠️ 这一组共 9 条 check —— 上面 skipItems 的字面量 9 与档案声明 99 都靠它对齐，
+    // 增删这里的断言要一起改那两处（否则本层会以「记账对不上」红给你看）。
     const cov = data.coverage;
     check('端到端：分母来自后端规则池', cov.total > 0, `total=${cov.total}`);
     check('端到端：executed ≤ total 且 notRun 自洽', cov.executed <= cov.total && cov.notRun === cov.total - cov.executed, `executed=${cov.executed} notRun=${cov.notRun} total=${cov.total}`);

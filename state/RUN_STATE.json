@@ -4,15 +4,19 @@
   "push_remote": false,
   "started_at": "2026-10-27T15:34:57Z",
   "end_at": "2026-10-27T21:34:57Z",
-  "current_round": 1,
+  "current_round": 2,
   "round_status": "completed",
   "in_progress": null,
   "next_round_plan": {
-    "round": 2,
-    "task_id": "P0-1",
-    "task": "体检报告层档案项数漂移：声明 99 / 实测 90 —— 先判定是档案陈旧还是 9 条断言被静默删除，再修；验证 npm run verify:checkup && npm run verify:meta",
+    "round": 3,
+    "task_id": "P0-2",
+    "task": "Archify 链路 2 项失败：边标签「路由转发」与组件 ingress 重叠 —— 校验器建议 labelDy +24；改前先确认「字节无损」快照的耦合面，不许放宽校验器",
     "priority": "P0",
-    "expected_files": ["arsenal-profiles/arsenal.json", "arsenal-web/.verify/checkup-check.ts (只读判定)"]
+    "expected_files": [
+      "arsenal-web/src/lib/archify-ir.ts",
+      "arsenal-web/src/lib/arch-canvas.ts (只读定位)"
+    ],
+    "notes": "风险：动 IR 可能撞快照断言；若连带 project/graph 层红就回滚，登记 BLOCKERS"
   },
   "commands": {
     "web_typecheck": "cd arsenal-web && npm run typecheck",
@@ -58,29 +62,59 @@
         "parity": "3 skip — 后端 3011 未运行（环境）"
       }
     },
-    "green_layers": ["arch 35", "graph 75", "cases 48", "project 1547", "engine 17", "scaffold 21", "charter 197", "topology 21"],
-    "services_running_at_start": { "backend_3011": false, "web_3010": false },
-    "log_artifact": ".verify-baseline-r1.log (被 .gitignore 的 *.log 规则忽略，数字已抄进 RUNLOG.md)"
+    "green_layers": [
+      "arch 35",
+      "graph 75",
+      "cases 48",
+      "project 1547",
+      "engine 17",
+      "scaffold 21",
+      "charter 197",
+      "topology 21"
+    ],
+    "services_running_at_start": {
+      "backend_3011": false,
+      "web_3010": false
+    },
+    "log_artifact": ".verify-baseline-r1.log (被 .gitignore 的 *.log 规则忽略，数字已抄进 RUNLOG.md)",
+    "checkup_after_r2": "后端在：99/99 exit 0；后端关（常态）：通过 90 + 未执行 9，total 99 == 声明 99，exit 2（不再是记账对不上）",
+    "meta_after_r2": "73 项 / 跳过 0 / 失败 0 / exit 0（r1 是 1 失败）；13 层声明/实测全行对得上",
+    "chain_fail_after_r2": "失败面 = archify 2 + scan 3 + visual 1（与 r1 的 6 同数，meta 的连带失败已消）；跳过面 4 → 13（parity 3 + checkup 9，同一批环境缺口的诚实记账）。全量 verify 待确认轮重跑"
   },
   "wakeup": {
     "mechanism": "mcp__builtin__qoder_cron（本平台无 ScheduleWakeup 工具）",
     "interval_seconds": 120,
     "interval_history": "初版按 900–1200 排了 r2（15:56:35Z）；用户 2026-10-27T15:50Z 要求压到 120，已 update 同一任务（revision 2，r2 改到 15:52:16Z）",
     "job_id": "42beb80d-573a-4a39-b7d1-8fb24735da6a",
-    "next_wake_at": "2026-10-27T15:52:16Z",
+    "next_wake_at": "(填于 r2 收尾)",
     "note": "120s 小于全量 verify 的 228s —— 每轮只跑与改动相关的层，全量 verify 留给专门的确认轮"
   },
   "safety": {
     "pre_existing_uncommitted_work": "main 上有用户在途工作：docs 归档到 docs/archive/（31 文件已暂存，含 17703 行删除）+ 28 文件工作区改动 + 3 未跟踪文件 —— 见 BLOCKERS B-1",
     "commit_strategy": "git commit --only <显式路径>，绝不裸 git add -A / git commit -a，不触碰用户索引",
     "branch_created_via": "git checkout -b（保留索引与工作区）",
-    "never_do": ["git push", "git reset --hard", "git stash", "删除 .workbuddy/.data/.verify 产物", "为过绿而放宽断言或加 skip"]
+    "never_do": [
+      "git push",
+      "git reset --hard",
+      "git stash",
+      "删除 .workbuddy/.data/.verify 产物",
+      "为过绿而放宽断言或加 skip"
+    ]
   },
   "counters": {
     "consecutive_no_progress": 0,
     "consecutive_failures": 0,
-    "tasks_blocked": ["B-2 visual 批量截图", "B-3 CI 配置", "B-4 maven 环境待判定"],
-    "rounds_completed": 1
+    "tasks_blocked": [
+      "B-2 visual 批量截图",
+      "B-3 CI 配置",
+      "B-4 maven 环境待判定"
+    ],
+    "rounds_completed": 2
   },
-  "stop_reason": null
+  "stop_reason": null,
+  "tools_or_environment": {
+    "backend_startup_needs_maven": false,
+    "backend_run_cmd": "SKIP_COMPILE=1 bash arsenal-server/scripts/run.sh (3.6s 起，用完要按 3011 PID Stop-Process)",
+    "typecheck_scope": "根 tsconfig 的 **/*.ts 不匹配点目录 → 不覆盖 .verify；改断言层要跑 npm run typecheck:verify"
+  }
 }
