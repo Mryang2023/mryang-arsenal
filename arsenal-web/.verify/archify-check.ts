@@ -282,19 +282,26 @@ for (const b of built) {
   const v = validate(b.file);
   if (!v) {
     caseErrors.push(`${b.name} · 校验器拿不到 JSON 结果`);
+    // 同下一条的判断：拿不到结果也是一次**执行过的判定**，不许从项数里蒸发
+    if (!sweep) check(`${b.name} · 九项全过（错误 0 / 警告 0）`, false, '校验器拿不到 JSON 结果');
     continue;
   }
   results.push({ name: b.name, v });
   const nineOk = v.names.length === 9 && v.names.join(',') === NINE_CHECKS.join(',');
   const clean = v.ok && v.errors === 0 && v.warnings === 0;
+  const caseName = `${b.name} · 九项全过（错误 0 / 警告 0）`;
   if (!clean || !nineOk) {
     const detail = v.raw.split('\n').filter((l) => l.includes('composition/') || l.includes('- [')).slice(0, 8).join('\n');
-    caseErrors.push(
-      `${b.name}: 九项${nineOk ? '名字对' : `名字不符（${v.names.join(', ')}）`} / 错误 ${v.errors} / 警告 ${v.warnings}\n${detail || v.raw.slice(0, 900)}`
-    );
+    const why =
+      `${b.name}: 九项${nineOk ? '名字对' : `名字不符（${v.names.join(', ')}）`} / 错误 ${v.errors} / 警告 ${v.warnings}\n${detail || v.raw.slice(0, 900)}`;
+    caseErrors.push(why);
+    // 红的那例也要产出逐例断言 —— 只在绿时产出的写法会让「一例红」变成「少一条断言」：
+    // 本层项数随之缩水（2026-10-27 实测全绿 31 / 残数 20），账目反过来骗过元核对，
+    // 而失败信息只剩汇总那一行、点不出是哪例。穷举模式仍然只报例外（133 行逐例会淹掉它）。
+    if (!sweep) check(caseName, false, why);
   } else if (!sweep) {
     // 穷举模式下 133 行逐例输出只会淹掉真正要看的东西 —— 那时只报例外与汇总
-    check(`${b.name} · 九项全过（错误 0 / 警告 0）`, true);
+    check(caseName, true);
   }
   const c = v.metrics.minLabelRouteClearance;
   if (typeof c === 'number' && c < minClearance) {

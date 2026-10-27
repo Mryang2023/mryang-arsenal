@@ -37,3 +37,12 @@
   `_rtcp.sh` 的 `_rt_add()` 静默跳过缺件，fixture 在 Spring 自动配置阶段抛 `EndpointCondition …` → `not-executed`。
   原 BACKLOG/B-4 猜的「硬编码 mvn」经实测推翻：`runtime-probe.sh` 走 `target/classes` + `.m2` 直起 java，不碰 maven。
 - 资料改动：`BLOCKERS.md`（新增 B-7、B-4 前提修正）、`BACKLOG.md`（P0-3 判毕、新增 P1-5、P0-5b 表述修正）、`RUNLOG.md`（r4）。
+
+## r5 · 2026-10-27
+- `arsenal-web/.verify/archify-check.ts`：逐例九项断言改成**无条件产出**（红的那例、以及校验器拿不到 JSON 的那例都产出一条 `check(…, false, 原因)`）。
+  - 治的是 P1-4：原先只有全绿的例子才 `check()`，一例红 → 那条断言**蒸发**而不是变红，本层项数从 31 掉到 20，
+    账面反过来骗过 `verify:meta`，失败信息只剩汇总那一行点不出哪例（r1 的「archify 声明 20」就是这么来的残数）。
+  - 注入回归实测过两种状态：把入口链 `labelDy` 临时改成 0 → `实测 31 / 通过 18 / 失败 13`、`declaredMismatch: null`、逐例点名到「预设·cloud」；
+    改回 24 → `31 / 0 / 0`。**项数不再随红绿抖动**。临时注入已复原（`git status` 对 arch-canvas.ts 无输出）。
+  - 没有放宽任何判定：红仍然是红，而且多了一条点名。改动面 1 文件 / +11 −4 行；注入用的临时改动已复原、不属于交付面。
+- 档案 `Archify 链路` 声明值不动（仍是 r3 校正后的 31）。

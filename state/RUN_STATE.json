@@ -4,18 +4,19 @@
   "push_remote": false,
   "started_at": "2026-10-27T15:34:57Z",
   "end_at": "2026-10-27T21:34:57Z",
-  "current_round": 4,
+  "current_round": 5,
   "round_status": "completed",
   "in_progress": null,
   "next_round_plan": {
-    "round": 5,
-    "task_id": "P1-4",
-    "task": "archify-check.ts:295 的逐例断言只在该例全绿时才产出（一个例子红 → 断言消失而不是变红，本层项数从 31 缩到 20）—— 改成无条件 check(name, clean && nineOk, detail)，保留汇总那条；验证 npm run verify:archify 项数在绿/人为注入红两种状态下都不抖",
-    "priority": "P1",
+    "round": 6,
+    "task_id": "P0-5",
+    "task": "加一条「起后端 → 跑相关层 → 关后端」的脚本，让 parity 的 3 项与 checkup 的 9 项（共 12 项后端类未执行）在本机真能验；不改 verify 链本身的判定",
+    "priority": "P0",
     "expected_files": [
-      "arsenal-web/.verify/archify-check.ts"
+      "arsenal-server/scripts/ 或 arsenal-web/scripts/ 新增 1 个脚本",
+      "arsenal-web/package.json（加一条 npm script）"
     ],
-    "notes": "小改（1 文件）。注意别把汇总那条改成重复计数；改完档案声明仍是 31，若层内断言数变了要同步档案并跑 verify:meta"
+    "notes": "r2 已证起后端 3.6s 无需 maven；用完必须真关（java 子进程要按 3011 PID Stop-Process）；脚本要带回滚：起不来就如实报「后端没起来」而不是把跳过当通过"
   },
   "commands": {
     "web_typecheck": "cd arsenal-web && npm run typecheck",
@@ -81,7 +82,8 @@
     "chain_fail_after_r2": "失败面 = archify 2 + scan 3 + visual 1（与 r1 的 6 同数，meta 的连带失败已消）；跳过面 4 → 13（parity 3 + checkup 9，同一批环境缺口的诚实记账）。全量 verify 待确认轮重跑",
     "archify_after_r3": "31 项全绿 exit 0（r1：18 通过 + 2 失败）；根因=入口链直连边默认标签骑在源框内，CanvasEdge.labelDy=24 + IR 透传修好；档案声明从残数 20 校正为全绿真值 31",
     "chain_fail_after_r3": "失败面 = scan 3 + visual 1 = 4（r1 为 6）；未跑 = parity 3 + checkup 9 + visual 1；README 项数口径已同步 2279→2290 但未提交（B-6）",
-    "scan_after_r4": "167 通过 / 3 失败（与 r1 同数）—— 3 条红判定为环境缺口：.m2 缺 4 个 Spring Boot 4.1.1 家族构件 + _rtcp.sh 静默跳过缺件（B-7）；代码零改动"
+    "scan_after_r4": "167 通过 / 3 失败（与 r1 同数）—— 3 条红判定为环境缺口：.m2 缺 4 个 Spring Boot 4.1.1 家族构件 + _rtcp.sh 静默跳过缺件（B-7）；代码零改动",
+    "archify_count_stable": "r5 起：archify 层实测项数恒为 31（绿 31/0，注入回归 31/13 失败），不再随红绿缩水；declaredMismatch 恒 null"
   },
   "wakeup": {
     "mechanism": "DEGRADED（r2 收尾）：mcp__builtin__qoder_cron 在本会话不可见，无法排 120s 唤醒 —— 见 BLOCKERS B-5。r3 起改为同一会话内连续轮次",
@@ -112,7 +114,7 @@
       "B-3 CI 配置",
       "B-4 maven 环境待判定"
     ],
-    "rounds_completed": 4
+    "rounds_completed": 5
   },
   "stop_reason": null,
   "tools_or_environment": {
