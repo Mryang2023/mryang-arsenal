@@ -62,6 +62,14 @@
     "services_running_at_start": { "backend_3011": false, "web_3010": false },
     "log_artifact": ".verify-baseline-r1.log (被 .gitignore 的 *.log 规则忽略，数字已抄进 RUNLOG.md)"
   },
+  "wakeup": {
+    "mechanism": "mcp__builtin__qoder_cron（本平台无 ScheduleWakeup 工具）",
+    "interval_seconds": 120,
+    "interval_history": "初版按 900–1200 排了 r2（15:56:35Z）；用户 2026-10-27T15:50Z 要求压到 120，已 update 同一任务（revision 2，r2 改到 15:52:16Z）",
+    "job_id": "42beb80d-573a-4a39-b7d1-8fb24735da6a",
+    "next_wake_at": "2026-10-27T15:52:16Z",
+    "note": "120s 小于全量 verify 的 228s —— 每轮只跑与改动相关的层，全量 verify 留给专门的确认轮"
+  },
   "safety": {
     "pre_existing_uncommitted_work": "main 上有用户在途工作：docs 归档到 docs/archive/（31 文件已暂存，含 17703 行删除）+ 28 文件工作区改动 + 3 未跟踪文件 —— 见 BLOCKERS B-1",
     "commit_strategy": "git commit --only <显式路径>，绝不裸 git add -A / git commit -a，不触碰用户索引",
