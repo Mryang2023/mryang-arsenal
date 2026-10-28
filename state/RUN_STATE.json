@@ -4,21 +4,21 @@
   "push_remote": false,
   "started_at": "2026-10-27T15:34:57Z",
   "end_at": "2026-10-28T05:41:43Z",
-  "current_round": 14,
+  "current_round": 15,
   "round_status": "completed",
   "in_progress": null,
   "next_round_plan": {
-    "round": 15,
-    "task_id": "P1-1b",
-    "task": "接着 r14 的判定办法，把 ScanGuard 剩下的纯判定函数按分支数一遍真空：readable / skippableOversize（超限时「源码拒绝 vs 二进制跳过」这条分岔）、isInside 的 toRealPath 失败分支、depth、fileTooLarge、gitUrlAllowed 的 trim/大小写。黑盒同样分不清具体分支，先只读判定哪几条 0 断言，再决定补哪几条 —— 不许为了凑项数把已经覆盖的再验一遍。",
+    "round": 16,
+    "task_id": "P1-1c",
+    "task": "把超限二进制的「跳过并记账」那半条补上摄取侧覆盖：r15 的 3-12 只钉住了 skippableOversize 这个判据函数，而 ProjectCache.java:140 skippedCount[0]++ / :167 manifest.skipped / :201 cache.skippedFiles 三处删掉任何一条链全绿 —— javadoc 承诺的「跳过的事实会记进 manifest 与 cache 统计，不是静默消失」无人守。做法沿用 ProjectsProbe 已有的 quota/gate 形状：造「3MB 的 .xdb + 一个正常 .java」的摄取夹具，断言摄取成功、skippedFiles==1、manifest 里那条带 skipped:true 且字节没落进缓存目录、正常 .java 仍被复制。位置在 ProjectsProbe + scan-check（优先搭 verify:scan 的门禁，别把 checkup 那 9 项未执行拖进来）。",
     "priority": "P1",
     "expected_files": [
-      "arsenal-server/src/main/java/com/arsenal/scan/ScanGuard.java（只读）",
-      "arsenal-server/.verify/ScanProbe.java",
+      "arsenal-server/.verify/ProjectsProbe.java",
       "arsenal-web/.verify/scan-check.ts",
-      "arsenal-profiles/arsenal.json"
+      "arsenal-profiles/arsenal.json",
+      "README.md（数字口径）"
     ],
-    "notes": "沿用 guard-pure 的先例与三条踩坑教训：① 注释里不出现反斜杠-u；② 特殊字符用 (char) 拼、落盘后按字节复核；③ 探针动作名必须带尾冒号，否则 attackGot 的 kind 少一个字符、齐全性检查被伪造。若本轮判定为「已全覆盖、无真空」，如实写成判定轮并记 consecutive_no_progress，不算失败。"
+    "notes": "候选备选（若 P1-1c 单轮做不完）：BACKLOG 里 AstEngine / ProjectStore / QaService 的同等逐分支判定。三条踩坑仍有效：① Java 注释里不出现反斜杠-u；② 边界值落盘后按字节复核；③ 探针动作名带尾冒号。另：r15 的 gitUrl 表把 value 也回吐并按它断言，这个做法值得沿用。"
   },
   "commands": {
     "web_typecheck": "cd arsenal-web && npm run typecheck",
@@ -106,18 +106,22 @@
       "note": "相对 r1 基线：失败 6→4、新增失败 0、实测 2270→2290（archify 逐例断言 +20）"
     },
     "scan_after_r9": "167 通过 / 3 失败 / 项数 170（与基线同数，未新增；失败详情改为自带缺/降版构件清单）",
-    "scan_after_r10": "167/0/3、项数 170（与 r9 同）；parity 13/0/3跳（与 r8 同）——本轮只加 stderr 披露，判定未动"
+    "scan_after_r10": "167/0/3、项数 170（与 r9 同）；parity 13/0/3跳（与 r8 同）——本轮只加 stderr 披露，判定未动",
+    "scan_after_r15": "176 通过 / 3 失败 / 实测 179 == 声明 179（declaredMismatch null）；三条红仍是 13-1/13-2/13-7 = B-7，0 新增。meta 73/0/0；visual 重建产物后回到 11/1/1 = B-2。链实测项数 2293 → 2299"
   },
   "wakeup": {
-    "mechanism": "DEGRADED：无排程工具 → r3–r6 改为同会话连续跑；r7 起需人唤醒或恢复 mcp__builtin__qoder_cron（见 B-5）",
+    "mechanism": "DEGRADED（本会话）：r14 收尾时 cron 可用并成功唤醒 r15，r15 收尾时同一工具在 mcp_list / mcp_get 均不存在 → 判定为「按会话挂载、时好时坏」（B-5 补充）。r16 回到同会话连续跑（r3–r6 先例），不用 create_chat_session 顶替（无延时）",
     "interval_seconds": 120,
     "interval_history": "初版按 900–1200 排了 r2（15:56:35Z）；用户 2026-10-27T15:50Z 要求压到 120，已 update 同一任务（revision 2，r2 改到 15:52:16Z）",
-    "job_id": "8a477844-7ead-4ca9-8657-07ad5cfb5a9d",
-    "next_wake_at": "(未安排)",
+    "job_id": null,
+    "job_id_consumed_by_r15": "8a477844-7ead-4ca9-8657-07ad5cfb5a9d",
+    "next_wake_at": "(未续排 —— r16 由本会话直接接手)",
     "note": "120s 小于全量 verify 的 228s —— 每轮只跑与改动相关的层，全量 verify 留给专门的确认轮",
     "job_id_r1": "42beb80d-573a-4a39-b7d1-8fb24735da6a",
-    "next_fire_at": "2026-10-28T00:01:30Z",
-    "next_fire_local": "2026-10-28 08:01:30 +0800"
+    "next_fire_at": null,
+    "next_fire_at_consumed": "2026-10-28T00:01:30Z（= 北京 2026-10-28 08:01:30 +0800，已由 r15 使用）",
+    "r16_start_utc": "2026-10-28T00:22Z",
+    "r16_start_beijing": "2026-10-28 08:22 +0800"
   },
   "safety": {
     "pre_existing_uncommitted_work": "main 上有用户在途工作：docs 归档到 docs/archive/（31 文件已暂存，含 17703 行删除）+ 28 文件工作区改动 + 3 未跟踪文件 —— 见 BLOCKERS B-1",
@@ -137,9 +141,12 @@
     "tasks_blocked": [
       "B-2 visual 批量截图",
       "B-3 CI 配置",
-      "B-4 maven 环境待判定"
+      "B-4 maven 环境待判定",
+      "B-7 需批准拉 7 个缺失/降版 Spring Boot 4.1.1 构件",
+      "B-8 需拍板改规则语料的引擎名",
+      "B-9 需决定 redactValue 那 11 行怎么带走（r15 新登记）"
     ],
-    "rounds_completed": 13
+    "rounds_completed": 14
   },
   "stop_reason": null,
   "tools_or_environment": {
@@ -147,25 +154,32 @@
     "backend_run_cmd": "SKIP_COMPILE=1 bash arsenal-server/scripts/run.sh (3.6s 起，用完要按 3011 PID Stop-Process)",
     "typecheck_scope": "根 tsconfig 的 **/*.ts 不匹配点目录 → 不覆盖 .verify；改断言层要跑 npm run typecheck:verify"
   },
-  "last_round_commit": "853c8c9",
-  "last_round_summary": "P0-5 完成：verify:with-backend 一键起—跑—关（parity 16/16、checkup 99/99 真跑全绿，端口归还）；r6 提交 853c8c9",
+  "last_round_commit": "435ef41",
+  "last_round_summary": "P1-1b 完成：ScanGuard 剩余纯判定六条真空补满（readable 具名文件分支 / skippableOversize 二进制那半 / gitUrlAllowed 正向 / 两处 fail-closed / depth 计数），verify:scan 173→179、meta 73/0/0、失败面 4 不变；新登记 B-9（分支不自洽）与 P1-1c（摄取侧记账无守卫）",
   "end_at_note": "原 6 小时窗口 2026-10-27T21:34:57Z 已于 2 小时前到期；用户 2026-10-28 07:41 明确要求「继续优化」，故重新锚定 end_at = 续期时刻 + 6h。r13 的判定轮未收尾，本轮把它做完并补掉真空。",
   "last_round": {
-    "round": 14,
-    "completed_at": "2026-10-27T23:55:38Z",
-    "commit": "42079cd",
-    "task_id": "P1-1",
+    "round": 15,
+    "completed_at": "2026-10-28T00:18:01Z",
+    "commit": "435ef41",
+    "task_id": "P1-1b",
     "files": 4,
-    "lines": "+98 -9",
+    "lines": "+211 -9",
     "verify": {
       "typecheck_verify": "exit 0",
-      "verify:scan": "pass 170 / fail 3 / measured 173 == declared 173",
-      "verify:meta": "73/0/0"
+      "verify:scan": "pass 176 / fail 3 / measured 179 == declared 179",
+      "verify:meta": "73/0/0",
+      "verify:visual": "11/1/1（动了 arsenal-profiles → 产物过期守卫触发，next-run.mjs build 6.2s 重建后复跑，回到基线形态）"
     },
-    "outcome": "未发现缺陷；补的是回归护栏（zipEntrySafe 7 条未测分支 + redactValue PEM 层）。失败面 4 未变，0 新增。",
+    "outcome": "未发现缺陷；补的是回归护栏（3-11~3-16 六条）。ScanGuard 的纯判定至此全部有守卫。新事实：depth(root,root) 实测 1 不是 0（空相对路径算一段），闸门是 > MAX_DEPTH 故不改，按实测值钉住。失败面 4 未变，0 新增。",
     "docs_closed": [
-      "P1-1"
+      "P1-1b"
     ],
-    "scheduled_next": "r15 @ 2026-10-28T00:01:30Z"
+    "new_blockers": [
+      "B-9 r14 的 3-10 依赖 ScanGuard.redactValue，而那 11 行只在用户的在途工作区里（mtime 2026-10-25，早于循环开工两天）→ 干净检出本分支会红一条；三个处置选项已写进 BLOCKERS，等用户拍板"
+    ],
+    "new_backlog": [
+      "P1-1c 摄取侧 skippedFiles / manifest.skipped 记账 0 条断言"
+    ],
+    "scheduled_next": "r16 待排（本轮排程工具状态见 wakeup）"
   }
 }

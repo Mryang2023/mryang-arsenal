@@ -352,3 +352,49 @@ README 的归属死结用「先提交只含数字的变体、再把合并态写�
 `TZ=Asia/Shanghai date` **不生效，直接回吐 UTC**（实测同一瞬间 `date -u` 与它都是 23:55，
 而 `date +%z` 是 `+0800`、本地 07:59）。本轮开头据此把「北京 23:55」写错过一次。
 以后取本地时间用 `date +"%H:%M:%S%z"`，不要用 `TZ=` 前缀 —— 它不报错，只是安静地给你一个错的值。
+
+## r15 · 2026-10-28 00:18Z — P1-1b：ScanGuard 剩余纯判定的逐分支真空（4 文件 / +216 −5）
+
+**办法沿用 r14**：黑盒分不清是哪条分支生效，所以先只读数分支，再核哪几条在全仓库 0 条断言，
+最后只补那几条 —— 已被 3-8/3-9 覆盖的 zipEntrySafe 九条与脱敏三层**一条没重验**。
+
+**数出来的真空与「为什么黑盒看不到」**
+
+| 函数 | 分支 | 此前覆盖 | 判据 |
+|---|---|---|---|
+| `readable` | `Jenkinsfile` / `Makefile` / `Dockerfile.<后缀>` / 大写扩展名 | 0 | fixture 只有一个具名文件 `Dockerfile`（1-11 靠它）；删掉那三行 `if` 链照绿 |
+| `readable` | 无点 / 尾点 / 多段点 / `.env` | 0 | `.env` 有 fixture，但判据本身没被单独钉过 |
+| `skippableOversize` | 二进制超限 → 跳过 | 0 | 335519c 拆出的分岔：`ProjectsProbe.quota` 用 `Big.java` 钉住「源码拒绝」那半，注释里自己写了「拿 .bin 测会永远绿不了本断言」—— 跳过那半含 `skippedFiles` 记账全仓库无人守 |
+| `gitUrlAllowed` | **正向** https / trim / 大小写 | 0 | 3-3/3-4/3-5 断言的全是拒绝；函数改成恒 `false`，那三条一条不变，而用户再也加不进任何 git 项目 |
+| `fileTooLarge` | `catch` → 按超限（fail-closed） | 0 | 5-1 走的是「真超限」；读不到大小这条只有断链/竞态才撞到 |
+| `isInside` | `catch` → 按出圈（两侧都算） | 0 | **本轮新证**：3-6 那条「不存在的目录」撞的是 `SourceResolver.fromPath:76` 的 `Files.exists`，根本走不到 `isInside` 的 catch；3-7 软链覆盖的是「解析成功但出圈」，不是「解析失败」 |
+| `depth` | 计数语义本身 | 0（只有 5-2 的 `>20` 结果） | 边界判定有覆盖，分段数怎么来的一次没钉过 |
+
+**判定过程中撞到的一个新事实（决定不改）**：`ScanGuard.depth(root, root)` 实测 **1** 不是 0 ——
+`root.relativize(root)` 返回空路径，而 `AbstractPath` 的迭代器对空路径给一段。javadoc 写的是「相对根的分段数」，
+严格说在根自己身上差一。为什么不改：闸门是 `depth > MAX_DEPTH`，而生产调用点（`ProjectScanner:288` 的
+`preVisitDirectory(root)` 把根自己也算进去）本来就靠这个 1 起步；把它「修成 0」会把 22 层夹具（5-2）的边界一起挪掉，
+换来的是一处无人受益的改动。→ 按实测值钉进断言，并在注释里写明这是观测值不是期望值。
+
+**做法**：不新开探针动作，`guard-pure` 一趟车多回吐五张表（探针 47~65ms，重跑一次探针要 4 分钟）。
+探针只回吐 verdict，期望表全在前端 —— 与 r14 同规矩。两个刻意的设计：
+- `gitUrl` 那张表连 **`value` 一起回吐**并按它断言：只在 id 上对 verdict，喂进去的字符串被悄悄改了
+  （首尾空格没了、大小写变了）就查不出来。这是 r14「Edit 把 NUL 吞成空格」那条坑的正向防御。
+- 六条**每条都带反方向对照**（小文件 false、根内真文件 true、正常源码不跳过）：只验拦截，函数全拦也一样的绿。
+
+**结果：五处判定当前行为全部正确，本轮没有发现缺陷** —— 补的是回归护栏。这个区别写进档案 desc，
+免得后来的会话把「新增 6 项」读成「修了 6 个问题」。
+
+**分支完整性顺手核到一件事（→ BLOCKERS B-9）**：r14 的 3-10 断言（PEM 脱敏）依赖 `ScanGuard.redactValue`，
+而 `git show HEAD:...ScanGuard.java` 里没有这个方法 —— 那处改动至今只在工作区。
+用 mtime 定归属：`ScanGuard.java` = 2026-10-25 23:29，早于本循环开工（10-27 15:34Z）两天 → 是**用户的在途工作**，
+r14 不提交它是对的（B-1 判据）；代价是干净检出 `auto/iterate-20261027-mvquivjb` 跑 `verify:scan` 会红一条。
+本轮的六条不依赖任何未提交源码（`skippableOversize` 来自已提交的 335519c）。
+
+**门禁与账**：`typecheck:verify` exit 0；`verify:scan` **176 通过 / 3 失败 / 实测 179 == 声明 179**
+（`declaredMismatch: null`；三条红仍是 13-1/13-2/13-7 = B-7，**0 新增**，pass 170→176 恰为本轮六条）；
+`verify:meta` **73 / 0 / 0**。
+动了 `arsenal-profiles/arsenal.json` → 触发 visual 层的产物新鲜度守卫（`arsenal-profiles` 在 `FRESHNESS_ROOTS` 里，
+`src/generated` 反倒被排除），按规矩 `node scripts/next-run.mjs build` 重建（6.2s）后复跑 `verify:visual`
+= 11 通过 / 1 失败（B-2 待批截图）/ 1 未执行，回到基线形态。
+链失败面仍是 **4**（scan 3 + visual 1），实测项数 2293 → **2299**。

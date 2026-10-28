@@ -83,7 +83,19 @@
   **处置**：新增 `guard-pure` 探针动作把这两处逐分支摊开，前端 3-8/3-9/3-10 三条断言接住
   （含一条反向断言：正常条目 `src/Ok.java` 必须仍放行 —— 闸门全拒也是一样的红）。实测**未发现缺陷**，
   9 条分支与 3 层脱敏行为全部正确，补的是回归护栏。
-  **仍开放的下一步**（若还要往这方向走）：`AstEngine` / `ProjectStore` / `QaService` 的同等逐分支判定未做过，
+  **r15 接着数完（P1-1b，判定轮 + 补 6 条）**：`ScanGuard` 剩下的纯判定按分支数下来，四处真空都补了
+  （3-11~3-16，`verify:scan` 173→179）—— `readable` 的具名文件与前缀分支、`skippableOversize` 的「二进制跳过」那半条、
+  `gitUrlAllowed` 的**正向**、`fileTooLarge` 与 `isInside` 的 `catch`（fail-closed）。判定与理由见 RUNLOG r15 的分支表。
+  **一个新事实（决定不改）**：`depth(root, root)` 实测 1 不是 0（空相对路径在 `AbstractPath` 迭代器里算一段）；
+  闸门是 `> MAX_DEPTH`，改它只会挪掉 5-2 的 22 层边界 → 按实测值钉住。
+  **本轮未发现缺陷**，补的是回归护栏。至此 `ScanGuard` 的纯判定全部有守卫。
+- **P1-1c [证据，r15 新证] 超限二进制的「跳过并记账」那半条**只补了判据（3-12 钉的是 `skippableOversize` 这个函数），
+  **摄取侧的记账本身仍 0 条断言**：`ProjectCache.java:140 skippedCount[0]++` / `:167 manifest.skipped` / `:201 cache.skippedFiles`
+  三处删掉任何一处，链全绿 —— 也就是「跳过的事实会记进 manifest 与 cache 统计，不是静默消失」这句 javadoc 承诺没人守。
+  位置要换一层：这不在 `ScanGuard`（纯判定已数干净），在 `ProjectsProbe` + `verify:checkup`（那里才有摄取链的夹具，
+  `quota` / `gate` 两个动作已经是同一种形状）。代价比本轮大一档：要造一个「3MB 的 .xdb + 一个正常 .java」的摄取夹具，
+  并确认 `verify:checkup` 的门禁成本（该层常态 90 通过 + 9 未执行，比 scan 层贵）。
+- **仍开放的下一步**（若还要往这方向走）：`AstEngine` / `ProjectStore` / `QaService` 的同等逐分支判定未做过，
   本轮只把 `ScanGuard` 数干净；不要据此三句泛泛说「零测试」再开任务。
 - **P1-2 [证据，r7 复核完成] ~~前端 AST 层 0/20（待复核）~~ → 前提过期，判为「设计意图 + 缺口已闭环」，不是缺口。**
   出自 `docs/功能缺口清单-2026-09-22.md` §1.1（35 天未更新）。2026-10-27 逐条实测：

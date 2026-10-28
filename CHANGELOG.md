@@ -117,3 +117,22 @@
 - 门禁：`typecheck:verify` 0；`verify:scan` 170 通过 / 3 失败（与基线同数）/ 实测 173 = 声明 173；
   `verify:meta` 73/0/0（中途亮过 3 项红，是我漏登记 sync 产物与 README 两处口径，按它说的补齐而非放宽）。
   失败面仍是 4（scan 3 + visual 1），0 新增。
+
+## r15 · 2026-10-28 00:18Z
+- `verify:scan` 173 → **179 项**（4 文件 / +216 −5）：接着 r14 的办法把 `ScanGuard` 剩下的纯判定按分支数完。
+  - `arsenal-server/.verify/ScanProbe.java`：`guard-pure` 一趟车多回吐五张表（readable / skippable / gitUrl / size / inside+depth）。
+    `gitUrl` 那张连 `value` 一起回吐 —— 只按 id 对 verdict，输入被悄悄改了（首尾空格没了）就查不出来。
+  - `arsenal-web/.verify/scan-check.ts`：新增 3-11 ~ 3-16 六条断言，每条都带反方向对照（小文件 false / 根内真文件 true / 正常源码不跳过）。
+  - `arsenal-profiles/arsenal.json`：`代码扫描` 173→179 + desc；`README.md`：总数 2293→2299、scan 行 173→179（用户在途的两段散文照旧留在工作区没进提交）。
+- 判定的四条真空（都实测过，不是推测）：① `readable` 的 `Jenkinsfile` / `Makefile` / `Dockerfile.<后缀>` / 大写扩展名 —— fixture 只有一个 `Dockerfile`，各删一行链都不红；
+  ② `skippableOversize` 的「二进制跳过」那半条 —— 335519c 拆出的分岔里只有「源码拒绝」被 `ProjectsProbe.quota` 钉住；
+  ③ `gitUrlAllowed` 的**正向** —— 3-3/3-4/3-5 全是拒绝，函数恒 false 时三条一条不变；④ `fileTooLarge` / `isInside` 的 `catch`（fail-closed），
+  3-6 撞的是 `SourceResolver.fromPath` 的 exists 检查，走不到 `isInside` 的 catch。
+- 一个新事实（不改）：`ScanGuard.depth(root, root)` 实测返回 **1** 不是 0 —— 空相对路径在 `AbstractPath` 迭代器里算一段。
+  闸门是 `> MAX_DEPTH`，根自己是不是 0 不影响判定，动它反倒会挪掉 5-2 的 22 层边界 → 按实测值钉住。
+- 顺手核到一条分支完整性问题 → **B-9**：r14 的 3-10（PEM 脱敏）依赖 `ScanGuard.redactValue`，而那处改动 **不在 HEAD 里**。
+  `stat` 显示 `ScanGuard.java` 的 mtime 是 2026-10-25 23:29，早于本循环开工（10-27 15:34Z）两天 → 属用户在途工作，r14 不提交它是对的（B-1 判据）；
+  代价是干净检出本分支跑 `verify:scan` 会红一条。r15 的六条不依赖任何未提交源码。
+- 门禁：`typecheck:verify` 0；`verify:scan` **176 通过 / 3 失败** / 实测 179 = 声明 179（失败仍是 13-1/13-2/13-7 = B-7，0 新增）；
+  `verify:meta` **73/0/0**；因动了 `arsenal-profiles/` 触发 visual 层产物过期 → 按 `next-run.mjs build` 重建后复跑 `verify:visual`，
+  回到基线形态（11 通过 / 1 失败 = B-2 / 1 未执行）。
