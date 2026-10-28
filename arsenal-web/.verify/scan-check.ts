@@ -222,6 +222,8 @@ type Receipt = {
   size?: any;
   inside?: any;
   depth?: any;
+  /** `oversize-skip` / `oversize-clean` 回执（r16）：摄取侧记账的原始事实 */
+  ingest?: any;
 };
 
 /**
@@ -933,6 +935,9 @@ if (!skipAll) {
   const bigRepo = path.join(tmpDir, 'big-repo').replace(/\\/g, '/');
   const deepRepo = path.join(tmpDir, 'deep-repo').replace(/\\/g, '/');
   const manyRepo = path.join(tmpDir, 'many-repo').replace(/\\/g, '/');
+  // 超限二进制的「跳过并记账」：夹具 + 摄取都在探针里一次做完，搭这趟车（单跑一趟探针 4 分钟）
+  const skipWork = path.join(tmpDir, 'oversize-skip-repo').replace(/\\/g, '/');
+  const cleanWork = path.join(tmpDir, 'oversize-clean-repo').replace(/\\/g, '/');
   const r6 = runProbe('guards', [
     `mkbigfile-repo:${bigRepo}`,
     `facts:${bigRepo}`,
@@ -940,6 +945,8 @@ if (!skipAll) {
     `facts:${deepRepo}`,
     `mkfiles-repo:${manyRepo}`,
     `facts:${manyRepo}`,
+    `oversize-skip:${skipWork}`,
+    `oversize-clean:${cleanWork}`,
   ]);
   const guardFacts = (tail: string) =>
     r6.find((r) => r.kind === 'facts' && r.action.endsWith(tail))?.facts;
@@ -970,6 +977,39 @@ if (!skipAll) {
   knowinglySkipped(
     '5-4 总字节 500MB 闸门的真实超限（造 500MB 用例）',
     '磁盘 + 时间代价过大。zip 那条路已有 SCAN_TOO_LARGE 断言（3-2）；8-2 断言了配置项值本身'
+  );
+
+  // ── r16（P1-1c）：超限二进制的「跳过并记账」在**摄取侧**此前 0 条断言 ──────
+  // 3-12 钉住的是判据函数（skippableOversize 该不该跳）；这三条钉的是跳完之后事实有没有留下。
+  // 三处删除都不红就是这里的意义：ProjectCache 的 skippedCount++ / manifest.skipped /
+  // cache.skippedFiles —— 也就是「跳过的事实会记进 manifest 与 cache 统计，不是静默消失」
+  // 这句 javadoc 承诺，之前没有任何东西守着。
+  const ingestSkip = r6.find((r) => r.kind === 'oversize-skip')?.ingest as any;
+  const ingestClean = r6.find((r) => r.kind === 'oversize-clean')?.ingest as any;
+  const manOf = (ing: any, rel: string) => ing?.manifest?.find((m: any) => m.rel === rel);
+
+  check(
+    '5-5 超限二进制跳过并记账（不是静默消失）：skippedFiles=1 · manifest 那条带 skipped · 字节没落进缓存 · 正常文件一个都不牵连',
+    !!ingestSkip
+      && ingestSkip.skippedFiles === 1
+      && manOf(ingestSkip, 'assets/ip2region.xdb')?.skipped === true
+      && manOf(ingestSkip, 'src/App.java')?.skipped === false
+      && ingestSkip.xdbCopied === false
+      && ingestSkip.appCopied === true && ingestSkip.pomCopied === true,
+    ingestSkip ? JSON.stringify(ingestSkip) : `探针没回 oversize-skip：${JSON.stringify(r6.find((r) => r.kind === 'oversize-skip')?.message ?? '')}`
+  );
+
+  check(
+    '5-6 被跳过的文件仍计入 files / bytes 配额（否则「跳过」就成了绕过 500MB 总闸门的后门）',
+    !!ingestSkip && ingestSkip.files === 3 && Number(ingestSkip.bytes) > 3 * 1024 * 1024,
+    JSON.stringify(ingestSkip && { files: ingestSkip.files, bytes: ingestSkip.bytes })
+  );
+
+  check(
+    '5-7 反向对照：同一条链、不放那个 3MB 文件 → skippedFiles 必须是 0 且 manifest 一条 skipped 都没有（「恒等于 1」不算过）',
+    !!ingestClean && ingestClean.skippedFiles === 0 && ingestClean.files === 2
+      && (ingestClean.manifest ?? []).every((m: any) => m.skipped === false),
+    JSON.stringify(ingestClean)
   );
 
   // ── 【6】没有任何部署清单的仓库：不许编出副本数 ─────────────────

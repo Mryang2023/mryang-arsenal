@@ -4,6 +4,7 @@ import com.arsenal.scan.ScanRulesLoader;
 import com.arsenal.scan.ScanContext;
 import com.arsenal.scan.ScanGuard;
 import com.arsenal.scan.SourceResolver;
+import com.arsenal.projects.ProjectCache;
 import tools.jackson.databind.ObjectMapper;
 import tools.jackson.databind.node.ArrayNode;
 import tools.jackson.databind.node.ObjectNode;
@@ -13,6 +14,8 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 
 /**
@@ -146,6 +149,78 @@ public class ScanProbe {
         return p.resolve("Leaf.java");
     }
 
+    /**
+     * 超限二进制「跳过并记账」的摄取侧夹具 + 采集（r16 / P1-1c）。
+     *
+     * <p>为什么在 ScanProbe 而不是 ProjectsProbe：断言要搭 verify:scan 的门禁 ——
+     * checkup 那层常态 9 项未执行，跑一趟比 scan 贵一个量级。
+     *
+     * <p>探针只回吐事实（stat / manifest 逐条 / 缓存里到底有没有落盘），不判对错；
+     * 期望表在前端。withOversize=false 是给「反向对照」用的：同一条链、少放那个 3MB 文件，
+     * 记账必须是 0 —— 否则「skippedFiles 恒等于 1」也算过。
+     */
+    private static void runOversizeIngest(ObjectNode receipt, ObjectMapper mapper, String work, boolean withOversize)
+            throws Exception {
+        Path w = Paths.get(work);
+        Path src = w.resolve("src");
+        Path cacheRoot = w.resolve("cache");
+        deleteTree(src);
+        deleteTree(cacheRoot);
+        Files.createDirectories(src.resolve("src"));
+        Files.createDirectories(src.resolve("assets"));
+        Files.writeString(src.resolve("pom.xml"),
+                "<project><modelVersion>4.0.0</modelVersion><artifactId>oversize</artifactId></project>\n",
+                StandardCharsets.UTF_8);
+        Files.writeString(src.resolve("src").resolve("App.java"), "class App {}\n", StandardCharsets.UTF_8);
+        if (withOversize) {
+            // 3MB 且不在 TEXT_EXT 白名单：不参与任何静态分析的资源，该跳过并记账而不是整份拒绝
+            Files.write(src.resolve("assets").resolve("ip2region.xdb"), new byte[3 * 1024 * 1024]);
+        }
+
+        ObjectNode stat;
+        try {
+            stat = new ProjectCache(cacheRoot, mapper).ingestPath("probe-oversize", src);
+        } catch (Exception e) {
+            receipt.put("ok", false);
+            receipt.put("code", "INGEST_THREW");
+            receipt.put("message", e.getClass().getName() + ": " + e.getMessage());
+            receipt.put("targetLeft", Files.isDirectory(cacheRoot.resolve("probe-oversize")));
+            return;
+        }
+
+        Path target = cacheRoot.resolve("probe-oversize");
+        ObjectNode out = mapper.createObjectNode();
+        out.put("files", stat.path("files").asInt());
+        out.put("bytes", stat.path("bytes").asLong());
+        out.put("skippedFiles", stat.path("skippedFiles").asInt());
+        ObjectNode manifest = (ObjectNode) mapper.readTree(target.resolve("manifest.json").toFile());
+        ArrayNode rows = out.putArray("manifest");
+        for (var n : manifest.withArray("files")) {
+            rows.addObject()
+                    .put("rel", n.path("rel").asText())
+                    .put("skipped", n.path("skipped").asBoolean(false));
+        }
+        Path repo = target.resolve("repo");
+        out.put("pomCopied", Files.isRegularFile(repo.resolve("pom.xml")));
+        out.put("appCopied", Files.isRegularFile(repo.resolve("src").resolve("App.java")));
+        out.put("xdbCopied", Files.isRegularFile(repo.resolve("assets").resolve("ip2region.xdb")));
+        receipt.put("ok", true);
+        receipt.set("ingest", out);
+    }
+
+    /** 重跑前先拆干净：夹具必须每次从同一个形状长出来，否则第二次跑读的是第一轮的缓存 */
+    private static void deleteTree(Path dir) throws Exception {
+        if (dir == null || Files.notExists(dir)) return;
+        List<Path> all = new ArrayList<>();
+        try (var walk = Files.walk(dir)) {
+            walk.forEach(all::add);
+        }
+        all.sort(Comparator.reverseOrder());
+        for (Path p : all) {
+            Files.deleteIfExists(p);
+        }
+    }
+
 
     /**
      * 造一个含 3MB 单文件的目录。
@@ -204,6 +279,8 @@ public class ScanProbe {
                         makeManyFilesRepo(value);
                         receipt.put("ok", true);
                     }
+                    case "oversize-skip" -> runOversizeIngest(receipt, mapper, value, true);
+                    case "oversize-clean" -> runOversizeIngest(receipt, mapper, value, false);
                     case "mksymlink" -> {
                         ObjectNode n = mapper.createObjectNode();
                         n.put("created", makeSymlink(value));
