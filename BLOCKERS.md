@@ -108,3 +108,26 @@
 - **本轮的处置**：不用 `create_chat_session` 顶替（它是**立刻**起会话，没有延时；r2 已定过这条判据，不重复讨论）；
   也不写 `.qoder-cn` 应用私有存储。按 B-5 既有安排回到「同会话连续跑」，节奏与独立唤醒不一致这件事如实记在 RUN_STATE.wakeup。
 - **需要人**：如果要保持「独立唤醒 + 120s」，得让这个工具在每个会话都挂载（或给循环一个可用的延时唤醒入口）。
+
+## B-10 [r17] `ProjectCache` 的 javadoc 说三份 id 消毒「同一口径」—— 实测两份相同、第三份是另一回事，需人决定改注释还是统一语义
+- **事实（r17 用 `id-sanitize` 探针实测，九条向量）**：
+  - `ProjectCache.safeSegment`（:75）与 `ProjectStore.safeId`（:213）**逐向量完全相同**：剥离非 `[A-Za-z0-9_-]` 的字符，
+    `null` 与 `..` 都剥成空串（`../../etc/passwd` → `etcpasswd`，反斜杠向量 → `Windowswinini`，`a<NUL>b` → `ab`）。
+  - `QaService.safeSegment`（:1036）**不是同一件事**：`!s.matches("[A-Za-z0-9_-]{1,64}")` 直接 `throw IllegalArgumentException`
+    （HTTP 层 → 400）。九条向量里八条被拒，只有合法 id 原样放行；差别不止「拒 vs 剥」，**64 这个长度上限只存在于这一份**
+    —— 65 个合法字符的 id，剥离版原样放过、QA 版拒绝。
+  - 而 `ProjectCache.java:73` 的注释写的是「与 `ProjectStore.safeId` / `QaService.safeSegment` 同一口径」。
+- **判为缺陷了吗**：没有可利用缺陷。① 拒比剥严，越界路径一条都没有（九条向量 `dirInsideRoot` 全为 true）；
+  ② 真实 projectId 由 `ProjectIds.projectIdOf` 恒生成 12 位十六进制，走不到分歧；
+  ③ `ProjectController.delete` 先 `registry.find(id)` 再删，剥成空串的 id 进不了删除路径（否则 `deleteCache("")` 会作用到缓存根）。
+  → 这是**口径声明与实现不符**，不是安全洞。
+- **为什么不自己改掉**：两种改法都不是循环能单方面决定的。
+  ① 改注释（把「同一口径」限成「与 `ProjectStore` 同一口径；QA 侧走拒绝」）—— 动的是 `ProjectCache.java`，
+     该文件正带用户在途 49/17 行改动，循环提交它会把别人的工作一起带走（与 B-9 同一类归属问题）；
+  ② 统一语义（QA 改成剥离）—— 是把 400 变成静默改写，属**行为变更**，且会让 QA 侧丢掉长度上限。
+- **本轮的处置**：不改产品代码、不改注释，把现状钉成断言（5-8 永不越界 / 5-9 两份相同 / 5-10 第三份确实不同）。
+  5-10 是**故意钉住分歧**的：谁将来把三份统一成语义一致，这条会红，逼他同时处理那句注释 —— 这不是放宽断言，
+  是把「注释说的话」和「代码做的事」之间的裂缝放在灯下。
+- **咬得住的证据（注入回归）**：把 `ProjectCache.safeSegment` 的白名单放宽到含点号（`[^A-Za-z0-9_.-]`）后复跑
+  `verify:scan` → **5-8 与 5-9 双双转红**（fail 3 → 5），按 sha256 复原为字节 identical
+  （`86bc4128…`，与 r16 记录的同一枚），用户的 49/17 行在途改动未受波及。

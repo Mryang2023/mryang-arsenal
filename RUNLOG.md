@@ -440,3 +440,53 @@ r14/r15 两轮都是「补了护栏，但没证过它红得起来」。这轮补
 **门禁与账**：`typecheck:verify` exit 0｜`verify:scan` **179 通过 / 3 失败 / 实测 182 == 声明 182**
 （三条红仍是 13-1/13-2/13-7 = B-7，**0 新增**）｜`verify:meta` **73/0/0**｜`verify:visual` 11/1/1（重建产物后，= B-2）。
 链失败面仍是 **4**，实测项数 2299 → **2302**。
+
+## r17 · 2026-10-28 00:55Z（= 北京 08:55 +0800）— P1-1d：三份「拼路径 id 先消毒」的实测口径
+
+### 判定：真空在哪
+- 起点是 r16 收尾时顺带读到的一行注释：`ProjectCache.java:73` 写「与 `ProjectStore.safeId` /
+  `QaService.safeSegment` **同一口径**」。全仓库 grep（`.verify/*.java` + `arsenal-web/.verify/*.ts`）：
+  三份函数 **0 条直接断言** —— 敌意 projectId 只在 zip 条目名那条链喂过，摄取与存储侧一次都没喂过。
+- 探针 `id-sanitize`（反射按名字取三份 private static，改名会让探针当场红而不是静默少测）喂九条向量：
+  穿越 `../../etc/passwd`、反斜杠 `..\..\Windows\win.ini`、纯点 `..`、编码 `%2e%2e%2fetc`、空串、
+  NUL（按 r14 的规矩用 `(char) 0` 拼，不写字面反斜杠-u）、65 个字符、合法 id `demo-1_A`、null。
+
+### 实测出来的三件事
+| 向量 | ProjectCache / ProjectStore | QaService | 消毒后目录 |
+| --- | --- | --- | --- |
+| `../../etc/passwd` | `etcpasswd` | THROWS:IllegalArgumentException | root/etcpasswd（界内） |
+| `..\..\Windows\win.ini` | `Windowswinini` | THROWS | root/Windowswinini（界内） |
+| `%2e%2e%2fetc` | `2e2e2fetc` | THROWS | root/2e2e2fetc（界内） |
+| `a<NUL>b` | `ab` | THROWS | root/ab（界内） |
+| `..` / `""` / `null` | `""` | THROWS | **塌回缓存根本身**（dirIsRoot=true） |
+| 65 个合法字符 | 原样 65 位 | **THROWS**（64 上限只在这份存在） | 界内 |
+| `demo-1_A` | 原样 | 原样 | 界内 |
+
+- ① 前两份**逐向量完全相同**（含 `null → ""` 这条只有直接喂 null 才看得见的分支）—— 那句「同一口径」在这两份之间是真的。
+- ② 第三份不是同一件事：QA 侧走**拒绝**（400），另两侧走**静默剥离**；且 64 长度上限只存在于 QA 那份。
+- ③ **没有一条向量越出缓存根**（九条 `dirInsideRoot` 全 true）—— 这是这条口径真正要守的不变量，实测成立。
+
+### 判为缺陷了吗：没有，但登记 B-10
+- 拒比剥严；真实 projectId 恒为 `ProjectIds` 的 12 位十六进制，走不到分歧；
+  `ProjectController.delete` 先 `registry.find(id)` 才删，剥成空串的 id 进不了删除路径
+  （否则 `deleteCache("")` 会作用到缓存根，把**所有**项目的缓存一起抹掉）。
+- 所以真问题是**注释与实现不符**。不自己改：改注释要动正带用户在途 49/17 行的 `ProjectCache.java`
+  （与 B-9 同一类归属问题），统一语义是把 400 改成静默改写 + 丢掉长度上限，属行为变更。
+  → 处置：把现状钉成断言，其中 **5-10 故意钉住分歧**，谁将来统一语义这条就红，逼他同时处理那句注释。
+
+### 新事实（给 r18）：31-3 守的是**源码文本**，不是行为
+- `project-check.ts:3997` 「后端 `ProjectIds.projectIdOf` 用 SHA-256 + HexFormat 取前 12 位」是
+  `/MessageDigest\.getInstance\("SHA-256"\)/` 这类**正则匹配源码字符串**；31-4 同理匹配 `return ProjectIds.projectIdOf(kind, ref);`。
+  Java 那份 `ProjectIds` 在五个探针里**从未被执行过一次**（grep 无命中），而对拍向量（31-1）跑的是 Node 那份。
+  → 「两套语言同一个地址算出同一个 id」这条正是 棒1 要根治的暗伤，现在靠一句源码长相守着：
+  Java 侧改成 `substring(0,12)` 加个空格、或规范化少做一次 trim，**31-3 会因长相红，而真正的漂移（同值不同 id）反而不红**。
+  这条记为 P1-1e，比本轮更像一个能抓到真东西的靶子。
+
+### 门禁与回归
+- `typecheck:verify` exit 0；`verify:scan` **182 通过 / 3 失败 / 实测 185 == 声明 185**（declaredMismatch null）；
+  `verify:meta` 73/0/0；`verify:visual` 11/1/1（动 profiles → 重建 out/ 后复跑）。失败面仍是 4（scan 3 = B-7 + visual 1 = B-2），**0 新增**。
+- **注入回归（咬得住的证据）**：把 `ProjectCache.safeSegment` 白名单放宽到含点号 → `verify:scan` **5-8 与 5-9 双双转红**（fail 3 → 5）；
+  第一次尝试放宽 `ProjectStore.safeId` 写成 `[^A-Za-z0-9_-.]` 直接被 Java 正则判 `PatternSyntaxException`（连字符放末尾被当成range），
+  探针把它如实回吐成 `THROWS:PatternSyntaxException` 而不是崩掉整趟 —— 这次注入无效但暴露了探针的容错形状是对的。
+  两个文件都按 sha256 备份并复原为**字节 identical**（ProjectStore `08fcbf7d…`、ProjectCache `86bc4128…` 与 r16 记录的同一枚），
+  用户在途改动行数（49/17、3/1、11/1）与暂存区（31 files / +393 / −17703）全程未动。

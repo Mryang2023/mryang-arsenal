@@ -99,6 +99,24 @@
   5-7（反向对照：干净夹具 `skippedFiles==0` 且 manifest 无 skipped 行）三条断言接住，`verify:scan` 179→**182**。
   **注入回归验过它们真的咬**：删掉 `skippedCount[0]++` → 5-5 红；把跳过文件的字节从 `total[0]` 里摘掉 → 5-6 红；
   两轮都按 sha256 备份并复原 `ProjectCache.java`（字节级 identical，用户的 49/17 行在途改动未动）。
+- **P1-1d [证据，r17 复核完成] ~~三份 id 消毒函数 0 条断言~~ → 补满三条，未发现缺陷；注释失真另立 B-10。**
+  起点是 `ProjectCache.java:73` 那句「与 `ProjectStore.safeId` / `QaService.safeSegment` 同一口径」。
+  探针 `id-sanitize` 反射取这三份 private static，九条向量各回吐三份判定 + 消毒后目录真实落点，前端 5-8/5-9/5-10 接住
+  （`verify:scan` 182→**185**）。实测：前两份逐向量完全相同（含 `null→""` 分支）、九条向量**全部不越出缓存根**；
+  第三份是「拒」不是「剥」（64 长度上限只在这一份存在）→ 注释那句「同一口径」对它不成立。
+  **判为缺陷：否**（拒比剥严；真实 projectId 恒 12 位十六进制走不到分歧；`delete` 先查注册表，空串 id 进不了删除路径）。
+  改注释要动用户在途文件、统一语义是行为变更 → **B-10** 等人工决定，本轮把现状钉成断言（5-10 故意钉住分歧）。
+- **P1-1e [证据，r17 新证] `ProjectIds` 的跨语言一致性靠**源码长相**守着，Java 那份从未被执行过一次。**
+  `project-check.ts:3997` 的 31-3 是 `/MessageDigest\.getInstance\("SHA-256"\)/` + `/formatHex\(d\)\.substring\(0, 12\)/`
+  这类**正则匹配源码文本**，31-4 匹配 `return ProjectIds\.projectIdOf\(kind, ref\);`；而对拍向量（31-1）跑的是 Node 那份
+  （`scripts/lib/autopsy-snapshot-shape.mjs:51`）。grep 过五个 `.verify/*.java`：`ProjectIds` **一次都没被调用过**。
+  后果两面都难看：① Java 侧把 `substring(0, 12)` 写成 `substring(0,12)` 之外任何等价重构（换 `HexFormat.of()`、抽方法、
+  改 `normalize` 少做一次 trim）都会让 31-3 因**长相**变红，而真正要防的漂移（同一个地址在两套系统算出两个 id ——
+  正是 `ProjectIds` javadoc 自述的「工坊棒1 暗伤」）**反而不红**；② Node 那份的规范化写错（`.replace(/\\/g,'/')` 漏掉、
+  尾斜杠正则退化成 `/\/$/`）只有落在 31-1 那几条固定向量上才抓得到。
+  **建议的补法**（r18 的靶子）：探针动作直调 `ProjectIds.projectIdOf(kind, value)` 与 `normalize`，把 Java 侧结果回吐，
+  前端用**同一批向量**（尾斜杠 / 反斜杠 / 首尾空白 / 大写 kind / 空值 / 非 ASCII）与 Node 那份逐字节对拍 —— 把「单一事实源」
+  从文本断言升级为行为断言。注意 `arsenal-server` 与 `arsenal-web` 两套实现的 kind 拼接口径要一起测（`kind + ":" + value`）。
 - **仍开放的下一步**（若还要往这方向走）：`AstEngine` / `ProjectStore` / `QaService` 的同等逐分支判定未做过，
   本轮只把 `ScanGuard` 数干净；不要据此三句泛泛说「零测试」再开任务。
 - **P1-2 [证据，r7 复核完成] ~~前端 AST 层 0/20（待复核）~~ → 前提过期，判为「设计意图 + 缺口已闭环」，不是缺口。**

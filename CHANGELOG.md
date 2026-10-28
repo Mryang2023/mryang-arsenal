@@ -154,3 +154,20 @@
 - 实测结论：**记账链路当前行为全部正确**（files=3 / bytes=3145828 / skippedFiles=1 / xdb 未落盘 / App.java 与 pom 照常复制），未发现缺陷。
 - 门禁：`typecheck:verify` 0；`verify:scan` 179 通过 / 3 失败（= B-7，0 新增）/ 实测 182 == 声明 182；`verify:meta` 73/0/0；
   profiles 改动再次触发 visual 新鲜度 → 重建后 `verify:visual` 11/1/1 回到基线形态。链实测项数 2299 → **2302**。
+
+## r17 · 2026-10-28 00:55Z
+- `verify:scan` 182 → **185 项**（4 文件：`ScanProbe.java` / `scan-check.ts` / `arsenal-profiles/arsenal.json` / `README.md`）。
+  - 起点是 r16 顺带读到的一句注释：`ProjectCache.java:73` 宣称三份 id 消毒「同一口径」。三份函数全仓库 **0 条直接断言**
+    （敌意 projectId 只在 zip 条目名那条链喂过），所以这句话从没被验过。
+  - 新探针动作 `id-sanitize`：反射按名字取三份 private static，九条向量（穿越 / 反斜杠 / 纯点 / 编码 / 空串 / NUL /
+    65 字符 / 合法 id / null）逐条回吐三份判定 + **消毒后目录的真实落点**（`dirIsRoot` / `dirInsideRoot` / 相对路径），
+    期望表在前端。反射按名字取而不是复制一份实现：改名会让探针当场红，不会静默少测。
+  - 前端 5-8（九条**全部不越出缓存根**、剥净后只剩白名单字符、非空者必落进真子目录）/
+    5-9（`ProjectCache` 与 `ProjectStore` 逐向量同结果，`null→""` 这条分支只有直接喂 null 才看得见）/
+    5-10（**反着钉住第三份并不相同**：QA 侧是拒不是剥，且 64 上限只存在于这一份）。
+  - 判定结论：**没有可利用缺陷**（拒比剥严；真实 projectId 恒 12 位十六进制；`delete` 先查注册表才删，
+    空串 id 进不了删除路径 —— 否则 `deleteCache("")` 会把所有项目的缓存一起抹掉）。真问题是那句注释与实现不符
+    → 登记 **B-10**，不擅自改注释（要动用户在途 49/17 行的文件）、不擅自统一语义（那是把 400 改成静默改写）。
+  - 咬得住：把 `ProjectCache.safeSegment` 白名单放宽到含点号 → 5-8/5-9 双双转红（fail 3 → 5），两文件按 sha256 复原字节 identical。
+- 门禁：`typecheck:verify` 0；`verify:scan` 182/3/185==185；`verify:meta` 73/0/0；`verify:visual` 11/1/1（重建 out/ 后复跑）。
+  失败面 4 不变，0 新增。README 总数 2302 → **2305**（三处散文口径 + scan 行）。
