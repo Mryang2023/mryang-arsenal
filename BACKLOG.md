@@ -132,14 +132,16 @@
   **本轮真发现**：5-18 顺带摊开 `BoundaryCard.tsx:44-45` 那句「占全仓 x%」名实不一 → 登记 **B-12**（改文案 / 放宽分母 / 加说明三条都要人拍板）。
   另记一条工具坑：Jackson 的 `putArray` 在循环里会**整体替换**同名字段，集合一度只剩最后一个元素，让「两份相同」空过 ——
   一致性断言必须自带非退化下限。
-- **P1-1g [证据，r19 新证] `QaService` 的四个 `private static` 纯判定全仓库 0 条断言，且都能反射直问（r20 的靶子）。**
-  `testBaseName(path)`（`:953`，四条分支：非 `.java` 早退 / `endsWith Test|Tests|IT` / `startsWith Test && length>4` / 返回 null）
-  决定「哪些文件算已有测试」→ 直接喂进测试建议那条启发式；`statusReason(status, o)`（`:771`）是状态措辞的唯一出处；
-  `firstNonBlank(a, b)`（`:1101`）与 `trimLines(s, max)`（`:1096`）都是纯截断/择一。
-  grep `arsenal-web/.verify/*.ts` 与 `.verify/*.java`：四个名字**一次都没出现过**（`testedBases` 也无）。
-  与 r14–r17 同一手法可补：探针动作反射按名字取 private static、逐向量回吐 verdict，期望表留在前端；
-  `testBaseName` 尤其要带**反方向**对照（`FooTester.java`、`Test`、`IT.java`、`TestFooBar` 之类不许误判成测试）。
-  注意：`QaService.java` 带着用户 11 行在途改动，注入回归必须按 sha256 备份复原、用 `--only` 提交探针而不是产品文件。
+- **P1-1g [证据，r20 复核完成] ~~`QaService` 的四个 `private static` 纯判定全仓库 0 条断言~~ → 已补满（`qa-pure` 探针 + 5-20..5-25），实测出 `trimLines` 恒等真缺陷（B-13）。**
+  `testBaseName(path)`（`:953`）五种「算测试」向量与反方向对照全部按分支落地（含 `Footest.java`/`Protest.java` 两条
+  大小写敏感对照、裸 `Test.java` 得空基名与 `TestsFoo.java` 切成 `sFoo` 两条启发式固有假阳性、null 入参当场 NPE）；
+  `statusReason`（`:771`）钉住分支顺序（failed 优先于 budgetCut，not-run/空串落「已执行完毕」默认分支）；
+  `firstNonBlank`（`:1101`）八条（b 即使空白也照原样返回）；`trimLines`（`:1096`）五条超限向量**输出全部逐字节等于输入**
+  —— `split(换行, max+1)` 与 `join(换行, lines)` 互逆，那句「截到 24 行」从来没生效 → **B-13**（修 = 报告片段开始真截断的
+  行为变更，需人拍板；现状账 5-25 钉住语料最长 21 行 ≤ cap=24，语料一涨这条先红）。
+  `verify:scan` 194→**200**。**注入回归验过它们真的咬**（r20 收口轮 2026-10-29 补测）：摘掉 `testBaseName` 的 `IT` 后缀
+  → 5-20 单独转红；把 `trimLines` 改成真截断 → 5-24 单独转红而 5-25 照旧绿（分工实证）；`QaService.java` 按 sha256
+  `9b5b861f…` 复原字节 identical。工作实质已随 c95a2a8 入库，收口轮补的是验证证据与四本账。
 - **仍开放的下一步**（若还要往这方向走）：`AstEngine` / `ProjectStore` / `QaService` 的同等逐分支判定未做过，
   本轮只把 `ScanGuard` 数干净；不要据此三句泛泛说「零测试」再开任务。
 - **P1-2 [证据，r7 复核完成] ~~前端 AST 层 0/20（待复核）~~ → 前提过期，判为「设计意图 + 缺口已闭环」，不是缺口。**

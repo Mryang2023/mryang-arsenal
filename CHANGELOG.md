@@ -205,3 +205,16 @@
     `AutopsyService.java` 按 sha256 `21288b8a…` 复原为字节 identical。
 - 门禁：`typecheck:verify` 0；`verify:scan` 191/3/194==194；`verify:meta` 73/0/0；`verify:visual` 11/1/1（重建 out/ 后复跑）。
   失败面 4 不变，0 新增。README 总数 2309 → **2314**（三处散文口径 + scan 行）。
+
+## r20 · 2026-10-29
+- **收口轮（代码零改动）**：P1-1g 的实质工作（`ScanProbe` 探针动作 `qa-pure`、`scan-check.ts` 断言 5-20..5-25、
+  `arsenal.json`/README 的 200 项口径）上一会话已随 c95a2a8 入库，但四本账（RUNLOG / BLOCKERS / BACKLOG / RUN_STATE）
+  没跟上。本轮：独立复验全部数字 + 补两路注入回归 + 补记账。
+- 实测基线：`typecheck:verify` exit 0；`verify:scan` 197 通过 / 3 失败 / **实测 200 == 声明 200**（三条红仍是
+  13-1/13-2/13-7 = B-7 环境缺口）；`verify:meta` 73/0/0；`verify:visual` 重建 out/ 后 11/1/1（1 失败 = B-2）。
+  失败面 4 不变，0 新增；全链实测项数 2309 → 2315。
+- 注入回归（新证据）：摘掉 `testBaseName` 的 `IT` 后缀 → **5-20 单独转红**；把 `trimLines` 改成真截断 →
+  **5-24 单独转红**而 5-25 照旧绿（现状账管语料涨幅不管函数行为 —— 分工实证）。`QaService.java` 两次均按
+  sha256 `9b5b861f…` 复原字节 identical、`git status` 重新为空（本轮工作区完全干净，对照 HEAD 即可）。
+- 记账：BLOCKERS 登记 **B-13**（`trimLines` 是恒等函数，「截到 24 行」从未生效；今天不可观测是因为语料最长
+  21 行 < cap=24，修不修是行为变更需人拍板）；BACKLOG P1-1g 标记复核完成；RUN_STATE 推进 r20 → r21 计划。

@@ -569,3 +569,44 @@ Jackson（`tools.jackson`）的 `ObjectNode.putArray(name)` **每次调用都新
 `["yml"]`，「两份逐元素相同」那条**空过**（真红的是 5-16 那条精确集合断言，它把这件事暴露了出来）。
 教训两条：① 数组字段先 `putArray` 拿到 `ArrayNode` 再 `add`；② 「两份相同」这类一致性断言必须自带
 **非退化下限**（长度 ≥4），否则两份同时塌成一个值就是恒绿。已在 5-15 里补上下限并写明来历。
+
+## r20 · 2026-10-29 07:45 +0800 — P1-1g 收口：`qa-pure` 断言独立复验 + 两路注入咬合 + 补齐四本账
+
+### 为什么这轮值得做（判定）
+上一会话把 P1-1g 的全部实质工作 —— 探针动作 `qa-pure`（`ScanProbe.java` 反射直问 `QaService` 四个
+private static 纯判定）、前端期望表 5-20..5-25、`arsenal.json` 与 README 的 200 项口径 —— 随收拢提交
+c95a2a8 带进了 main，但**四本账没跟上**：RUNLOG 无 r20 条目、BLOCKERS 无 B-13（scan-check.ts:1318
+引用了它）、BACKLOG 的 P1-1g 还挂着「r20 的靶子」、RUN_STATE 还停在「r20 待办」。
+本轮不写新功能，做收口：独立复验全部数字 + 补注入回归证据 + 补记账。
+
+### 实测（本会话独立复跑，非转抄上一会话的数）
+- `typecheck:verify` exit 0。
+- `verify:scan` **197 通过 / 3 失败 / 实测 200 == 声明 200**（declaredMismatch null）；三条红仍是
+  13-1/13-2/13-7 = B-7（.m2 缺/降版 Spring Boot 4.1.1 构件，环境缺口），0 新增；刻意未跑 2（5-4 造 500MB / 8-6 真等 180s）。
+- `verify:meta` 73/0/0。
+- `verify:visual` 首跑报 out/ 陈旧（产物 10-28 10:09 < 源码 10-28 23:05，c95a2a8 动过 src）→
+  `node scripts/next-run.mjs build` 重建后复跑 **11/1/1**，与 r19 重建后基线同形状（1 失败 = B-2，1 跳过 = A8 需 111 张矩阵）。
+
+### 注入回归（本轮新证据，两次都单独咬红、分工实证）
+- **注入 1**：把 `testBaseName` 的 `name.endsWith("IT")` 改成 `endsWith("IT2")`（摘掉 IT 后缀识别）→
+  `verify:scan` **5-20 单独转红**（fail 3 → 4；5-21..5-25 与其余 194 条照旧绿）。
+- **注入 2**：把 `trimLines` 临时改成真截断（`String.join("\n", Arrays.asList(lines).subList(0, max))`）→
+  **5-24 单独转红**（fail 3 → 4），而 5-25（现状账）照旧绿 —— 它管的是语料最长行数 ≤ cap，
+  不随函数行为变，两条分工被实证。
+- 两次复原同一枚 sha256 `9b5b861f…`（`QaService.java`），字节 identical、`git status` 该文件重新为空。
+  与 r14–r19 不同的是：本仓库工作区现已完全干净（c95a2a8 收拢了全部在途改动），注入备份对照的是
+  HEAD 版本而非带他人改动的版本 —— 复原判定从「与备份逐字节相同」升级为「与 HEAD 逐字节相同」。
+
+### 判定与记账
+- 5-20..5-25 六条全部真实通过且咬得住；r20 会话的实测结论被本会话独立复验成立：
+  ① `testBaseName` 四种「算测试」命名 + 反方向对照全对（含 `Footest.java`/`Protest.java` 大小写敏感、
+  裸 `Test.java` 得空基名、`TestsFoo.java` 切成 `sFoo` 两条启发式固有假阳性、null 入参当场 NPE）；
+  ② `statusReason` 分支顺序钉死（failed 优先，budgetCut 排在 status 前，not-run/空串落「已执行完毕」默认分支）；
+  ③ `firstNonBlank` 八条（b 即使空白也照原样返回 —— 保证的是非 null 不是非空白）；
+  ④ **`trimLines` 恒等是真缺陷** → 本轮正式登记 **B-13**（修不修、修成什么口径需人拍板：修 = 报告片段开始真截断
+  的行为变更；不修 = 语料涨过 24 行就静默失效，5-25 会先红）。
+- 记账补齐：BLOCKERS +B-13；BACKLOG P1-1g 标记复核完成；CHANGELOG +r20；RUN_STATE 推进到 r20 完成、r21 计划。
+
+### 门禁与回归
+- `typecheck:verify` exit 0；`verify:scan` 197/3（200==200）；`verify:meta` 73/0/0；`verify:visual` 11/1/1（重建 out/ 后）。
+  失败面仍 4（scan 3 = B-7 + visual 1 = B-2），**0 新增**。全链实测项数 2309 → **2315**（scan +6）。
