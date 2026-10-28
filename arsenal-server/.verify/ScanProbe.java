@@ -208,6 +208,82 @@ public class ScanProbe {
         receipt.set("ingest", out);
     }
 
+    /**
+     * 「拼路径的 id 先消毒」这条口径的三份实现，逐向量回吐各自的原始判定。
+     *
+     * <p>为什么需要这一层：ProjectCache.java:73 的注释写着三份「同一口径」，
+     * 但全仓库对这三份函数 **0 条断言**（grep 过 .verify/*.java 与 arsenal-web/.verify/*.ts，
+     * 敌意 projectId 从未喂进摄取/存储侧，只在 zip 条目名那条链上出现过）。
+     * 注释说的话没人验过，就不能当事实用。
+     *
+     * <p>三份都是 private static，探针用反射按名字取（改名会让探针当场红，而不是静默少测）。
+     * 抛异常的走「THROWS」而不是让整次探针挂掉：拒 vs 剥 本身就是要观测的区别。
+     * 另外回吐 ProjectCache.cacheDir(原值) 落盘的**目录位置**（越界 / 塌到根 / 正常子目录），
+     * 因为「消毒后仍在 root 里面」才是这条口径要守的不变量，函数返回值本身不是。
+     *
+     * <p>探针不判对错，期望表在前端。
+     */
+    private static void runIdSanitize(ObjectNode receipt, ObjectMapper mapper, String work) throws Exception {
+        Path root = Paths.get(work).resolve("id-cache-root");
+        deleteTree(root);
+        Files.createDirectories(root);
+
+        String len65 = "a".repeat(65);
+        String[][] vectors = {
+                {"traversal", "../../etc/passwd"},
+                {"backslash", "..\\..\\Windows\\win.ini"},
+                {"dotsOnly", ".."},
+                {"encoded", "%2e%2e%2fetc"},
+                {"empty", ""},
+                // NUL 用 (char) 拼：Java 源码里写反斜杠-u 零会被词法前置展开（r14 的坑）
+                {"nul", "a" + (char) 0 + "b"},
+                {"len65", len65},
+                {"valid", "demo-1_A"},
+                // 三份函数都有 `s == null ? ...` 这一分支，黑盒从来传不出 null，只能显式喂
+                {"null", "@@NULL@@"},
+        };
+
+        var cacheFn = ProjectCache.class.getDeclaredMethod("safeSegment", String.class);
+        cacheFn.setAccessible(true);
+        var storeFn = com.arsenal.projects.ProjectStore.class.getDeclaredMethod("safeId", String.class);
+        storeFn.setAccessible(true);
+        var qaFn = com.arsenal.qa.QaService.class.getDeclaredMethod("safeSegment", String.class);
+        qaFn.setAccessible(true);
+
+        ProjectCache cache = new ProjectCache(root, mapper);
+        ArrayNode rows = mapper.createArrayNode();
+        for (String[] v : vectors) {
+            ObjectNode row = rows.addObject();
+            row.put("id", v[0]);
+            row.put("input", v[1]);
+            String input = "@@NULL@@".equals(v[1]) ? null : v[1];
+            row.put("cache", invokeSanitizer(cacheFn, input));
+            row.put("store", invokeSanitizer(storeFn, input));
+            row.put("qa", invokeSanitizer(qaFn, input));
+            // 消毒之后目录到底落在哪：这是可观测的不变量（越界=红，塌到根=如实记账，正常=子目录）
+            Path dir = cache.cacheDir(input);
+            Path normRoot = root.toAbsolutePath().normalize();
+            Path normDir = dir.toAbsolutePath().normalize();
+            row.put("dirIsRoot", normDir.equals(normRoot));
+            row.put("dirInsideRoot", normDir.startsWith(normRoot));
+            row.put("dirRelativized", normRoot.equals(normDir) ? "." : normRoot.relativize(normDir).toString());
+        }
+        receipt.put("ok", true);
+        receipt.set("sanitize", rows);
+    }
+
+    /** 反射调用消毒函数：正常返回消毒后的串；抛异常回吐 THROWS，让「拒 vs 剥」这一区别本身可断言。 */
+    private static String invokeSanitizer(java.lang.reflect.Method fn, String input) {
+        try {
+            Object out = fn.invoke(null, input);
+            return out == null ? "NULL" : String.valueOf(out);
+        } catch (java.lang.reflect.InvocationTargetException e) {
+            return "THROWS:" + e.getCause().getClass().getSimpleName();
+        } catch (ReflectiveOperationException e) {
+            return "PROBE_BROKEN:" + e.getMessage();
+        }
+    }
+
     /** 重跑前先拆干净：夹具必须每次从同一个形状长出来，否则第二次跑读的是第一轮的缓存 */
     private static void deleteTree(Path dir) throws Exception {
         if (dir == null || Files.notExists(dir)) return;
@@ -281,6 +357,7 @@ public class ScanProbe {
                     }
                     case "oversize-skip" -> runOversizeIngest(receipt, mapper, value, true);
                     case "oversize-clean" -> runOversizeIngest(receipt, mapper, value, false);
+                    case "id-sanitize" -> runIdSanitize(receipt, mapper, value);
                     case "mksymlink" -> {
                         ObjectNode n = mapper.createObjectNode();
                         n.put("created", makeSymlink(value));

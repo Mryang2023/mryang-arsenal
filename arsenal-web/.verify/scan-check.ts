@@ -224,6 +224,8 @@ type Receipt = {
   depth?: any;
   /** `oversize-skip` / `oversize-clean` 回执（r16）：摄取侧记账的原始事实 */
   ingest?: any;
+  /** `id-sanitize` 回执（r17）：三份拼路径 id 消毒函数对同一批向量的原始判定 */
+  sanitize?: any;
 };
 
 /**
@@ -931,13 +933,14 @@ if (!skipAll) {
   }
 
   // ── 【5】规模闸门：单文件 / 深度 / 文件数 ─────────────────────
-  section('【5】规模闸门（单文件 2MB / 深度 20 / 文件数 2 万）');
+  section('【5】规模闸门（单文件 2MB / 深度 20 / 文件数 2 万）+ 拼路径 id 的消毒口径');
   const bigRepo = path.join(tmpDir, 'big-repo').replace(/\\/g, '/');
   const deepRepo = path.join(tmpDir, 'deep-repo').replace(/\\/g, '/');
   const manyRepo = path.join(tmpDir, 'many-repo').replace(/\\/g, '/');
   // 超限二进制的「跳过并记账」：夹具 + 摄取都在探针里一次做完，搭这趟车（单跑一趟探针 4 分钟）
   const skipWork = path.join(tmpDir, 'oversize-skip-repo').replace(/\\/g, '/');
   const cleanWork = path.join(tmpDir, 'oversize-clean-repo').replace(/\\/g, '/');
+  const idWork = path.join(tmpDir, 'id-sanitize').replace(/\\/g, '/');
   const r6 = runProbe('guards', [
     `mkbigfile-repo:${bigRepo}`,
     `facts:${bigRepo}`,
@@ -947,6 +950,7 @@ if (!skipAll) {
     `facts:${manyRepo}`,
     `oversize-skip:${skipWork}`,
     `oversize-clean:${cleanWork}`,
+    `id-sanitize:${idWork}`,
   ]);
   const guardFacts = (tail: string) =>
     r6.find((r) => r.kind === 'facts' && r.action.endsWith(tail))?.facts;
@@ -1010,6 +1014,58 @@ if (!skipAll) {
     !!ingestClean && ingestClean.skippedFiles === 0 && ingestClean.files === 2
       && (ingestClean.manifest ?? []).every((m: any) => m.skipped === false),
     JSON.stringify(ingestClean)
+  );
+
+  // ── r17（P1-1d）：三份「拼路径 id 先消毒」的实测口径 ────────────────────
+  //
+  // ProjectCache.java:73 的注释写着 ProjectStore.safeId / QaService.safeSegment「同一口径」。
+  // 三份函数在 .verify 与 arsenal-web/.verify 里**从来没有一条断言**（敌意 projectId 只在 zip
+  // 条目名那条链上喂过）。这轮把三份对同一批向量的原始判定摊开，期望表按实测写：
+  //   · ProjectCache / ProjectStore 两份**逐向量完全相同**（静默剥离非法字符，null→空串）；
+  //   · QaService 那份是**拒**（不匹配 [A-Za-z0-9_-]{1,64} 直接抛），连 65 字符的合法形态也拒
+  //     —— 64 这个上限只存在于这一份，注释说的「同一口径」在第三份上不成立。
+  // 这不是安全缺陷（拒比剥严），是口径声明与实现不符；已登记 B-10 等人工决定，不擅自统一语义。
+  const srows = r6.find((r) => r.kind === 'id-sanitize')?.sanitize as any[] | undefined;
+  const sById = (id: string) => srows?.find((r) => r.id === id);
+  const WANT_STRIP: [string, string][] = [
+    ['traversal', 'etcpasswd'],
+    ['backslash', 'Windowswinini'],
+    ['dotsOnly', ''],
+    ['encoded', '2e2e2fetc'],
+    ['empty', ''],
+    ['nul', 'ab'],
+    ['len65', 'a'.repeat(65)],
+    ['valid', 'demo-1_A'],
+    ['null', ''],
+  ];
+
+  check(
+    '5-8 消毒后的 id 永不越出缓存根：九条向量全部 inside-root，剥净后不含 / \\ . 任一字符，且非空者必落进真子目录（塌回根只允许发生在剥成空串的三条上）',
+    !!srows && srows.length === WANT_STRIP.length
+      && srows.every((r) => r.dirInsideRoot === true)
+      && srows.every((r) => /^[A-Za-z0-9_-]*$/.test(String(r.cache)))
+      && srows.every((r) => (r.cache === '' ? r.dirIsRoot === true
+        : r.dirIsRoot === false && r.dirRelativized === r.cache)),
+    srows ? JSON.stringify(srows.map((r) => ({ id: r.id, c: r.cache, root: r.dirIsRoot, inside: r.dirInsideRoot })))
+      : '探针没回 id-sanitize 的 sanitize 表'
+  );
+
+  check(
+    '5-9 ProjectCache 与 ProjectStore 两份消毒逐向量同结果（注释里那句「同一口径」在这两份之间是真的；null→空串这条分支只有直接喂 null 才看得见）',
+    !!srows && missById(
+      (srows ?? []).map((r) => ({ id: String(r.id), v: `${r.cache}||${r.store}` })),
+      WANT_STRIP.map(([id, want]) => [id, `${want}||${want}`] as [string, unknown])
+    ).length === 0,
+    JSON.stringify(WANT_STRIP.map(([id]) => ({ id, got: [sById(id)?.cache, sById(id)?.store] })))
+  );
+
+  const qaRejects = (id: string) => String(sById(id)?.qa ?? '').startsWith('THROWS:');
+  check(
+    '5-10 第三份不是「同一口径」：QaService 对八条异常输入一律抛（含 65 字符这种剥离版放行的形态），只放行合法 id 原样返回 —— 钉住当前真实差异，谁统一语义就必须同时改注释并让这条红',
+    !!srows && qaRejects('traversal') && qaRejects('backslash') && qaRejects('dotsOnly')
+      && qaRejects('encoded') && qaRejects('empty') && qaRejects('nul') && qaRejects('len65')
+      && qaRejects('null') && sById('valid')?.qa === 'demo-1_A',
+    JSON.stringify(srows?.map((r) => ({ id: r.id, qa: r.qa, strip: r.cache })))
   );
 
   // ── 【6】没有任何部署清单的仓库：不许编出副本数 ─────────────────
