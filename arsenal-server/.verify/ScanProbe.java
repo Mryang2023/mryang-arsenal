@@ -137,6 +137,15 @@ public class ScanProbe {
         }
     }
 
+    /** 纯拼路径用的 N 层子路径（不落盘）：ScanGuard.depth 只做 relativize，不碰磁盘 */
+    private static Path descend(Path root, int levels) {
+        Path p = root;
+        for (int i = 1; i <= levels; i += 1) {
+            p = p.resolve("l" + i);
+        }
+        return p.resolve("Leaf.java");
+    }
+
 
     /**
      * 造一个含 3MB 单文件的目录。
@@ -255,9 +264,100 @@ public class ScanProbe {
                             r.put("key", kv[0]);
                             r.put("out", ScanGuard.redact(kv[0], kv[1]));
                         }
-                        receipt.put("ok", true);
-                        receipt.set("zipEntry", entries);
-                        receipt.set("redact", redacts);
+
+                        // ── r15：其余几处「黑盒看不出是哪条分支」的纯判定 ──────────────
+                        // 逐条的为什么（判定过程见 RUNLOG r15）：
+                        //   readable 的具名文件分支 —— fixture 只有 Dockerfile 一个具名名，
+                        //     Jenkinsfile / Makefile / Dockerfile.<后缀> / 大写扩展名 四条各删一行链都不红；
+                        //   skippableOversize 的分岔 —— 超限「源码拒绝」那半条有 ProjectsProbe.quota
+                        //     钉住，超限「二进制跳过」这半条全仓库 0 条断言（含 skippedFiles 记账）；
+                        //   gitUrlAllowed 的正向 —— 3-3/3-4/3-5 断言的全是拒绝，函数改成恒 false
+                        //     那三条一条不变，而用户再也加不进任何 git 项目；
+                        //   fileTooLarge / isInside 的 catch —— 读不到大小、真实路径解析失败都按
+                        //     「拦下」处理；改成 fail-open 得用超限文件或断链软链才撞得出来。
+                        // 判定用 ASCII id 做键（值里带空格与制表符的 URL 靠 id 对，不靠字符串对）。
+                        ArrayNode readables = mapper.createArrayNode();
+                        for (String nm : new String[]{
+                                "App.java", "Script.PY",           // 白名单 / 大写扩展名先归一化
+                                "Dockerfile", "Dockerfile.prod",   // 具名文件 / 前缀分支
+                                "Jenkinsfile", "Makefile",
+                                ".env",                            // 点开头：扩展名取最后一个点之后
+                                "LICENSE", "notes.", "archive.tar.gz", "photo.png"
+                        }) {
+                            ObjectNode e = readables.addObject();
+                            e.put("name", nm);
+                            e.put("read", ScanGuard.readable(nm));
+                        }
+
+                        ArrayNode skippables = mapper.createArrayNode();
+                        for (String nm : new String[]{"Big.java", "Dockerfile", "ip2region.xdb", "app.jar", "logo.png"}) {
+                            ObjectNode e = skippables.addObject();
+                            e.put("name", nm);
+                            e.put("skippable", ScanGuard.skippableOversize(nm));
+                        }
+
+                        ArrayNode gitUrls = mapper.createArrayNode();
+                        // 同时回吐 value：前端按 id 对判定、按 value 对输入本身。
+                        // 只在 id 上会对不出一件事 —— 喂进去的字符串被悄悄改了（首尾空格、大小写），
+                        // verdict 却照旧，那种绿是假的（2026-10-28 r14 实测过字符被吞成别的码位）。
+                        gitUrls.addObject().put("id", "absent").put("value", "<null>")
+                                .put("allowed", ScanGuard.gitUrlAllowed(null));
+                        for (String[] pair : new String[][]{
+                                {"https_ok", "https://github.com/foo/bar.git"},
+                                {"https_padded", "  https://github.com/foo/bar.git  "},
+                                {"https_upper", "HTTPS://GitHub.com/Foo/Bar.git"},
+                                {"http_plain", "http://github.com/foo/bar.git"},
+                                {"scp_style", "git@github.com:foo/bar.git"},
+                                {"empty", ""}
+                        }) {
+                            gitUrls.addObject().put("id", pair[0]).put("value", pair[1])
+                                    .put("allowed", ScanGuard.gitUrlAllowed(pair[1]));
+                        }
+
+                        Path pureRoot = Files.createTempDirectory("guard-pure");
+                        Path pureSmall = pureRoot.resolve("small.txt");
+                        try {
+                            Files.writeString(pureSmall, "x", StandardCharsets.UTF_8);
+                            Path pureGone = pureRoot.resolve("gone.bin");   // 故意不创建
+
+                            ArrayNode sizes = mapper.createArrayNode();
+                            sizes.addObject().put("id", "small_real").put("tooLarge", ScanGuard.fileTooLarge(pureSmall));
+                            sizes.addObject().put("id", "nonexistent").put("tooLarge", ScanGuard.fileTooLarge(pureGone));
+
+                            ArrayNode inside = mapper.createArrayNode();
+                            inside.addObject().put("id", "file_in_root")
+                                    .put("inside", ScanGuard.isInside(pureRoot, pureSmall));
+                            inside.addObject().put("id", "parent_of_root")
+                                    .put("inside", ScanGuard.isInside(pureRoot, pureRoot.getParent()));
+                            inside.addObject().put("id", "missing_in_root")
+                                    .put("inside", ScanGuard.isInside(pureRoot, pureGone));
+                            inside.addObject().put("id", "missing_root")
+                                    .put("inside", ScanGuard.isInside(pureGone, pureSmall));
+
+                            // depth 只做 relativize，不碰磁盘 —— 22 层目录 + 1 个文件 = 23 段
+                            ArrayNode depths = mapper.createArrayNode();
+                            String[] depthId = {"self", "one", "three", "deep23"};
+                            Path[] depthPath = {pureRoot, pureSmall, pureRoot.resolve("a/b/c.txt"),
+                                    descend(pureRoot, 22)};
+                            for (int k = 0; k < depthId.length; k += 1) {
+                                depths.addObject()
+                                        .put("id", depthId[k])
+                                        .put("n", ScanGuard.depth(pureRoot, depthPath[k]));
+                            }
+
+                            receipt.put("ok", true);
+                            receipt.set("zipEntry", entries);
+                            receipt.set("redact", redacts);
+                            receipt.set("readable", readables);
+                            receipt.set("skippable", skippables);
+                            receipt.set("gitUrl", gitUrls);
+                            receipt.set("size", sizes);
+                            receipt.set("inside", inside);
+                            receipt.set("depth", depths);
+                        } finally {
+                            Files.deleteIfExists(pureSmall);
+                            Files.deleteIfExists(pureRoot);
+                        }
                     }
                     case "guard-timeout" -> {
                         // 超时闸门：不真等 180s，直接造一个已经过期的 ScanContext，

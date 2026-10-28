@@ -215,6 +215,13 @@ type Receipt = {
   zipEntry?: any;
   /** `guard-pure` 回执：脱敏逐条结果 [{key, out}] */
   redact?: any;
+  /** `guard-pure` 回执（r15）：逐分支判定，值都按 name/id 对 */
+  readable?: any;
+  skippable?: any;
+  gitUrl?: any;
+  size?: any;
+  inside?: any;
+  depth?: any;
 };
 
 /**
@@ -743,6 +750,101 @@ if (!skipAll) {
       rdOf('note') === 'plain text' &&
       !String(rdOf('banner')).includes('MIISECRETBODY'),
     `实际 ${JSON.stringify(rd)}`
+  );
+
+  // ── r15：同一趟 guard-pure 把其余几处「分支之间黑盒区分不开」的纯判定摊开 ──
+  // 判定表在前端，探针只回吐 verdict（与 3-8/3-9 同规矩）。每条都带**反方向**的名字：
+  // 只验拒绝，函数恒拒绝也全绿 —— 那是 3-9 已经立过的规矩，不重复犯。
+  const byId = (rows: any[] | undefined, key: string) =>
+    (rows ?? []).map((r) => ({ id: String(r.name ?? r.id), v: r[key] }));
+  const missById = (got: { id: string; v: unknown }[], want: [string, unknown][]): string[] => {
+    const bad: string[] = [];
+    for (const [id, v] of want) {
+      const row = got.find((x) => x.id === id);
+      if (!row) bad.push(`${id}:探针没回`);
+      else if (row.v !== v) bad.push(`${id}=${String(row.v)}(应为 ${String(v)})`);
+    }
+    if (got.length !== want.length) bad.push(`条数 ${got.length}≠${want.length}`);
+    return bad;
+  };
+
+  const WANT_READABLE: [string, boolean][] = [
+    ['App.java', true], ['Script.PY', true],           // 大写扩展名要先归一化才命中白名单
+    ['Dockerfile', true], ['Dockerfile.prod', true],   // 具名文件 / 带后缀的前缀分支
+    ['Jenkinsfile', true], ['Makefile', true],
+    ['.env', true],                                    // 点开头：扩展名取最后一个点之后
+    ['LICENSE', false], ['notes.', false],             // 无点 / 尾点（空扩展名）
+    ['archive.tar.gz', false], ['photo.png', false],   // 多段点只认最后一段
+  ];
+  check(
+    `3-11 readable 的 ${WANT_READABLE.length} 个名字逐个判对（Jenkinsfile / Makefile / Dockerfile.<后缀> / 大写扩展名 是 fixture 里根本没有的分支，删一行链都不红）`,
+    missById(byId(gpure?.readable, 'read'), WANT_READABLE).length === 0,
+    JSON.stringify(missById(byId(gpure?.readable, 'read'), WANT_READABLE))
+  );
+
+  const WANT_SKIPPABLE: [string, boolean][] = [
+    ['Big.java', false], ['Dockerfile', false],        // 源码超限 → 不跳过，整份拒绝
+    ['ip2region.xdb', true], ['app.jar', true], ['logo.png', true],  // 二进制超限 → 跳过并记账
+  ];
+  check(
+    '3-12 超限文件的分岔判对：源码（含 Dockerfile）不跳过、二进制跳过（335519c 的另一半，此前只有「拒绝」那侧被 quota 探针钉住）',
+    missById(byId(gpure?.skippable, 'skippable'), WANT_SKIPPABLE).length === 0,
+    JSON.stringify(missById(byId(gpure?.skippable, 'skippable'), WANT_SKIPPABLE))
+  );
+
+  const PAD = '  ';
+  const WANT_GITURL: [string, string, boolean][] = [
+    ['absent', '<null>', false],
+    ['https_ok', 'https://github.com/foo/bar.git', true],
+    ['https_padded', `${PAD}https://github.com/foo/bar.git${PAD}`, true],
+    ['https_upper', 'HTTPS://GitHub.com/Foo/Bar.git', true],
+    ['http_plain', 'http://github.com/foo/bar.git', false],
+    ['scp_style', 'git@github.com:foo/bar.git', false],
+    ['empty', '', false],
+  ];
+  const gitGot = (gpure?.gitUrl ?? []) as { id: string; value?: string; allowed: boolean }[];
+  const gitBad = WANT_GITURL.flatMap(([id, value, want]) => {
+    const row = gitGot.find((x) => x.id === id);
+    if (!row) return [`${id}:探针没回`];
+    const out: string[] = [];
+    if (row.allowed !== want) out.push(`${id}.allowed=${String(row.allowed)}(应为 ${String(want)})`);
+    // 输入本身也要对：值被悄悄改了（首尾空格没了、大小写变了）而 verdict 照旧，那种绿是假的
+    if (row.value !== value) out.push(`${id}.value=${JSON.stringify(row.value)}(应为 ${JSON.stringify(value)})`);
+    return out;
+  });
+  check(
+    '3-13 git 地址放行判定含正向：三条 https（原样 / 带首尾空格 / 大写协议）必须放过 · null、http、scp 形状、空串拒（3-3/3-4/3-5 全是拒绝，函数恒 false 时它们一条不变）',
+    gitBad.length === 0 && gitGot.length === WANT_GITURL.length,
+    gitBad.length ? JSON.stringify(gitBad) : `实际 ${JSON.stringify(gitGot)}`
+  );
+
+  const WANT_SIZE: [string, boolean][] = [['small_real', false], ['nonexistent', true]];
+  check(
+    '3-14 读不到文件大小按超限处理（fail-closed）：真存的小文件 false 做对照，别把「拦下」和「全拦」混了',
+    missById(byId(gpure?.size, 'tooLarge'), WANT_SIZE).length === 0,
+    JSON.stringify(missById(byId(gpure?.size, 'tooLarge'), WANT_SIZE))
+  );
+
+  const WANT_INSIDE: [string, boolean][] = [
+    ['file_in_root', true],
+    ['parent_of_root', false],
+    ['missing_in_root', false],   // candidate.toRealPath() 抛 → catch
+    ['missing_root', false],      // root.toRealPath() 抛 → catch（3-6 那条走的是 fromPath 的 exists 检查，撞不到这里）
+  ];
+  check(
+    '3-15 真实路径解析失败一律按出圈处理（两侧都算）：根内真文件 true 做对照，出圈的父目录 false',
+    missById(byId(gpure?.inside, 'inside'), WANT_INSIDE).length === 0,
+    JSON.stringify(missById(byId(gpure?.inside, 'inside'), WANT_INSIDE))
+  );
+
+  // depth(x, x) 实测是 1 不是 0 —— 空相对路径在 AbstractPath 的迭代器里算一段。
+  // 不改它：闸门是 `> MAX_DEPTH`，根自己是不是 0 对结果没有影响，而动这里会把
+  // 22 层夹具那条（5-2）的边界一起挪掉。按实测值钉住，是为了后来的会话不必再猜。
+  const WANT_DEPTH: [string, number][] = [['self', 1], ['one', 1], ['three', 3], ['deep23', 23]];
+  check(
+    '3-16 depth 的分段计数钉死（一层 1、三层 3、22 层目录+文件 23 段 > 上限 20；根自身实测 1 —— 空相对路径也算一段，按实测钉，不写成期望的 0）',
+    missById(byId(gpure?.depth, 'n'), WANT_DEPTH).length === 0,
+    JSON.stringify(missById(byId(gpure?.depth, 'n'), WANT_DEPTH))
   );
 
   // ── 【4】三条出图链路：真实 facts → 三张图 ────────────────────
