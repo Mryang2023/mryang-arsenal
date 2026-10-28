@@ -490,3 +490,44 @@ r14/r15 两轮都是「补了护栏，但没证过它红得起来」。这轮补
   探针把它如实回吐成 `THROWS:PatternSyntaxException` 而不是崩掉整趟 —— 这次注入无效但暴露了探针的容错形状是对的。
   两个文件都按 sha256 备份并复原为**字节 identical**（ProjectStore `08fcbf7d…`、ProjectCache `86bc4128…` 与 r16 记录的同一枚），
   用户在途改动行数（49/17、3/1、11/1）与暂存区（31 files / +393 / −17703）全程未动。
+
+## r18 · 2026-10-28 01:22Z（= 北京 09:22 +0800）— P1-1e：跨语言 projectId 从「源码长相」升级成行为对拍
+
+### 为什么这轮值得做（判定）
+`project-check.ts:3997` 的 31-3 是 `\/MessageDigest\.getInstance\("SHA-256"\)\/`、`\/formatHex\(d\)\.substring\(0, 12\)\/`
+这类**匹配源码文本**的断言，31-4 匹配 `return ProjectIds.projectIdOf(kind, ref);` 这句话。
+grep 五个 `.verify/*.java`：Java 那份 `ProjectIds` **从未被执行过一次**；而 31-1 那组对拍向量跑的是 Node 那份
+（`arsenal-web/scripts/lib/autopsy-snapshot-shape.mjs:51`）。于是「同一地址在两套系统里算出同一身份」——
+`ProjectIds` javadoc 自己写的 棒1 暗伤根治点 —— 实际由**长相**守着：等价重构（抽方法、换 `HexFormat.of()` 写法、
+少做一次 trim）会让 31-3 因长相变红，而真正的漂移（同值不同 id）反而无人报。
+
+### 实测（探针 `id-project` 真跑 Java 侧，十五根向量与 Node 那份逐字节对拍）
+十三条相同（尾斜杠 / 三个尾斜杠 / 反斜杠 / 首尾空格 / tab+换行 / 仅斜杠 / 空串 / null 值 / 大写 kind /
+非 ASCII `D:/工作/订单服务` / git / git 尾斜杠 / 基线），**两条不同**：
+
+| 向量 | Java 规范串 | Java id | Node id |
+| --- | --- | --- | --- |
+| `path:<NBSP>D:/work/order-service<NBSP>` | `path:\u00a0…\u00a0`（NBSP 保留） | `fb75c9a843de` | `e081b28924ec` |
+| kind=null | `:D:/work/order-service` | `30a3b5a70bef` | `1c9c85042273` |
+
+- 根因两条都写在实现里：Java `String.trim()` **只剥 ≤ U+0020**，JS `trim()` 连 NBSP 与其它 Unicode 空白一起剥；
+  Java `kind == null ? "" : kind` 拼空串，Node `String(sourceKind)` 拼出 `"null"`。
+- **NBSP 那条真实可达**（从文档/聊天里粘贴一个带 U+00A0 的路径很常见）：前端 `AutopsyLab.tsx` 与
+  `src/lib/autopsy-snapshot.ts` 用 Node 那份算 id，后端 `.data/projects/<id>`、`.data/qa/<id>` 用 Java 那份 →
+  一错位就是「缓存明明摄入了却查不到 / QA 历史对不上项目」。kind=null 那条目前不可达（控制器校验只能是 path/git）。
+- 基线 id 不由被验实现自证：`5-13` 在前端用 `node:crypto` 独立算 `sha256("path:D:/work/order-service")` 前 12 位，
+  必须等于 Java 回吐的 `e081b28924ec` —— 两份实现同时漂到同一个错值也算红。
+- 处置：**两份都没改**。往哪边对齐都要动已有 id（Java 改 = 与「旧 QA 历史不作废」的既有取舍冲突；Node 改 = 浏览器与
+  Node 侧快照 id 一起变；更彻底的归一化是产品口径变更）→ 登记 **B-11** 等人工决定。
+  `5-14` 因此**故意钉住这两处漂移**（连 `30a3b5a70bef` 这个具体值一起）：谁将来对齐，这条就红，逼他确认方向。
+
+### 门禁与咬合证据
+- `typecheck:verify` exit 0；`verify:scan` **186 通过 / 3 失败 / 实测 189 == 声明 189**；`verify:meta` 73/0/0；
+  `verify:visual` 11/1/1（改 profiles → `next-run.mjs build` 重建后复跑）。失败面仍 4（scan 3 = B-7 + visual 1 = B-2），0 新增。
+- **注入回归**：把 `ProjectIds.normalize` 的 `.replaceAll("/+$", "")` 摘掉 → `verify:scan` **5-11 与 5-12 双双转红**（fail 3 → 5）。
+  `ProjectIds.java` 是无在途改动的干净文件（注入前 `git status` 该文件为空、sha `9a77d5c5…`），复原后 sha 逐字节相同且 `git status` 重新为空。
+- 本轮踩坑新增一条（记进 next_round_plan.notes 第⑤条）：r17 那次注入把 `-` 放进字符类中间（`[^A-Za-z0-9_-.]`）
+  让 Java 正则当场 `PatternSyntaxException`，注入无效但探针如实回吐 `THROWS` 而非崩掉整趟，形状是对的。
+- 另一处流程教训：写 profile 的 desc 时把结尾引号一起替换掉了 → `arsenal.json` 短暂 `Bad control character in string literal`
+  （JSON 解析器报的是「字符串未闭合、撞见换行」）。按字节定位到 line 478 列号即行长 +1 才看出来；落盘后**必须立刻 JSON.parse 一遍**，
+  不能等 sync/verify 去发现。

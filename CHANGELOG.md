@@ -171,3 +171,19 @@
   - 咬得住：把 `ProjectCache.safeSegment` 白名单放宽到含点号 → 5-8/5-9 双双转红（fail 3 → 5），两文件按 sha256 复原字节 identical。
 - 门禁：`typecheck:verify` 0；`verify:scan` 182/3/185==185；`verify:meta` 73/0/0；`verify:visual` 11/1/1（重建 out/ 后复跑）。
   失败面 4 不变，0 新增。README 总数 2302 → **2305**（三处散文口径 + scan 行）。
+
+## r18 · 2026-10-28 01:22Z
+- `verify:scan` 185 → **189 项**（4 文件：`ScanProbe.java` / `scan-check.ts` / `arsenal-profiles/arsenal.json` / `README.md`）。
+  - 新探针动作 `id-project`：真跑 Java 侧 `ProjectIds.normalize` + `projectIdOf`，十五根向量各回吐规范串与 12 位 id；
+    前端用**同一批向量**调 Node 那份（`autopsy-snapshot-shape.mjs:51`）逐字节对拍。此前 31-3/31-4 是拿正则匹配
+    `ProjectIds.java` 的**源码字样**，而这份 Java 实现在五个探针里从未被执行过一次。
+  - 5-11 Java 规范化串逐条钉死 / 5-12 十三条两套实现相同 / 5-13 基线 id 由 `node:crypto` 独立算（不许被验实现自证）/
+    5-14 **如实钉住当前仅有的两处跨语言漂移**。
+  - **本轮发现了真实的东西**（前两轮的判定轮都是「无缺陷」）：Java 的 `trim()` 只剥 ≤ U+0020、JS 的 `trim()` 连 U+00A0 一起剥
+    → 同一个带 NBSP 的路径在两套系统里得到两个身份（`fb75c9a843de` vs `e081b28924ec`），
+    而前端快照与后端 `.data/projects/<id>`、`.data/qa/<id>` 正好各用一份 —— 这就是 `ProjectIds` javadoc 要根治的那个暗伤的残留通道。
+    kind=null 那条同因（Java 拼空串、JS 拼 `String(null)`），但控制器已校验，暂不可达。
+  - 两份实现对齐方向需人工定（改 Java 与「旧 QA 历史不作废」冲突；改 Node 会让浏览器与 Node 侧快照 id 一起变）→ **B-11**。
+  - 注入回归：摘掉 normalize 的尾斜杠归一 → 5-11/5-12 双双转红（fail 3 → 5），`ProjectIds.java` 按 sha 复原字节 identical。
+- 门禁：`typecheck:verify` 0；`verify:scan` 186/3/189==189；`verify:meta` 73/0/0；`verify:visual` 11/1/1（重建 out/ 后复跑）。
+  失败面 4 不变，0 新增。README 总数 2305 → **2309**（三处散文口径 + scan 行）。

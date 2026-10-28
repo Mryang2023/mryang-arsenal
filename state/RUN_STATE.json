@@ -4,21 +4,21 @@
   "push_remote": false,
   "started_at": "2026-10-27T15:34:57Z",
   "end_at": "2026-10-28T05:41:43Z",
-  "current_round": 17,
+  "current_round": 18,
   "round_status": "completed",
   "in_progress": null,
   "next_round_plan": {
-    "round": 18,
-    "task_id": "P1-1e",
-    "task": "把「同一地址在两套语言里算出同一个 projectId」这条 棒1 暗伤的根治点，从**源码长相断言**升级成**行为断言**。实测事实（r17 收尾时读出来的）：project-check.ts:3997 的 31-3 是 /MessageDigest\\.getInstance\\(\"SHA-256\"\\)/ + /formatHex\\(d\\)\\.substring\\(0, 12\\)/ 这类正则匹配源码文本，31-4 匹配 `return ProjectIds.projectIdOf(kind, ref);`；而对拍向量 31-1 跑的是 Node 那份（arsenal-web/scripts/lib/autopsy-snapshot-shape.mjs:51）。grep 过五个 .verify/*.java：Java 的 ProjectIds **一次都没被执行过**。后果两面都难看 —— Java 侧任何等价重构（换 HexFormat.of()、抽方法、normalize 少做一次 trim）会让 31-3 因长相变红，而真正的漂移（同值不同 id）反而不红。做法：ScanProbe 加动作 id-project（直调 ProjectIds.projectIdOf 与 normalize，回吐每个向量的 normalized 串与 12 位 id），前端用**同一批向量**（尾斜杠多个、反斜杠、首尾空白、大写 kind、空值、非 ASCII 路径、kind 缺失）与 Node 那份逐字节对拍；对拍一致才算绿，两份都算出同一个错值也是红（另加一条按已知值钉死：`path:D:/work/order-service` → 固定 12 位，防止两份同时漂移）。31-3/31-4 那两条文本断言**不撤**（它们守的是「不许出现第二份 sha256 副本」，与行为断言各管一段），本轮只做加法。",
+    "round": 19,
+    "task_id": "P1-1f",
+    "task": "把 `EXTS`「待检扩展名」那份自我声明补成断言。事实（r18 实测）：QaService.java:69 与 AutopsyService.java:60 各有一份 `private static final Set<String> EXTS = Set.of(\"java\",\"xml\",\"yml\",\"yaml\",\"properties\")`，而 QaService:68 的注释明写「与 AutopsyService 同一套待检扩展名 —— 两处不一致，pctOfRepo 的分母就是假的」；grep 过 .verify/*.java 与 arsenal-web/.verify/*.ts：没有任何断言比较过这两套，也没有断言过分母到底是什么。当前两份逐字相同（注释是真话），但从任一份里删掉 \"yaml\" 链照绿。做法沿用 r17 的 id-sanitize 形状：探针动作 exts 用反射读两份 private static 并回吐（改名/改类型会让探针当场红而不是静默少测），再在一个混扩展名夹具（.java/.xml/.yml/.yaml/.properties/.md/.txt 各一到两个）上回吐两侧各自算出的分母与 pctOfRepo 输入，前端断言 ① 两份集合逐元素相同（含顺序无关的集合相等，不是字符串相等）② pctOfRepo 的分母 === 该集合命中的文件数，而不是 ctx.files() 全量 —— 后者才是那句注释真正承诺的东西。必须先判清并写进 BACKLOG：ScanGuard.readable 的 TEXT_EXT 是「要不要读文件内容」的白名单，比这两份宽得多，属于**本就该不同**的集合，不许为了统一而并进来；如果判定结果是「两份 EXTS 其实也该各自演化（QA 只关心 Spring 配置、解剖台还关心别的）」，那就把那句注释判成失真，走 B-10 那条路登记而不是硬断言相等。",
     "priority": "P1",
     "expected_files": [
-      "arsenal-server/.verify/ScanProbe.java",
+      "arsenal-server/.verify/ScanProbe.java（或 AstProbe，取决于哪侧门禁便宜）",
       "arsenal-web/.verify/scan-check.ts",
       "arsenal-profiles/arsenal.json",
       "README.md（数字口径）"
     ],
-    "notes": "r17 的三条踩坑仍有效：① Java 注释/字符串里别写反斜杠-u，特殊字符用 (char) 拼；② 边界值与特殊字符落盘后按字节 od -c 复核（Edit 会静默换字符）；③ 探针动作名必须带尾冒号。④ 别在带他人未提交工作的目录里写能吞 pathspec 的 git 形式，也不要用 2>/dev/null 掩盖它报的错。⑤ 新一条：注入产品代码验证断言会否变红时，正则字符类里把 `-` 放在中间会当场 PatternSyntaxException（r17 第一次注入就是这么废的）—— 放宽白名单要用 [^A-Za-z0-9_.-] 这种连字符在末尾的形状，且注入前后都按 sha256 记一遍。改 profiles 后必须 node scripts/next-run.mjs build 重建 out/ 再复跑 verify:visual。"
+    "notes": "踩坑清单（全部仍在生效）：① Java 注释与字符串里别写字面反斜杠-u，特殊字符用 (char) 拼；② 边界值/特殊字符落盘后按字节 od -c 复核，改完 arsenal.json 立刻 JSON.parse 一遍再往下走（r18 就因把结尾引号一起替换掉而短暂写出无效 JSON，靠 sync 报错才发现）；③ 探针动作名带尾冒号；④ 别在带他人未提交工作的目录里写能吞 pathspec 的 git 形式，也不用 2>/dev/null 掩盖错误；⑤ 注入回归时正则字符类里的连字符要放末尾（[^A-Za-z0-9_.-]），放中间会当场 PatternSyntaxException 让注入白跑；⑥ 注入产品文件前后各记一次 sha256，复原后必须字节 identical 再报数。改 profiles 后要 node scripts/next-run.mjs build 重建 out/ 再复跑 verify:visual。"
   },
   "commands": {
     "web_typecheck": "cd arsenal-web && npm run typecheck",
@@ -109,7 +109,8 @@
     "scan_after_r10": "167/0/3、项数 170（与 r9 同）；parity 13/0/3跳（与 r8 同）——本轮只加 stderr 披露，判定未动",
     "scan_after_r15": "176 通过 / 3 失败 / 实测 179 == 声明 179（declaredMismatch null）；三条红仍是 13-1/13-2/13-7 = B-7，0 新增。meta 73/0/0；visual 重建产物后回到 11/1/1 = B-2。链实测项数 2293 → 2299",
     "scan_after_r16": "179 通过 / 3 失败 / 实测 182 == 声明 182（declaredMismatch null）；三条红仍是 13-1/13-2/13-7 = B-7，0 新增。meta 73/0/0；visual 11/1/1（改了 profiles，next-run.mjs build 后复跑）。链实测项数 2299 → 2302",
-    "scan_after_r17": "182 通过 / 3 失败 / 实测 185 == 声明 185（declaredMismatch null）；三条红仍是 13-1/13-2/13-7 = B-7，0 新增。注入回归下同一层变成 180/5（5-8+5-9 转红），复原后回 182/3。meta 73/0/0；visual 11/1/1。链实测项数 2302 → 2305"
+    "scan_after_r17": "182 通过 / 3 失败 / 实测 185 == 声明 185（declaredMismatch null）；三条红仍是 13-1/13-2/13-7 = B-7，0 新增。注入回归下同一层变成 180/5（5-8+5-9 转红），复原后回 182/3。meta 73/0/0；visual 11/1/1。链实测项数 2302 → 2305",
+    "scan_after_r18": "186 通过 / 3 失败 / 实测 189 == 声明 189（declaredMismatch null）；三条红仍是 13-1/13-2/13-7 = B-7，0 新增。注入回归（摘掉 normalize 的尾斜杠归一）下变 184/5（5-11+5-12 转红），ProjectIds.java 按 sha 复原字节 identical（9a77d5c5…）后 git status 该文件重新为空。meta 73/0/0；visual 11/1/1。链实测项数 2305 → 2309"
   },
   "wakeup": {
     "mechanism": "DEGRADED（本会话）：r14 收尾时 cron 可用并成功唤醒 r15，r15 收尾时同一工具在 mcp_list / mcp_get 均不存在 → 判定为「按会话挂载、时好时坏」（B-5 补充）。r16 回到同会话连续跑（r3–r6 先例），不用 create_chat_session 顶替（无延时）",
@@ -129,7 +130,10 @@
     "r17_start_beijing": "2026-10-28 08:39 +0800",
     "r17_close_check": "2026-10-28T00:55Z（= 北京 08:55 +0800）mcp_list(keyword=cron) 仍只有 qmind 那两个 → r18 继续同会话接手；120s 这个间隔在本会话里由「收尾即起下一轮」实现，不是独立唤醒",
     "r18_start_utc": "2026-10-28T00:57Z",
-    "r18_start_beijing": "2026-10-28 08:57 +0800"
+    "r18_start_beijing": "2026-10-28 08:57 +0800",
+    "r18_close_check": "2026-10-28T01:22Z（= 北京 09:22 +0800）mcp_list(keyword=cron) 仍只有 qmind 那两个 → r19 继续同会话接手",
+    "r19_start_utc": "2026-10-28T01:25Z",
+    "r19_start_beijing": "2026-10-28 09:25 +0800"
   },
   "safety": {
     "pre_existing_uncommitted_work": "main 上有用户在途工作：docs 归档到 docs/archive/（31 文件已暂存，含 17703 行删除）+ 28 文件工作区改动 + 3 未跟踪文件 —— 见 BLOCKERS B-1",
@@ -153,9 +157,10 @@
       "B-7 需批准拉 7 个缺失/降版 Spring Boot 4.1.1 构件",
       "B-8 需拍板改规则语料的引擎名",
       "B-9 需决定 redactValue 那 11 行怎么带走（r15 新登记）",
-      "B-10 需决定 ProjectCache:73 那句「三份同一口径」的注释怎么改（改注释要动用户在途文件；统一语义是行为变更）"
+      "B-10 需决定 ProjectCache:73 那句「三份同一口径」的注释怎么改（改注释要动用户在途文件；统一语义是行为变更）",
+      "B-11 需决定跨语言 projectId 两处漂移往哪边对齐（Java trim 只剥 ≤U+0020 / JS 连 NBSP 一起剥；kind=null Java 拼空串 / JS 拼 String(null)）—— 改任一侧都牵动已有 id"
     ],
-    "rounds_completed": 17
+    "rounds_completed": 18
   },
   "stop_reason": null,
   "tools_or_environment": {
@@ -163,34 +168,34 @@
     "backend_run_cmd": "SKIP_COMPILE=1 bash arsenal-server/scripts/run.sh (3.6s 起，用完要按 3011 PID Stop-Process)",
     "typecheck_scope": "根 tsconfig 的 **/*.ts 不匹配点目录 → 不覆盖 .verify；改断言层要跑 npm run typecheck:verify"
   },
-  "last_round_commit": "5c0d154",
-  "last_round_summary": "P1-1d 完成：三份拼路径 id 消毒函数从 0 条断言补到 5-8/5-9/5-10（verify:scan 182→185、meta 73/0/0、失败面 4 不变）。实测「同一口径」那句注释：两份剥离实现逐向量相同、第三份 QaService 是拒不是剥且独有 64 上限 → 无缺陷、有裂缝，登记 B-10 等人工决定。注入回归（放宽 ProjectCache 白名单含点号）使 5-8/5-9 双双转红，产品文件按 sha256 复原字节 identical",
-  "end_at_note": "原 6 小时窗口 2026-10-27T21:34:57Z 已于 2 小时前到期；用户 2026-10-28 07:41 明确要求「继续优化」，故重新锚定 end_at = 续期时刻 + 6h（= 2026-10-28T05:41:43Z）。r13 的判定轮未收尾，r15 把它做完；r16/r17 继续按逐分支真空推进。",
+  "last_round_commit": "4d90445",
+  "last_round_summary": "P1-1e 完成：跨语言 projectId 从「源码长相断言」升级成行为对拍（verify:scan 185→189、meta 73/0/0、失败面 4 不变）。**四轮判定里第一次抓到真实缺陷**：Java 的 trim 只剥 ≤U+0020、JS 的连 NBSP 一起剥 → 同一个带 NBSP 的路径在两套系统里得到两个身份（fb75c9a843de vs e081b28924ec），正是 ProjectIds javadoc 自述要根治的暗伤的残留通道；kind=null 同因但暂不可达。两份都没改（对齐牵动已有 id）→ 登记 B-11",
+  "end_at_note": "原 6 小时窗口 2026-10-27T21:34:57Z 已于 2 小时前到期；用户 2026-10-28 07:41 明确要求「继续优化」，故重新锚定 end_at = 续期时刻 + 6h（= 2026-10-28T05:41:43Z）。r13 的判定轮未收尾，r15 把它做完；r16/r17/r18 继续按逐分支真空推进。",
   "last_round": {
-    "round": 17,
-    "completed_at": "2026-10-28T00:55Z",
-    "commit": "5c0d154",
-    "task_id": "P1-1d",
+    "round": 18,
+    "completed_at": "2026-10-28T01:22Z",
+    "commit": "4d90445",
+    "task_id": "P1-1e",
     "files": 4,
-    "lines": "+140 -7",
+    "lines": "+154 -6",
     "verify": {
       "typecheck_verify": "exit 0",
-      "verify:scan": "pass 182 / fail 3 / measured 185 == declared 185（注入态 180/5，复原后复验）",
-      "verify:meta": "73/0/0",
+      "verify:scan": "pass 186 / fail 3 / measured 189 == declared 189（注入态 184/5，复原后复验）",
+      "verify:meta": "73/0/0（README 数字口径 2309 提交后复跑）",
       "verify:visual": "11/1/1（改 profiles → next-run.mjs build 重建 out/ 后复跑）"
     },
-    "outcome": "未发现可利用缺陷，补的是回归护栏（5-8/5-9/5-10）。三条实测事实：① ProjectCache.safeSegment 与 ProjectStore.safeId 逐向量完全相同（含 null→空串这条只有直接喂 null 才可见的分支）；② 九条敌意向量全部不越出缓存根（dirInsideRoot 全 true），这是这条口径真正要守的不变量；③ QaService.safeSegment 不是同一件事 —— 走拒绝（400）而不是静默剥离，且 64 长度上限只存在于这一份（65 个合法字符：剥离版放过、QA 版拒）。ProjectCache.java:73 那句「三份同一口径」因此只对两份成立 → 登记 B-10。",
-    "why_not_fixed": "改注释要动正带用户在途 49/17 行改动的 ProjectCache.java（与 B-9 同一类归属问题，--only 提交会把别人的工作一起带走）；统一语义（QA 改成剥离）是把 400 变成静默改写并丢掉长度上限，属行为变更。两条都不是循环该单方面决定的。",
-    "teeth": "注入回归：把 ProjectCache.safeSegment 白名单放宽到含点号 [^A-Za-z0-9_.-] → 5-8 与 5-9 双双转红（fail 3→5）。第一次注入失败本身成了新踩坑：把连字符放在字符类中间（[^A-Za-z0-9_-.]）会让 Java 正则当场 PatternSyntaxException，探针如实回吐 THROWS 而不是崩掉整趟。两个产品文件按 sha256 复原为字节 identical（ProjectStore 08fcbf7d…、ProjectCache 86bc4128… 与 r16 同一枚）。",
+    "outcome": "**发现真实缺陷**（r14–r17 四轮都是「未发现缺陷」）。十五根向量里十三条两套实现逐字节相同，两条不同：① NBSP —— Java 的 String.trim() 只剥 ≤ U+0020、JS 的 trim() 连 U+00A0 与其它 Unicode 空白一起剥，同一个带 NBSP 的路径 Java 得 fb75c9a843de、Node 得 e081b28924ec；前端 AutopsyLab.tsx / src/lib/autopsy-snapshot.ts 用 Node 那份，后端 .data/projects/<id> 与 .data/qa/<id> 用 Java 那份，一错位就是「缓存明明摄入了却查不到 / QA 历史对不上项目」，即 ProjectIds javadoc 自述要根治的暗伤的残留通道，**真实可达**（从文档或聊天工具粘贴路径常带 U+00A0）；② kind=null —— Java 拼空串得 :value、Node 拼 String(null)，控制器已校验 kind 故暂不可达。另 5-13 用 node:crypto 独立算基线 id（不许被验实现自证，两份同时漂到同一个错值也算红）。31-3/31-4 两条源码文本断言保留未撤（它们守的是「不许出现第二份 sha256 副本」，与行为断言各管一段）。",
+    "why_not_fixed": "往哪边对齐都牵动已有 id：改 Java 与 javadoc 里「与既有 QaService 逐字节一致、旧 QA 历史不作废」这条既有取舍冲突；改 Node 会让浏览器与 Node 侧的快照 id 一起变，.data 之外的历史快照文件名同样受影响；更彻底的归一化（顺带剥 BOM、折叠连续空白）属产品口径变更。三条都不是循环该单方面决定的 → B-11。5-14 因此把两处漂移连同具体 id 一起钉住：谁将来对齐，这条就红，逼他确认方向而不是静默改一边。",
+    "teeth": "注入回归：摘掉 ProjectIds.normalize 的 .replaceAll(\"/+$\", \"\") → 5-11 与 5-12 双双转红（fail 3→5）。该文件无在途改动（注入前 sha 9a77d5c5…、git status 为空），cp 复原后 sha 逐字节相同、git status 重新为空。",
     "docs_closed": [
-      "P1-1d"
+      "P1-1e"
     ],
     "new_blockers": [
-      "B-10 ProjectCache:73 的「三份同一口径」注释与实现不符（第三份是拒、且独有 64 上限）—— 改注释或统一语义都需人工决定"
+      "B-11 跨语言 projectId 两处真实漂移（NBSP / null kind）需人决定对齐方向 —— 改任一侧都牵动已有 id 与历史数据"
     ],
     "new_backlog": [
-      "P1-1e 跨语言 projectId 一致性目前只由**源码文本正则**守着（project-check.ts:3997 的 31-3 匹配 MessageDigest/formatHex 字样、31-4 匹配委托语句），而 Java 的 ProjectIds 在五个探针里从未被执行过一次；对拍向量 31-1 跑的是 Node 那份。等价重构会让 31-3 因长相红，真正的「同值不同 id」漂移反而不红"
+      "P1-1f QaService.java:69 与 AutopsyService.java:60 两份硬编码 EXTS，注释自己写着「两处不一致，pctOfRepo 的分母就是假的」，而全仓库没有一条断言比较过这两套；当前两份逐字相同（注释是真话、没人保证它继续是真话）"
     ],
-    "scheduled_next": "r18 = P1-1e（排程工具本会话仍缺，按 B-5 与 r3–r6 先例由本会话连续接手）"
+    "scheduled_next": "r19 = P1-1f（排程工具本会话仍缺，按 B-5 与 r3–r6 先例由本会话连续接手）"
   }
 }

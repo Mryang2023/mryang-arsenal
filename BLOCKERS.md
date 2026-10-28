@@ -131,3 +131,25 @@
 - **咬得住的证据（注入回归）**：把 `ProjectCache.safeSegment` 的白名单放宽到含点号（`[^A-Za-z0-9_.-]`）后复跑
   `verify:scan` → **5-8 与 5-9 双双转红**（fail 3 → 5），按 sha256 复原为字节 identical
   （`86bc4128…`，与 r16 记录的同一枚），用户的 49/17 行在途改动未受波及。
+
+## B-11 [r18] 跨语言 projectId 有两处真实漂移（NBSP 与 null kind）—— 同一个地址在两套系统里会得到两个身份，需人决定对齐方向
+- **事实（r18 用 `id-project` 探针真跑 Java 侧 `ProjectIds`，与 Node 那份 `autopsy-snapshot-shape.mjs:51` 逐向量对拍，十五根向量里十三条相同）**：
+  - **NBSP（U+00A0）**：`path:<NBSP>D:/work/order-service<NBSP>` 这类值，
+    Java 的 `String.trim()` **只剥 ≤ U+0020**（`ProjectIds.java:35`），NBSP 原地保留；
+    JS 的 `String.prototype.trim()` 把 NBSP 连同其它 Unicode 空白**一起剥掉**。
+    实测两侧算出的 id：Java `fb75c9a843de` vs Node `e081b28924ec` —— **同一个路径得到两个身份**。
+  - **kind 为 null/undefined**：Java 拼 `""`（`kind == null ? "" : kind`）→ 规范串 `:D:/work/order-service`（id `30a3b5a70bef`）；
+    Node 拼 `String(sourceKind)` → `null:D:/work/order-service` 或 `undefined:…`（id `1c9c85042273`）。
+- **可达性**：
+  - NBSP 那条**真实可达** —— 从文档/聊天工具里粘贴一个带 U+00A0 的本地路径是常见输入，前端 `AutopsyLab.tsx` /
+    `src/lib/autopsy-snapshot.ts` 用 Node 那份算 id，后端 `.data/projects/<id>` 与 `.data/qa/<id>` 用 Java 那份，
+    两边一错位就是「缓存明明摄入了却查不到 / QA 历史对不上项目」，也就是 `ProjectIds` javadoc 自述要根治的那个暗伤的**残留通道**。
+  - null kind 那条目前不可达（`ProjectController` 校验 kind 只能是 path/git），属同一函数的第二处不一致。
+- **为什么不自己改**：往哪边对齐都不是循环该单方面决定的。
+  ① 把 Java 改成剥 Unicode 空白（`strip()` 或正则）→ 会让**已存在的带 NBSP 缓存目录**与新算出的 id 对不上，
+     且与 javadoc 里「与既有 `QaService.projectIdOf` 逐字节一致、旧 QA 历史不作废」这条约束冲突；
+  ② 把 Node 改成只剥 ≤ U+0020 → 浏览器与 Node 侧的快照 id 会跟着变，`.data` 之外的历史快照文件名同样受影响；
+  ③ 归一化更彻底（顺手剥 BOM U+FEFF、连续空白折叠）→ 是**产品口径变更**，需要与「未脱敏原值算 id」这条既有取舍一起定。
+- **本轮的处置**：不改两边任何一份。5-11 把 Java 的规范化串逐条钉死、5-12 钉十三条两套相同、
+  5-13 用 node:crypto 独立算基线 id（不让被验实现自证）、**5-14 如实钉住这两处漂移**（含 `30a3b5a70bef` 这个具体值）——
+  谁将来对齐，5-14 会红，逼他确认对齐方向并处理历史数据，而不是静默改一边让两套系统悄悄分家。

@@ -106,17 +106,29 @@
   第三份是「拒」不是「剥」（64 长度上限只在这一份存在）→ 注释那句「同一口径」对它不成立。
   **判为缺陷：否**（拒比剥严；真实 projectId 恒 12 位十六进制走不到分歧；`delete` 先查注册表，空串 id 进不了删除路径）。
   改注释要动用户在途文件、统一语义是行为变更 → **B-10** 等人工决定，本轮把现状钉成断言（5-10 故意钉住分歧）。
-- **P1-1e [证据，r17 新证] `ProjectIds` 的跨语言一致性靠**源码长相**守着，Java 那份从未被执行过一次。**
+- **P1-1e [证据，r18 复核完成] ~~跨语言 projectId 只靠源码长相守着~~ → 升级成行为对拍，**并实测出两处真实漂移**。**
   `project-check.ts:3997` 的 31-3 是 `/MessageDigest\.getInstance\("SHA-256"\)/` + `/formatHex\(d\)\.substring\(0, 12\)/`
-  这类**正则匹配源码文本**，31-4 匹配 `return ProjectIds\.projectIdOf\(kind, ref\);`；而对拍向量（31-1）跑的是 Node 那份
-  （`scripts/lib/autopsy-snapshot-shape.mjs:51`）。grep 过五个 `.verify/*.java`：`ProjectIds` **一次都没被调用过**。
-  后果两面都难看：① Java 侧把 `substring(0, 12)` 写成 `substring(0,12)` 之外任何等价重构（换 `HexFormat.of()`、抽方法、
-  改 `normalize` 少做一次 trim）都会让 31-3 因**长相**变红，而真正要防的漂移（同一个地址在两套系统算出两个 id ——
-  正是 `ProjectIds` javadoc 自述的「工坊棒1 暗伤」）**反而不红**；② Node 那份的规范化写错（`.replace(/\\/g,'/')` 漏掉、
-  尾斜杠正则退化成 `/\/$/`）只有落在 31-1 那几条固定向量上才抓得到。
-  **建议的补法**（r18 的靶子）：探针动作直调 `ProjectIds.projectIdOf(kind, value)` 与 `normalize`，把 Java 侧结果回吐，
-  前端用**同一批向量**（尾斜杠 / 反斜杠 / 首尾空白 / 大写 kind / 空值 / 非 ASCII）与 Node 那份逐字节对拍 —— 把「单一事实源」
-  从文本断言升级为行为断言。注意 `arsenal-server` 与 `arsenal-web` 两套实现的 kind 拼接口径要一起测（`kind + ":" + value`）。
+  这类**正则匹配源码文本**，31-4 匹配 `return ProjectIds\.projectIdOf\(kind, ref\);`；而 Java 那份 `ProjectIds`
+  在五个探针里**从未被执行过一次**（对拍向量 31-1 跑的是 Node 那份 `scripts/lib/autopsy-snapshot-shape.mjs:51`）。
+  **r18 处置**：探针动作 `id-project` 真跑 Java 侧 `normalize` + `projectIdOf` 十五根向量，前端用**同一批向量**调 Node 那份逐字节对拍
+  （5-11 规范化串逐条钉死 / 5-12 十三条两套相同 / 5-13 基线 id 由 `node:crypto` 独立算，不许被验实现自证 / 5-14 如实钉住漂移），
+  `verify:scan` 185→**189**。31-3/31-4 两条文本断言**没撤**（它们守的是「不许出现第二份 sha256 副本」，与行为断言各管一段）。
+  **三轮判定里第一次抓到真东西**：Java 的 `String.trim()` 只剥 ≤ U+0020、JS 的连 U+00A0 与其它 Unicode 空白一起剥
+  → 同一个带 NBSP 的路径在两套系统里得到两个身份（`fb75c9a843de` vs `e081b28924ec`）；前端 `AutopsyLab.tsx` /
+  `src/lib/autopsy-snapshot.ts` 用 Node 那份，后端 `.data/projects/<id>`、`.data/qa/<id>` 用 Java 那份
+  → 一错位就是「缓存明明摄入了却查不到 / QA 历史对不上项目」，正是 `ProjectIds` javadoc 自述要根治的那个暗伤的**残留通道**。
+  `kind=null` 同因（Java 拼空串、JS 拼 `String(null)`），但控制器已校验 kind，暂不可达。
+  两份实现**都没改**：往哪边对齐都牵动已有 id（改 Java 与「旧 QA 历史不作废」的既有取舍冲突；改 Node 会让浏览器与 Node 侧快照 id 一起变；
+  更彻底的归一化属产品口径变更）→ **B-11** 等人工决定。5-14 因此把两处漂移连同具体 id 一起钉住：谁对齐这条就红，逼他确认方向。
+- **P1-1f [证据，r18 新证] `EXTS`「待检扩展名」两份硬编码，注释自己写着「两处不一致，pctOfRepo 的分母就是假的」—— 这句话 0 条断言。**
+  `QaService.java:69` 与 `AutopsyService.java:60` 各有一份 `private static final Set<String> EXTS = Set.of("java","xml","yml","yaml","properties")`；
+  前者紧邻的注释（`:68`）明写「与 AutopsyService 同一套待检扩展名 —— 两处不一致，pctOfRepo 的分母就是假的」。
+  grep 过 `.verify/*.java` 与 `arsenal-web/.verify/*.ts`：**没有任何断言比较过这两套**，也没有断言过分母到底是什么。
+  实测两份**当前逐字相同**（五个扩展名）→ 与 B-10 同一类：注释是真话，但没人保证它继续是真话（从任一份里删掉 `"yaml"`，链照绿）。
+  **建议的补法**（r19 的靶子）：探针回吐两份 `EXTS`（反射取 private static，与 r17 `id-sanitize` 同手法），
+  并在一个混扩展名夹具上回吐两侧各自算出的分母，断言 ① 两份集合逐元素相同、② `pctOfRepo` 的分母等于该集合命中的文件数
+  而不是 `ctx.files()` 全量。**同时必须判定清楚哪些集合本就该不同**：`ScanGuard.readable` 的 `TEXT_EXT` 是「要不要读文件内容」的白名单，
+  比这两份宽得多 —— 不许为了「统一」把它并进来。
 - **仍开放的下一步**（若还要往这方向走）：`AstEngine` / `ProjectStore` / `QaService` 的同等逐分支判定未做过，
   本轮只把 `ScanGuard` 数干净；不要据此三句泛泛说「零测试」再开任务。
 - **P1-2 [证据，r7 复核完成] ~~前端 AST 层 0/20（待复核）~~ → 前提过期，判为「设计意图 + 缺口已闭环」，不是缺口。**
