@@ -229,6 +229,8 @@ type Receipt = {
   sanitize?: any;
   /** `id-project` 回执（r18）：Java 侧 ProjectIds 的 normalize 与 12 位 id，逐向量 */
   projectIds?: any;
+  /** `exts-contract` 回执（r19）：两份 EXTS 集合 + 同一夹具下 walk 级分母与文件名级判定的原始事实 */
+  exts?: any;
 };
 
 /**
@@ -936,7 +938,7 @@ if (!skipAll) {
   }
 
   // ── 【5】规模闸门：单文件 / 深度 / 文件数 ─────────────────────
-  section('【5】规模闸门（单文件 2MB / 深度 20 / 文件数 2 万）+ 拼路径 id 的消毒口径');
+  section('【5】规模闸门（单文件 2MB / 深度 20 / 文件数 2 万）+ 拼路径 id 的消毒口径 + 待检扩展名两份集合的契约');
   const bigRepo = path.join(tmpDir, 'big-repo').replace(/\\/g, '/');
   const deepRepo = path.join(tmpDir, 'deep-repo').replace(/\\/g, '/');
   const manyRepo = path.join(tmpDir, 'many-repo').replace(/\\/g, '/');
@@ -944,6 +946,7 @@ if (!skipAll) {
   const skipWork = path.join(tmpDir, 'oversize-skip-repo').replace(/\\/g, '/');
   const cleanWork = path.join(tmpDir, 'oversize-clean-repo').replace(/\\/g, '/');
   const idWork = path.join(tmpDir, 'id-sanitize').replace(/\\/g, '/');
+  const extsWork = path.join(tmpDir, 'exts-contract').replace(/\\/g, '/');
   const r6 = runProbe('guards', [
     `mkbigfile-repo:${bigRepo}`,
     `facts:${bigRepo}`,
@@ -955,6 +958,7 @@ if (!skipAll) {
     `oversize-clean:${cleanWork}`,
     `id-sanitize:${idWork}`,
     `id-project:`,
+    `exts-contract:${extsWork}`,
   ]);
   const guardFacts = (tail: string) =>
     r6.find((r) => r.kind === 'facts' && r.action.endsWith(tail))?.facts;
@@ -1166,6 +1170,68 @@ if (!skipAll) {
       nbsp: { java: pById('padNbsp')?.javaId, node: nbspNode },
       nullKind: { java: pById('nullKind')?.javaId, node: nullKindNode },
     })
+  );
+
+  // ── r19（P1-1f）：两份「待检扩展名」硬编码集合的契约，此前 0 条断言 ──────────
+  //
+  // `QaService.java:68` 的注释自己写着「与 AutopsyService 同一套待检扩展名 —— 两处不一致，
+  // pctOfRepo 的分母就是假的」。实测两份当前逐字相同，但这句话从来没有东西守着：
+  // 两份 EXTS 在五个探针里一次都没被执行过，从任一份里删掉 "yaml"，链照绿，
+  // 而报告里的「占全仓 x%」会静默掺水。这五条把警告换成行为断言的原料。
+  const exts = r6.find((r) => r.kind === 'exts-contract')?.exts as any;
+  const xrows = (exts?.rows ?? []) as any[];
+  const xByRel = (rel: string) => xrows.find((r) => r.rel === rel);
+  const WANT_EXTS = ['java', 'properties', 'xml', 'yaml', 'yml'];
+
+  check(
+    '5-15 两份待检扩展名反射现读、逐元素相同（QaService.EXTS 与 AutopsyService.EXTS）—— 「两处不一致分母就是假的」这句警告从 0 条断言变成有人守',
+    !!exts
+      && Array.isArray(exts.qaExt) && Array.isArray(exts.autopsyExt)
+      // 长度下限是防「两份都被截成同一个东西」的空过：探针里 putArray 放循环中会整体替换同名字段（r19 踩过）
+      && exts.qaExt.length >= 4 && exts.autopsyExt.length >= 4
+      && exts.qaExt.join(',') === exts.autopsyExt.join(','),
+    exts ? `qa=${JSON.stringify(exts.qaExt)} autopsy=${JSON.stringify(exts.autopsyExt)}`
+      : `探针没回 exts-contract：${JSON.stringify(r6.find((r) => r.kind === 'exts-contract')?.message ?? '')}`
+  );
+
+  check(
+    '5-16 当前这套待检扩展名就是五个：java / properties / xml / yaml / yml（按字典序）—— 想加 .kt/.sql 是口径变更，得显式改这张期望表并同步 pctOfRepo 的文案，不能让集合悄悄漂',
+    String(exts?.qaExt?.join(',')) === WANT_EXTS.join(','),
+    `实际=${JSON.stringify(exts?.qaExt)}`
+  );
+
+  // 同一个夹具下，walk 级分母（QaService#listCandidateFiles）与文件名级判定（AutopsyService#readable）
+  // 对每一个「不在 skipDir 里」的文件必须说同一句话 —— 这才是「同一套口径」的可执行形式。
+  const disagree13 = xrows
+    .filter((r) => r.underSkippedDir === false)
+    .filter((r) => r.inIndex !== r.autopsyReadable)
+    .map((r) => ({ rel: r.rel, inIndex: r.inIndex, autopsyReadable: r.autopsyReadable }));
+  check(
+    '5-17 十三行非 skipDir 夹具：walk 级分母 membership == 文件名级判定，逐行一致（含大写 .JAVA、多点名 App.Test.java、无扩展名 Makefile/Dockerfile 这四类边界）',
+    xrows.filter((r) => r.underSkippedDir === false).length === 13 && disagree13.length === 0,
+    JSON.stringify({ n: xrows.filter((r) => r.underSkippedDir === false).length, disagree13 })
+  );
+
+  // 分母到底是什么：不是「仓库里的文件」，也不是「扫描器读了内容的文件」，而是待检五类命中数。
+  const readableButNotCounted = xrows
+    .filter((r) => r.scanGuardReadable === true && r.inIndex === false && r.underSkippedDir === false)
+    .map((r) => r.rel);
+  check(
+    '5-18 分母口径如实摊开：15 个文件里只有 7 个进 pctOfRepo 的分母，README.md / nginx.conf / rows.json / Makefile / Dockerfile 五行「内容会被读」却「不计入分母」—— 前端「占全仓 x%」的说法与此不符（见 B-12）',
+    xrows.length === 15 && exts?.filesWalked === 15 && exts?.indexSize === 7
+      && readableButNotCounted.length === 5
+      && ['docs/README.md', 'docs/nginx.conf', 'data/rows.json', 'Makefile', 'Dockerfile']
+        .every((rel) => readableButNotCounted.includes(rel)),
+    JSON.stringify({ filesWalked: exts?.filesWalked, indexSize: exts?.indexSize, readableButNotCounted })
+  );
+
+  const skipDirRows = xrows.filter((r) => r.underSkippedDir === true);
+  check(
+    '5-19 walk 级与文件名级**该有**的差异：target/Generated.java 与 .git/config.yml 两行分母不收，而 AutopsyService.readable 单看文件名会说收 —— skipDir 是目录级闸门，不许为了「统一」并进文件名判定',
+    skipDirRows.length === 2
+      && skipDirRows.every((r) => r.inIndex === false && r.autopsyReadable === true)
+      && skipDirRows.map((r) => r.rel).sort().join(',') === '.git/config.yml,target/Generated.java',
+    JSON.stringify(skipDirRows)
   );
 
   // ── 【6】没有任何部署清单的仓库：不许编出副本数 ─────────────────

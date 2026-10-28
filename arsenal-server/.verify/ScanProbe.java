@@ -331,6 +331,113 @@ public class ScanProbe {
         receipt.set("projectIds", rows);
     }
 
+    /**
+     * 「待检扩展名」两份硬编码集合的契约回吐（r19，P1-1f）。
+     *
+     * <p>为什么需要：`QaService.java:69` 紧邻的注释明写着「与 AutopsyService 同一套待检扩展名
+     * —— 两处不一致，pctOfRepo 的分母就是假的」，而两份 `EXTS` 在五个探针里**一次都没被执行过**，
+     * 也没有任何断言比较过这两套。也就是说这句警告本身是 0 条断言守着的：从任一份里删掉
+     * `"yaml"`，链照绿，而报告里的占比会静默掺水。
+     *
+     * <p>探针只回吐事实，不判对错：① 两份集合的元素（反射 private static field）；
+     * ② 同一个混扩展名夹具下，`QaService#listCandidateFiles`（walk 级，pctOfRepo 的分母出处）
+     * 到底收了哪些文件；③ `AutopsyService#readable`（文件名级判定）逐名怎么说；
+     * ④ `ScanGuard.readable` 逐名怎么说 —— 期望表在前端。
+     *
+     * <p>`QaService` 有 11 个 bean 依赖，正常构造不出来；但 `listCandidateFiles` 只用静态量
+     * （EXTS / MAX_FILE_INDEX / ScanGuard），不碰任何实例字段，因此用全 null 的实例直接调它，
+     * 拿到的是**产品代码那条真路径**。dataDir 只被 `Path.of` 消费，给一个不存在的路径即可。
+     */
+    private static void runExtsContract(ObjectNode receipt, ObjectMapper mapper, String work) throws Exception {
+        Path root = Paths.get(work).resolve("exts-fixture");
+        deleteTree(root);
+        String[] rels = {
+                "src/App.java",                 // 两份都在、可读 → 进分母
+                "src/App.Test.java",            // 多点名，扩展名仍取最后一段
+                "src/UPPER.JAVA",               // 大写扩展名： pins 住 toLowerCase 那一支
+                "config/app.yml",
+                "config/docker-compose.yaml",
+                "config/db.properties",
+                "docs/arch.xml",
+                "docs/README.md",               // 可读但不在待检集 → 不进分母
+                "docs/nginx.conf",              // 同上（TEXT_EXT 有 conf，EXTS 没有）
+                "data/rows.json",               // 同上
+                "assets/logo.png",              // 不可读也不在待检集
+                "Makefile",                     // ScanGuard 认特殊名、扩展名取不到 → 两份都不收
+                "Dockerfile",                   // 同上
+                "target/Generated.java",        // 在待检集但在 skipDir 下 → walk 级不收、文件名级收
+                ".git/config.yml",              // 同上
+        };
+        for (String rel : rels) {
+            Path p = root.resolve(rel);
+            Files.createDirectories(p.getParent());
+            Files.writeString(p, "x\n", StandardCharsets.UTF_8);
+        }
+        int filesWalked;
+        try (var w = Files.walk(root)) {
+            filesWalked = (int) w.filter(Files::isRegularFile).count();
+        }
+
+        var qaCtor = com.arsenal.qa.QaService.class.getDeclaredConstructors()[0];
+        qaCtor.setAccessible(true);
+        Object qa = qaCtor.newInstance(null, null, mapper, null, null, null, null, null, null, null, null,
+                root.resolve("qa-base").toString(), 2, "");
+        var listFn = com.arsenal.qa.QaService.class.getDeclaredMethod("listCandidateFiles", Path.class);
+        listFn.setAccessible(true);
+        List<String> index = (List<String>) listFn.invoke(qa, root);
+
+        var autReadable = com.arsenal.autopsy.AutopsyService.class.getDeclaredMethod("readable", String.class);
+        autReadable.setAccessible(true);
+
+        ObjectNode out = mapper.createObjectNode();
+        // putArray 每次都会**新建并替换**同名字段，放在循环里等于只留最后一个元素 ——
+        // 先建数组、再逐条 add（r19 踩过：集合只剩 ["yml"]，「两份相同」那条差点空过）
+        ArrayNode qaExtNode = out.putArray("qaExt");
+        for (String e : staticExtSet(com.arsenal.qa.QaService.class)) {
+            qaExtNode.add(e);
+        }
+        ArrayNode autopsyExtNode = out.putArray("autopsyExt");
+        for (String e : staticExtSet(com.arsenal.autopsy.AutopsyService.class)) {
+            autopsyExtNode.add(e);
+        }
+        out.put("filesWalked", filesWalked);
+        out.put("indexSize", index.size());
+        ArrayNode rows = out.putArray("rows");
+        for (String rel : rels) {
+            String name = rel.substring(rel.lastIndexOf('/') + 1);
+            ObjectNode row = rows.addObject();
+            row.put("rel", rel);
+            row.put("name", name);
+            row.put("inIndex", index.contains(rel));
+            row.put("autopsyReadable", Boolean.TRUE.equals(autReadable.invoke(null, name)));
+            row.put("scanGuardReadable", ScanGuard.readable(name));
+            row.put("underSkippedDir", isUnderSkippedDir(rel));
+        }
+        receipt.put("ok", true);
+        receipt.set("exts", out);
+    }
+
+    /** rel 的**目录段**里有没有 skipDir 命中的目录名（文件名段自己不算目录）。 */
+    private static boolean isUnderSkippedDir(String rel) {
+        String dirPart = rel.substring(0, rel.lastIndexOf('/') + 1);
+        for (String seg : dirPart.split("/")) {
+            if (!seg.isEmpty() && ScanGuard.skipDir(seg)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /** 反射取 private static final Set<String> EXTS，按字典序回吐（顺序本身不是事实，元素才是）。 */
+    private static java.util.List<String> staticExtSet(Class<?> cls) throws Exception {
+        var f = cls.getDeclaredField("EXTS");
+        f.setAccessible(true);
+        java.util.Set<String> raw = (java.util.Set<String>) f.get(null);
+        java.util.List<String> sorted = new ArrayList<>(raw);
+        java.util.Collections.sort(sorted);
+        return sorted;
+    }
+
     /** 重跑前先拆干净：夹具必须每次从同一个形状长出来，否则第二次跑读的是第一轮的缓存 */
     private static void deleteTree(Path dir) throws Exception {
         if (dir == null || Files.notExists(dir)) return;
@@ -406,6 +513,7 @@ public class ScanProbe {
                     case "oversize-clean" -> runOversizeIngest(receipt, mapper, value, false);
                     case "id-sanitize" -> runIdSanitize(receipt, mapper, value);
                     case "id-project" -> runIdProject(receipt, mapper);
+                    case "exts-contract" -> runExtsContract(receipt, mapper, value);
                     case "mksymlink" -> {
                         ObjectNode n = mapper.createObjectNode();
                         n.put("created", makeSymlink(value));
