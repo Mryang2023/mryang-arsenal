@@ -531,3 +531,41 @@ grep 五个 `.verify/*.java`：Java 那份 `ProjectIds` **从未被执行过一�
 - 另一处流程教训：写 profile 的 desc 时把结尾引号一起替换掉了 → `arsenal.json` 短暂 `Bad control character in string literal`
   （JSON 解析器报的是「字符串未闭合、撞见换行」）。按字节定位到 line 478 列号即行长 +1 才看出来；落盘后**必须立刻 JSON.parse 一遍**，
   不能等 sync/verify 去发现。
+
+## r19 · 2026-10-28 02:17Z（= 北京 10:17 +0800）— P1-1f：两份「待检扩展名」的注释警告升级成 5 条行为断言
+
+### 为什么这轮值得做（判定）
+`QaService.java:68` 的注释自己写着「与 AutopsyService 同一套待检扩展名 —— 两处不一致，pctOfRepo 的分母就是假的」。
+grep 过 `.verify/*.java` 与 `arsenal-web/.verify/*.ts`：两份 `EXTS` **一次都没被执行过**，也没有任何断言比较过这两套。
+于是这句警告本身是 0 条断言守着的 —— 从任一份里删掉 `"yaml"`，链照绿，而报告里的占比静默掺水。
+与 B-10（r17）同一类：注释是真话，但没人保证它继续是真话。
+
+### 实测（探针 `exts-contract`：两份集合 + 同一夹具两侧的逐行判定）
+- 两份集合**当前逐字相同**：`java / properties / xml / yaml / yml`（反射现读、字典序回吐）。
+- 15 文件混扩展名夹具下，`QaService#listCandidateFiles`（walk 级）与 `AutopsyService#readable`（文件名级）
+  在 13 行非 skipDir 样本上**逐行一致**；另外 2 行（`target/Generated.java`、`.git/config.yml`）
+  分母不收而文件名级会说收 —— 这是**该有**的差异：`skipDir` 是目录级闸门，并进 `readable` 就把闸门挪错层了。
+- 分母口径摊开：15 个文件只有 **7 个**进 `pctOfRepo` 的分母。`docs/README.md`、`docs/nginx.conf`、`data/rows.json`、
+  `Makefile`、`Dockerfile` 五行 `ScanGuard.readable` 为真（内容真会被扫描器读），却都不计入分母。
+
+### 判为缺陷了吗：两份集合没有，但文案有 → 登记 B-12
+`arsenal-web/src/app/qa/BoundaryCard.tsx:44-45` 把同一个数念成「整仓 ${filesTotal} 个文件」和
+「占全仓 ${pctOfRepo}%」。按实测，「全仓」其实是「待检五类命中集」：一个只有 `README.md` + `package.json` +
+`Dockerfile` 的仓库会得到 `filesTotal=0` → `pctOfRepo=0.0`，页面念成「占全仓 0%」，而用户读成「我的仓库没被覆盖」。
+- **为什么不自己改**：① 改文案（「占待检集 x%」）是用户可见措辞变更，且与 r18 的 B-11 一样牵动历史快照里的既念口径；
+  ② 放宽分母到 `ctx.files()` 全量会让占比数字全体变化，是**产品口径**决定；③ 保留现状则要在页面上明说分母是什么。
+  三条都不是循环单方面该拍的 → 只把 5-18 这条事实钉死，谁改文案/改分母都会撞上它。
+
+### 门禁与咬合证据
+- `typecheck:verify` exit 0；`verify:scan` **191 通过 / 3 失败 / 实测 194 == 声明 194**；`verify:meta` 73/0/0；
+  `verify:visual` 11/1/1（改 profiles → `next-run.mjs build` 重建后复跑）。失败面仍 4（scan 3 = B-7 + visual 1 = B-2），0 新增。
+- **注入回归**：从 `AutopsyService.EXTS` 删掉 `"yaml"` → `verify:scan` **5-15 与 5-17 双双转红**（fail 3 → 5）。
+  5-16 只看 QaService 那份、5-18 看的是 walk 级分母，两条照旧绿 —— 分工是准的：漂移由「相同性 + 逐行一致性」两条一起抓。
+  `AutopsyService.java` 注入前 `git status` 该文件干净（sha `21288b8a…`），复原后逐字节相同、状态重新为空。
+
+### 本轮踩的新坑（记进 next_round_plan.notes）
+Jackson（`tools.jackson`）的 `ObjectNode.putArray(name)` **每次调用都新建并替换同名字段**，把它写在
+`for (e : set) out.putArray("qaExt").add(e);` 里，等于循环结束后只剩最后一个元素 —— 于是两份集合双双变成
+`["yml"]`，「两份逐元素相同」那条**空过**（真红的是 5-16 那条精确集合断言，它把这件事暴露了出来）。
+教训两条：① 数组字段先 `putArray` 拿到 `ArrayNode` 再 `add`；② 「两份相同」这类一致性断言必须自带
+**非退化下限**（长度 ≥4），否则两份同时塌成一个值就是恒绿。已在 5-15 里补上下限并写明来历。

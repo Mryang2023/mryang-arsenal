@@ -120,15 +120,26 @@
   `kind=null` 同因（Java 拼空串、JS 拼 `String(null)`），但控制器已校验 kind，暂不可达。
   两份实现**都没改**：往哪边对齐都牵动已有 id（改 Java 与「旧 QA 历史不作废」的既有取舍冲突；改 Node 会让浏览器与 Node 侧快照 id 一起变；
   更彻底的归一化属产品口径变更）→ **B-11** 等人工决定。5-14 因此把两处漂移连同具体 id 一起钉住：谁对齐这条就红，逼他确认方向。
-- **P1-1f [证据，r18 新证] `EXTS`「待检扩展名」两份硬编码，注释自己写着「两处不一致，pctOfRepo 的分母就是假的」—— 这句话 0 条断言。**
-  `QaService.java:69` 与 `AutopsyService.java:60` 各有一份 `private static final Set<String> EXTS = Set.of("java","xml","yml","yaml","properties")`；
-  前者紧邻的注释（`:68`）明写「与 AutopsyService 同一套待检扩展名 —— 两处不一致，pctOfRepo 的分母就是假的」。
-  grep 过 `.verify/*.java` 与 `arsenal-web/.verify/*.ts`：**没有任何断言比较过这两套**，也没有断言过分母到底是什么。
-  实测两份**当前逐字相同**（五个扩展名）→ 与 B-10 同一类：注释是真话，但没人保证它继续是真话（从任一份里删掉 `"yaml"`，链照绿）。
-  **建议的补法**（r19 的靶子）：探针回吐两份 `EXTS`（反射取 private static，与 r17 `id-sanitize` 同手法），
-  并在一个混扩展名夹具上回吐两侧各自算出的分母，断言 ① 两份集合逐元素相同、② `pctOfRepo` 的分母等于该集合命中的文件数
-  而不是 `ctx.files()` 全量。**同时必须判定清楚哪些集合本就该不同**：`ScanGuard.readable` 的 `TEXT_EXT` 是「要不要读文件内容」的白名单，
-  比这两份宽得多 —— 不许为了「统一」把它并进来。
+- **P1-1f [证据，r19 复核完成] ~~两份 `EXTS`「待检扩展名」硬编码、注释自己警告「两处不一致分母就是假的」而 0 条断言~~ → 已补满，两份集合本身没有缺陷，缺陷在文案。**
+  实测两份**当前逐字相同**（`java / properties / xml / yaml / yml`，反射现读）；15 文件混扩展名夹具下
+  `QaService#listCandidateFiles`（walk 级，`pctOfRepo` 分母出处）与 `AutopsyService#readable`（文件名级）
+  在 13 行非 skipDir 样本上**逐行一致**。探针动作落在 `ScanProbe` 的 `exts-contract`（搭【5】那趟车，单跑一趟探针 4 分钟）。
+  前端 5-15（两份相同 + 长度下限）/ 5-16（当前就是五个，加 `.kt` 是口径变更要显式改期望表）/
+  5-17（逐行一致，含大写 `.JAVA`、多点名 `App.Test.java`、无扩展名 `Makefile`/`Dockerfile`）/
+  5-18（分母只有 7/15，`.md`/`.conf`/`.json`/特殊名不计入）/ 5-19（**反向**钉住 `target/`、`.git/` 该有差异，不许把 `skipDir` 并进 `readable`）五条接住，
+  `verify:scan` 189→**194**。**注入回归验过它们真的咬**：从 `AutopsyService.EXTS` 删掉 `"yaml"` → 5-15 与 5-17 双双转红（fail 3→5），
+  `AutopsyService.java` 按 sha256 `21288b8a…` 复原字节 identical。
+  **本轮真发现**：5-18 顺带摊开 `BoundaryCard.tsx:44-45` 那句「占全仓 x%」名实不一 → 登记 **B-12**（改文案 / 放宽分母 / 加说明三条都要人拍板）。
+  另记一条工具坑：Jackson 的 `putArray` 在循环里会**整体替换**同名字段，集合一度只剩最后一个元素，让「两份相同」空过 ——
+  一致性断言必须自带非退化下限。
+- **P1-1g [证据，r19 新证] `QaService` 的四个 `private static` 纯判定全仓库 0 条断言，且都能反射直问（r20 的靶子）。**
+  `testBaseName(path)`（`:953`，四条分支：非 `.java` 早退 / `endsWith Test|Tests|IT` / `startsWith Test && length>4` / 返回 null）
+  决定「哪些文件算已有测试」→ 直接喂进测试建议那条启发式；`statusReason(status, o)`（`:771`）是状态措辞的唯一出处；
+  `firstNonBlank(a, b)`（`:1101`）与 `trimLines(s, max)`（`:1096`）都是纯截断/择一。
+  grep `arsenal-web/.verify/*.ts` 与 `.verify/*.java`：四个名字**一次都没出现过**（`testedBases` 也无）。
+  与 r14–r17 同一手法可补：探针动作反射按名字取 private static、逐向量回吐 verdict，期望表留在前端；
+  `testBaseName` 尤其要带**反方向**对照（`FooTester.java`、`Test`、`IT.java`、`TestFooBar` 之类不许误判成测试）。
+  注意：`QaService.java` 带着用户 11 行在途改动，注入回归必须按 sha256 备份复原、用 `--only` 提交探针而不是产品文件。
 - **仍开放的下一步**（若还要往这方向走）：`AstEngine` / `ProjectStore` / `QaService` 的同等逐分支判定未做过，
   本轮只把 `ScanGuard` 数干净；不要据此三句泛泛说「零测试」再开任务。
 - **P1-2 [证据，r7 复核完成] ~~前端 AST 层 0/20（待复核）~~ → 前提过期，判为「设计意图 + 缺口已闭环」，不是缺口。**

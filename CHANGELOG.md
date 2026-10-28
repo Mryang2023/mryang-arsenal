@@ -187,3 +187,21 @@
   - 注入回归：摘掉 normalize 的尾斜杠归一 → 5-11/5-12 双双转红（fail 3 → 5），`ProjectIds.java` 按 sha 复原字节 identical。
 - 门禁：`typecheck:verify` 0；`verify:scan` 186/3/189==189；`verify:meta` 73/0/0；`verify:visual` 11/1/1（重建 out/ 后复跑）。
   失败面 4 不变，0 新增。README 总数 2305 → **2309**（三处散文口径 + scan 行）。
+
+## r19 · 2026-10-28 02:17Z
+- `verify:scan` 189 → **194 项**（4 文件：`ScanProbe.java` / `scan-check.ts` / `arsenal-profiles/arsenal.json` / `README.md`）。
+  - 新探针动作 `exts-contract`：反射取 `QaService.EXTS` 与 `AutopsyService.EXTS` 两份 private static 集合，
+    并在 15 文件混扩展名夹具上**真跑** `QaService#listCandidateFiles`（walk 级，`pctOfRepo` 分母的出处）与
+    `AutopsyService#readable`（文件名级），外加 `ScanGuard.readable` 与目录段是否命中 `skipDir` 逐行回吐。
+    `QaService` 有 11 个 bean 依赖，构造时除 mapper 外全传 null —— `listCandidateFiles` 只用静态量、不碰实例字段，
+    所以拿到的是产品代码那条真路径，不是探针里的重写。
+  - 5-15 两份集合逐元素相同（带长度下限）/ 5-16 当前就是 java·properties·xml·yaml·yml 五个（加 `.kt` 是口径变更，要显式改期望表）/
+    5-17 十三行非 skipDir 夹具两侧逐行一致（大写 `.JAVA`、多点名 `App.Test.java`、无扩展名 `Makefile`/`Dockerfile`）/
+    5-18 分母口径摊开（15 个文件只有 7 个进分母）/ 5-19 反向钉住**该有**的差异（`target/`、`.git/` 是目录级闸门，不许并进文件名判定）。
+  - 摊开了一件用户可见的事：`BoundaryCard.tsx:44-45` 对用户说「整仓 N 个文件」「占全仓 x%」，
+    而分母其实是「待检五类 ∩ 内容可读 ∩ 非 skipDir」—— `.md`/`.json`/`.conf`/`Makefile`/`Dockerfile` 会被扫描器读、却不进分母。
+    改文案还是放宽分母是产品口径 → **B-12**，本轮只把事实钉住、两边都没动。
+  - 注入回归：从 `AutopsyService.EXTS` 删掉 `"yaml"` → 5-15 与 5-17 双双转红（fail 3 → 5），
+    `AutopsyService.java` 按 sha256 `21288b8a…` 复原为字节 identical。
+- 门禁：`typecheck:verify` 0；`verify:scan` 191/3/194==194；`verify:meta` 73/0/0；`verify:visual` 11/1/1（重建 out/ 后复跑）。
+  失败面 4 不变，0 新增。README 总数 2309 → **2314**（三处散文口径 + scan 行）。

@@ -153,3 +153,20 @@
 - **本轮的处置**：不改两边任何一份。5-11 把 Java 的规范化串逐条钉死、5-12 钉十三条两套相同、
   5-13 用 node:crypto 独立算基线 id（不让被验实现自证）、**5-14 如实钉住这两处漂移**（含 `30a3b5a70bef` 这个具体值）——
   谁将来对齐，5-14 会红，逼他确认对齐方向并处理历史数据，而不是静默改一边让两套系统悄悄分家。
+
+## B-12 [r19] `/qa` 边界卡对用户说「占全仓 x%」，实测分母是「待检五类 ∩ 可读 ∩ 非 skipDir」—— 需人决定改文案还是改分母
+
+- **出处**：`arsenal-web/src/app/qa/BoundaryCard.tsx:44-45`（「整仓 `${tr.filesTotal}` 个文件」/
+  「`${tr.filesMatched}/${tr.filesTotal}` 个文件（占全仓 `${tr.pctOfRepo}%`）」），
+  分母来自 `QaService.java:546-548` 的 `total = allFiles.size()`，而 `allFiles` 出自
+  `QaService.listCandidateFiles` —— 只用 `EXTS`（java/xml/yml/yaml/properties）∩ `ScanGuard.readable` ∩ 非 `skipDir`。
+- **实测**（r19 探针 `exts-contract`，15 文件混扩展名夹具）：只有 7 个进分母；
+  `docs/README.md`、`docs/nginx.conf`、`data/rows.json`、`Makefile`、`Dockerfile` 五行**内容确实会被扫描器读**，
+  却一律不计入分母。推论：一个没有 Java/XML/YAML/properties 的仓库（纯前端、纯文档）会得到
+  `filesTotal=0` → `pctOfRepo=0.0`，页面念成「占全仓 0%」，而用户读到的是「我的仓库一点没被覆盖」。
+- **这不是新发现的漂移**：两份 `EXTS` 本身逐字相同（5-15/5-16 已钉住，删一份 `yaml` 会双双转红）；
+  红的是「全仓」这两个字与分母口径名实不一。
+- **为什么不自己改**：① 改文案（「占待检集 x%」/「N 个可检文件里的 x%」）是用户可见措辞变更，
+  且 `.data/qa/<id>` 历史快照与导出产物里已经带着旧措辞念过的数字；② 把分母放宽到 `ctx.files()` 全量
+  会让所有历史报告的百分比集体变化，属产品口径；③ 维持现状则应在卡片上明写分母定义（多一行说明）。
+  三条都需要人拍板 → 循环只在 `verify:scan` 的 5-18 把这个口径**钉成事实**：谁改分母或改文案，5-18 会红，逼他确认。
