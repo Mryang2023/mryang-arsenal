@@ -184,12 +184,23 @@ public final class SourceResolver implements AutoCloseable {
     // ─────────────────────────────────────────────────────────────
 
     public static SourceResolver fromGit(String url) {
+        Path dir = createTempDir("arsenal-scan-git-");
+        Path target = dir.resolve("repo");
+        gitCloneInto(url, target, () -> deleteQuietly(dir));
+        // .git 目录里可能有 hook 与配置，扫描阶段不读它（skipDir 已含 .git）
+        return new SourceResolver(target, dir, "git");
+    }
+
+    /**
+     * 两条 git 链路的公共体：https 校验 + 同一套 clone 参数（depth 1 / 单分支 / 禁 hook）+
+     * 禁交互（GIT_TERMINAL_PROMPT=0 / GIT_ASKPASS=""）+ 60s 限时。
+     * 失败时的落盘清理由 {@code cleanupOnFailure} 决定 —— 临时目录要删，调用方的缓存目录有自己的回滚策略。
+     */
+    private static void gitCloneInto(String url, Path target, Runnable cleanupOnFailure) {
         if (!ScanGuard.gitUrlAllowed(url)) {
             throw ScanException.badRequest(
                     "只支持 https 的公开仓库地址（禁止 file:// / ssh:// / git://）；私有仓库请自行 clone 后扫本地目录");
         }
-        Path dir = createTempDir("arsenal-scan-git-");
-        Path target = dir.resolve("repo");
         List<String> cmd = List.of(
                 "git", "clone",
                 "--depth", "1",
@@ -220,26 +231,24 @@ public final class SourceResolver implements AutoCloseable {
             reader.start();
             if (!proc.waitFor(60, TimeUnit.SECONDS)) {
                 proc.destroyForcibly();
-                deleteQuietly(dir);
+                cleanupOnFailure.run();
                 throw ScanException.timeout("git clone 超时（60s）");
             }
             if (proc.exitValue() != 0) {
-                deleteQuietly(dir);
+                cleanupOnFailure.run();
                 String tail = out.length() > 300 ? out.substring(out.length() - 300) : out.toString();
                 throw new ScanException(ScanException.GIT_FAILED, "git clone 失败：" + tail.trim());
             }
         } catch (ScanException e) {
             throw e;
         } catch (IOException e) {
-            deleteQuietly(dir);
+            cleanupOnFailure.run();
             throw new ScanException(ScanException.GIT_FAILED, "本机没有可用的 git：" + e.getMessage());
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
-            deleteQuietly(dir);
+            cleanupOnFailure.run();
             throw ScanException.timeout("git clone 被中断");
         }
-        // .git 目录里可能有 hook 与配置，扫描阶段不读它（skipDir 已含 .git）
-        return new SourceResolver(target, dir, "git");
     }
 
     /**
@@ -250,52 +259,8 @@ public final class SourceResolver implements AutoCloseable {
      * {@code target} 必须存在且为空（调用方已建好）；clone 失败抛 {@link ScanException}。
      */
     public static void fromGitInto(Path target, String url) {
-        if (!ScanGuard.gitUrlAllowed(url)) {
-            throw ScanException.badRequest(
-                    "只支持 https 的公开仓库地址（禁止 file:// / ssh:// / git://）；私有仓库请自行 clone 后扫本地目录");
-        }
-        List<String> cmd = List.of(
-                "git", "clone",
-                "--depth", "1",
-                "--single-branch",
-                "--no-tags",
-                "--config", "core.hooksPath=/dev/null",
-                "--config", "advice.detachedHead=false",
-                url.trim(), target.toString());
-        try {
-            ProcessBuilder pb = new ProcessBuilder(cmd);
-            pb.environment().put("GIT_TERMINAL_PROMPT", "0");
-            pb.environment().put("GIT_ASKPASS", "");
-            pb.redirectErrorStream(true);
-            Process proc = pb.start();
-            StringBuilder out = new StringBuilder();
-            Thread reader = new Thread(() -> {
-                try (var r = new BufferedReader(new InputStreamReader(proc.getInputStream()))) {
-                    String line;
-                    while ((line = r.readLine()) != null && out.length() < 4000) {
-                        out.append(line).append('\n');
-                    }
-                } catch (IOException ignored) {
-                }
-            });
-            reader.setDaemon(true);
-            reader.start();
-            if (!proc.waitFor(60, TimeUnit.SECONDS)) {
-                proc.destroyForcibly();
-                throw ScanException.timeout("git clone 超时（60s）");
-            }
-            if (proc.exitValue() != 0) {
-                String tail = out.length() > 300 ? out.substring(out.length() - 300) : out.toString();
-                throw new ScanException(ScanException.GIT_FAILED, "git clone 失败：" + tail.trim());
-            }
-        } catch (ScanException e) {
-            throw e;
-        } catch (IOException e) {
-            throw new ScanException(ScanException.GIT_FAILED, "本机没有可用的 git：" + e.getMessage());
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-            throw ScanException.timeout("git clone 被中断");
-        }
+        // 缓存目录的清理是调用方（ProjectCache.ingestGit）的事：它删的是含 manifest 的整个 target
+        gitCloneInto(url, target, () -> { });
     }
 
     // ─────────────────────────────────────────────────────────────

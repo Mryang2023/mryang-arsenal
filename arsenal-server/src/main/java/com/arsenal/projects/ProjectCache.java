@@ -65,9 +65,14 @@ public final class ProjectCache {
         return root;
     }
 
-    /** 某项目的缓存目录（repo/ 的父）。 */
+    /** 某项目的缓存目录（repo/ 的父）。id 参与拼路径，先消毒 —— 剥离后不存在 / \ . 字符，遍历不成立。 */
     public Path cacheDir(String projectId) {
-        return root.resolve(projectId);
+        return root.resolve(safeSegment(projectId));
+    }
+
+    /** 拼路径的 id 一律先过这里（与 ProjectStore.safeId / QaService.safeSegment 同一口径）。 */
+    private static String safeSegment(String s) {
+        return s == null ? "" : s.replaceAll("[^A-Za-z0-9_-]", "");
     }
 
     /** 缓存根（repo/）。不存在返回 null（调用方据此返回 404）。 */
@@ -216,21 +221,33 @@ public final class ProjectCache {
         }
 
         String head = readGitHead(repo);
-        ObjectNode cache = mapper.createObjectNode();
-        long[] total = {0};
-        int[] count = {0};
+        // 克隆后补一次与 path/zip 摄取同口径的限额：--depth 1 挡不住大仓库（单提交可以
+        // 极大），深克隆出 2 万文件/500MB 的结果不该原样落盘。
+        long total = 0;
+        int count = 0;
         try (var walk = Files.walk(repo)) {
             for (Path p : (Iterable<Path>) walk::iterator) {
                 if (Files.isRegularFile(p)) {
-                    count[0]++;
-                    total[0] += Files.size(p);
+                    count++;
+                    total += Files.size(p);
+                    if (count > ScanGuard.MAX_FILES) {
+                        deleteQuietly(target);
+                        throw new ProjectIngestException("git 仓库文件数超过上限 " + ScanGuard.MAX_FILES
+                                + "，缓存已丢弃（与本地目录摄取同一限额）");
+                    }
+                    if (total > ScanGuard.MAX_TOTAL_BYTES) {
+                        deleteQuietly(target);
+                        throw new ProjectIngestException("git 仓库总大小超过上限 "
+                                + ScanGuard.MAX_TOTAL_BYTES / 1024 / 1024 + "MB，缓存已丢弃（与本地目录摄取同一限额）");
+                    }
                 }
             }
-        } catch (IOException ignored) {
-            // 计数失败不影响克隆结果
+        } catch (IOException e) {
+            // 计数失败不影响克隆结果 —— 限额只是护栏，数不出来说明这趟不校验
         }
-        cache.put("files", count[0]);
-        cache.put("bytes", total[0]);
+        ObjectNode cache = mapper.createObjectNode();
+        cache.put("files", count);
+        cache.put("bytes", total);
         cache.put("ingestedAt", nowIso());
         cache.put("fingerprint", head == null ? "git:unknown" : head);
         cache.putNull("lastRefresh");
@@ -576,11 +593,17 @@ public final class ProjectCache {
 
     // ─────────────────────────────────────────────────────────────
 
+    /** 每项目一把摄取锁：prepareTarget 的「删了重建」非原子，同项目并发摄取/扫描会互删目录。 */
+    private final java.util.concurrent.ConcurrentHashMap<String, Object> ingestLocks =
+            new java.util.concurrent.ConcurrentHashMap<>();
+
     private Path prepareTarget(String projectId) throws IOException {
-        Path target = cacheDir(projectId);
-        deleteQuietly(target);
-        Files.createDirectories(target);
-        return target;
+        synchronized (ingestLocks.computeIfAbsent(safeSegment(projectId), k -> new Object())) {
+            Path target = cacheDir(projectId);
+            deleteQuietly(target);
+            Files.createDirectories(target);
+            return target;
+        }
     }
 
     private void ingestManifestOnly(String projectId, Path source) throws IOException {
@@ -603,20 +626,29 @@ public final class ProjectCache {
     }
 
     private static String readGitHead(Path repo) {
+        Process proc = null;
         try {
             ProcessBuilder pb = new ProcessBuilder("git", "-C", repo.toString(), "rev-parse", "HEAD");
             pb.redirectErrorStream(true);
-            Process proc = pb.start();
+            proc = pb.start();
+            // 先限时等退出再读流：rev-parse 只写 ~41 字节，管道不会满；反过来先读再等的话，
+            // git 挂住时 readLine 永远阻塞，进程就再也没人销毁了（泄漏）。
+            if (!proc.waitFor(30, TimeUnit.SECONDS)) {
+                proc.destroyForcibly();
+                return null;
+            }
             StringBuilder out = new StringBuilder();
             try (var r = new BufferedReader(new InputStreamReader(proc.getInputStream()))) {
                 String line;
                 while ((line = r.readLine()) != null && out.length() < 200) out.append(line).append('\n');
             }
-            proc.waitFor(30, TimeUnit.SECONDS);
             String s = out.toString().trim();
             return s.isEmpty() ? null : s;
         } catch (Exception e) {
             return null;
+        } finally {
+            // 已退出的进程 destroy 是无害空操作；走异常路径时这里兜底，不留孤儿 git
+            if (proc != null) proc.destroyForcibly();
         }
     }
 

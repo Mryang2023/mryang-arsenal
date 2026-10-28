@@ -1,5 +1,10 @@
 server:
   port: 3011
+  # 只绑本机回环。本服务有「编译运行用户提交代码」的端点（/api/cases/run、/api/autopsy/run、
+  # /api/qa/submit）和无鉴权的全量目录读取（/api/scan/facts 的 kind=path），注释里写的
+  # 「不接公网」必须由配置强制，而不是靠自觉。要临时对外（如局域网验收）用环境变量
+  # SERVER_ADDRESS=0.0.0.0 显式打开 —— 打开即知情，不开放是默认。
+  address: 127.0.0.1
   servlet:
     encoding:
       charset: UTF-8
@@ -11,6 +16,12 @@ server:
 spring:
   application:
     name: arsenal-server
+  servlet:
+    multipart:
+      # 与 ScanGuard 的 zip 上限（500MB）对齐。Boot 默认 1MB 会先于 ScanGuard 把大 zip 拒掉，
+      # 用户看到的就是 413 但不知道为什么限这么小 —— 限额只该有一处说了算。
+      max-file-size: 500MB
+      max-request-size: 520MB
   # 虚拟线程（JDK 21）：IO 密集的规则供给服务正合适 ——
   # 这也是仓库里虚拟线程规则自己讲的那个示范。
   threads:

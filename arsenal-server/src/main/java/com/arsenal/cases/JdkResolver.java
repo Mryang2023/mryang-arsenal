@@ -139,8 +139,9 @@ public class JdkResolver {
     private static int majorOf(Path home) {
         String os = System.getProperty("os.name", "").toLowerCase();
         Path java = home.resolve("bin").resolve(os.contains("win") ? "java.exe" : "java");
+        Process p = null;
         try {
-            Process p = new ProcessBuilder(java.toString(), "-version").start();
+            p = new ProcessBuilder(java.toString(), "-version").start();
             String out = new String(p.getErrorStream().readAllBytes(), StandardCharsets.UTF_8);
             Matcher m = VERSION_MAJOR.matcher(out);
             if (m.find()) {
@@ -148,17 +149,22 @@ public class JdkResolver {
             }
         } catch (Exception ignore) {
             // 读不到版本就当 0，外层用 >=21 过滤
+        } finally {
+            if (p != null) p.destroyForcibly(); // 已退出时是空操作；异常路径上不留孤儿进程
         }
         return 0;
     }
 
     private static String probeVersion(String javaCmd) {
+        Process p = null;
         try {
-            Process p = new ProcessBuilder(javaCmd, "-version").start();
+            p = new ProcessBuilder(javaCmd, "-version").start();
             String out = new String(p.getErrorStream().readAllBytes(), StandardCharsets.UTF_8).trim();
             return out.replace("\r\n", " ").replace("\n", " ");
         } catch (Exception e) {
             return "unknown";
+        } finally {
+            if (p != null) p.destroyForcibly();
         }
     }
 }

@@ -270,6 +270,13 @@ public final class ReproRunner {
     }
 
     private static Path writeTest(Path workCopy, Draft draft) throws IOException {
+        // fqcn 来自模型输出（且模型输入含被检项目源码，可能被提示注入）。绝对路径 / UNC /
+        // 盘符 / .. 都会经 Path.resolve 原样生效，把文件写到工作副本之外 —— 与
+        // CaseRunnerService 对 mainClass 的校验保持同一条正则，写入点最后把关。
+        if (draft.fqcn() == null
+                || !draft.fqcn().matches("[A-Za-z_][A-Za-z0-9_]*(?:\\.[A-Za-z_][A-Za-z0-9_]*)+")) {
+            throw new IllegalArgumentException("测试类全限定名不合法：" + draft.fqcn());
+        }
         String rel = draft.fqcn().replace('.', '/') + ".java";
         Path p = workCopy.resolve("src/test/java").resolve(rel);
         Files.createDirectories(p.getParent());

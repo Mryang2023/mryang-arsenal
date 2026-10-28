@@ -66,22 +66,26 @@ arsenal-demo-*.zip
 #    对 arsenal-web/.workbuddy/_*.png 返回「未忽略」，探针产物会漏进待提交列表）。
 **/.workbuddy/_*
 
-# ── 夜跑接力链的瞬时状态文件（2026-09-21 夜跑引入）──────────────
-#    .workbuddy/night-chain/ 下每一棒开工/收工都会写状态文件，跑完即弃；
-#    但同目录的 REVIEW.md 是给人看的产出，**故意不忽略**。
-#    ⚠️ 归档用的带日期副本（*-done.2026-09-22.json）**不**匹配 `*-done.json`，
-#    会冒成未跟踪项 —— 归档即提交，别让它挂着（2026-09-26 终检棒）。
+# ── 夜跑接力链（2026-09-21 夜跑引入，2026-10-25 重写规则）────────
+#    REVIEW*.md（含带日期子目录里的）与 *-done 归档是给人看的产出，**进 Git**、
+#    归档即提交 —— 2026-09-26 起曾被「整目录忽略」一行误伤，新夜跑的 REVIEW.md
+#    静默不进库（2026-10-17 那次就没收到），本段重写即为治它。
+#    其余（*-running / *-blocked 状态文件、LATEST 指针、快照 html、_* 日志）是瞬时产物。
 #    说明见 docs/hy4-night-plans/NIGHT-RUN.md §二。
-.workbuddy/night-chain/*-running.json
-.workbuddy/night-chain/*-done.json
-.workbuddy/night-chain/*-blocked.json
-#    2026-09-26 夜跑起，状态文件改写入带日期子目录（如 2026-09-26/01-done.json），
-#    上面三条只匹配顶层挂不住 —— 整目录按瞬时状态忽略（2026-09-26 终检 P2-1）。
-#    gitignore 只作用于未跟踪文件：已提交的 REVIEW.md / 归档副本 / LATEST 不受影响。
-.workbuddy/night-chain/
+.workbuddy/night-chain/**
+!.workbuddy/night-chain/*/
+!.workbuddy/night-chain/REVIEW*.md
+!.workbuddy/night-chain/*/REVIEW*.md
+!.workbuddy/night-chain/CASE-LIBRARY-CLOSEOUT.md
+!.workbuddy/night-chain/*-done*.json
 
 # ── 自动化会话记忆：每次调度写一份，属会话产物不是资产 ──────────
 .workbuddy/memory/automations/
+#    会话预览渲染（一次性 archify 自照产物，可由服务随时重出）
+**/.workbuddy/preview/
+
+# ── ZCode 会话本地状态（计划草稿等）：不入仓库 ─────────────────
+.zcode/
 
 # ── IDE 本地配置：每台机器、每个人都不一样，不进仓库 ──────────
 #    JetBrains 会在项目根建 .idea/，VS Code 建 .vscode/

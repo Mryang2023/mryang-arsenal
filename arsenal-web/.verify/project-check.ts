@@ -2416,7 +2416,7 @@ console.log('\n【18】装配台 P1 第二组（S1-4 / S1-5 / S2-7）');
   );
   const with9px = STACK_9PX.filter((_, i) => stackFiles[i].includes('text-[9px]'));
   check(
-    `S1-6 装配台 ${STACK_9PX.length} 个活跃组件全部无 9px 字号（9px 连排清零；孤儿文件 ProjectTree 不在扫描内）`,
+    `S1-6 装配台 ${STACK_9PX.length} 个活跃组件全部无 9px 字号（9px 连排清零；孤儿文件 ProjectTree / ArchDiagram 已于 2026-10-25 删除）`,
     with9px.length === 0,
     `仍有 9px：${with9px.join(' ')}`
   );
@@ -3417,7 +3417,6 @@ console.log('\n【26】装配台 P1 第三组（预检闸重算 / 草稿重读 /
   const channelSrc = readRel('src/app/stack/useStackChannel.ts');
   const previewSrc = stripComments(readRel('src/app/stack/TopologyPreview.tsx'));
   const paletteSrc = readRel('src/app/stack/palette.ts');
-  const treeSrc = readRel('src/app/stack/ProjectTree.tsx');
 
   check(
     '预检闸的归总只在 useMemo 里算（闸门与调用方两侧都 memo，只做一侧等于没做）',
@@ -3492,21 +3491,6 @@ console.log('\n【26】装配台 P1 第三组（预检闸重算 / 草稿重读 /
     })(),
     '色值在组件里各抄一遍 = 改主题只能靠 grep 撞运气，漏一处就是「这块边框比别处深一点」；' +
       '混用 tailwind 出厂语义色 = 页面上有两套红，改主色时只有一套跟着变'
-  );
-  check(
-    '徽章分类色走 SWATCH，不借语义色（TONE 的黄绿是「隐患/通过」，不是分类）',
-    /const BADGE_SWATCH: Record<string, string> = \{/.test(treeSrc) &&
-      /const FILE_GROUP_SWATCH: Record<string, string> = \{/.test(treeSrc) &&
-      !/TONE\./.test(
-        treeSrc.slice(treeSrc.indexOf('const BADGE_SWATCH'), treeSrc.indexOf('function badgeColor'))
-      ) &&
-      !/TONE\./.test(
-        treeSrc.slice(
-          treeSrc.indexOf('const FILE_GROUP_SWATCH'),
-          treeSrc.indexOf('export default function ProjectTree')
-        )
-      ),
-    '「鉴权」徽章绿得跟「校验通过」一个意思 —— 看着像评价，其实只是分类'
   );
   check(
     '半透明取色从 TONE 派生：toneAt() 读 TONE 的 hex，alpha=1 时原样返回实心色',

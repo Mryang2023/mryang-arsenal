@@ -1,0 +1,48 @@
+{
+  "棒次": 4,
+  "任务": "代码入库出图（plan-4）",
+  "状态": "部分完成",
+  "开工": "2026-09-22T04:56:30+08:00",
+  "收工": "2026-09-22T07:12:00+08:00",
+  "verify": {
+    "总数": 620,
+    "分项": { "arch": 35, "graph": 59, "cases": 25, "project": 406, "engine": 17, "parity": 12, "archify": 31, "scan": 35 },
+    "本次实测": "verify:scan 35/35 全绿；verify:project 406/406 全绿（含新增【15】6 项）；npm run build 通过（静态导出正常）",
+    "未跑完": ["verify:arch", "verify:graph", "verify:cases", "verify:engine", "verify:parity", "verify:archify"],
+    "未跑完原因": "时间到（交棒硬线 06:55，实际收工 07:12）。这六层本棒没有改动其输入（架构判定 / 图 / 案例 / 引擎 / 出图），按第 3 棒的基线应仍为绿，但**我没有亲自跑过**，第 5 棒必须自己跑一遍"
+  },
+  "做完的": [
+    "后端 com.arsenal.scan 包 11 个类：ProjectScanner / BuildScanner / ConfigScanner / DeployScanner / CodeScanner / CiScanner / ScanGuard / SourceResolver / ScanRulesLoader / TechStackResolver / ScanException（+ ScanRule / ScannedDep / ScanNote / ScanContext / ScanConfig）",
+    "三种输入：本地目录（toRealPath 校验）、zip（条目名 ../ 与绝对路径**整体拒绝**，非跳过）、https git（只许 https、--depth 1 --single-branch --no-tags、core.hooksPath=/dev/null、GIT_TERMINAL_PROMPT=0、60s destroyForcibly）",
+    "接口：POST /api/scan/facts、POST /api/scan/upload（multipart zip）、GET /api/scan/rules、GET /api/scan/rules/detail",
+    "异常落点：ScanException 按 code 映射 400 / 413 / 504，已在 GlobalExceptionHandler 显式声明（没让它被 @ExceptionHandler(Exception.class) 吃成 500）",
+    "技术栈归一化是数据：tools/content/scan_rules.py → 108 条映射（47 条带 dim/opt 会落部署图）→ arsenal-scan/scan_rules.json；生成器侧校验 kind/group/artifact/tech/name/icon/dim/opt/去重",
+    "铁律 2 四处：sync-content.mjs 第 ⑧ 段闸门（dim/opt 对 architecture.json 画布、icon 对 tech-icons.ts）+ src/generated/scan_rules.json + src/lib/scan-rules.ts resolver + project-check【15】6 项 + README 目录树",
+    "事实层硬规矩落地：读不到写 null + note（不填 1）、每条命中带 evidence（path+line）、未命中进 notes 的 UNMAPPED_DEPENDENCY、不存绝对路径、password/secret/token/key 值全部 ***（.env 只留键名）",
+    "fixture 仓库 .verify/fixtures/demo-repo/ 20 个文件（pom + 2 yml + .env + Dockerfile + compose + K8s 清单 + Helm Chart/values + nginx.conf + .gitlab-ci.yml + 9 个 Java 含 3 Controller / 1 Feign 客户端）",
+    "ScanProbe.java + scripts/scan-probe.sh（照 ArchifyProbe 写法，扫描包无 Spring 依赖所以能脱离 Spring 实跑）",
+    ".verify/scan-check.ts 35 项断言：fixture 逐字段 26 项 + 确定性 2 项 + 恶意输入 7 项（含软链外跳，本机建链成功、断言真的跑了）",
+    "四处 verify 数字已同步：arsenal.json verifyChain（结构与导出 400→406 + 新增「代码扫描 35」）/ project-check.ts 手写 579→620 / README 总数 579→620 / README 分项表新增 verify:scan 一行",
+    "README 新增「从代码出图（com.arsenal.scan）」一节：四个接口表 + 三条硬规矩 + 安全闸门清单",
+    "memory 日志已追加（.workbuddy/memory/2026-09-22.md）"
+  ],
+  "未做完的": [
+    "【最严重】三条出图链路一条都没做：① facts → buildTechArchFromFacts → buildTechArchSvg ② facts → buildLayeredArch → 应用分层图（五带 + 跨带直连红色警示线）③ facts → buildArchifyIrFromFacts → POST /api/archify/deliver → HTML。也就是说「本地目录 → facts → IR → 出 HTML」这条 MVP 最短闭环**没有打通**，现在只做到 facts 为止",
+    "前端一个字都没改：`/archify` 的「从代码生成」第三输入源没加、`/arch` 的「导入项目档案」没加（arsenal-web/src/app 下无任何改动，只新增了 src/lib/scan-rules.ts）",
+    "六视图档案草稿生成（facts → arsenal-profiles/<id>.json 草稿）没做",
+    "后端 /api/scan/diagram（facts → SVG）与 /api/scan/archify（facts → 转发 ArchifyService）两个接口没做，ArchifyService 一行未动（这条是守住了，但也没被用上）",
+    "fixture 只有 20 个文件，方案要求约 30 个；断言 9（buildLayeredSvg 输出含 5 个带名）因链路 ② 未做而无从断言",
+    "verify:arch / graph / cases / engine / parity / archify 六层本棒未亲自跑（时间到），只有 scan 与 project 两层实测",
+    "ScanGuard 的文件数 / 总字节 / 深度 / 180s 超时四个闸门只写了代码路径，**没有对应断言**（恶意输入用例只覆盖了 zip 逃逸、超大文件、git 协议、软链外跳）"
+  ],
+  "踩的坑": [
+    "前置依赖检查：第 2 棒没做到 buildTechArchSvg 的 theme: 'doc'|'slide'|'blueprint' —— arch-canvas.ts 里 CanvasTheme 仍是 'dark' | 'light'。按规程不硬造，降级为不产出部署图 SVG，如实记入剩余工作量",
+    "ArrayDeque.push 是加到头部：YAML 缩进栈用它导致 server.port 变成 port.server。改用 ArrayList 当栈（push/pop 走尾部）",
+    "MissingServletRequestPartException 编译不过（_cp.sh 拼的 CP 里没有 jakarta.servlet）→ 改 @RequestParam(required=false) + null 判空走 400",
+    "ScanNote 记录形状一度只有 message，而调用处传三参 —— 记录类先定死再写调用方",
+    "Python heredoc 里 '\\n' 会被真换成换行，落进 .verify/project-check.ts 变成未终止字符串，tsx 报 Unterminated string literal；另外 project-check 里【15】块用错了 webRoot（它在另一个函数作用域），要用顶层 here 拼 repoRoot",
+    "verify 数字算错一次：以为 579+35=614，实际 project 层因新增【15】从 400 涨到 406，总数是 620。教训：加断言先跑实测值再回填四处",
+    "ConfigScanner 一开始把 .gitlab-ci.yml / Chart.yaml / values.yaml / deployment.yaml / docker-compose.yml 也当成「配置」收进来（8 份里有 5 份是部署清单）→ 加 isDeployOrCi 白名单排除"
+  ],
+  "给下一棒的话": "第 5 棒我已把你的执行时间推到 07:12。请**自己跑一遍完整 npm run verify**（我只实测了 scan 35 与 project 406 两层，其余六层是第 3 棒留下的基线，我没验证）。本棒最大的欠账是「三张图一条都没做」——扫描能出事实，但事实到图之间那段是空的，别被我报告里『35 项全绿』误导成方案做完了。另外 canvas 的 theme 仍是 dark/light（第 2 棒欠的），出图链路要接的话得先补这个。"
+}

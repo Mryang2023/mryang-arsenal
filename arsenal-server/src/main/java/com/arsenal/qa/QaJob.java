@@ -101,6 +101,11 @@ public final class QaJob {
         return id;
     }
 
+    /** 提交时刻（epoch ms）。内存淘汰按它挑最老的，磁盘恢复也按它排序。 */
+    public long createdAt() {
+        return createdAt;
+    }
+
     public String projectId() {
         return projectId;
     }

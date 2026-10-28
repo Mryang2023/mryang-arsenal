@@ -141,7 +141,17 @@ public final class ScanGuard {
     }
 
     public static String redact(String key, String value) {
-        return isSensitive(key) ? "***" : value;
+        return isSensitive(key) ? "***" : redactValue(value);
+    }
+
+    /** PEM 私钥块。键名不敏感也要挡 —— 私钥体不配出现在扫描输出里（藏在任何键的值里都一样）。 */
+    private static final Pattern PEM_BLOCK = Pattern.compile(
+            "-----BEGIN [A-Z ]*PRIVATE KEY-----[\\s\\S]*?-----END [A-Z ]*PRIVATE KEY-----");
+
+    /** 值级脱敏：与键名无关，抹掉内嵌的 PEM 私钥块（多行值、JDBC URL 内嵌凭据之外的最后兜底）。 */
+    public static String redactValue(String value) {
+        if (value == null) return null;
+        return PEM_BLOCK.matcher(value).replaceAll("***PEM-PRIVATE-KEY***");
     }
 
     public static boolean fileTooLarge(Path p) {

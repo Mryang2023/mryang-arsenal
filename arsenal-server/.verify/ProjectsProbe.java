@@ -161,9 +161,12 @@ public class ProjectsProbe {
         rmrf(src);
         Files.createDirectories(src);
         Files.writeString(src.resolve("Small.java"), "class Small {}\n", StandardCharsets.UTF_8);
-        // 3MB > 单文件 2MB 上限
+        // 3MB > 单文件 2MB 上限。必须是**源码**（.java 在 TEXT_EXT 白名单里）：
+        // 335519c 起「超限二进制资源」走跳过并记账，不再抛 —— 拿 .bin 测会永远绿不了
+        // 本断言（二进制被静默跳过 = 摄取成功 = target 留下）。本动作测的正是
+        // 「源码超限仍整份拒绝」这条不变量：生成物混进源码目录必须炸出来。
         byte[] big = new byte[3 * 1024 * 1024];
-        Files.write(src.resolve("big.bin"), big);
+        Files.write(src.resolve("Big.java"), big);
 
         Path cacheRoot = work.resolve("cache");
         rmrf(cacheRoot);

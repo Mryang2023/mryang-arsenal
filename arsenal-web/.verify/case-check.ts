@@ -27,7 +27,7 @@ import {
   synthCase,
 } from '@/lib/case-synth';
 import type { CaseDef, CaseParams } from '@/lib/case-types';
-import { buildZip, crc32 } from '@/lib/zip-lite';
+import { buildZipBytes, crc32 } from '@/lib/zip';
 import { decodeParams, encodeParams, isFullyValid } from '@/app/cases/_lib/params-codec';
 import { L2_ROUTE_DIR, L3_ROUTE_DIR, L3_ROUTE_READY, STEPS, stepHref } from '@/app/cases/_lib/steps';
 // 统一记账：pass / fail / **skip（独立状态，绝不计入 pass）**，退出码 0 / 2 / 1。
@@ -478,10 +478,11 @@ console.log('\n【13】导出整包：ZIP 写出器必须产出结构自洽、�
   );
 
   const entries = [
-    { name: 'demo/01-a.java', data: 'class A {}' },
-    { name: 'demo/schema.sql', data: 'CREATE TABLE t (id BIGINT);' },
+    { path: 'demo/01-a.java', content: 'class A {}' },
+    { path: 'demo/schema.sql', content: 'CREATE TABLE t (id BIGINT);' },
   ];
-  const zip = buildZip(entries);
+  // 与 zip-lite 时代相同：固定 1980 时间戳，字节级确定
+  const zip = buildZipBytes(entries, new Date(1980, 0, 1));
   const view = new DataView(zip.buffer, zip.byteOffset, zip.byteLength);
   const u32 = (o: number) => view.getUint32(o, true);
 
@@ -504,7 +505,7 @@ console.log('\n【13】导出整包：ZIP 写出器必须产出结构自洽、�
 
   // 导出物也要满足「同输入逐字节一致」—— 否则它不能算纯函数的产物
   // （而这一条恰好是「点两下导出得到两个不同文件」这类问题的唯一抓手）。
-  const again = buildZip(entries);
+  const again = buildZipBytes(entries, new Date(1980, 0, 1));
   check(
     '同输入两次导出逐字节一致',
     zip.length === again.length && zip.every((b, i) => b === again[i])

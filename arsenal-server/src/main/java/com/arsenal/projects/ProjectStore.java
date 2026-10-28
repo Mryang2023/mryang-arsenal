@@ -184,7 +184,9 @@ public final class ProjectStore {
     }
 
     private Path cacheDir(String projectId) {
-        return root.resolve(projectId);
+        // id 直接参与拼路径。与 safeId 同一条消毒：剥离后不存在任何 / \ . 字符，
+        // ../ 与绝对路径在进入 Path.resolve 之前就已不可能成立。
+        return root.resolve(safeId(projectId));
     }
 
     private Path factsPath(String projectId) {

@@ -231,6 +231,8 @@ type Receipt = {
   projectIds?: any;
   /** `exts-contract` 回执（r19）：两份 EXTS 集合 + 同一夹具下 walk 级分母与文件名级判定的原始事实 */
   exts?: any;
+  /** `qa-pure` 回执（r20）：QaService 四个 private static 纯判定的逐向量原始返回 */
+  qaPure?: any;
 };
 
 /**
@@ -938,7 +940,7 @@ if (!skipAll) {
   }
 
   // ── 【5】规模闸门：单文件 / 深度 / 文件数 ─────────────────────
-  section('【5】规模闸门（单文件 2MB / 深度 20 / 文件数 2 万）+ 拼路径 id 的消毒口径 + 待检扩展名两份集合的契约');
+  section('【5】规模闸门（单文件 2MB / 深度 20 / 文件数 2 万）+ 拼路径 id 的消毒口径 + 待检扩展名两份集合的契约 + QaService 四个纯判定');
   const bigRepo = path.join(tmpDir, 'big-repo').replace(/\\/g, '/');
   const deepRepo = path.join(tmpDir, 'deep-repo').replace(/\\/g, '/');
   const manyRepo = path.join(tmpDir, 'many-repo').replace(/\\/g, '/');
@@ -959,6 +961,7 @@ if (!skipAll) {
     `id-sanitize:${idWork}`,
     `id-project:`,
     `exts-contract:${extsWork}`,
+    `qa-pure:`,
   ]);
   const guardFacts = (tail: string) =>
     r6.find((r) => r.kind === 'facts' && r.action.endsWith(tail))?.facts;
@@ -1233,6 +1236,111 @@ if (!skipAll) {
       && skipDirRows.map((r) => r.rel).sort().join(',') === '.git/config.yml,target/Generated.java',
     JSON.stringify(skipDirRows)
   );
+
+  // ── r20（P1-1g）：`QaService` 四个 private static 纯判定，此前全仓库 0 条断言 ──────
+  // 探针动作 qa-pure 只回吐原始返回（null → "NULL"，抛异常 → THROWS:xxx），期望表在这里。
+  const qp = r6.find((r) => r.kind === 'qa-pure')?.qaPure as any;
+  const tbRows = (qp?.testBase ?? []) as any[];
+  const WANT_TEST_BASE: Record<string, string> = {
+    plainTest: 'Foo',
+    testsSuffix: 'Foo',
+    itSuffix: 'OrderService',
+    prefixTest: 'FooBar',
+    bareTest: '',            // 裸 Test.java：endsWith 先命中，整名被剥成空串（不是 null）
+    bareIT: '',
+    notJava: 'NULL',
+    normalSource: 'NULL',
+    // 后缀匹配是大小写敏感的：小写 test 结尾不算测试（r20 第一版以为会误判成 Pro，探针当场纠正了我）
+    lookalikeLower: 'NULL',
+    protestCase: 'NULL',
+    testsPrefixed: 'sFoo',   // TestsFoo.java 被当成「sFoo 的测试」
+    doubleJava: 'NULL',      // replace(".java","") 两段都剥掉 → Foo → 判非测试
+    lowercaseJava: 'NULL',
+    noDir: 'Bar',
+    nul: 'THROWS:NullPointerException', // 没有 null 守护：喂 null 当场抛，不是返回 null
+  };
+  const tbMiss = Object.entries(WANT_TEST_BASE)
+    .filter(([id, w]) => String(tbRows.find((r) => r.id === id)?.out) !== w)
+    .map(([id, w]) => ({ id, want: w, got: tbRows.find((r) => r.id === id)?.out }));
+  check(
+    '5-20 testBaseName 十五条向量逐条等于期望表（四种「算测试」的命名 + 四种「不算」的对照，含大小写敏感两条 + 两条启发式固有假阳性：裸 Test.java 得空基名、TestsFoo.java 被切成 sFoo + null 入参当场 NPE）—— 该函数的判定直接喂 testedBases 与「全仓没测试」那条建议，此前 0 条断言',
+    tbRows.length === 15 && tbMiss.length === 0,
+    JSON.stringify({ n: tbRows.length, tbMiss })
+  );
+
+  const srRows = (qp?.statusReason ?? []) as any[];
+  const srById = (id: string) => srRows.find((r) => r.id === id);
+  const REASON_FAILED = '语义层未能产出任何判定 —— 原因见 semanticNotes';
+  const REASON_CUT = '语义层已执行，但撞到本 job 的 LLM 批数上限被截断 —— 余下规则未判定（见 llmUsage.budgetCut）';
+  const REASON_PARTIAL = '语义层部分完成：含判定失败批或被截断的候选 —— 逐项见 semanticNotes / semanticVerdicts';
+  const REASON_DONE = '语义层已执行完毕';
+  check(
+    '5-21 statusReason 八组合逐条钉死分支顺序：failed 优先于 budgetCut / budgetCut 排在 status 判定之前（所以 status=ok 也会被念成「撞到上限」）/ partial 第三 / 其余落到「已执行完毕」',
+    srRows.length === 8
+      && srById('failed-noCut')?.out === REASON_FAILED
+      && srById('failed-withCut')?.out === REASON_FAILED
+      && srById('partial-withCut')?.out === REASON_CUT
+      && srById('ok-withCut')?.out === REASON_CUT
+      && srById('partial-noCut')?.out === REASON_PARTIAL
+      && srById('ok-noCut')?.out === REASON_DONE,
+    JSON.stringify(srRows.map((r) => ({ id: r.id, out: r.out })))
+  );
+
+  check(
+    '5-22 statusReason 对 not-run 与空 status 一律回「语义层已执行完毕」—— 措辞函数的默认分支就是「已执行」；调用点靠 if (semantic != null) 挡住了 not-run，函数本身不挡。谁将来给 not-run 加分支（或换调用点），这条会红，逼他确认措辞归属',
+    srById('notRun')?.out === REASON_DONE && srById('emptyStatus')?.out === REASON_DONE,
+    JSON.stringify({ notRun: srById('notRun')?.out, empty: srById('emptyStatus')?.out })
+  );
+
+  const fbRows = (qp?.firstNonBlank ?? []) as any[];
+  const WANT_BLANK: Record<string, string> = {
+    aWins: 'x',
+    emptyA: 'y',
+    spaceA: 'y',
+    nullA: 'y',
+    bothNull: '',
+    bNull: 'a',
+    bothBlank: '  ',  // b 原样返回，即使它自己也是空白：这函数保证「非 null」而不是「非空白」
+    tabA: 'y',
+  };
+  const fbMiss = Object.entries(WANT_BLANK)
+    .filter(([id, w]) => String(fbRows.find((r) => r.id === id)?.out) !== w)
+    .map(([id, w]) => ({ id, want: w, got: fbRows.find((r) => r.id === id)?.out }));
+  check(
+    '5-23 firstNonBlank 八条：a 为 null / 空串 / 纯空白（含 tab）都算未命中，双 null 得空串，b 即便是空白也照原样返回（rationale 那条链就是靠它择一）',
+    fbRows.length === 8 && fbMiss.length === 0,
+    JSON.stringify({ n: fbRows.length, fbMiss })
+  );
+
+  const trRows = (qp?.trimLines ?? []) as any[];
+  const overCap = trRows.filter((r) => r.inputLines > r.max);
+  check(
+    '5-24 trimLines 是恒等函数：五条超限向量（3 行喂 2 / 4 行喂 2 / 4 行喂 1 / 空行夹在中间 3 行喂 2 / 30 行喂 24）输出全部逐字节等于输入、行数一行没减 —— `s.split("\\n", max+1)` 与 `String.join("\\n", lines)` 正好互逆，那句「截到 24 行」从来没生效（真缺陷 → B-13，本轮不改产品代码）',
+    trRows.length === 8 && overCap.length === 5 && overCap.every((r) => r.unchanged === true && r.outLines === r.inputLines),
+    JSON.stringify(overCap.map((r) => ({ id: r.id, in: r.inputLines, out: r.outLines, max: r.max, unchanged: r.unchanged })))
+  );
+
+  {
+    const qaSrc = fs.readFileSync(path.join(serverRoot, 'src/main/java/com/arsenal/qa/QaService.java'), 'utf8');
+    const cap = Number(qaSrc.match(/trimLines\(rule\.good\(\),\s*(\d+)\)/)?.[1] ?? -1);
+    const rules = JSON.parse(fs.readFileSync(path.join(webRoot, 'src/generated/rules.json'), 'utf8'));
+    const goods: string[] = [];
+    (function walk(x: any) {
+      if (Array.isArray(x)) { x.forEach(walk); return; }
+      if (x && typeof x === 'object') {
+        for (const [k, v] of Object.entries(x)) {
+          if (k === 'good' && typeof v === 'string') goods.push(v);
+          else walk(v);
+        }
+      }
+    })(rules);
+    const longest = goods.reduce((n, g) => Math.max(n, g.split('\n').length), 0);
+    check(
+      `5-25 现状账（B-13 今天是哑的，但没人保证它一直哑）：同步产物里 ${goods.length} 条 good 片段最长 ${longest} 行，一条都不超过源码里现读的 cap=${cap} —— 谁把 good 写过 ${cap} 行，恒等的 trimLines 就把完整片段原样发进报告，这条先红`,
+      cap === 24 && goods.length > 0 && longest <= cap,
+      JSON.stringify({ cap, goods: goods.length, longest })
+    );
+  }
 
   // ── 【6】没有任何部署清单的仓库：不许编出副本数 ─────────────────
   //

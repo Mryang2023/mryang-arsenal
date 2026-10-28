@@ -7,9 +7,9 @@ import {
   slotsOfLane,
   type ArchAudit,
   type SlotState,
-} from './arch';
-import { dimensions, presets } from './stack';
-import type { StackPicks } from './content-types';
+} from '../../src/lib/arch';
+import { dimensions, presets } from '../../src/lib/stack';
+import type { StackPicks } from '../../src/lib/content-types';
 
 /**
  * 装配台的「图」层 —— 把一份选型变成一张有向图，并只在这张图上回答问题。

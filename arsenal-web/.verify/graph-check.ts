@@ -23,13 +23,13 @@ import {
   reachFrom,
   routesBetween,
   type ArchGraph,
-} from '@/lib/arch-graph';
+} from './lib/arch-graph';
 import {
   checkDiagramGeometry,
   layoutDiagramGeometry,
   parseRenderedCards,
   sameBoxSet,
-} from '@/lib/arch-geometry';
+} from './lib/arch-geometry';
 import { dimensions, emptyPicks, presetPicks, presets } from '@/lib/stack';
 import { buildTechArch } from '@/lib/arch-canvas';
 // 统一记账：pass / fail / **skip（独立状态，绝不计入 pass）**，退出码 0 / 2 / 1。

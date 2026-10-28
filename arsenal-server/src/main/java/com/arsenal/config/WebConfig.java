@@ -29,7 +29,9 @@ public class WebConfig implements WebMvcConfigurer {
         }
         registry.addMapping("/api/**")
                 .allowedOrigins(allowedOrigins)
-                .allowedMethods("GET", "POST", "OPTIONS")
+                // DELETE 必须在列：前端 /projects 的删除项目走 DELETE（projects-api.ts），
+                // 缺了它浏览器预检直接拒，删除按钮在页面里永远失败而 curl 一切正常。
+                .allowedMethods("GET", "POST", "DELETE", "OPTIONS")
                 .allowedHeaders("*")
                 .maxAge(3600);
     }

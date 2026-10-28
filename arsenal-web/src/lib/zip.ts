@@ -35,6 +35,8 @@ function crc32(bytes: Uint8Array): number {
   return (c ^ 0xffffffff) >>> 0;
 }
 
+export { crc32 };
+
 function u16(value: number): Uint8Array {
   return new Uint8Array([value & 0xff, (value >>> 8) & 0xff]);
 }
@@ -83,12 +85,15 @@ export interface ZipResult {
 }
 
 /**
- * 把一组文本文件打成 zip。
+ * 把一组文本文件打成 zip，返回原始字节。
  *
  * 输入全部是 UTF-8 文本 —— 这是刻意的：这个打包器只服务于「导出项目源码」，
  * 不需要支持二进制。真需要二进制时应当换成成熟的库，而不是在这里加分支。
+ *
+ * `date` 显式传入固定值（如 `new Date(1980, 0, 1)`）即可得到逐字节确定的输出 ——
+ * 「同输入两次导出必须一致」这条承诺（.verify/case-check）就是靠它成立的。
  */
-export function buildZip(entries: ZipEntry[], date: Date = new Date()): ZipResult {
+export function buildZipBytes(entries: ZipEntry[], date: Date = new Date()): Uint8Array<ArrayBuffer> {
   const encoder = new TextEncoder();
   const stamp = dosStamp(date);
 
@@ -158,6 +163,12 @@ export function buildZip(entries: ZipEntry[], date: Date = new Date()): ZipResul
   ]);
 
   const all = concat([...chunks, centralBytes, end]);
+  return all;
+}
+
+/** 字节的 Blob 包装（界面下载用）。 */
+export function buildZip(entries: ZipEntry[], date: Date = new Date()): ZipResult {
+  const all = buildZipBytes(entries, date);
   return {
     blob: new Blob([all], { type: 'application/zip' }),
     bytes: all.length,

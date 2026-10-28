@@ -1,0 +1,182 @@
+{
+  "棒次": 1,
+  "任务": "装配台 P0-1 落袋：63 个未提交文件分 6 批提交",
+  "方案": "docs/开发计划-2026-09-25/装配台向导升级计划-2026-09-25.md §2 P0-1",
+  "开工": "2026-09-25T23:12:00+08:00",
+  "收工": "2026-09-25T23:36:00+08:00",
+  "状态": "完成（方案 4 批 + 2 批零散，全部落袋；工作区干净）",
+  "注": "上一夜同名文件（2026-09-23 案例库 B0）已归档为 01-done.2026-09-23.json / 01-running.2026-09-25.json",
+
+  "开发": {
+    "砍定范围": "只落袋不写新功能。方案 4 批（C1~C4）+ 额外 C0 文档批 + C5 memory 批，共 6 批，全部完成，未砍。",
+    "已做完": {
+      "C0": { "hash": "cf1d881", "message": "chore(docs): 夜跑 2026-09-25 总规程与三条链的下一步升级计划", "files": 4 },
+      "C1": { "hash": "9c9145f", "message": "feat(stack): 装配台改六步向导 + 二次收敛 + ④提示排版", "files": 14 },
+      "C2": { "hash": "60d6d7b", "message": "feat(cookbook): 最佳实践库收敛为三层，blueprints 改三层路由", "files": 29 },
+      "C3": { "hash": "60990ba", "message": "feat(cases): 场景案例库加症状分诊台入口 + recommended 推荐档", "files": 19 },
+      "C4": { "hash": "eb878c2", "message": "refactor(playground): 独立 /playground 案例实验室并入蓝图页", "files": 3 },
+      "C5": { "hash": "912a0b0", "message": "chore(memory): 09-24 / 09-25 工作日志与长期约定", "files": 3 },
+      "收尾": { "hash": "f9e3008", "message": "chore(docs): README 项数口径 1016 → 1024 + 补两条分批提交 git 纪律", "files": 2 }
+    },
+    "未做完的": "无 —— 方案 P0-1 的 C1~C4 四批全部落袋，63 条开工清单逐条有归属（见『零散项归属』）。唯一的部分项是 C4 里的『后端案例执行服务』：开工时它已在 HEAD（此前会话已提交），本棒无服务端改动。",
+    "零散项归属": {
+      "README.md": "C1（方案指定；内含 C2/C3 口径，单文件不可拆，已在该 commit message 说明）",
+      "src/components/Shell.tsx": "C4（摘 /playground 导航）",
+      "src/app/page.tsx": "C2（cookbook 三层统计文案）",
+      "src/lib/arch-profile.ts": "C2（cookbook.{scenarios,recipes,demos} token）",
+      "arsenal-web/.verify/project-check.ts": "C2（diff 100% 是【16】cookbook 三层摊平）",
+      "arsenal-web/.verify/visual-check.ts": "C2（视觉矩阵 45→42，随 cookbook 收敛）",
+      "arsenal-web/scripts/sync-content.mjs": "C2（cookbook topic/scenario/recipe/demos 管道）",
+      "arsenal-web/visual/{manifest.json,report.md,shoot.mjs}": "C2（同上，14 路由 × 3 视口）",
+      "arsenal-profiles/arsenal.json": "C2（cookbook metric 口径 + verifyChain 718→747）",
+      ".workbuddy/memory/*": "C5",
+      "src/components/CaseLab.tsx": "C2（方案写 C4；实测被 BlueprintView.tsx:327 引用，按依赖方向归 C2，否则 C2 提交态编译不过）"
+    },
+    "偏离方案的决定": [
+      "components/CaseLab.tsx 由 C4 移到 C2（依赖方向，见上）",
+      "新增 C0 文档批与 C5 memory 批（方案把它们列为零散项；单独成批比塞进业务批更可回滚）",
+      "C4 的『/playground 实跑运行按钮』因该页已删，改为直打 /api/cases/run 跑事实源里真实的 playground 代码（等价后端链路）"
+    ]
+  },
+
+  "自检": {
+    "验收对照（方案 §2 P0-1 批次表）": {
+      "C1 装配台六步向导 + 二次收敛 + 提示排版": "✅ 14 文件（wizard.ts / StepRail / DimPicker / steps×7 / StackComposer / project.ts / stack.ts / README）",
+      "C2 cookbook 三层收敛 + blueprints": "✅ 29 文件（含 4 份旧事实源 py 与 4 份旧 JSON 的删除、BlueprintView git mv、新三层路由）",
+      "C3 案例库 7/8 号": "✅ 19 文件",
+      "C4 案例执行服务 + /playground": "⚠️部分 —— 后端 com.arsenal.cases 开工时已在 HEAD，本棒无服务端改动；前端 /playground 删除 + 导航摘除已落袋（eb878c2），运行链路已实测"
+    },
+    "归因核查": {
+      "方法": "7 个提交逐个 git show --stat，比对『提交文件范围 vs 该批设计范围』",
+      "结论": "无跨业务域夹带；无 _* 调试产物（git log --name-only d6c339e..HEAD | grep '/_' = 0）",
+      "P0 事故与修复": "首 commit（已作废）把索引里白天会话预暂存的 10 个 C2 删除项卷进 C0 —— 用 git reset --soft HEAD~1 + git reset HEAD -- <路径> 复原（不动工作区），改用 git commit -- <pathspec>；重做的 cf1d881 只含 4 个文档文件"
+    },
+    "落袋后剩余项": "git status --porcelain = 0 条（本棒自己写的 memory 日志与状态文件也已提交）",
+    "反着验": [
+      {
+        "编号": "R-1",
+        "内容": "在 src/app/stack/steps/ 放 _probe.tsx 后跑本棒 C1 的 add 命令",
+        "结果": "❌ 探针进了索引 → 暴露目录级 pathspec 会夹带 _* 调试产物（注入确认方式：git diff --cached --name-only 里出现 _probe.tsx）",
+        "处置": "git rm --cached 摘出 + 删文件；纪律改为逐文件 add / add 后 grep '/_' 复核；已写进 MEMORY.md 第 12 条"
+      },
+      {
+        "编号": "R-2",
+        "内容": "把 StackComposer.tsx:1682 的 stack-bench 改坏",
+        "第一次": "改成 stack-benchBROKEN → verify:project 仍 747/0 全绿（子串命中，注入没打中要害）",
+        "第二次": "改成 bench-surface（先 grep 确认 stack-bench 残留 0）→ 746 通过 / 1 失败 / exit 1，红的正是 S1-1",
+        "还原": "git checkout -- 后 747 / 0 跳过 / 0 失败，git status 空（无 CRLF 污染）",
+        "结论": "闸门本体没哑；但 S1-1 是子串包含判据，偏弱（记 P1-1）"
+      }
+    ],
+    "静默失败排查": "project 层 15 个分段样本量依次为 54/24/10/6/15/130/16/6/22/81/16/273/24/37/18/9/6，最少 6 条，无 0 样本段；合计 747 = 实测",
+    "引用核实": "12 个『已删除』路径逐条确认磁盘上不存在且删除态已提交（git diff --name-status d6c339e HEAD | grep ^D = 11；src/app/blueprints/page.tsx 因有新内容是 M 不是 D）"
+  },
+
+  "review": {
+    "范围": "对准提交动作本身（本棒不写新功能代码）",
+    "P0": [
+      {
+        "id": "P0-1",
+        "位置": "git commit（首 commit，已作废）",
+        "问题": "把预暂存的 10 个 C2 删除项卷进 C0 文档批",
+        "根因": "git commit 不带 pathspec 会提交整个索引；仓库开工时索引里已有白天会话的暂存删除",
+        "处置": "已当场修：reset --soft + 按路径移出索引 + 重做提交（cf1d881 只含 4 文档）"
+      }
+    ],
+    "P1": [
+      {
+        "id": "P1-1",
+        "位置": "arsenal-web/.verify/project-check.ts:1668",
+        "问题": "S1-1 断言 composerSrc.includes('stack-bench') 是子串包含，stack-benchBROKEN / stack-bench-grid 都能蒙对",
+        "根因": "用字符串包含做判据（09-24 终检已在【17】S1-7 点名同类问题）",
+        "处置": "未修（超本棒『只落袋』范围）；建议改成 className 词边界匹配，改时同步反着验"
+      },
+      {
+        "id": "P1-2",
+        "位置": "本棒 git add 命令（目录级 pathspec）",
+        "问题": "会夹带 _* 调试产物",
+        "根因": "pathspec 递归展开",
+        "处置": "纪律层面已修（MEMORY.md 第 12 条 + 六个提交回溯复核 0 命中）"
+      }
+    ],
+    "P2": [
+      {
+        "id": "P2-1",
+        "位置": "分批提交策略",
+        "问题": "中间 commit 单不保证独立可编译（C1 含 README 而 cookbook 代码在 C2）",
+        "根因": "一个文件只能归一批，而业务域之间有交叉引用",
+        "处置": "接受；bisect 时需注意，已写进 memory"
+      },
+      {
+        "id": "P2-2",
+        "位置": "README.md:236",
+        "问题": "『那 1016 项』与同段『共 1024 项』自相矛盾",
+        "根因": "白天会话改口径时漏改一处",
+        "处置": "已修（f9e3008）"
+      }
+    ]
+  },
+
+  "验证": {
+    "基线（开工，全工作区）": {
+      "tsc": "0 错",
+      "typecheck:verify": "0 错",
+      "build": "绿（16s）",
+      "verify:project": "747 通过 / 0 跳过 / 0 失败 / exit 0"
+    },
+    "收尾全量九层": {
+      "命令": "node scripts/verify-all.mjs",
+      "实测": 1024,
+      "通过": 1024,
+      "跳过": 0,
+      "失败": 0,
+      "退出码": 0,
+      "耗时": "114.0s",
+      "分层": "架构 35 / 图交互 68 / 场景案例 33 / 结构与导出 747 / 引擎样本 17 / 前后端一致 12（后端 ALIVE）/ Archify 31 / 代码扫描 69 / 视觉断言 12",
+      "刻意未跑": "2 项（scan 5-4 500MB 闸门、8-6 真等 180s）",
+      "插曲": "第一次全量视觉层整层跳过 12 项 —— 反着验的 git checkout -- 让 StackComposer.tsx mtime 晚于 out/；重建后 12/12 绿"
+    },
+    "后端与运行链路": {
+      "3011": "ALIVE（SKIP_COMPILE=1 bash arsenal-server/scripts/run.sh）",
+      "/api/health": "200 UP / rules 69 / mustClass 50",
+      "/api/cases/run 实跑": "HTTP 200 · success=true · exitCode 0 · 1928ms · timedOut=false · JDK 21.0.4 · 用 arsenal-cookbook/virtual-thread.json 里真实的 playground 代码（vt-io 模拟接口：1000 次并发调用）"
+    }
+  },
+
+  "数字同步": {
+    "四处": [
+      { "处": "arsenal-profiles/arsenal.json verifyChain[*].count", "值": "747（结构与导出），九层之和 1024", "状态": "C2 批已落地，与实测一致" },
+      { "处": "README 总数句", "值": "1024", "状态": "对得上" },
+      { "处": "README 分项表", "值": "1024", "状态": "对得上" },
+      { "处": "README 另一处『那 N 项』", "值": "1016 → 1024", "状态": "本棒修（f9e3008）" },
+      { "处": "project-check.ts 手写总数常数", "值": "09-22 已删除，由 verify:meta 兜底", "状态": "meta 53/53 对得上" }
+    ],
+    "重跑 sync-content.mjs": "已跑，工作区无额外变更（src/generated 不入库）"
+  },
+
+  "提交": {
+    "范围": "d6c339e → f9e3008，共 7 个提交",
+    "hash 列表": ["cf1d881", "9c9145f", "60d6d7b", "60990ba", "eb878c2", "912a0b0", "f9e3008"],
+    "文件总数": 72,
+    "工作区": "git status --porcelain = 0 条（干净）",
+    "纪律": "全程 git add <路径> + git commit -- <pathspec>；未使用 git add -A / git add .；未丢弃任何文件；删除态照实提交"
+  },
+
+  "清理": {
+    "_* 产物": [
+      ".workbuddy/_01-build.log", ".workbuddy/_01-build2.log", ".workbuddy/_01-project.log",
+      ".workbuddy/_01-project-inject.log", ".workbuddy/_01-project-inject2.log",
+      ".workbuddy/_01-verifyall.log", ".workbuddy/_01-verifyall2.log", ".workbuddy/_01-visual.log",
+      ".workbuddy/_01-server.log", ".workbuddy/_01-probe.txt",
+      "arsenal-web/src/app/stack/steps/_probe.tsx"
+    ],
+    "状态": "已全部删除（探针两个在反着验当场删）",
+    "保留": "night-chain/01-running.json 与 01-done.json（本棒状态文件，已提交）"
+  },
+
+  "交棒": {
+    "下一棒": "夜跑 09-25 · 第2棒 场景库虚胖治理",
+    "automation id": "97cc9b53-d1d2-4c4c-9252-a89d04772e21",
+    "动作": "scheduledAt 改为本棒收工 + 3 分钟"
+  }
+}

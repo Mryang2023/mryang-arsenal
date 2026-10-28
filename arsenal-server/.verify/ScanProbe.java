@@ -438,6 +438,146 @@ public class ScanProbe {
         return sorted;
     }
 
+    /**
+     * `QaService` 四个 private static 纯判定的逐分支回吐（r20，P1-1g）。
+     *
+     * <p>为什么需要：`testBaseName`（测试名识别，喂 testedBases 与「全仓找不到测试文件」那条建议）、
+     * `statusReason`（语义层措辞的唯一出处）、`firstNonBlank` / `trimLines`（推荐卡片 rationale 与 after 的
+     * 截断口径）在 `.verify/*.java` 与 `arsenal-web/.verify/*.ts` 里**一次都没出现过** —— 四个函数 0 条断言。
+     *
+     * <p>探针只回吐原始返回值，不判对错：null 回成字面量 NULL（「返回 null / 返回空串 / 返回有值」
+     * 是三件不同的事，必须可断言）；换行在 JSON 里是转义字符，前端按字符串逐字节比。
+     * `statusReason` 的 `SemanticJudge.Outcome` 是 public record，直接构造四个空容器 + 一个布尔就行
+     * —— 该函数只读 `budgetCut()`，其余字段不参与判定。
+     */
+    private static void runQaPure(ObjectNode receipt, ObjectMapper mapper) throws Exception {
+        Class<?> qa = com.arsenal.qa.QaService.class;
+        var baseFn = qa.getDeclaredMethod("testBaseName", String.class);
+        baseFn.setAccessible(true);
+        var reasonFn = qa.getDeclaredMethod("statusReason", String.class, com.arsenal.qa.SemanticJudge.Outcome.class);
+        reasonFn.setAccessible(true);
+        var blankFn = qa.getDeclaredMethod("firstNonBlank", String.class, String.class);
+        blankFn.setAccessible(true);
+        var trimFn = qa.getDeclaredMethod("trimLines", String.class, int.class);
+        trimFn.setAccessible(true);
+
+        ObjectNode out = mapper.createObjectNode();
+
+        ArrayNode baseRows = out.putArray("testBase");
+        String[][] bases = {
+                {"plainTest", "src/FooTest.java"},
+                {"testsSuffix", "src/FooTests.java"},
+                {"itSuffix", "src/order-service/src/OrderServiceIT.java"},
+                {"prefixTest", "src/TestFooBar.java"},
+                // 裸 Test.java / IT.java：endsWith 先命中，整名被剥光 → 空基名（不是 null）
+                {"bareTest", "src/Test.java"},
+                {"bareIT", "IT.java"},
+                {"notJava", "src/FooTest.kt"},
+                {"normalSource", "src/Foo.java"},
+                {"lookalikeLower", "src/Footest.java"},
+                {"protestCase", "src/Protest.java"},
+                {"testsPrefixed", "src/TestsFoo.java"},
+                {"doubleJava", "src/Foo.java.java"},
+                {"lowercaseJava", "src/foo.java"},
+                {"noDir", "BarTest.java"},
+                {"nul", "@@NULL@@"},
+        };
+        for (String[] v : bases) {
+            String input = "@@NULL@@".equals(v[1]) ? null : v[1];
+            ObjectNode row = baseRows.addObject();
+            row.put("id", v[0]);
+            row.put("input", v[1]);
+            row.put("out", echoOrNull(baseFn, input));
+        }
+
+        ArrayNode reasonRows = out.putArray("statusReason");
+        String[][] reasons = {
+                {"failed-noCut", "failed", "false"},
+                {"failed-withCut", "failed", "true"},
+                {"partial-noCut", "partial", "false"},
+                {"partial-withCut", "partial", "true"},
+                {"ok-noCut", "ok", "false"},
+                // status=ok 却 budgetCut=true：调用点在 :598 就把这种组合算成 partial 了，
+                // 但函数自己的分支顺序是「先看 budgetCut、再看 status」—— 这里把顺序本身摊开
+                {"ok-withCut", "ok", "true"},
+                {"notRun", "not-run", "false"},
+                {"emptyStatus", "", "false"},
+        };
+        for (String[] v : reasons) {
+            com.arsenal.qa.SemanticJudge.Outcome o = new com.arsenal.qa.SemanticJudge.Outcome(
+                    mapper.createArrayNode(), mapper.createArrayNode(), mapper.createObjectNode(),
+                    new ArrayList<String>(), Boolean.parseBoolean(v[2]));
+            ObjectNode row = reasonRows.addObject();
+            row.put("id", v[0]);
+            row.put("status", v[1]);
+            row.put("budgetCut", Boolean.parseBoolean(v[2]));
+            row.put("out", String.valueOf(reasonFn.invoke(null, v[1], o)));
+        }
+
+        ArrayNode blankRows = out.putArray("firstNonBlank");
+        String[][] blanks = {
+                {"aWins", "x", "y"},
+                {"emptyA", "", "y"},
+                {"spaceA", "   ", "y"},
+                {"nullA", "@@NULL@@", "y"},
+                {"bothNull", "@@NULL@@", "@@NULL@@"},
+                {"bNull", "a", "@@NULL@@"},
+                {"bothBlank", "", "  "},
+                {"tabA", "\t", "y"},
+        };
+        for (String[] v : blanks) {
+            String a = "@@NULL@@".equals(v[1]) ? null : v[1];
+            String b = "@@NULL@@".equals(v[2]) ? null : v[2];
+            ObjectNode row = blankRows.addObject();
+            row.put("id", v[0]);
+            row.put("a", v[1]);
+            row.put("b", v[2]);
+            row.put("out", echoOrNull(blankFn, a, b));
+        }
+
+        ArrayNode trimRows = out.putArray("trimLines");
+        String l3 = "l1\nl2\nl3";
+        String l4 = "l1\nl2\nl3\nl4";
+        String l30 = String.join("\n", java.util.Collections.nCopies(30, "x"));
+        String[][] trims = {
+                {"underCap", l3, "24"},
+                {"overCap3", l3, "2"},
+                {"overCap4", l4, "2"},
+                {"capOne", l4, "1"},
+                {"empty", "", "24"},
+                {"trailingNewline", "l1\nl2\n", "5"},
+                {"blankLineInside", "l1\n\nl2", "2"},
+                {"corpusMaxPlus1", l30, "24"},
+        };
+        for (String[] v : trims) {
+            int max = Integer.parseInt(v[2]);
+            String trimmed = String.valueOf(trimFn.invoke(null, v[1], max));
+            ObjectNode row = trimRows.addObject();
+            row.put("id", v[0]);
+            row.put("input", v[1]);
+            row.put("max", max);
+            row.put("out", trimmed);
+            row.put("unchanged", trimmed.equals(v[1]));
+            row.put("inputLines", v[1].isEmpty() ? 0 : v[1].split("\n", -1).length);
+            row.put("outLines", trimmed.isEmpty() ? 0 : trimmed.split("\n", -1).length);
+        }
+
+        receipt.put("ok", true);
+        receipt.set("qaPure", out);
+    }
+
+    /** 反射调用单参纯函数：返回 null 时回吐字面量 NULL（空串与 null 是两种结果，必须能分开断言）。 */
+    private static String echoOrNull(java.lang.reflect.Method fn, String... args) {
+        try {
+            Object o = fn.invoke(null, (Object[]) args);
+            return o == null ? "NULL" : String.valueOf(o);
+        } catch (java.lang.reflect.InvocationTargetException e) {
+            return "THROWS:" + e.getCause().getClass().getSimpleName();
+        } catch (ReflectiveOperationException e) {
+            return "PROBE_BROKEN:" + e.getMessage();
+        }
+    }
+
     /** 重跑前先拆干净：夹具必须每次从同一个形状长出来，否则第二次跑读的是第一轮的缓存 */
     private static void deleteTree(Path dir) throws Exception {
         if (dir == null || Files.notExists(dir)) return;
@@ -514,6 +654,7 @@ public class ScanProbe {
                     case "id-sanitize" -> runIdSanitize(receipt, mapper, value);
                     case "id-project" -> runIdProject(receipt, mapper);
                     case "exts-contract" -> runExtsContract(receipt, mapper, value);
+                    case "qa-pure" -> runQaPure(receipt, mapper);
                     case "mksymlink" -> {
                         ObjectNode n = mapper.createObjectNode();
                         n.put("created", makeSymlink(value));

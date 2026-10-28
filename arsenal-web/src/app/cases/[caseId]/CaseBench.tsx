@@ -6,7 +6,7 @@ import { useSearchParams } from 'next/navigation';
 import type { CaseParams, CaseSlice } from '@/lib/case-types';
 import { cases, defaultParams, getCase, symptomParams } from '@/lib/case-cases';
 import { planToPrompt, synthCase, whenHits } from '@/lib/case-synth';
-import { buildZip } from '@/lib/zip-lite';
+import { buildZipBytes } from '@/lib/zip';
 import { ArchSuggestion, LevelAxis, SliceCard } from '../_lib/case-parts';
 import { caseUrl, decodeParams, encodeParams, isFullyValid } from '../_lib/params-codec';
 import StepRail from '../_lib/step-rail';
@@ -140,16 +140,17 @@ export default function CaseBench({ caseId }: { caseId: string }) {
    */
   const exportZip = () => {
     const entries = plan.activeSlices.map(({ slice }) => ({
-      name: `${kase.id}/${String(slice.order).padStart(2, '0')}-${slice.id}.java`,
-      data: slice.code,
+      path: `${kase.id}/${String(slice.order).padStart(2, '0')}-${slice.id}.java`,
+      content: slice.code,
     }));
     const ddl = plan.activeSlices
       .map(({ slice }) => `-- ${slice.order}. ${slice.goal}\n${slice.sql}`)
       .join('\n\n');
-    entries.unshift({ name: `${kase.id}/schema.sql`, data: ddl });
-    entries.push({ name: `${kase.id}/README.md`, data: planToPrompt(plan) });
+    entries.unshift({ path: `${kase.id}/schema.sql`, content: ddl });
+    entries.push({ path: `${kase.id}/README.md`, content: planToPrompt(plan) });
 
-    const zip = buildZip(entries);
+    // 固定 1980 时间戳 = 同参数两次导出逐字节一致（案例导出的可复现承诺）
+    const zip = buildZipBytes(entries, new Date(1980, 0, 1));
     const url = URL.createObjectURL(new Blob([zip as BlobPart], { type: 'application/zip' }));
     const a = document.createElement('a');
     a.href = url;

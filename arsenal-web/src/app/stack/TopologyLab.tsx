@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { layoutFlowFigure } from '@/lib/topology-figure';
+import { layoutFlowFigure } from '@/lib/topology';
 import { svgMotionStyle } from '@/lib/arch-motion';
 import type { TopologyFlow, TopologyFlowSceneId } from '@/lib/content-types';
 import { TOPOLOGY_FLOW_SCENE_IDS } from '@/lib/topology-flows';

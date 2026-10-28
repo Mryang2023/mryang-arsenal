@@ -1,4 +1,4 @@
-import { DIAGRAM_LAYOUT, type ArchDiagramModel } from './arch-diagram';
+import { DIAGRAM_LAYOUT, type ArchDiagramModel } from '../../src/lib/arch-diagram';
 
 /**
  * 架构装配图的**几何模型 + 不变量**。

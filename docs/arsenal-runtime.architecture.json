@@ -24,13 +24,13 @@
         "id": "ai_export",
         "label": "给 AI 用",
         "focus": ["web", "ai", "server", "mcp"],
-        "note": "今天靠导出 6 种载体；MCP 适配层尚未实现，那是让 AI 主动来查规范的关键一步。"
+        "note": "今天靠导出 6 种载体；MCP 适配层（scripts/mcp-stdio.mjs）已于 2026-10 接入，AI 可主动来查规范。"
       },
       {
         "id": "mcp_gap",
         "label": "未完成面",
         "focus": ["mcp", "server", "sot"],
-        "note": "MCP 与后端接入案例库/装配台是仅有的两处结构性缺口。"
+        "note": "后端接入案例库/装配台是仅剩的结构性缺口（MCP 已接入）。"
       }
     ],
     "legend": { "mode": "hidden" }
@@ -39,9 +39,9 @@
     { "id": "user", "type": "external", "label": "使用者", "sublabel": "人查 · 给 AI · 验码", "tag": "单人 + 小团队 ≤10", "pos": [830, 140], "size": [150, 60] },
     { "id": "generator", "type": "backend", "label": "tools 生成器", "sublabel": "Python · 构建期校验", "tag": "案例 / 选型源", "pos": [30, 280], "size": [150, 60] },
     { "id": "sot", "type": "database", "label": "Source of Truth", "sublabel": "rules · cookbook · stacks", "tag": "三份都进 Git", "pos": [230, 280], "size": [150, 60] },
-    { "id": "web", "type": "frontend", "label": "arsenal-web", "sublabel": "Next.js 14 · :3010", "tag": "6 个路由", "pos": [430, 280], "size": [150, 60] },
+    { "id": "web", "type": "frontend", "label": "arsenal-web", "sublabel": "Next.js 16 · :3010", "tag": "33 个路由", "pos": [430, 280], "size": [150, 60] },
     { "id": "server", "type": "backend", "label": "arsenal-server", "sublabel": "Spring Boot · :3011", "tag": "只读规则集", "pos": [630, 280], "size": [150, 60] },
-    { "id": "mcp", "type": "external", "label": "MCP 适配层", "sublabel": "尚未实现", "tag": "项目成败关键", "pos": [630, 460], "size": [150, 60] },
+    { "id": "mcp", "type": "external", "label": "MCP 适配层", "sublabel": "mcp-stdio.mjs 已接入", "tag": "项目成败关键", "pos": [630, 460], "size": [150, 60] },
     { "id": "ai", "type": "external", "label": "AI 编码助手", "sublabel": "消费 6 种载体", "tag": "Cursor / Codex", "pos": [830, 460], "size": [150, 60] }
   ],
   "boundaries": [
@@ -62,7 +62,7 @@
       "id": "c_web_user",
       "from": "web",
       "to": "user",
-      "label": "人查 · 6 路由",
+      "label": "人查 · 33 路由",
       "fromSide": "top",
       "toSide": "top",
       "via": [[505, 100], [905, 100]],
@@ -84,7 +84,7 @@
       "dot": "cyan",
       "title": "三种出口（第一原则：一份数据，三种出口）",
       "items": [
-        "人查 —— /rules /blueprints /stack 三个页面，共 6 个路由",
+        "人查 —— /rules /blueprints /stack /cases /projects 等页面，共 33 个路由",
         "给 AI 用 —— 导出 json / markdown / mcp / prompt / cursorrules / claude 六种载体",
         "拿代码验 —— POST /api/lint 送代码拿违规清单，非正则层的 32 条进 skipped 如实披露"
       ]

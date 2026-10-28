@@ -274,7 +274,8 @@ public class CaseRunnerService {
                     if (total <= maxOutputBytes) {
                         sink.append(line).append('\n');
                     }
-                    total += line.length() + 1;
+                    // 限额的单位是字节（max-output-bytes），按 UTF-8 实际字节数计，不按字符
+                    total += line.getBytes(StandardCharsets.UTF_8).length + 1;
                 }
             } catch (IOException ignored) {
                 // 流被关闭属正常
@@ -282,12 +283,13 @@ public class CaseRunnerService {
         });
     }
 
-    private static String cap(StringBuilder sb) {
+    private String cap(StringBuilder sb) {
         if (sb.length() <= 0) {
             return "";
         }
-        if (sb.length() > 524288) {
-            return sb.substring(0, 524288) + "\n...[输出已截断]";
+        // 用注入的 maxOutputBytes，别再写死一份副本 —— 配置改了这里不同步就是暗伤
+        if (sb.length() > maxOutputBytes) {
+            return sb.substring(0, (int) maxOutputBytes) + "\n...[输出已截断]";
         }
         return sb.toString();
     }

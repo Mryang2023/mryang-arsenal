@@ -96,6 +96,12 @@ public class QaService {
     private final Path m2Repo;
 
     private final Map<String, QaJob> jobs = new ConcurrentHashMap<>();
+    /**
+     * 内存里最多留多少个 job 状态。磁盘（jobs/&lt;id&gt;.json）才是事实源，jobNode/requireJob
+     * 都有读盘兜底，所以淘汰只影响内存占用、不影响可查性 —— 启动时全量读回 + 只增不减
+     * 的旧做法会让内存随历史无限涨。PENDING/RUNNING 永不淘汰（worker 还在引用）。
+     */
+    private static final int MAX_JOBS_IN_MEMORY = 50;
     private ExecutorService executor;
 
     public QaService(AutopsyService autopsy, RuleIndex index, ObjectMapper mapper,
@@ -151,6 +157,7 @@ public class QaService {
         } catch (IOException ignored) {
             // 列不出历史不影响新提交；如实记日志即可
         }
+        evictOldJobs();
         executor = Executors.newFixedThreadPool(poolSize, r -> {
             Thread t = new Thread(r, "qa-worker");
             t.setDaemon(true);
@@ -168,6 +175,23 @@ public class QaService {
                 Thread.currentThread().interrupt();
             }
         }
+    }
+
+    /**
+     * 内存 job 淘汰：超出 {@link #MAX_JOBS_IN_MEMORY} 时从最老的终结态（DONE/FAILED）开始扔。
+     * 只扔内存不删盘 —— 历史 job 依然可查（jobNode/requireJob 会读盘）。
+     * 并发下多扔/少扔几个无妨，这不是记账逻辑，是水位控制。
+     */
+    private void evictOldJobs() {
+        int overflow = jobs.size() - MAX_JOBS_IN_MEMORY;
+        if (overflow <= 0) {
+            return;
+        }
+        jobs.values().stream()
+                .filter(j -> !QaJob.PENDING.equals(j.status()) && !QaJob.RUNNING.equals(j.status()))
+                .sorted(Comparator.comparingLong(QaJob::createdAt))
+                .limit(overflow)
+                .forEach(j -> jobs.remove(j.id()));
     }
 
     // ─────────────────────────────────────────────────────────────
@@ -201,6 +225,7 @@ public class QaService {
                     QaRange.fromJson(body.get("range")), body.path("deepCheck").asBoolean(false));
             jobs.put(jobId, job);
             persistJob(job);
+            evictOldJobs();
             executor.submit(() -> run(job));
             ObjectNode out = mapper.createObjectNode();
             out.put("jobId", jobId);
@@ -230,6 +255,7 @@ public class QaService {
         QaJob job = new QaJob(jobId, projectIdOf(kind, value), kind, value, range, deepCheck);
         jobs.put(jobId, job);
         persistJob(job);
+        evictOldJobs();
         executor.submit(() -> run(job));
 
         ObjectNode out = mapper.createObjectNode();
