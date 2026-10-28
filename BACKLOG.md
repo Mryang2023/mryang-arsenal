@@ -89,12 +89,16 @@
   **一个新事实（决定不改）**：`depth(root, root)` 实测 1 不是 0（空相对路径在 `AbstractPath` 迭代器里算一段）；
   闸门是 `> MAX_DEPTH`，改它只会挪掉 5-2 的 22 层边界 → 按实测值钉住。
   **本轮未发现缺陷**，补的是回归护栏。至此 `ScanGuard` 的纯判定全部有守卫。
-- **P1-1c [证据，r15 新证] 超限二进制的「跳过并记账」那半条**只补了判据（3-12 钉的是 `skippableOversize` 这个函数），
-  **摄取侧的记账本身仍 0 条断言**：`ProjectCache.java:140 skippedCount[0]++` / `:167 manifest.skipped` / `:201 cache.skippedFiles`
-  三处删掉任何一处，链全绿 —— 也就是「跳过的事实会记进 manifest 与 cache 统计，不是静默消失」这句 javadoc 承诺没人守。
-  位置要换一层：这不在 `ScanGuard`（纯判定已数干净），在 `ProjectsProbe` + `verify:checkup`（那里才有摄取链的夹具，
-  `quota` / `gate` 两个动作已经是同一种形状）。代价比本轮大一档：要造一个「3MB 的 .xdb + 一个正常 .java」的摄取夹具，
-  并确认 `verify:checkup` 的门禁成本（该层常态 90 通过 + 9 未执行，比 scan 层贵）。
+- **P1-1c [证据，r16 复核完成] ~~超限二进制的「跳过并记账」摄取侧 0 条断言~~ → 已补满，未发现缺陷。**
+  判据函数 `skippableOversize` 早在 3-12 钉住，但记账本身没人守：`ProjectCache.java:140 skippedCount[0]++` /
+  `:167 manifest.skipped` / `:201 cache.skippedFiles` 三处删掉任何一处，链全绿 —— javadoc 承诺的
+  「跳过的事实会记进 manifest 与 cache 统计，不是静默消失」是一句无守卫的话。
+  **r16 处置**：探针动作落在 `ScanProbe` 的 `oversize-skip` / `oversize-clean`（不是原计划的 `ProjectsProbe` ——
+  那一层要带进 `verify:checkup` 常态 9 项未执行，门禁更贵且本轮够不着；`guards` 那次 trips 已经付过 4 分钟成本，搭同一趟车）。
+  前端 5-5（记账三处齐活 + 正常文件不受牵连）/ 5-6（**跳过不绕限额**：3MB 二进制的字节仍计入 quota）/
+  5-7（反向对照：干净夹具 `skippedFiles==0` 且 manifest 无 skipped 行）三条断言接住，`verify:scan` 179→**182**。
+  **注入回归验过它们真的咬**：删掉 `skippedCount[0]++` → 5-5 红；把跳过文件的字节从 `total[0]` 里摘掉 → 5-6 红；
+  两轮都按 sha256 备份并复原 `ProjectCache.java`（字节级 identical，用户的 49/17 行在途改动未动）。
 - **仍开放的下一步**（若还要往这方向走）：`AstEngine` / `ProjectStore` / `QaService` 的同等逐分支判定未做过，
   本轮只把 `ScanGuard` 数干净；不要据此三句泛泛说「零测试」再开任务。
 - **P1-2 [证据，r7 复核完成] ~~前端 AST 层 0/20（待复核）~~ → 前提过期，判为「设计意图 + 缺口已闭环」，不是缺口。**

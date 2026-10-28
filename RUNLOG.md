@@ -398,3 +398,45 @@ r14 不提交它是对的（B-1 判据）；代价是干净检出 `auto/iterate-
 `src/generated` 反倒被排除），按规矩 `node scripts/next-run.mjs build` 重建（6.2s）后复跑 `verify:visual`
 = 11 通过 / 1 失败（B-2 待批截图）/ 1 未执行，回到基线形态。
 链失败面仍是 **4**（scan 3 + visual 1），实测项数 2293 → **2299**。
+
+## r16 · 2026-10-28 00:47Z — P1-1c：超限二进制「跳过并记账」的摄取侧覆盖（4 文件 / +123 −6，`6eaa79b`）
+
+（cron 本会话仍不可见 → 按 B-5 的同会话连续跑安排，不是新的一轮唤醒。）
+
+**真空是怎么被 r15 顺手挖出来的**：3-12 只钉了判据函数（该不该跳），而 `skippableOversize` 的 javadoc 明写
+「跳过的事实会记进 manifest 与 cache 统计（`skippedFiles`），不是静默消失」—— 承诺的下半句落在 `ProjectCache` 的
+三处记账上，那三处 grep 全仓库只有产品代码自己出现（`skippedFiles` 只命中 Java 源码与注释，无一条断言）。
+也就是说：这条链路的**判据**有守卫、**后果**没有。
+
+**为什么在 ScanProbe 而不是 ProjectsProbe**：`ProjectsProbe` 挂在 `verify:checkup`，那层常态 90 通过 + 9 未执行，
+门禁比 scan 贵一个量级，而本轮要证的只是摄取返回值 + manifest + 缓存落盘三件事。形状沿用 `quota`：
+一个动作自己造夹具、自己 `new ProjectCache(cacheRoot, mapper).ingestPath(...)`、把 stat / manifest 逐条 /
+缓存目录里到底有没有那个文件一起回吐。**同一条链跑两个仓库**（有 3MB 的 / 没有的），第二个就是反向对照。
+
+**实测到的形状（与 javadoc 承诺一致，未发现缺陷）**：
+`files=3`（被跳过的仍计入文件数）、`bytes=3145828`（>3MB，仍计入总配额）、`skippedFiles=1`、
+manifest 里 `assets/ip2region.xdb` 带 `skipped:true` 而另外两条 `false`、缓存目录里 `.xdb` 没落盘、
+`App.java` 与 `pom.xml` 照常复制 —— 「跳过」没有牵连任何正常文件。
+
+**这轮多做了一件事：证明断言会咬人**
+r14/r15 两轮都是「补了护栏，但没证过它红得起来」。这轮补完立刻做两次注入（改产品代码、跑探针、按 sha 还原）：
+| 注入 | 结果 |
+|---|---|
+| 摘掉 `if (skipped) m.put("skipped", true)` | manifest 三条全 `false` → **5-5 判红** ✓ |
+| 摘掉 `total[0] += size` | `bytes=0` → **5-6 判红** ✓ |
+`ProjectCache.java` 在 `main` 上带用户在途改动，所以注入前先 `sha256sum` + 备份，跑完还原并复核
+`RESTORED-IDENTICAL`（同一串 sha），再确认它对 HEAD 的 diff 仍是用户自己的 `49 / 17`。
+
+**⚠️ 一处必须写下来的险（我自己的命令写错，不是环境问题）**
+第二条注入的收尾命令里我写了 `git checkout --  2>/dev/null` —— 本意是空操作，实际它带了 `2>/dev/null` 把
+「必须指定路径」的报错吞掉，而 git 顺手打印了一整页文件列表，看起来像做了一次全仓 revert。
+事后逐项核对确认**没有任何工作区被改写**：暂存区仍是 `31 files / 393 / −17703`；
+`ScanGuard.java` 仍是 11/1（用户那 11 行 redactValue 在位）、`ProjectCache.java` 仍是 49/17、
+本轮四处改动（README 三处数字 + scan 行、profile 182、探针两个动作、五条新断言）全部在位。
+教训：**在带着别人在途改动的工作区里，永远不给 git 写「可能吃掉路径参数」的形式** ——
+`git checkout --` 后面哪怕只留一个空格，也要让它显式失败而不是 `2>/dev/null`。这条与 r14 的
+「Edit 把 NUL 吞成空格」「TZ= 静默回吐 UTC」是同一类：错了不报错，只是安静地给你另一个世界。
+
+**门禁与账**：`typecheck:verify` exit 0｜`verify:scan` **179 通过 / 3 失败 / 实测 182 == 声明 182**
+（三条红仍是 13-1/13-2/13-7 = B-7，**0 新增**）｜`verify:meta` **73/0/0**｜`verify:visual` 11/1/1（重建产物后，= B-2）。
+链失败面仍是 **4**，实测项数 2299 → **2302**。

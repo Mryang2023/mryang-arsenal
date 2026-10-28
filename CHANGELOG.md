@@ -136,3 +136,21 @@
 - 门禁：`typecheck:verify` 0；`verify:scan` **176 通过 / 3 失败** / 实测 179 = 声明 179（失败仍是 13-1/13-2/13-7 = B-7，0 新增）；
   `verify:meta` **73/0/0**；因动了 `arsenal-profiles/` 触发 visual 层产物过期 → 按 `next-run.mjs build` 重建后复跑 `verify:visual`，
   回到基线形态（11 通过 / 1 失败 = B-2 / 1 未执行）。
+
+## r16 · 2026-10-28 00:47Z
+- `6eaa79b` — 超限二进制的**跳过并记账**补摄取侧断言，`verify:scan` 179 → **182 项**（4 文件 / +123 −6）。
+  - 承接 r15 留下的 P1-1c：3-12 钉住了判据函数 `skippableOversize`，但跳完之后那三处记账
+    （`ProjectCache` 的 `skippedCount++` / `manifest.skipped` / `cache.skippedFiles`）**删掉任何一条链都全绿** ——
+    javadoc 那句「跳过的事实会记进 manifest 与 cache 统计，不是静默消失」原本无人守。
+  - `arsenal-server/.verify/ScanProbe.java`：新增 `oversize-skip` / `oversize-clean` 两个动作，夹具与摄取都在探针里做完，
+    搭【5】那趟车（单跑一趟探针 4 分钟）。探针仍只回吐事实，期望表在前端。
+  - `arsenal-web/.verify/scan-check.ts`：新增 5-5 / 5-6 / 5-7。5-7 是反向对照（同一条链不放那个 3MB 文件 → 记账必须是 0），
+    5-6 守的是「跳过的文件仍计入 files/bytes 配额」—— 否则「跳过」就成了绕过 500MB 总闸门的后门。
+  - `arsenal-profiles/arsenal.json` 179→182 + desc；`README.md` 总数 2299→2302、scan 行 179→182（用户在途两段散文照旧留在工作区）。
+- **两条注入回归实测断言真会红**（这是本轮与 r15 的差别：护栏补完还证了它会咬人）：
+  摘掉 `m.put("skipped", true)` → 5-5 红；摘掉 `total[0] += size` → 5-6 红（bytes 变 0）。
+  改的是产品代码 `ProjectCache.java`，跑完按 sha256 还原成逐字节相同（`RESTORED-IDENTICAL`），事后核对
+  该文件对 HEAD 仍是用户自己的 49/17，未留下一丝循环的痕迹。
+- 实测结论：**记账链路当前行为全部正确**（files=3 / bytes=3145828 / skippedFiles=1 / xdb 未落盘 / App.java 与 pom 照常复制），未发现缺陷。
+- 门禁：`typecheck:verify` 0；`verify:scan` 179 通过 / 3 失败（= B-7，0 新增）/ 实测 182 == 声明 182；`verify:meta` 73/0/0；
+  profiles 改动再次触发 visual 新鲜度 → 重建后 `verify:visual` 11/1/1 回到基线形态。链实测项数 2299 → **2302**。
