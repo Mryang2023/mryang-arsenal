@@ -20,6 +20,7 @@
  * 跑法：npm run verify:scan（需要 bash + JDK 17，缺一指明说跳过）
  */
 import { spawnSync } from 'node:child_process';
+import { createHash } from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import url from 'node:url';
@@ -226,6 +227,8 @@ type Receipt = {
   ingest?: any;
   /** `id-sanitize` 回执（r17）：三份拼路径 id 消毒函数对同一批向量的原始判定 */
   sanitize?: any;
+  /** `id-project` 回执（r18）：Java 侧 ProjectIds 的 normalize 与 12 位 id，逐向量 */
+  projectIds?: any;
 };
 
 /**
@@ -951,6 +954,7 @@ if (!skipAll) {
     `oversize-skip:${skipWork}`,
     `oversize-clean:${cleanWork}`,
     `id-sanitize:${idWork}`,
+    `id-project:`,
   ]);
   const guardFacts = (tail: string) =>
     r6.find((r) => r.kind === 'facts' && r.action.endsWith(tail))?.facts;
@@ -1066,6 +1070,102 @@ if (!skipAll) {
       && qaRejects('encoded') && qaRejects('empty') && qaRejects('nul') && qaRejects('len65')
       && qaRejects('null') && sById('valid')?.qa === 'demo-1_A',
     JSON.stringify(srows?.map((r) => ({ id: r.id, qa: r.qa, strip: r.cache })))
+  );
+
+  // ── r18（P1-1e）：跨语言 projectId 一致性 —— 从「源码长相」升级成行为对拍 ────
+  //
+  // project-check.ts 的 31-3/31-4 是拿正则匹配 ProjectIds.java 的**源码文本**，而这份 Java 实现
+  // 在五个探针里从未被执行过一次（对拍向量 31-1 跑的是 Node 那份）。于是 棒1 要根治的那句暗伤
+  // ——「同一个地址在两套系统里算出同一个身份」—— 实际由长相守着：等价重构会让 31-3 因长相红，
+  // 真正的漂移反而不红。这里用同一批向量把两份实现都真跑一遍，逐字节对拍。
+  const prows = r6.find((r) => r.kind === 'id-project')?.projectIds as any[] | undefined;
+  const pById = (id: string) => prows?.find((r) => r.id === id);
+  const NBSP = String.fromCharCode(0xA0);
+  const KIND_NULL = '@@NULL@@';
+  const VECTOR_ARGS: Record<string, [string | null, string | null]> = {
+    trailSlash1: ['path', 'D:/work/order-service/'],
+    trailSlash3: ['path', 'D:/work/order-service///'],
+    backslash: ['path', 'D:\\work\\order-service'],
+    padSpaces: ['path', '  D:/work/order-service  '],
+    padNbsp: ['path', NBSP + 'D:/work/order-service' + NBSP],
+    padTab: ['path', '\tD:/work/order-service\n'],
+    onlySlash: ['path', '/'],
+    emptyValue: ['path', ''],
+    nullValue: ['path', null],
+    nullKind: [null, 'D:/work/order-service'],
+    kindCase: ['PATH', 'D:/work/order-service'],
+    unicode: ['path', 'D:/工作/订单服务'],
+    gitUrl: ['git', 'https://example.com/a/b.git'],
+    gitTrail: ['git', 'https://example.com/a/b.git/'],
+    baseline: ['path', 'D:/work/order-service'],
+  };
+  /** Java 那份 normalize 的期望串（把算法本身钉住：少一次 trim / 少一次反斜杠替换都会红） */
+  const WANT_NORMALIZED: Record<string, string> = {
+    trailSlash1: 'path:D:/work/order-service',
+    trailSlash3: 'path:D:/work/order-service',
+    backslash: 'path:D:/work/order-service',
+    padSpaces: 'path:D:/work/order-service',
+    padNbsp: `path:${NBSP}D:/work/order-service${NBSP}`,
+    padTab: 'path:D:/work/order-service',
+    onlySlash: 'path:',
+    emptyValue: 'path:',
+    nullValue: 'path:',
+    nullKind: ':D:/work/order-service',
+    kindCase: 'PATH:D:/work/order-service',
+    unicode: 'path:D:/工作/订单服务',
+    gitUrl: 'git:https://example.com/a/b.git',
+    gitTrail: 'git:https://example.com/a/b.git',
+    baseline: 'path:D:/work/order-service',
+  };
+  /** 两套实现**当前**确有分歧的两条（其余必须逐字节相同）；分歧原因见 B-11 */
+  const DIVERGENT = new Set(['padNbsp', 'nullKind']);
+
+  check(
+    '5-11 Java 侧 ProjectIds.normalize 逐向量等于期望串（十五根向量齐备、尾斜杠与反斜杠与首尾空白都归一、kind 为 null 拼空串）—— 31-3 只匹配源码字样，这条才是行为',
+    !!prows && prows.length === Object.keys(VECTOR_ARGS).length
+      && missById(
+        (prows ?? []).map((r) => ({ id: String(r.id), v: r.normalized })),
+        Object.entries(WANT_NORMALIZED).map(([id, w]) => [id, w] as [string, unknown])
+      ).length === 0,
+    JSON.stringify((prows ?? []).map((r) => ({ id: r.id, norm: r.normalized })))
+  );
+
+  const agreeFail = (prows ?? [])
+    .filter((r) => !DIVERGENT.has(String(r.id)))
+    .map((r) => {
+      const [k, v] = VECTOR_ARGS[String(r.id)] ?? ['?', '?'];
+      const node = projectIdOf(k as string, v as string);
+      return node === r.javaId ? '' : `${r.id}: java=${r.javaId} node=${node}`;
+    })
+    .filter(Boolean);
+  check(
+    '5-12 同一批向量两份实现真跑一遍逐字节相同（十三条：尾斜杠 / 多个尾斜杠 / 反斜杠 / 空格 / tab 换行 / 仅斜杠 / 空串 / null 值 / 大小写 kind / 非 ASCII / git / git 尾斜杠 / 基线）',
+    agreeFail.length === 0,
+    JSON.stringify(agreeFail)
+  );
+
+  const baseId = String(pById('baseline')?.javaId ?? '');
+  const baseExpected = createHash('sha256')
+    .update(Buffer.from('path:D:/work/order-service', 'utf8'))
+    .digest('hex')
+    .slice(0, 12);
+  check(
+    '5-13 基线 id 不由被验实现自证：Java 回吐的 projectId 必须等于这里用 node:crypto 独立算出的 sha256(未脱敏原串) 前 12 位（两份实现同时漂到同一个错值也算红）',
+    baseId === baseExpected && baseId.length === 12 && /^[0-9a-f]{12}$/.test(baseId),
+    `java=${baseId} 独立算=${baseExpected}`
+  );
+
+  const nbspNode = projectIdOf('path', NBSP + 'D:/work/order-service' + NBSP);
+  const nullKindNode = projectIdOf(null as unknown as string, 'D:/work/order-service');
+  check(
+    '5-14 如实钉住当前仅有的两处跨语言漂移：Java 的 trim 只剥 ≤U+0020 而 JS 的 trim 连 NBSP 一起剥；kind 为 null 时 Java 拼空串而 JS 拼 String(null) —— 谁对齐两边这条就红，逼他确认对齐方向（见 B-11）',
+    String(pById('padNbsp')?.javaId) !== nbspNode
+      && String(pById('nullKind')?.javaId) !== nullKindNode
+      && String(pById('nullKind')?.javaId) === '30a3b5a70bef',
+    JSON.stringify({
+      nbsp: { java: pById('padNbsp')?.javaId, node: nbspNode },
+      nullKind: { java: pById('nullKind')?.javaId, node: nullKindNode },
+    })
   );
 
   // ── 【6】没有任何部署清单的仓库：不许编出副本数 ─────────────────

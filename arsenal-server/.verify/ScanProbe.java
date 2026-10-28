@@ -5,6 +5,7 @@ import com.arsenal.scan.ScanContext;
 import com.arsenal.scan.ScanGuard;
 import com.arsenal.scan.SourceResolver;
 import com.arsenal.projects.ProjectCache;
+import com.arsenal.projects.ProjectIds;
 import tools.jackson.databind.ObjectMapper;
 import tools.jackson.databind.node.ArrayNode;
 import tools.jackson.databind.node.ObjectNode;
@@ -284,6 +285,52 @@ public class ScanProbe {
         }
     }
 
+    /**
+     * 跨语言 projectId 对拍用的事实回吐：Java 这份 `ProjectIds` 的 normalize 与 12 位 id，逐向量摊开。
+     *
+     * <p>为什么需要：`project-check.ts` 的 31-3 是拿正则匹配 `ProjectIds.java` 的**源码文本**
+     * （`MessageDigest.getInstance("SHA-256")` / `formatHex(d).substring(0, 12)` 这些字样），
+     * 而 Java 这份 `ProjectIds` 在五个探针里**一次都没被执行过** —— 对拍向量 31-1 跑的是 Node 那份。
+     * 于是「同一地址在两套系统里算出同一个身份」（ProjectIds javadoc 自述的 棒1 暗伤）实际由长相守着：
+     * 等价重构会让 31-3 因长相变红，真正的漂移反而无人报。这里把它换成行为断言的原料。
+     *
+     * <p>kind 传 null 用哨兵字符串表示（JSON 里存 null 会丢掉「到底是 null 还是缺字段」这一层）。
+     * NBSP 用 (char) 0xA0 拼 —— Java 源码里写字面反斜杠-u 会被词法前置展开（r14 的坑）。
+     */
+    private static void runIdProject(ObjectNode receipt, ObjectMapper mapper) {
+        String nbsp = String.valueOf((char) 0xA0);
+        String[][] cases = {
+                {"trailSlash1", "path", "D:/work/order-service/"},
+                {"trailSlash3", "path", "D:/work/order-service///"},
+                {"backslash", "path", "D:\\work\\order-service"},
+                {"padSpaces", "path", "  D:/work/order-service  "},
+                {"padNbsp", "path", nbsp + "D:/work/order-service" + nbsp},
+                {"padTab", "path", "\tD:/work/order-service\n"},
+                {"onlySlash", "path", "/"},
+                {"emptyValue", "path", ""},
+                {"nullValue", "path", "@@NULL@@"},
+                {"nullKind", "@@NULL@@", "D:/work/order-service"},
+                {"kindCase", "PATH", "D:/work/order-service"},
+                {"unicode", "path", "D:/工作/订单服务"},
+                {"gitUrl", "git", "https://example.com/a/b.git"},
+                {"gitTrail", "git", "https://example.com/a/b.git/"},
+                {"baseline", "path", "D:/work/order-service"},
+        };
+        ArrayNode rows = mapper.createArrayNode();
+        for (String[] c : cases) {
+            String kind = "@@NULL@@".equals(c[1]) ? null : c[1];
+            String value = "@@NULL@@".equals(c[2]) ? null : c[2];
+            ObjectNode row = rows.addObject();
+            row.put("id", c[0]);
+            row.put("kind", c[1]);
+            row.put("value", c[2]);
+            row.put("normalized", ProjectIds.normalize(kind, value));
+            row.put("javaId", ProjectIds.projectIdOf(kind, value));
+        }
+        receipt.put("ok", true);
+        receipt.set("projectIds", rows);
+    }
+
     /** 重跑前先拆干净：夹具必须每次从同一个形状长出来，否则第二次跑读的是第一轮的缓存 */
     private static void deleteTree(Path dir) throws Exception {
         if (dir == null || Files.notExists(dir)) return;
@@ -358,6 +405,7 @@ public class ScanProbe {
                     case "oversize-skip" -> runOversizeIngest(receipt, mapper, value, true);
                     case "oversize-clean" -> runOversizeIngest(receipt, mapper, value, false);
                     case "id-sanitize" -> runIdSanitize(receipt, mapper, value);
+                    case "id-project" -> runIdProject(receipt, mapper);
                     case "mksymlink" -> {
                         ObjectNode n = mapper.createObjectNode();
                         n.put("created", makeSymlink(value));
