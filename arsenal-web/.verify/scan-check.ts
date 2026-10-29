@@ -1431,6 +1431,65 @@ if (!skipAll) {
     JSON.stringify(apPrims)
   );
 
+  // ── ast-pure 扩展（r22 P1-1i）：诊断换算与坐标口径 ──
+  // readErrors 的四个归一分支与「只认 ERROR」、SourceText/LintEngine 两份 lineOf 的等价性、
+  // columnOf 的 1-based 口径、snippetAt 的截断边界 —— AstProbe 端到端只看 Finding，
+  // 这些换算此前 0 直接断言。
+  const erRows = (ap?.readErrors ?? []) as any[];
+  const erById = (id: string) => erRows.find((r) => r.id === id);
+  check(
+    '5-32 readErrors 六条：ERROR 逐字段透传（正常行列原样、code/message 原样）/ line·col ≤0 一律归 0 / code 为 null 归空串、message 为 null 归空串（ParseError 没有null字段）/ **WARNING 与 NOTE 不进 errors** —— 混一批只留 ERROR 且顺序保持（e1,e2）：把 warning 也当错误报出去，就是把「静默」换成「误报」的同款病',
+    erRows.length === 6
+      && erById('errNormal')?.line === 3 && erById('errNormal')?.column === 7
+      && erById('errNormal')?.code === 'compiler.err.expected' && erById('errNormal')?.message === "'; expected"
+      && erById('errZeroPos')?.line === 0 && erById('errZeroPos')?.column === 0
+      && erById('errNegPos')?.line === 0 && erById('errNegPos')?.column === 0
+      && erById('errNullCode')?.code === ''
+      && erById('errNullMessage')?.message === ''
+      && erById('warnNoteNotErrors')?.n === 2
+      && JSON.stringify(erById('warnNoteNotErrors')?.codes) === '["e1","e2"]',
+    JSON.stringify(erRows)
+  );
+
+  const stLineRows = (ap?.sourceText?.lineOf ?? []) as any[];
+  check(
+    '5-33 lineOf 六点 + 两份实现逐向量同值：SourceText.lineOf（pos<0 早退）与 LintEngine.lineOf(int[],int) 是同一个二分 —— neg/start 都归 1、换行符归属前一行（pos=2 是第 1 行）、末字符与越界都停在末行（4）。谁孤改其中一份（比如换算法或加钳位）而另一份没跟，same 数组立刻红',
+    stLineRows.length === 6
+      && stLineRows.every((r) => r.same === true)
+      && stLineRows.find((r) => r.id === 'neg')?.st === '1'
+      && stLineRows.find((r) => r.id === 'onNewline')?.st === '1'
+      && stLineRows.find((r) => r.id === 'secondLine')?.st === '2'
+      && stLineRows.find((r) => r.id === 'beyond')?.st === '4',
+    JSON.stringify(stLineRows)
+  );
+
+  const stColRows = (ap?.sourceText?.columnOf ?? []) as any[];
+  const colById = (id: string) => String(stColRows.find((r) => r.id === id)?.out);
+  check(
+    '5-34 columnOf 四条（LintEngine 正则层的 1-based 列口径）：首字符 = 1 / 换行符算前一行的第 3 列（与 lineOf 把换行符归前一行同一种归属，不是巧合）/ **index<0 给 0 而不是钳 1** —— 与 lineOf 的 pos<0→1 不对称，这个差是实测钉的，不是设计推论，谁「顺手统一」两处先撞这条',
+    stColRows.length === 4
+      && colById('firstChar') === '1'
+      && colById('onNewline') === '3'
+      && colById('neg') === '0'
+      && colById('secondLineFirst') === '1',
+    JSON.stringify(stColRows)
+  );
+
+  const stSnRows = (ap?.sourceText?.snippetAt ?? []) as any[];
+  const snById = (id: string) => stSnRows.find((r) => r.id === id);
+  check(
+    '5-35 snippetAt 七条：整行原样（"aa"）/ pos 落在换行符上与空行都给**空串**（lastIndexOf+1 与 indexOf 交叠的边界，不是崩溃也不是吐上一行）/ 末行取到行尾 / pos<0 钳 0 / 超 max 截成 max 字符加「…」（141 喂 140 → len 141）/ 恰好等于 max 原样不加尾巴（140 → len 140）—— Finding 的 snippet 140 截断口径全在这',
+    stSnRows.length === 7
+      && snById('midLine')?.out === 'aa'
+      && snById('onNewline')?.out === ''
+      && snById('emptyLine')?.out === ''
+      && snById('lastLine')?.out === 'cc'
+      && snById('beforeStart')?.out === 'aa'
+      && snById('overMax141')?.len === 141 && snById('overMax141')?.ellipsized === true
+      && snById('exactMax140')?.len === 140 && snById('exactMax140')?.ellipsized === false,
+    JSON.stringify(stSnRows.map((r) => ({ id: r.id, out: r.out, len: r.len, el: r.ellipsized })))
+  );
+
   // ── 【6】没有任何部署清单的仓库：不许编出副本数 ─────────────────
   //
   // 这是全项目最容易被违反的一条底线（「读不到就默认 1」）。用真实扫出来的

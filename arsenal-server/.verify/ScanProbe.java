@@ -610,6 +610,26 @@ public class ScanProbe {
         receipt.set("qaPure", out);
     }
 
+    /**
+     * 合成一条 Diagnostic 喂 DiagnosticCollector.report —— readErrors 的归一分支（≤0 归 0、
+     * null 归空串、只认 ERROR）不必真编译就能问。position 系列与换算无关，随手钳 0。
+     */
+    private static javax.tools.Diagnostic<javax.tools.JavaFileObject> fakeDiag(
+            javax.tools.Diagnostic.Kind kind, final String code, final String message,
+            final long line, final long col) {
+        return new javax.tools.Diagnostic<>() {
+            @Override public javax.tools.Diagnostic.Kind getKind() { return kind; }
+            @Override public javax.tools.JavaFileObject getSource() { return null; }
+            @Override public String getCode() { return code; }
+            @Override public long getPosition() { return Math.max(0, col - 1); }
+            @Override public long getStartPosition() { return getPosition(); }
+            @Override public long getEndPosition() { return getPosition(); }
+            @Override public long getLineNumber() { return line; }
+            @Override public long getColumnNumber() { return col; }
+            @Override public String getMessage(java.util.Locale locale) { return message; }
+        };
+    }
+
     /** 反射调用单参纯函数：返回 null 时回吐字面量 NULL（空串与 null 是两种结果，必须能分开断言）。 */
     private static String echoOrNull(java.lang.reflect.Method fn, String... args) {
         try {
@@ -795,6 +815,141 @@ public class ScanProbe {
             extras.put("typeSimple_null", String.valueOf(r));
         } catch (java.lang.reflect.InvocationTargetException e) {
             extras.put("typeSimple_null", "THROWS:" + e.getCause().getClass().getSimpleName());
+        }
+
+        // ── readErrors（r22 P1-1i）：javac 诊断 → ParseError 的四个归一分支 + 只认 ERROR ──
+        // AstProbe 只断言过「编译错 fixture → not-executed」，换算本身（line/col ≤0 归 0、
+        // code/message null 归空串、WARNING/NOTE 不进 errors）没人单独问过。
+        // DiagnosticCollector.addDiagnostic 可以直接喂合成诊断，不必真编译。
+        var readErrFn = ast.getDeclaredMethod("readErrors",
+                javax.tools.DiagnosticCollector.class);
+        readErrFn.setAccessible(true);
+        ArrayNode errRows = out.putArray("readErrors");
+        Object[][] diagCases = {
+                {"errNormal", javax.tools.Diagnostic.Kind.ERROR, "compiler.err.expected", "'; expected", 3L, 7L},
+                {"errZeroPos", javax.tools.Diagnostic.Kind.ERROR, "c.zero", "m", 0L, 0L},
+                {"errNegPos", javax.tools.Diagnostic.Kind.ERROR, "c.neg", "m", -5L, -2L},
+                {"errNullCode", javax.tools.Diagnostic.Kind.ERROR, null, "m", 1L, 1L},
+                {"errNullMessage", javax.tools.Diagnostic.Kind.ERROR, "c.code", null, 1L, 1L},
+        };
+        for (Object[] v : diagCases) {
+            javax.tools.DiagnosticCollector<javax.tools.JavaFileObject> dc = new javax.tools.DiagnosticCollector<>();
+            dc.report(fakeDiag((javax.tools.Diagnostic.Kind) v[1], (String) v[2], (String) v[3],
+                    (Long) v[4], (Long) v[5]));
+            ObjectNode row = errRows.addObject();
+            row.put("id", String.valueOf(v[0]));
+            List<com.arsenal.engine.AstEngine.ParseError> errs =
+                    (List<com.arsenal.engine.AstEngine.ParseError>) readErrFn.invoke(null, dc);
+            row.put("n", errs.size());
+            if (!errs.isEmpty()) {
+                var e0 = errs.get(0);
+                row.put("line", e0.line());
+                row.put("column", e0.column());
+                row.put("code", String.valueOf(e0.code()));
+                row.put("message", String.valueOf(e0.message()));
+            }
+        }
+        {
+            // 只认 ERROR：WARNING 与 NOTE 加进去也不进 errors；混一批时只留 ERROR、顺序保持
+            javax.tools.DiagnosticCollector<javax.tools.JavaFileObject> dc = new javax.tools.DiagnosticCollector<>();
+            dc.report(fakeDiag(javax.tools.Diagnostic.Kind.WARNING, "w.code", "w", 2L, 2L));
+            dc.report(fakeDiag(javax.tools.Diagnostic.Kind.ERROR, "e1", "first", 3L, 1L));
+            dc.report(fakeDiag(javax.tools.Diagnostic.Kind.NOTE, "n.code", "n", 4L, 1L));
+            dc.report(fakeDiag(javax.tools.Diagnostic.Kind.ERROR, "e2", "second", 5L, 1L));
+            ObjectNode row = errRows.addObject();
+            row.put("id", "warnNoteNotErrors");
+            List<com.arsenal.engine.AstEngine.ParseError> errs =
+                    (List<com.arsenal.engine.AstEngine.ParseError>) readErrFn.invoke(null, dc);
+            row.put("n", errs.size());
+            ArrayNode codes = row.putArray("codes");
+            for (var e : errs) {
+                codes.add(String.valueOf(e.code()));
+            }
+        }
+
+        // ── SourceText（r22 P1-1i）：lineOf / snippetAt 坐标口径 + 与 LintEngine.lineOf 对拍 ──
+        // 两份 lineOf 是同一个二分（SourceText 版多一个 pos<0 早退）—— 同一批向量逐条对拍，
+        // 分歧本身就是发现。LintEngine 构造只存字段，null 依赖可安全 new。
+        Class<?> stCls = Class.forName("com.arsenal.engine.AstEngine$SourceText");
+        var stCtor = stCls.getDeclaredConstructor(String.class);
+        stCtor.setAccessible(true);
+        var stLineOf = stCls.getDeclaredMethod("lineOf", long.class);
+        stLineOf.setAccessible(true);
+        var stSnippet = stCls.getDeclaredMethod("snippetAt", long.class, int.class);
+        stSnippet.setAccessible(true);
+        Class<?> leCls = com.arsenal.engine.LintEngine.class;
+        var leLineOf = leCls.getDeclaredMethod("lineOf", int[].class, int.class);
+        leLineOf.setAccessible(true);
+        var leColumnOf = leCls.getDeclaredMethod("columnOf", int[].class, int.class);
+        leColumnOf.setAccessible(true);
+        Object le = leCls.getConstructor(com.arsenal.loader.RuleIndex.class, com.arsenal.engine.AstEngine.class,
+                int.class, long.class).newInstance(null, null, 5, 100L);
+
+        String sample = "aa\nbbbb\n\ncc";
+        Object st = stCtor.newInstance(sample);   // 换行表 = [2, 7, 8]
+        int[] newlines = {2, 7, 8};
+        ObjectNode stOut = out.putObject("sourceText");
+        stOut.put("text", sample);
+        ArrayNode loRows = stOut.putArray("lineOf");
+        Object[][] loCases = {
+                {"neg", -1L}, {"start", 0L}, {"onNewline", 2L}, {"secondLine", 3L},
+                {"lastChar", (long) sample.length() - 1}, {"beyond", (long) sample.length() + 50},
+        };
+        for (Object[] v : loCases) {
+            ObjectNode row = loRows.addObject();
+            row.put("id", String.valueOf(v[0]));
+            long p = (Long) v[1];
+            row.put("pos", p);
+            Object a = stLineOf.invoke(st, p);
+            Object b = leLineOf.invoke(le, newlines, (int) p);
+            row.put("st", String.valueOf(a));
+            row.put("le", String.valueOf(b));
+            row.put("same", a.equals(b));
+        }
+        ArrayNode colRows = stOut.putArray("columnOf");
+        Object[][] colCases = {
+                {"firstChar", 0L}, {"onNewline", 2L}, {"neg", -1L}, {"secondLineFirst", 3L},
+        };
+        for (Object[] v : colCases) {
+            ObjectNode row = colRows.addObject();
+            row.put("id", String.valueOf(v[0]));
+            long p = (Long) v[1];
+            row.put("pos", p);
+            row.put("out", String.valueOf(leColumnOf.invoke(le, newlines, (int) p)));
+        }
+        ArrayNode snRows = stOut.putArray("snippetAt");
+        Object[][] snCases = {
+                {"midLine", 0L, 140}, {"onNewline", 2L, 140}, {"emptyLine", 8L, 140},
+                {"lastLine", 9L, 140}, {"beforeStart", -3L, 140},
+        };
+        for (Object[] v : snCases) {
+            ObjectNode row = snRows.addObject();
+            row.put("id", String.valueOf(v[0]));
+            row.put("pos", String.valueOf(v[1]));
+            row.put("out", String.valueOf(stSnippet.invoke(st, (Long) v[1], (Integer) v[2])));
+        }
+        {
+            // 截断边界：141 字符的单行喂 max=140 → 截成 140 + 「…」；恰好 140 → 原样不加尾巴
+            StringBuilder longLine = new StringBuilder();
+            for (int i = 0; i < 141; i++) {
+                longLine.append('x');
+            }
+            Object stLong = stCtor.newInstance(longLine.toString());
+            ObjectNode row = snRows.addObject();
+            row.put("id", "overMax141");
+            row.put("pos", 0);
+            String s140 = String.valueOf(stSnippet.invoke(stLong, 0L, 140));
+            row.put("out", s140);
+            row.put("len", s140.length());
+            row.put("ellipsized", s140.endsWith("…"));
+            ObjectNode row2 = snRows.addObject();
+            row2.put("id", "exactMax140");
+            row2.put("pos", 0);
+            Object stExact = stCtor.newInstance(longLine.substring(0, 140));
+            String sExact = String.valueOf(stSnippet.invoke(stExact, 0L, 140));
+            row2.put("out", sExact);
+            row2.put("len", sExact.length());
+            row2.put("ellipsized", sExact.endsWith("…"));
         }
 
         receipt.put("ok", true);
