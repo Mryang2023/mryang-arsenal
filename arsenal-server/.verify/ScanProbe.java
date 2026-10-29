@@ -40,6 +40,8 @@ import java.util.List;
  *   mkdeep-repo:<目录>     造 22 层深目录（深度闸门）
  *   mkfiles-repo:<目录>    造 20001 个文件（文件数闸门）
  *   rules:            回带映射表条数
+ *   qa-pure:          QaService 四个 private static 纯判定逐向量直问（r20）+ toList（r21）
+ *   ast-pure:         AstEngine 五个 private static 工具逐向量直问（r21，反射 parse 拿真语法树）
  *
  * 每个动作独立成一条收据：失败也写进结果里（带 code），
  * 因为「这个输入应该被拒」本身就是要断言的东西。
@@ -562,6 +564,48 @@ public class ScanProbe {
             row.put("outLines", trimmed.isEmpty() ? 0 : trimmed.split("\n", -1).length);
         }
 
+        // ── toList（r21 P1-1h）：产品侧只喂 findings.path("p0") 这类结果 ——
+        // MissingNode（字段缺席）与 NullNode（字段存在但为 JSON null）都可达，Java null 是防御分支
+        var toListFn = qa.getDeclaredMethod("toList", tools.jackson.databind.JsonNode.class);
+        toListFn.setAccessible(true);
+        ArrayNode listRows = out.putArray("toList");
+        Object[][] lists = {
+                {"twoItems", mapper.createArrayNode().add("a").add("b")},
+                {"emptyArray", mapper.createArrayNode()},
+                {"nullNode", mapper.nullNode()},
+                {"textField", mapper.createObjectNode().put("k", "v").get("k")},
+                {"absentField", mapper.createObjectNode().path("nope")},
+        };
+        for (Object[] v : lists) {
+            tools.jackson.databind.JsonNode arg = (tools.jackson.databind.JsonNode) v[1];
+            ObjectNode row = listRows.addObject();
+            row.put("id", String.valueOf(v[0]));
+            try {
+                @SuppressWarnings("unchecked")
+                List<tools.jackson.databind.JsonNode> got =
+                        (List<tools.jackson.databind.JsonNode>) toListFn.invoke(null, arg);
+                row.put("size", got.size());
+                row.put("first", got.isEmpty() ? "" : String.valueOf(got.get(0)));
+                row.put("isArray", arg.isArray());
+            } catch (java.lang.reflect.InvocationTargetException e) {
+                row.put("size", -1);
+                row.put("out", "THROWS:" + e.getCause().getClass().getSimpleName());
+                row.put("isArray", arg == null ? false : arg.isArray());
+            }
+        }
+        {
+            ObjectNode row = listRows.addObject();
+            row.put("id", "javaNull");
+            try {
+                toListFn.invoke(null, new Object[]{null});
+                row.put("size", -2);
+                row.put("out", "NO-THROW");
+            } catch (java.lang.reflect.InvocationTargetException e) {
+                row.put("size", -1);
+                row.put("out", "THROWS:" + e.getCause().getClass().getSimpleName());
+            }
+        }
+
         receipt.put("ok", true);
         receipt.set("qaPure", out);
     }
@@ -576,6 +620,185 @@ public class ScanProbe {
         } catch (ReflectiveOperationException e) {
             return "PROBE_BROKEN:" + e.getMessage();
         }
+    }
+
+    /**
+     * r21 P1-1h：AstEngine 五个 private static 小工具的分支级直问。
+     *
+     * 这五个名字（annName / hasAnnotation / hasMember / typeSimpleName / isPrimitive）在
+     * .verify 里此前 0 直接引用 —— AstProbe 端到端真跑 AstEngine，但断言只对检查器产出的
+     * Finding，工具函数的分支没人单独数过。这里反射 parse（真 javac parse-only，未解析符号
+     * 照样产树）拿真语法树，从 ClassTree/VariableTree 里取真 AnnotationTree / ModifiersTree /
+     * TypeTree 喂给五个函数，逐向量回吐原始判定 —— 对错判定全在前端期望表。
+     */
+    private static void runAstPure(ObjectNode receipt, ObjectMapper mapper) throws Exception {
+        Class<?> ast = com.arsenal.engine.AstEngine.class;
+        var parseFn = ast.getDeclaredMethod("parse", String.class, String.class);
+        parseFn.setAccessible(true);
+        var annNameFn = ast.getDeclaredMethod("annName", com.sun.source.tree.AnnotationTree.class);
+        annNameFn.setAccessible(true);
+        // hasAnnotation(ModifiersTree, String...) 的编译签名是 (ModifiersTree, String[]) —— varargs
+        var hasAnnFn = ast.getDeclaredMethod("hasAnnotation",
+                com.sun.source.tree.ModifiersTree.class, String[].class);
+        hasAnnFn.setAccessible(true);
+        var hasMemberFn = ast.getDeclaredMethod("hasMember",
+                com.sun.source.tree.AnnotationTree.class, String.class);
+        hasMemberFn.setAccessible(true);
+        var typeSimpleFn = ast.getDeclaredMethod("typeSimpleName", com.sun.source.tree.Tree.class);
+        typeSimpleFn.setAccessible(true);
+        var isPrimitiveFn = ast.getDeclaredMethod("isPrimitive", String.class);
+        isPrimitiveFn.setAccessible(true);
+
+        String annSnippet = """
+                package p;
+                @Service
+                class AnnService { }
+                @java.lang.Deprecated
+                class AnnQualified { }
+                @SuppressWarnings(value = "x")
+                class AnnWithMember { }
+                @SuppressWarnings("x")
+                class AnnShorthand { }
+                @override
+                class AnnLowercase { }
+                class AnnPlain { }
+                """;
+        String typeSnippet = """
+                package p;
+                class Types {
+                    String s;
+                    java.util.List raw;
+                    java.util.List<String> ls;
+                    Map.Entry e;
+                    int[] arr;
+                    int n;
+                }
+                """;
+
+        ObjectNode out = mapper.createObjectNode();
+
+        var parsedAnn = (com.arsenal.engine.AstEngine.ParseResult)
+                parseFn.invoke(null, "Ann.java", annSnippet);
+        var parsedType = (com.arsenal.engine.AstEngine.ParseResult)
+                parseFn.invoke(null, "Types.java", typeSnippet);
+        out.put("annParseStatus", String.valueOf(parsedAnn.status()));
+        out.put("typeParseStatus", String.valueOf(parsedType.status()));
+
+        // ── 类级向量：annName 三分支 / hasAnnotation 四分支 / hasMember 的「简写不算成员」 ──
+        ArrayNode classRows = out.putArray("classes");
+        for (com.sun.source.tree.Tree decl : parsedAnn.unit().getTypeDecls()) {
+            if (!(decl instanceof com.sun.source.tree.ClassTree ct)) {
+                continue;
+            }
+            com.sun.source.tree.ModifiersTree mods = ct.getModifiers();
+            List<? extends com.sun.source.tree.AnnotationTree> anns = mods.getAnnotations();
+            ObjectNode row = classRows.addObject();
+            row.put("className", ct.getSimpleName().toString());
+            row.put("annCount", anns.size());
+            ArrayNode annRows = row.putArray("anns");
+            String first = null;
+            for (com.sun.source.tree.AnnotationTree a : anns) {
+                ObjectNode ar = annRows.addObject();
+                ar.put("decl", a.toString());
+                String name = String.valueOf(annNameFn.invoke(null, a));
+                ar.put("annName", name);
+                if (first == null) {
+                    first = name;
+                }
+                ar.put("memberValue", Boolean.valueOf(
+                        String.valueOf(hasMemberFn.invoke(null, a, "value"))));
+                ar.put("memberOther", Boolean.valueOf(
+                        String.valueOf(hasMemberFn.invoke(null, a, "other"))));
+            }
+            if (first != null) {
+                // 第一名命中（varargs 第一位）/ 第二名命中（varargs 第二位才轮到它）/ 未命中 / 小写问（大小写敏感）
+                row.put("hasAnn_exact", Boolean.valueOf(String.valueOf(
+                        hasAnnFn.invoke(null, mods, (Object) new String[]{first}))));
+                row.put("hasAnn_second", Boolean.valueOf(String.valueOf(
+                        hasAnnFn.invoke(null, mods, (Object) new String[]{"NoSuchAnn", first}))));
+                row.put("hasAnn_miss", Boolean.valueOf(String.valueOf(
+                        hasAnnFn.invoke(null, mods, (Object) new String[]{"NoSuchAnn"}))));
+                row.put("hasAnn_lowerAsk", String.valueOf(first.toLowerCase(java.util.Locale.ROOT)));
+                row.put("hasAnn_lower", Boolean.valueOf(String.valueOf(
+                        hasAnnFn.invoke(null, mods, (Object) new String[]{first.toLowerCase(java.util.Locale.ROOT)}))));
+            } else {
+                // 无注解的类：三种问法都必须是 false（恒真类断言没有意义，这里是反方向基线）
+                row.put("hasAnn_exact", Boolean.valueOf(String.valueOf(
+                        hasAnnFn.invoke(null, mods, (Object) new String[]{"Service"}))));
+                row.put("hasAnn_second", Boolean.valueOf(String.valueOf(
+                        hasAnnFn.invoke(null, mods, (Object) new String[]{"NoSuchAnn", "Service"}))));
+                row.put("hasAnn_miss", Boolean.valueOf(String.valueOf(
+                        hasAnnFn.invoke(null, mods, (Object) new String[]{"NoSuchAnn"}))));
+            }
+        }
+
+        // ── 类型向量：typeSimpleName 的 Identifier / MemberSelect / ParameterizedType / 兜底 toString ──
+        ArrayNode typeRows = out.putArray("types");
+        for (com.sun.source.tree.Tree decl : parsedType.unit().getTypeDecls()) {
+            if (!(decl instanceof com.sun.source.tree.ClassTree ct)) {
+                continue;
+            }
+            for (com.sun.source.tree.Tree member : ct.getMembers()) {
+                if (!(member instanceof com.sun.source.tree.VariableTree vt)) {
+                    continue;
+                }
+                ObjectNode row = typeRows.addObject();
+                row.put("field", vt.getName().toString());
+                row.put("decl", vt.getType().toString());
+                row.put("simple", String.valueOf(typeSimpleFn.invoke(null, vt.getType())));
+            }
+        }
+
+        // ── isPrimitive：九个闭集的直接问答（含大小写与 null → NPE） ──
+        ArrayNode primRows = out.putArray("isPrimitive");
+        String[][] prims = {
+                {"intIs", "int"},
+                {"voidIs", "void"},
+                {"stringNo", "String"},
+                {"capitalNo", "Int"},
+                {"emptyNo", ""},
+        };
+        for (String[] v : prims) {
+            ObjectNode row = primRows.addObject();
+            row.put("id", v[0]);
+            row.put("in", v[1]);
+            row.put("out", echoOrNull(isPrimitiveFn, v[1]));
+        }
+        {
+            ObjectNode row = primRows.addObject();
+            row.put("id", "javaNull");
+            row.put("in", "@@NULL@@");
+            try {
+                isPrimitiveFn.invoke(null, new Object[]{null});
+                row.put("out", "NO-THROW");
+            } catch (java.lang.reflect.InvocationTargetException e) {
+                row.put("out", "THROWS:" + e.getCause().getClass().getSimpleName());
+            }
+        }
+
+        // ── 防御分支：null ModifiersTree / null AnnotationTree / null Tree ──
+        ObjectNode extras = out.putObject("extras");
+        try {
+            Object r = hasAnnFn.invoke(null, new Object[]{null, new String[]{"Service"}});
+            extras.put("hasAnn_nullMods", String.valueOf(r));
+        } catch (java.lang.reflect.InvocationTargetException e) {
+            extras.put("hasAnn_nullMods", "THROWS:" + e.getCause().getClass().getSimpleName());
+        }
+        try {
+            Object r = annNameFn.invoke(null, new Object[]{null});
+            extras.put("annName_null", String.valueOf(r));
+        } catch (java.lang.reflect.InvocationTargetException e) {
+            extras.put("annName_null", "THROWS:" + e.getCause().getClass().getSimpleName());
+        }
+        try {
+            Object r = typeSimpleFn.invoke(null, new Object[]{null});
+            extras.put("typeSimple_null", String.valueOf(r));
+        } catch (java.lang.reflect.InvocationTargetException e) {
+            extras.put("typeSimple_null", "THROWS:" + e.getCause().getClass().getSimpleName());
+        }
+
+        receipt.put("ok", true);
+        receipt.set("astPure", out);
     }
 
     /** 重跑前先拆干净：夹具必须每次从同一个形状长出来，否则第二次跑读的是第一轮的缓存 */
@@ -655,6 +878,7 @@ public class ScanProbe {
                     case "id-project" -> runIdProject(receipt, mapper);
                     case "exts-contract" -> runExtsContract(receipt, mapper, value);
                     case "qa-pure" -> runQaPure(receipt, mapper);
+                    case "ast-pure" -> runAstPure(receipt, mapper);
                     case "mksymlink" -> {
                         ObjectNode n = mapper.createObjectNode();
                         n.put("created", makeSymlink(value));

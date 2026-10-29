@@ -233,6 +233,8 @@ type Receipt = {
   exts?: any;
   /** `qa-pure` 回执（r20）：QaService 四个 private static 纯判定的逐向量原始返回 */
   qaPure?: any;
+  /** `ast-pure` 回执（r21）：AstEngine 五个 private static 工具的逐向量原始返回 */
+  astPure?: any;
 };
 
 /**
@@ -940,7 +942,7 @@ if (!skipAll) {
   }
 
   // ── 【5】规模闸门：单文件 / 深度 / 文件数 ─────────────────────
-  section('【5】规模闸门（单文件 2MB / 深度 20 / 文件数 2 万）+ 拼路径 id 的消毒口径 + 待检扩展名两份集合的契约 + QaService 四个纯判定');
+  section('【5】规模闸门（单文件 2MB / 深度 20 / 文件数 2 万）+ 拼路径 id 的消毒口径 + 待检扩展名两份集合的契约 + QaService 四个纯判定 + AstEngine 五个工具');
   const bigRepo = path.join(tmpDir, 'big-repo').replace(/\\/g, '/');
   const deepRepo = path.join(tmpDir, 'deep-repo').replace(/\\/g, '/');
   const manyRepo = path.join(tmpDir, 'many-repo').replace(/\\/g, '/');
@@ -962,6 +964,7 @@ if (!skipAll) {
     `id-project:`,
     `exts-contract:${extsWork}`,
     `qa-pure:`,
+    `ast-pure:`,
   ]);
   const guardFacts = (tail: string) =>
     r6.find((r) => r.kind === 'facts' && r.action.endsWith(tail))?.facts;
@@ -1341,6 +1344,92 @@ if (!skipAll) {
       JSON.stringify({ cap, goods: goods.length, longest })
     );
   }
+
+  // ── toList（r21 P1-1h）：QaService 第 5 个此前 0 断言的 private static ──
+  const tlRows = (qp?.toList ?? []) as any[];
+  const tlById = (id: string) => tlRows.find((r) => r.id === id);
+  check(
+    '5-26 toList 六条：数组逐元素进 List（两条得 first="a"）/ 空数组 0 / NullNode、MissingNode、文本节点一律空表（产品侧喂 findings.path("p0") —— 字段缺席与 JSON null 都可达且都不是异常）/ Java null 当场 NPE（防御分支，产品走不到但要钉住）',
+    tlRows.length === 6
+      && tlById('twoItems')?.size === 2 && tlById('twoItems')?.first === '"a"'
+      && tlById('emptyArray')?.size === 0
+      && tlById('nullNode')?.size === 0 && tlById('nullNode')?.isArray === false
+      && tlById('textField')?.size === 0
+      && tlById('absentField')?.size === 0
+      && tlById('javaNull')?.out === 'THROWS:NullPointerException',
+    JSON.stringify(tlRows)
+  );
+
+  // ── ast-pure（r21 P1-1h）：AstEngine 五个 private static 工具分支级直问 ──
+  // 此前这五个名字在 .verify 里 0 直接引用：AstProbe 端到端真跑 AstEngine，但断言只对
+  // 检查器产出的 Finding，工具函数的分支没人单独数过 —— 等价重构改坏任何一个，
+  // 只要 15 个检查器的夹具恰好没走到那个分支，链照绿。探针反射 parse（parse-only，
+  // 未解析符号照样产树）从真语法树取真 AnnotationTree/ModifiersTree/TypeTree 喂函数。
+  const ap = r6.find((r) => r.kind === 'ast-pure')?.astPure as any;
+  const apClasses = (ap?.classes ?? []) as any[];
+  const cls = (id: string) => apClasses.find((c) => c.className === id);
+  check(
+    '5-27 annName 三分支：简单名原样（Service）/ 全限定 @java.lang.Deprecated 只取尾段 Deprecated（MemberSelectTree 分支，不是全限定串）/ 小写 @override 原样回 override（parse-only 不做符号解析，注解名不要求真实存在）；null 注解树当场 NPE',
+    (ap?.annParseStatus ?? '') === 'OK'
+      && cls('AnnService')?.anns?.[0]?.annName === 'Service'
+      && cls('AnnQualified')?.anns?.[0]?.annName === 'Deprecated'
+      && cls('AnnLowercase')?.anns?.[0]?.annName === 'override'
+      && (ap?.extras?.annName_null ?? '') === 'THROWS:NullPointerException',
+    JSON.stringify(apClasses.map((c) => ({ c: c.className, anns: (c.anns ?? []).map((a: any) => a.annName) })))
+  );
+
+  check(
+    '5-28 hasAnnotation 四分支：精确名 true / **varargs 第二位才轮到也 true**（问 NoSuchAnn,Service —— 只认第一个名字的实现在这条上红）/ 未命中 false / 匹配大小写敏感（问 service 对 @Service 是 false，而问 override 对 @override 是 true —— 敏感的是匹配不是「小写」本身）/ 无注解类三种问法全 false（反方向基线）/ null ModifiersTree false',
+    apClasses.length === 6
+      && cls('AnnService')?.hasAnn_exact === true
+      && cls('AnnService')?.hasAnn_second === true
+      && cls('AnnService')?.hasAnn_miss === false
+      && cls('AnnService')?.hasAnn_lowerAsk === 'service' && cls('AnnService')?.hasAnn_lower === false
+      && cls('AnnLowercase')?.hasAnn_lower === true
+      && cls('AnnPlain')?.hasAnn_exact === false && cls('AnnPlain')?.hasAnn_second === false && cls('AnnPlain')?.hasAnn_miss === false
+      && (ap?.extras?.hasAnn_nullMods ?? 'x') === 'false',
+    JSON.stringify(apClasses.map((c) => ({ c: c.className, e: c.hasAnn_exact, s: c.hasAnn_second, m: c.hasAnn_miss, l: c.hasAnn_lower })))
+  );
+
+  check(
+    '5-29 hasMember 只认「名=值」赋值形态：@SuppressWarnings(value="x") 问 value 得 true / **简写 @SuppressWarnings("x") 问 value 得 false**（单值实参不是 AssignmentTree —— 谁改成「有参就算有成员」这条先红）/ 问不存在的成员 false（@Service 无参同款）',
+    cls('AnnWithMember')?.anns?.[0]?.memberValue === true
+      && cls('AnnWithMember')?.anns?.[0]?.memberOther === false
+      && cls('AnnShorthand')?.anns?.[0]?.memberValue === false
+      && cls('AnnShorthand')?.anns?.[0]?.memberOther === false,
+    JSON.stringify({ withMember: cls('AnnWithMember')?.anns?.[0], shorthand: cls('AnnShorthand')?.anns?.[0] })
+  );
+
+  const apTypes = (ap?.types ?? []) as any[];
+  const WANT_TYPE: Record<string, string> = {
+    s: 'String',   // IdentifierTree
+    raw: 'List',   // java.util.List → MemberSelectTree 取尾段
+    ls: 'List',    // java.util.List<String> → ParameterizedTypeTree 递归
+    e: 'Entry',    // Map.Entry → MemberSelectTree
+    arr: 'int[]',  // ArrayTypeTree 落 toString 兜底 —— 不是空串也不是 'int'
+    n: 'int',      // 原始类型也是 IdentifierTree
+  };
+  const typeMiss = Object.entries(WANT_TYPE)
+    .filter(([f, w]) => String(apTypes.find((r) => r.field === f)?.simple) !== w)
+    .map(([f, w]) => ({ f, want: w, got: apTypes.find((r) => r.field === f)?.simple }));
+  check(
+    '5-30 typeSimpleName 六条：Identifier 照回 / MemberSelect 取尾段（java.util.List→List、Map.Entry→Entry）/ ParameterizedType 递归（List<String>→List）/ 数组类型落 toString 兜底（int[]）/ null 给空串（不是 null 也不是 NPE）',
+    apTypes.length === 6 && typeMiss.length === 0
+      && (ap?.typeParseStatus ?? '') === 'OK'
+      && (ap?.extras?.typeSimple_null ?? 'x') === '',
+    JSON.stringify({ n: apTypes.length, typeMiss, null: ap?.extras?.typeSimple_null })
+  );
+
+  const apPrims = (ap?.isPrimitive ?? []) as any[];
+  const primById = (id: string) => String(apPrims.find((r) => r.id === id)?.out);
+  check(
+    '5-31 isPrimitive 九个闭集按实测钉死：int/void 算（void 在这套口径里算原始）、String/Int/空串不算（大小写敏感）、null 当场 NPE（Set.of 的 contains 不收 null）—— 检查器靠它分「原始类型参数 vs 装箱类型」，改成 List.of 或放 null 进集这条就红',
+    apPrims.length === 6
+      && primById('intIs') === 'true' && primById('voidIs') === 'true'
+      && primById('stringNo') === 'false' && primById('capitalNo') === 'false' && primById('emptyNo') === 'false'
+      && primById('javaNull') === 'THROWS:NullPointerException',
+    JSON.stringify(apPrims)
+  );
 
   // ── 【6】没有任何部署清单的仓库：不许编出副本数 ─────────────────
   //
