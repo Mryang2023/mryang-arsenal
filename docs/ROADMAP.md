@@ -26,7 +26,7 @@
 
 ## D · 导航收拢（风险高，放最后；受阻不算失败）
 
-- [ ] N12 导航收成 5 项（工作台/项目/新建项目/规范库/AI 护栏）+ 旧路由重定向页：`/check` `/export` `/archify` `/icons` `/cases` `/blueprints` 各建重定向 page.tsx 指向新去处，主菜单按计划 §3.1 收拢；验收：typecheck + build 绿，`npm run verify:project` / `verify:meta` 导航与页面存在性契约全绿（同步更新 NAV 声明与三本账）；若 `verify:visual` 出现除 B-2 计数红之外的新内容级红且重跑截图台需人批准（B-2 同类），保持本项未勾、早报列明受阻原因，不算夜班失败
+- [x] N12 导航收成 5 项（project 1547/0 · meta 73/0 · visual 仅 B-2 老红，0 新增）：（工作台/项目/新建项目/规范库/AI 护栏）+ 旧路由重定向页：`/check` `/export` `/archify` `/icons` `/cases` `/blueprints` 各建重定向 page.tsx 指向新去处，主菜单按计划 §3.1 收拢；验收：typecheck + build 绿，`npm run verify:project` / `verify:meta` 导航与页面存在性契约全绿（同步更新 NAV 声明与三本账）；若 `verify:visual` 出现除 B-2 计数红之外的新内容级红且重跑截图台需人批准（B-2 同类），保持本项未勾、早报列明受阻原因，不算夜班失败
 
 ---
 
