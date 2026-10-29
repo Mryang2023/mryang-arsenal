@@ -610,3 +610,49 @@ c95a2a8 带进了 main，但**四本账没跟上**：RUNLOG 无 r20 条目、BLO
 ### 门禁与回归
 - `typecheck:verify` exit 0；`verify:scan` 197/3（200==200）；`verify:meta` 73/0/0；`verify:visual` 11/1/1（重建 out/ 后）。
   失败面仍 4（scan 3 = B-7 + visual 1 = B-2），**0 新增**。全链实测项数 2309 → **2315**（scan +6）。
+
+## r21 · 2026-10-29 08:12 +0800 — P1-1h：AstEngine 五个工具 + QaService.toList 从「端到端间接执行」升级成分支级钉死
+
+### 为什么这轮值得做（判定）
+AstProbe 端到端真跑 AstEngine（15 检查器 / parity-check【6】那组断言），但断言只对检查器产出的
+**Finding** —— 五个 private static 小工具（`annName` :698 / `hasAnnotation` :709 / `hasMember` :724 /
+`typeSimpleName` :735 / `isPrimitive` :748）与 `QaService.toList`（:734）在 .verify 里 **0 直接引用**
+（ParityProbe:93 的 `toList` 是无关的 stream 调用）。等价重构改坏任何一个分支，只要 15 个检查器的
+夹具恰好没走到，链照绿。
+
+### 手法（与 r14–r20 同轨，一处偏离如实记）
+- 计划原定把动作加进 `AstProbe.java` + 期望表落 parity-check。实测发现 AstProbe 是**单用途 CLI**
+  （无动作分发，stdout + 退出码契约在 parity-check 里解析）—— 改它的 CLI 合同不值当。探针动作
+  `ast-pure` 落在 `ScanProbe.java`（已有反射+分发框架、类路径含全量产品源码），期望表落
+  `scan-check.ts`（5-2x 系列与 r14–r20 同轨）。RUN_STATE 的 expected_files 因此偏离两行。
+- 反射 `parse`（**parse-only：未解析符号照样产树**）→ 从真 CompilationUnitTree 的
+  ClassTree/VariableTree 取真 AnnotationTree / ModifiersTree / TypeTree 喂五个函数 —— 不手工造 Tree；
+  `isPrimitive(String)` 纯字符串直接问；`toList(JsonNode)` 扩进既有 `qa-pure` 动作。
+
+### 实测（六条断言全绿，scan 200 → 206）
+- 5-26 toList 六条：数组逐元素 / 空数组 / NullNode·MissingNode·文本节点一律空表（产品喂
+  `findings.path("p0")` —— 字段缺席与 JSON null 都可达且都不是异常）/ Java null 当场 NPE。
+- 5-27 annName 三分支：简单名原样、全限定 `@java.lang.Deprecated` **只取尾段 Deprecated**、
+  小写 `@override` 原样保留（parse-only 不做符号解析）；null 注解树 NPE。
+- 5-28 hasAnnotation 四分支：精确名 true / **varargs 第二位才轮到也 true** / 未命中 false /
+  匹配大小写敏感（问 `service` 对 `@Service` 是 false，问 `override` 对 `@override` 是 true）；
+  无注解类三问全 false 反方向基线；null ModifiersTree false。
+- 5-29 hasMember：`value=「x」` 问 value true / **简写 `@SuppressWarnings(「x」)` 问 value false**
+  （单值实参不是 AssignmentTree）/ 问不存在的成员 false。
+- 5-30 typeSimpleName 六条：MemberSelect 取尾段（List·Entry）、ParameterizedType 递归
+  （`List<String>`→List）、数组落 toString 兜底（`int[]`）、null 给空串不是 NPE。
+- 5-31 isPrimitive 九个闭集：void 算、String/Int/空串不算、null 当场 NPE（`Set.of` 的 contains 不收 null）。
+- **判定：六个函数当前行为全部正确，本轮没有发现缺陷 —— 补的是分支级护栏，不是修复。**
+
+### 门禁与连锁记账（本轮踩到 r20 没踩过的第三处口径）
+- `typecheck:verify` exit 0；`verify:scan` **203 通过 / 3 失败 / 实测 206 == 声明 206**（三条红仍是
+  13-1/13-2/13-7 = B-7，0 新增）；`verify:meta` 73/0/0；`verify:visual` 重建 out/ 后 11/1/1（B-2）。
+  失败面仍 4，链实测项数 2315 → **2321**。
+- arsenal.json 改 count 后 meta 一次报了 3 失败，全是连锁：① 生成物（src/generated/*）还念旧数 →
+  `node scripts/sync-content.mjs` 重同步；② scan 层 layer-counts.json 是上次运行写的旧声明 → 重跑即新；
+  ③ README 总数句 2320 → **2326**（档案 verifyChain 之和）。三处都是「改一处要跟三本账」的既有设计，
+  meta 自己把缺口逐条说清了 —— 这正是 meta 存在的理由。
+- **注入回归（两路各自单独咬红）**：① `annName` 的 MemberSelect 分支改成回全限定串 →
+  **5-27 单独转红**（fail 3 → 4，5-28..5-31 照旧绿）；② `isPrimitive` 闭集摘掉 `void` →
+  **5-31 单独转红**（fail 3 → 4）。`AstEngine.java` 两次均按 sha256 `27277cd1…` 复原字节 identical、
+  `git status` 重新为空。

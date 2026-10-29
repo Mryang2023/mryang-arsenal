@@ -142,8 +142,25 @@
   `verify:scan` 194→**200**。**注入回归验过它们真的咬**（r20 收口轮 2026-10-29 补测）：摘掉 `testBaseName` 的 `IT` 后缀
   → 5-20 单独转红；把 `trimLines` 改成真截断 → 5-24 单独转红而 5-25 照旧绿（分工实证）；`QaService.java` 按 sha256
   `9b5b861f…` 复原字节 identical。工作实质已随 c95a2a8 入库，收口轮补的是验证证据与四本账。
-- **仍开放的下一步**（若还要往这方向走）：`AstEngine` / `ProjectStore` / `QaService` 的同等逐分支判定未做过，
-  本轮只把 `ScanGuard` 数干净；不要据此三句泛泛说「零测试」再开任务。
+- **P1-1h [证据，r21 复核完成] ~~AstEngine 五个 private static 小工具 0 直接断言~~ → 已补满（`ast-pure` 探针 + 5-27..5-31）+ toList 扩进 `qa-pure`（5-26），六个函数当前行为全部正确、无缺陷。**
+  手法一处偏离如实记：AstProbe 是单用途 CLI（无动作分发），动作落 `ScanProbe.java`、期望表落 scan-check（与 r14–r20
+  同轨），不改 AstProbe 的 stdout/退出码合同。探针反射 `parse`（parse-only，未解析符号照样产树）从真语法树取真
+  AnnotationTree/ModifiersTree/TypeTree 喂函数：`annName` 全限定取尾段 / `hasAnnotation` varargs 第二位命中与大小写敏感 /
+  `hasMember` 简写注解不算成员 / `typeSimpleName` 泛型递归与数组 toString 兜底 / `isPrimitive` 九个闭集（void 算、null NPE）/
+  `toList` 缺席与 JSON null 都可达且都不是异常。
+  `verify:scan` 200→**206**、README 总数句 2320→**2326**（改档案要跟的三本账：sync 生成物、layer-counts、README 总和 —— meta 各自抓到）。
+  **注入回归验过它们真的咬**：`annName` MemberSelect 改回全限定串 → 5-27 单独转红；`isPrimitive` 摘 `void` → 5-31 单独转红；
+  `AstEngine.java` 两次按 sha256 `27277cd1…` 复原字节 identical。
+- **仍开放的下一步（r21 已开进 P1-1i）**：~~`AstEngine` / `ProjectStore` / `QaService` 的同等逐分支判定未做过~~
+  → AstEngine 五工具与 QaService.toList 已于 r21 分支级钉死；下一批真空 = `AstEngine.readErrors`（诊断换算的
+  line/col/code/message 四个归一分支，DiagnosticCollector 可直接构造）与 `SourceText` 的 `lineOf`/`snippetAt`
+  （Finding 行号与 140 字符截断的坐标口径，纯字符串操作可反射直问）。不要据此泛泛说「零测试」再开任务。
+- **P1-1i [证据，r21 新证] `AstEngine.readErrors`（:264）与 `SourceText.lineOf`/`snippetAt` 的归一分支 0 直接断言。**
+  readErrors 把 javac 诊断换算成 `ParseError(line, col, code, message)`，四个字段各有「≤0 → 0 / null → 空串」的
+  归一分支（`:270-276`），AstProbe 只断言过「编译错 fixture → not-executed」，换算本身没人问过；
+  `SourceText`（engine 包）供 `f()` 造 Finding 的 `lineOf` 与 `snippetAt(pos, 140)`，20 条 AST 断言全在消费它的
+  产物，截断边界（140 恰好落在行首/行尾/多字节字符）没被单独钉过。探针动作可扩 `ast-pure`（readErrors 用
+  `DiagnosticCollector.addDiagnostic` 直接喂、SourceText 反射直问），期望表仍落 scan-check 5-3x。
 - **P1-2 [证据，r7 复核完成] ~~前端 AST 层 0/20（待复核）~~ → 前提过期，判为「设计意图 + 缺口已闭环」，不是缺口。**
   出自 `docs/功能缺口清单-2026-09-22.md` §1.1（35 天未更新）。2026-10-27 逐条实测：
   ① 语料现状未变：69 条规则 / 正则 35 / AST 20 / `AstEngine` 注册 15 个检查器（另 5 条需类型解析，诚实进 skipped）。

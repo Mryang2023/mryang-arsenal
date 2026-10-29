@@ -218,3 +218,16 @@
   sha256 `9b5b861f…` 复原字节 identical、`git status` 重新为空（本轮工作区完全干净，对照 HEAD 即可）。
 - 记账：BLOCKERS 登记 **B-13**（`trimLines` 是恒等函数，「截到 24 行」从未生效；今天不可观测是因为语料最长
   21 行 < cap=24，修不修是行为变更需人拍板）；BACKLOG P1-1g 标记复核完成；RUN_STATE 推进 r20 → r21 计划。
+
+## r21 · 2026-10-29
+- **P1-1h：AstEngine 五个 private static 工具（annName/hasAnnotation/hasMember/typeSimpleName/isPrimitive）与 QaService.toList
+  从「AstProbe 端到端间接执行」升级成分支级钉死。** 此前这五个名字在 .verify 里 0 直接引用，检查器夹具没走到的分支改坏
+  了链照绿。新探针动作 `ast-pure`（`ScanProbe.java`，反射 parse 取真语法树，不手工造 Tree）+ `qa-pure` 扩 toList；
+  前端断言 5-26..5-31（scan-check.ts）。计划原定动作落 AstProbe.java，实测它是单用途 CLI，改落 ScanProbe（RUNLOG r21 有偏离记录）。
+- `verify:scan` 200→**206**（203 通过 / 3 失败 = B-7 老三条，0 新增）；`typecheck:verify` exit 0；`verify:meta` 73/0/0
+  （连锁三处：sync 生成物、layer-counts.json、README 总数句 2320→**2326**）；`verify:visual` 重建 out/ 后 11/1/1（B-2）。
+  链实测项数 2315 → **2321**。
+- **注入回归**：`annName` MemberSelect 分支改回全限定串 → 5-27 单独转红；`isPrimitive` 闭集摘 `void` → 5-31 单独转红；
+  `AstEngine.java` 两次按 sha256 `27277cd1…` 复原字节 identical、`git status` 重新为空。
+- 实测结论：六个函数当前行为全部正确，本轮没有发现缺陷 —— 补的是分支级护栏。BACKLOG 开 P1-1i（readErrors 四个归一分支 +
+  SourceText lineOf/snippetAt 截断边界）作为 r22 靶子。

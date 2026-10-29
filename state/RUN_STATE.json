@@ -4,23 +4,21 @@
   "push_remote": false,
   "started_at": "2026-10-27T15:34:57Z",
   "end_at": "2026-10-29T02:23:00Z",
-  "current_round": 20,
+  "current_round": 21,
   "round_status": "completed",
   "in_progress": null,
   "next_round_plan": {
-    "round": 21,
-    "task_id": "P1-1h",
-    "task": "把 `AstEngine` 的五个 private static 小工具（`annName` :698 / `hasAnnotation` :709 / `hasMember` :724 / `typeSimpleName` :735 / `isPrimitive` :748）从「端到端间接执行」升级成分支级钉死，顺带把 `QaService.toList`（:734，null/缺失/数组/非数组四分支）扩进现有 `qa-pure` 动作。事实（r20 收口轮 grep）：这五个名字 + `toList` 在 arsenal-server/.verify/*.java 与 arsenal-web/.verify/*.ts 里 **0 直接引用**（ParityProbe:93 的 `toList` 是无关的 stream 调用）—— AstProbe 端到端真跑 AstEngine（RuleLoader → RuleIndex → AstEngine + LintEngine，15 检查器 / parity-check【6】那组断言），但断言只对检查器产出的 Finding，工具函数的分支没人单独数过：`annName` 的 MemberSelectTree 分支（`@java.lang.Deprecated` 取尾段 Deprecated，不是全限定名）与 toString 兜底、`hasAnnotation` 的 null→false / varargs 第二位才命中 / 大小写敏感（`@override` ≠ Override）、`hasMember` 的「`@X(1)` 简写不算成员、`@X(value=1)` 才算」（只认 AssignmentTree 且变量是 IdentifierTree）、`typeSimpleName` 的 ParameterizedTypeTree 递归（`List<String>` → List）与 MemberSelectTree（`java.util.List` → List）与 null→\"\" 与 toString 兜底、`isPrimitive` 的九个闭集（void 算、String/Int 不算）。手法：AstProbe.java 新动作 `ast-pure`（动作名带尾冒号），反射 `parse(filename, content)` 拿 ParseResult 后用 TreeScanner 从编译产物里取真 AnnotationTree / ModifiersTree / Tree（不手工造 Tree），五个函数逐向量回吐原始判定（含 THROWS），期望表留在前端 **parity-check.ts**（AstProbe 由 parity-check【6】驱动，不是 project-check）。`isPrimitive(String)` 与 `toList(JsonNode)` 参数简单可直接反射（JsonNode 用 mapper 造）。反方向对照必须有：hasAnnotation 名字数组第二位才命中的向量、typeSimpleName 对 IdentifierTree / MemberSelectTree / ParameterizedTypeTree 各一根、isPrimitive 对 `\"Int\"/\"String\"/\"\"` 三条负向量、toList 对 NullNode 与 MissingNode 各一条（`arr.isArray()` 对真 null 会 NPE —— 这个差别本身要钉）。",
+    "round": 22,
+    "task_id": "P1-1i",
+    "task": "把 AST 判定的坐标与诊断归一口径分支级钉死：`AstEngine.readErrors`（:264，把 javac 诊断换算成 ParseError(line, col, code, message) —— 四个字段各有「≤0 → 0 / null → 空串」的归一分支 :270-276，AstProbe 只断言过「编译错 fixture → not-executed」，换算本身没人问过）、`AstEngine.SourceText`（:57 内部类，`SourceText(String)` 包私有可反射；`lineOf` :78 的 pos<0→1 / 恰好落在换行符上归前一行 / 无换行文件恒 1；`snippetAt` :95 的 pos<0 钳 0 / 末行无换行取 text.length() / 超 max 截断加「…」/ 恰好等于 max 不加 / 空行给空串）与 `LintEngine.lineOf(int[], int)`（:435 —— **同一概念的第二份实现**，与 SourceText.lineOf 构成 B-10/B-11 式的「两份实现逐向量对拍」：同一批 pos/换行表喂两边，逐条比对是否同值；分歧本身就是发现）。手法：扩 `ast-pure` 动作（readErrors 用 `DiagnosticCollector.addDiagnostic` 直接喂 ERROR/WARNING/NOTE 三档 —— 只认 ERROR 那句注释也要钉；SourceText 反射构造后逐向量问 lineOf/snippetAt；LintEngine 那份 lineOf 经实例反射对拍）。反方向对照必须有：WARNING 不进 errors（否则是把「静默」换成「误报」的同款病）、snippetAt 的 140 边界两侧、lineOf 两份实现在 0/1/首换行/末换行/越界 五个点上同值。",
     "priority": "P1",
     "expected_files": [
-      "arsenal-server/.verify/AstProbe.java（新动作 ast-pure）",
-      "arsenal-server/.verify/ScanProbe.java（qa-pure 扩 toList 向量）",
-      "arsenal-web/.verify/parity-check.ts（AstEngine 五函数期望表）",
-      "arsenal-web/.verify/scan-check.ts（toList 期望表挂 5-2x）",
+      "arsenal-server/.verify/ScanProbe.java（ast-pure 扩 readErrors/SourceText/对拍向量）",
+      "arsenal-web/.verify/scan-check.ts（期望表 5-3x）",
       "arsenal-profiles/arsenal.json",
-      "README.md（数字口径）"
+      "README.md（数字口径：scan count、总数句）"
     ],
-    "notes": "踩坑清单（全部仍在生效，⑦ 为 r19 新增）：① Java 注释与字符串里别写字面反斜杠-u，特殊字符用 (char) 拼；② 改完 arsenal.json 立刻 JSON.parse 一遍再往下走（r18 因把结尾引号一起替换掉而短暂写出无效 JSON）；③ 探针动作名带尾冒号；④ 别在带他人未提交工作的目录里写能吞 pathspec 的 git 形式，也不用 2>/dev/null 掩盖错误；⑤ 注入回归时正则字符类里的连字符要放末尾（[^A-Za-z0-9_.-]），放中间当场 PatternSyntaxException；⑥ 注入产品文件前后各记一次 sha256，复原后必须字节 identical 再报数；⑦ Jackson 的 ObjectNode.putArray(name) 每次调用都新建并替换同名字段 —— 别写在循环里（r19 因此让「两份相同」空过），且一致性断言要自带非退化长度下限，两份同时塌成一个值才不会恒绿。r20 收口轮起工作区完全干净（c95a2a8 收拢了全部在途改动），注入对照 HEAD 即可，不再有「用户在途行数」要护。改 profiles 后要 node scripts/next-run.mjs build 重建 out/ 再复跑 verify:visual。TreeScanner/编译器 API 的 parse 产物注意 retag：ParseResult 拿到后先判 diagnostics 是否为空再走 AST，编译不过的向量如实回吐 PARSE-ERROR 别硬走。"
+    "notes": "踩坑清单（全部仍在生效）：① Java 注释与字符串里别写字面反斜杠-u，特殊字符用 (char) 拼；② 改完 arsenal.json 立刻 JSON.parse 一遍再往下走（r21 又差点栽：追加 desc 里写了 ASCII 双引号没转义，JSON.parse 在写盘前拦住 —— 换中文引号「」解决）；③ 探针动作名带尾冒号；④ 别写能吞 pathspec 的 git 形式，也不用 2>/dev/null 掩盖错误；⑤ 注入回归正则字符类连字符放末尾；⑥ 注入产品文件前后各记 sha256，复原必须字节 identical；⑦ Jackson putArray 别写在循环里，一致性断言自带非退化下限；⑧ 改 arsenal.json 的 count 后要跟三本账：`node scripts/sync-content.mjs` 重生成物、重跑 scan 层刷 layer-counts.json、README 总数句（verifyChain 之和）—— meta 会各自把缺口说清。工作区完全干净，注入对照 HEAD 即可。改 profiles 后 next-run.mjs build 重建 out/ 再复跑 verify:visual。"
   },
   "commands": {
     "web_typecheck": "cd arsenal-web && npm run typecheck",
@@ -114,7 +112,8 @@
     "scan_after_r17": "182 通过 / 3 失败 / 实测 185 == 声明 185（declaredMismatch null）；三条红仍是 13-1/13-2/13-7 = B-7，0 新增。注入回归下同一层变成 180/5（5-8+5-9 转红），复原后回 182/3。meta 73/0/0；visual 11/1/1。链实测项数 2302 → 2305",
     "scan_after_r18": "186 通过 / 3 失败 / 实测 189 == 声明 189（declaredMismatch null）；三条红仍是 13-1/13-2/13-7 = B-7，0 新增。注入回归（摘掉 normalize 的尾斜杠归一）下变 184/5（5-11+5-12 转红），ProjectIds.java 按 sha 复原字节 identical（9a77d5c5…）后 git status 该文件重新为空。meta 73/0/0；visual 11/1/1。链实测项数 2305 → 2309",
     "scan_after_r19": "194 项：191 通过 / 3 失败（13-1/13-2/13-7，B-7 环境）/ 0 跳过 / 刻意未跑 2；declaredMismatch null",
-    "scan_after_r20": "200 项：197 通过 / 3 失败（13-1/13-2/13-7，B-7 环境）/ 0 跳过 / 刻意未跑 2；declaredMismatch null。r20 收口轮独立复验：typecheck:verify exit 0、meta 73/0/0、visual 重建 out/ 后 11/1/1（B-2）；注入回归 5-20（摘 IT 后缀）与 5-24（trimLines 真截断）各自单独转红，QaService.java 按 sha 9b5b861f… 复原字节 identical。链实测项数 2309 → 2315"
+    "scan_after_r20": "200 项：197 通过 / 3 失败（13-1/13-2/13-7，B-7 环境）/ 0 跳过 / 刻意未跑 2；declaredMismatch null。r20 收口轮独立复验：typecheck:verify exit 0、meta 73/0/0、visual 重建 out/ 后 11/1/1（B-2）；注入回归 5-20（摘 IT 后缀）与 5-24（trimLines 真截断）各自单独转红，QaService.java 按 sha 9b5b861f… 复原字节 identical。链实测项数 2309 → 2315",
+    "scan_after_r21": "206 项：203 通过 / 3 失败（13-1/13-2/13-7，B-7 环境）/ 0 跳过 / 刻意未跑 2；declaredMismatch null（206 == 声明 206）。r21 新增 5-26..5-31 六条全绿；注入回归 5-27（annName 改回全限定串）与 5-31（isPrimitive 摘 void）各自单独转红，AstEngine.java 按 sha 27277cd1… 复原字节 identical。meta 73/0/0（连锁三本账已跟齐）；visual 11/1/1。链实测项数 2315 → 2321"
   },
   "wakeup": {
     "mechanism": "DEGRADED（历代会话）：r14 收尾时 cron 可用并成功唤醒 r15，此后平台的 qoder_cron 不存在（B-5）→ 按先例由会话连续接手，「120s 间隔」体现为「收尾即起下一轮」；本会话（2026-10-29）由用户 awake prompt 直接唤醒，属新一轮人工点火，非 cron",
@@ -129,7 +128,9 @@
     "next_fire_at_consumed": "2026-10-28T00:01:30Z（= 北京 2026-10-28 08:01:30 +0800，已由 r15 使用）",
     "r20_start_utc": "2026-10-28T02:20Z（上一会话，工作随 c95a2a8 收拢入库但四本账未跟上）",
     "r20_resume_beijing": "2026-10-29 07:23 +0800（本会话唤醒，发现 r20 工作已入库、记账缺失 → 本会话第一轮做 r20 收口）",
-    "r20_close_check": "2026-10-29 07:50 +0800：本会话无 cron 工具依赖（B-5 同前），r21 由本会话直接接手"
+    "r20_close_check": "2026-10-29 07:50 +0800：本会话无 cron 工具依赖（B-5 同前），r21 由本会话直接接手",
+    "r21_start_beijing": "2026-10-29 07:55 +0800",
+    "r21_close_beijing": "2026-10-29 08:18 +0800：r22 由本会话继续（剩余预算约 2h）"
   },
   "safety": {
     "pre_existing_uncommitted_work": "无 —— c95a2a8 已把上一循环全部在途改动收拢进 main，工作区完全干净（r20 收口轮 2026-10-29 实测 git status clean）；注入回归对照 HEAD 即可",
@@ -158,7 +159,7 @@
       "B-12 需决定 /qa 边界卡「占全仓 x%」这句文案与分母口径怎么对齐（改文案 / 放宽分母到 ctx.files() / 页面明写分母定义）",
       "B-13 需决定 trimLines 恒等函数修不修、修成什么口径（修 = 报告 after 片段开始真截断的行为变更；不修 = 语料涨过 24 行就静默失效，5-25 先红）（r20 收口登记）"
     ],
-    "rounds_completed": 20
+    "rounds_completed": 21
   },
   "stop_reason": null,
   "tools_or_environment": {
@@ -166,34 +167,32 @@
     "backend_run_cmd": "SKIP_COMPILE=1 bash arsenal-server/scripts/run.sh (3.6s 起，用完要按 3011 PID Stop-Process)",
     "typecheck_scope": "根 tsconfig 的 **/*.ts 不匹配点目录 → 不覆盖 .verify；改断言层要跑 npm run typecheck:verify"
   },
-  "last_round_commit": "c95a2a8",
-  "last_round_summary": "r20 收口完成：P1-1g 实质工作（qa-pure 探针 + 5-20..5-25 + README/arsenal.json 200 项口径）已随 c95a2a8 入库，本会话独立复验全链（typecheck exit 0 / scan 197/3 200==200 / meta 73/0/0 / visual 重建 out/ 后 11/1/1，失败面 4 不变 0 新增），补两路注入回归（摘 testBaseName 的 IT 后缀 → 5-20 单独转红；trimLines 改真截断 → 5-24 单独转红而 5-25 照旧绿，QaService.java 按 sha 9b5b861f… 复原字节 identical），补齐四本账（RUNLOG r20、BLOCKERS B-13、BACKLOG P1-1g 复核完成、CHANGELOG r20）。B-13 = trimLines 恒等函数，「截到 24 行」从未生效，今天不可观测（语料最长 21 行 < cap=24），修不修需人拍板。",
-  "end_at_note": "本会话窗口由 2026-10-29 07:23 +0800 的用户唤醒 prompt 重新锚定：约 3 小时 → end_at = 2026-10-29T02:23Z（北京 10:23）。r20 收口于 07:50 完成，剩约 2.5h；r21 起 P1-1h（AstEngine 五工具分支级钉死 + QaService.toList），r22+ 按逐分支真空继续。",
+  "last_round_commit": "58eed62",
+  "last_round_summary": "P1-1h 完成：AstEngine 五工具（annName/hasAnnotation/hasMember/typeSimpleName/isPrimitive）+ QaService.toList 从「端到端间接执行」升级成分支级钉死 —— ast-pure 探针动作反射 parse 取真语法树，期望表 5-26..5-31 落 scan-check（verify:scan 200→206、README 总数 2320→2326、meta 73/0/0、失败面 4 不变）。实测六函数行为全对、无缺陷，补的是分支级护栏。注入回归：annName 改回全限定串 → 5-27 单独红；isPrimitive 摘 void → 5-31 单独红；AstEngine.java 按 sha 27277cd1… 复原字节 identical。一处偏离如实记：AstProbe 是单用途 CLI，动作落 ScanProbe（原计划 AstProbe.java + parity-check 期望表）。",
+  "end_at_note": "本会话窗口 2026-10-29 07:23 +0800 起 3h → end_at = 2026-10-29T02:23Z（北京 10:23）。r21 于 08:18 收口，剩约 2h；r22 起 P1-1i（readErrors 归一分支 + SourceText 坐标口径 + LintEngine.lineOf 两份实现对拍）。",
   "last_round": {
-    "round": 20,
-    "completed_at": "2026-10-29T07:50+0800",
-    "commit": "c95a2a8（实质工作）+ 本轮收口提交（RUNLOG/BLOCKERS/BACKLOG/CHANGELOG/state）",
-    "task_id": "P1-1g",
-    "files": 5,
-    "lines": "记账 +约70（代码 0 改动）",
+    "round": 21,
+    "completed_at": "2026-10-29T08:18+0800",
+    "commit": "58eed62",
+    "task_id": "P1-1h",
+    "files": 4,
+    "lines": "+320 -7",
     "verify": {
       "typecheck_verify": "exit 0",
-      "verify:scan": "pass 197 / fail 3 / measured 200 == declared 200（注入态两次各 196/4：5-20、5-24 分别单独转红，复原后复验）",
-      "verify:meta": "73/0/0",
-      "verify:visual": "11/1/1（out/ 陈旧 → next-run.mjs build 重建后复跑）"
+      "verify:scan": "pass 203 / fail 3 / measured 206 == declared 206（注入态两次各 202/4：5-27、5-31 分别单独转红，复原后复验）",
+      "verify:meta": "73/0/0（改 count 后的连锁三本账：sync 生成物、layer-counts.json、README 总数句）",
+      "verify:visual": "11/1/1（重建 out/ 后）"
     },
-    "outcome": "r20 会话的六条断言（5-20..5-25）全部真实通过且咬得住，实测结论被独立复验成立：testBaseName 五种「算测试」向量与反方向对照全对（大小写敏感两条、裸 Test.java 空基名与 TestsFoo.java 切 sFoo 两条固有假阳性、null 当场 NPE）；statusReason 分支顺序钉死；firstNonBlank 保证的是非 null 不是非空白；trimLines 恒等是真缺陷 → B-13。真发现一条潜在失效通道：推荐卡 after 片段长度今天靠语料最长的 21 行 < cap=24 兜着，语料一涨过 24 行就静默失效（5-25 先红）。",
-    "why_not_fixed": "修 trimLines = 报告 after 片段开始真截断的行为变更（历史报告与将来报告口径不一致、截断要不要带标注/按行还是按字符/代码块闭合都是产品决定）；承认「不截断」则要改函数名与调用点措辞 —— 两条都需人拍板，本轮按 B-13 登记，5-24 故意钉住恒等现状。",
-    "teeth": "注入回归两路：① testBaseName 的 endsWith(\"IT\") 改 \"IT2\" → 5-20 单独转红（fail 3→4）；② trimLines 改真截断（subList(0, max)）→ 5-24 单独转红（fail 3→4）而 5-25 照旧绿（它管语料涨幅不管函数行为 —— 分工实证）。QaService.java 两次均按 sha256 9b5b861f… 复原字节 identical、git status 重新为空。与 r14–r19 不同：工作区已完全干净，复原判定对照 HEAD 即可。",
+    "outcome": "六个函数当前行为全部正确，本轮没有发现缺陷 —— 补的是分支级护栏。真发现一条结构事实：LintEngine:435 有第二份 lineOf(int[], int) 实现，与 SourceText.lineOf 同概念 —— 已写进 r22 计划做两份实现逐向量对拍。",
+    "why_not_fixed": "无需修复：六函数行为全对；本轮交付的是「改坏必红」的分支级回归护栏（5-27..5-31）与第五个纯函数 toList 的契约（5-26）。",
+    "teeth": "注入回归两路：① annName 的 MemberSelect 分支改回全限定串 → 5-27 单独转红（fail 3→4）；② isPrimitive 闭集摘 void → 5-31 单独转红（fail 3→4）。AstEngine.java 两次均按 sha256 27277cd1… 复原字节 identical、git status 重新为空。",
     "docs_closed": [
-      "P1-1g"
+      "P1-1h"
     ],
-    "new_blockers": [
-      "B-13 trimLines 恒等函数，「截到 24 行」从未生效（需人决定修不修、修成什么口径）"
-    ],
+    "new_blockers": [],
     "new_backlog": [
-      "P1-1h AstEngine 五个 private static 小工具（annName/hasAnnotation/hasMember/typeSimpleName/isPrimitive）0 直接断言，AstProbe 端到端只守检查器 Finding —— 可经反射 parse + TreeScanner 分支级钉死；顺带 QaService.toList 扩进 qa-pure"
+      "P1-1i AstEngine.readErrors 四个归一分支 + SourceText.lineOf/snippetAt 坐标口径 + LintEngine.lineOf 第二份实现的对拍 —— 全部 0 直接断言，可扩 ast-pure 直问"
     ],
-    "scheduled_next": "r21 = P1-1h（排程工具历代缺，按 B-5 与先例由会话连续接手）"
+    "scheduled_next": "r22 = P1-1i（由本会话继续接手）"
   }
 }
