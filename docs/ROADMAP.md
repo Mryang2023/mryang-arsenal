@@ -20,7 +20,7 @@
 
 ## C · 规则溯源与产品 e2e
 
-- [ ] N9 verify:rules 溯源报告：`arsenal-web/scripts/verify-rules.mjs` 输出 69 条规则的溯源完整率（基线实测 **15/69**：版次+章节+引文齐备）与缺引文清单，退出码 0；`--strict` 时缺失即 1；挂进 package.json 为 `verify:rules`（**不**接入 verify-all，不改链上项数）；验收：`npm run verify:rules` 输出的数字由数据实时计算、不写死常量
+- [x] N9 verify:rules 溯源报告（实测 15/69 · 93 缺口 · strict=1）：：`arsenal-web/scripts/verify-rules.mjs` 输出 69 条规则的溯源完整率（基线实测 **15/69**：版次+章节+引文齐备）与缺引文清单，退出码 0；`--strict` 时缺失即 1；挂进 package.json 为 `verify:rules`（**不**接入 verify-all，不改链上项数）；验收：`npm run verify:rules` 输出的数字由数据实时计算、不写死常量
 - [ ] N10 e2e-delivery：`arsenal-web/scripts/e2e-delivery.mjs` 自动 `SKIP_COMPILE=1` 起后端 → 导入 `.verify/fixtures/demo-repo` → 创建 run → 轮询完成 → 断言 report.md 含文件行号与规则出处 → 清理临时项目与进程；验收：`node scripts/e2e-delivery.mjs` 退出码 0，全程 < 5 分钟
 - [ ] N11 文档同步：README 进度段补「阶段0 夜班进展」小节 + 本清单勾选状态核对；验收：`npm run verify:meta` 与 `npm run verify:project` 不因文档改动变红（如触发声明值失配，按仓库惯例同步档案与 layer-counts，保持 0 新增失败）
 
