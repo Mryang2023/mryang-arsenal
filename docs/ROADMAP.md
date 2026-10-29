@@ -8,7 +8,7 @@
 
 - [x] N1 runs 包与 RunStore：新建 `arsenal-server/src/main/java/com/arsenal/runs/`，RunStore 提供 startRun / complete / 原子写（临时文件+rename），Manifest 含快照指纹、规则集版本、引擎版本、起止时间；验收：JUnit `RunStoreTest` ≥5 用例（创建落盘/原子覆盖/读取/坏 id 拒绝/列目录），`cd arsenal-server && ./mvnw -q test` 全绿
 - [x] N2 提交体检 run 端点：`POST /api/v2/projects/{id}/runs` 复用静态引擎跑一次体检，落盘 `runs/<runId>/run.json + findings.jsonl + coverage.json`（挂到既有项目注册表与缓存，不动 v1 端点）；验收：curl 对已导入项目创建 run 后三文件存在，findings.jsonl 行数 == coverage 口径；Controller 的 400/404 分支有 JUnit 覆盖，`./mvnw -q test` 全绿
-- [ ] N3 ReportService 与 report.md：生成健康分、覆盖率披露（执行/跳过分层及原因）、Top 问题表（文件:行 · 规则 · 出处）、下一步建议；验收：JUnit 断言 report.md 含「本次覆盖」「Top」字样、≥3 条带行号的 finding 行与规则出处；对真实 run 生成一份人工可读的样例
+- [x] N3 ReportService 与 report.md：生成健康分、覆盖率披露（执行/跳过分层及原因）、Top 问题表（文件:行 · 规则 · 出处）、下一步建议；验收：JUnit 断言 report.md 含「本次覆盖」「Top」字样、≥3 条带行号的 finding 行与规则出处；对真实 run 生成一份人工可读的样例
 - [ ] N4 下载端点与产物清单：`GET /api/v2/runs/{runId}/report.md`（Content-Disposition 附件下载）与 `GET /api/v2/runs/{runId}/artifacts`（清单+哈希）；验收：JUnit + 手工 curl 断言 200 / 附件头 / 404 语义正确，`./mvnw -q test` 全绿
 - [ ] N5 扫描忽略规则：默认排除 `.wb-tmp/**`、根目录 `Smoke*.java`、`*.min.js`，支持项目级配置追加（配置项挂 `arsenal.lint` 或 run 请求体）；验收：JUnit 用夹具目录断言这些路径不进 findings；对已导入项目重扫，`.wb-tmp` 命中归零且问题总数下降
 - [ ] N6 后端测试补齐 ≥15 个：RunStore / ReportService / RunsController 三处覆盖收口；验收：`./mvnw -q test` 全绿且 Surefire 统计 tests ≥ 15
