@@ -15,8 +15,8 @@
 
 ## B · 前端项目主页（增量，不碰现有导航）
 
-- [ ] N7 `/projects/[id]` 项目主页骨架：六页签（总览/问题/修复/测试/交付物/设置），总览页签真调 N2/N4 端点渲染 run 历史 + Top 问题 + 「下载报告」按钮；验收：`cd arsenal-web && npm run typecheck` 绿，`node scripts/next-run.mjs build` 成功
-- [ ] N8 问题页签 findings 列表：按严重度/规则/文件筛选，每条显示证据行号与规则出处链接；页面状态符合「空/载入/离线/未验证」四态规范，不把「没跑」说成「没问题」；验收：typecheck + build 绿，四种状态各有真实文案
+- [x] N7 `/projects/home?id=` 项目主页骨架（动态段无法静态导出，有依据偏离已记录）：：六页签（总览/问题/修复/测试/交付物/设置），总览页签真调 N2/N4 端点渲染 run 历史 + Top 问题 + 「下载报告」按钮；验收：`cd arsenal-web && npm run typecheck` 绿，`node scripts/next-run.mjs build` 成功
+- [x] N8 问题页签 findings 列表：按严重度/规则/文件筛选，每条显示证据行号与规则出处链接；页面状态符合「空/载入/离线/未验证」四态规范，不把「没跑」说成「没问题」；验收：typecheck + build 绿，四种状态各有真实文案
 
 ## C · 规则溯源与产品 e2e
 
