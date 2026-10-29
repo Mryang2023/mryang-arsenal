@@ -595,6 +595,29 @@ URL（常在 `${order.url}` 配置里，target=null 进「未解析」桶如实�
 7 个单元 / 2 条冲突：compose 声明的 backend / frontend 与 `src/` 布局精确对不上，
 如实报「归属不了」）各跑过一次，证据在日报里。
 
+### 重建工程 · 阶段 0 已收口（2026-10-30 夜班）
+
+按 [docs/重建设计与实施计划-2026-10-29.md](docs/重建设计与实施计划-2026-10-29.md) 执行的阶段 0（让一条链路闭环），
+工作分支 `nightshift/20261030`，任务台账见 [docs/ROADMAP.md](docs/ROADMAP.md)：
+
+- **Run/Artifact 落盘**：`POST /api/v2/projects/{id}/runs` 把一次体检变成落盘的 run ——
+  `run.json`（状态账）+ `findings.jsonl`（一行一条问题，紧凑 JSONL）+ `coverage.json` + `summary.json`，
+  存 `.data/projects/<id>/runs/<runId>/`，原子写，重启不丢。
+- **报告生成与下载**：`ReportService` 渲染 `report.md`（覆盖率披露 / Top 问题带文件:行与出处 /
+  健康分口径写明 / 下一步建议），`GET /api/v2/runs/{runId}/report.md` 附件下载，
+  `GET /api/v2/runs/{runId}/artifacts` 产物清单带 sha256。
+- **扫描忽略规则**：`.wb-tmp/` 目录整棵跳过、仓库根 `Smoke*.java` 与全仓 `*.min.js|css` 不再进 findings
+  （真实项目实测噪音归零），追加规则走 `arsenal.lint.ignore-globs`（glob，与规则 targetGlob 同方言）。
+- **后端测试从 0 到 30**：RunStore / ReportService / RunsController / RunArtifactController 分支级护栏，
+  `./mvnw test` 全绿。
+- **规则溯源报告**：`npm run verify:rules` 实时算出出处完整率（基线 15/69，缺口 93 处清单可见），
+  `--strict` 才拦截；数字不写死。
+- **e2e 交付链**：`node arsenal-web/scripts/e2e-delivery.mjs` 一条命令跑通
+  起后端 → 导入 fixture → run → 报告断言 → 产物哈希 → 清理（17 项断言）。
+- **项目主页 `/projects/home?id=`**：六页签（总览 / 问题 / 修复 / 测试 / 交付物 / 设置），
+  总览真调 v2 端点（run 历史 / 体检按钮 / 下载报告），问题页签按严重度 / 规则 / 文件筛选并链到规则详情；
+  修复 / 测试 / 设置是照实的空态（阶段 1/2 提供）。动态段在纯静态导出下无法枚举，
+  故用查询参数承载项目 id —— 记录在案的有依据偏离。
 
 ---
 
