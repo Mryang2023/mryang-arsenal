@@ -7,9 +7,7 @@ import { liveStats, meta } from '@/lib/rules';
 import { cookbookStats } from '@/lib/cookbook';
 import { casesStats } from '@/lib/case-cases';
 import { dimensions } from '@/lib/stack';
-import { iconStats } from '@/lib/icon-assets';
 import { isNavActive, groupShouldOpen } from '@/lib/nav-active';
-import { charterTotals } from '@/lib/charter';
 import { STACK_NAV, STEP_ROUTES } from '@/app/stack/wizard';
 import { currentStep, subscribeStep } from '@/app/stack/step-bus';
 import { PROJECT_NAV } from '@/app/projects/nav';
@@ -55,33 +53,39 @@ interface NavItem {
 }
 
 const NAV: NavItem[] = [
-  { href: '/', label: '概览', glyph: '◈', count: 0 },
-  { href: '/rules', label: '规则库', glyph: '▦', count: liveStats.total },
-  { href: '/blueprints', label: '最佳实践案例库', glyph: '▤', count: cookbookStats.features },
-  { href: '/cases', label: '场景案例库', glyph: '◫', count: casesStats.cases },
+  // 重建工程 N12（2026-10-30）：主菜单从 11 项收成 5 项（docs/重建设计与实施计划-2026-10-29.md §3.1）。
+  // 每一项都对应主链路上的一段：工作台=下一步 / 项目=体检即产物 / 新建项目=选型到脚手架 /
+  // 规范库=规则的凭什么与怎么用 / AI 护栏=让 AI 守规矩。被移出的入口（图标库 / 出图服务 /
+  // 工程规范）页面全部保留可直达，豁免登记在 project-check 的 ORPHAN_OK 白名单 ——
+  // 删一条豁免会红，那正是这道闸要给的未来提示。
+  { href: '/', label: '工作台', glyph: '◈', count: 0 },
   {
-    label: '装配台',
+    label: '项目',
+    glyph: '◧',
+    count: 0,
+    // 子项数据出自 app/projects/nav.ts 的 PROJECT_NAV（唯一出处），Shell 只消费。
+    children: PROJECT_NAV,
+  },
+  {
+    label: '新建项目',
     glyph: '⬡',
     count: dimensions.length,
     // 菜单数据出自 wizard 的 STACK_NAV（页 → 步两级），不在这里另排一张表 ——
     // 步骤的路由 / 名字 / 序号都以 STEPS 为唯一出处。
     children: STACK_NAV,
   },
-  // /arch（架构图谱）2026-10-17 架构图谱合并棒3 退役为重定向页 → /autopsy：
-  // 六视图与可拖拽画布已并进「项目侦察」架构面板，入口只留一处。
-  // 项目工坊（工坊棒2 2026-10-18）：原 /autopsy / /qa 两个平铺项收进同一组，
-  // 子项数据来自 app/projects/nav.ts 的 PROJECT_NAV（唯一出处），Shell 只消费。
   {
-    label: '项目工坊',
-    glyph: '⚙',
-    count: 0,
-    children: PROJECT_NAV,
+    label: '规范库',
+    glyph: '▦',
+    count: liveStats.total,
+    children: [
+      { href: '/rules', label: '规则库', glyph: '▦', count: liveStats.total },
+      { href: '/blueprints', label: '最佳实践', glyph: '▤', count: cookbookStats.features },
+      { href: '/cases', label: '场景案例', glyph: '◫', count: casesStats.cases },
+      { href: '/check', label: '规则试跑', glyph: '⛨', count: 0 },
+    ],
   },
-  { href: '/icons', label: '图标库', glyph: '❖', count: iconStats.total },
-  { href: '/archify', label: '出图服务', glyph: '⚒', count: 0 },
-  { href: '/check', label: '校验台', glyph: '⛨', count: 0 },
-  { href: '/standards', label: '工程规范', glyph: '§', count: charterTotals.clauses },
-  { href: '/export', label: '导出中心', glyph: '⎘', count: 0 },
+  { href: '/export', label: 'AI 护栏', glyph: '⎘', count: 0 },
 ];
 
 /** 渲染行：depth -1 = 分组标题（可点，展开/收起本组），0 = 一级，1 = 装配台的页项，2 = 页下的步骤项
@@ -219,7 +223,7 @@ export default function Shell({ children }: { children: React.ReactNode }) {
                   <span className="w-4 text-center text-sm">{n.glyph}</span>
                   <span className="flex-1 text-left">
                     {n.label}
-                    {n.label === '项目工坊' && activeProject?.name && (
+                    {n.label === '项目' && activeProject?.name && (
                       <span className="block text-2xs text-fgFaint">{activeProject.name}</span>
                     )}
                   </span>

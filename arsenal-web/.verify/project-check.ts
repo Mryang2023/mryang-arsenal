@@ -789,8 +789,9 @@ console.log('\n【11】图标库与动效');
 
   // ⑨ 页面与菜单成对存在（和【13】分工：那条防「菜单指向空地址」，这条防「图标库页面被忘挂」）
   check('图标库：/icons 页面存在', fs.existsSync(path.join(webRoot, 'src', 'app', 'icons', 'page.tsx')));
-  const shellNav = fs.readFileSync(path.join(webRoot, 'src', 'components', 'Shell.tsx'), 'utf8');
-  check('图标库：侧栏有入口', /href:\s*'\/icons'/.test(shellNav));
+  // 夜班 N12（2026-10-30）：主菜单五项化后 /icons 有意移出侧栏 —— 断言跟着设计决策走：
+  // 页面必须存在（不能被顺手删掉），豁免必须登记（不能悄悄变成没人找得到的孤儿）。
+  check('图标库：/icons 页面存在（N12 起有意不进侧栏，豁免已登记）', fs.existsSync(path.join(webRoot, 'src', 'app', 'icons', 'page.tsx')));
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -1142,6 +1143,15 @@ console.log('\n【13】导航与页签契约');
     // 可拖拽画布整体并进项目侦察的架构面板后，原画廊页只给旧书签跳转用；
     // 它仍是矩阵里的页面（截图验它真跳），但不该在侧栏占第二个入口。
     '/arch',
+    // 夜班 N12（2026-10-30）主菜单五项化：以下三页**有意**移出侧栏（重建计划 §9），
+    // 页面全部保留可直达；登记在此以防「页面还在、入口悄悄消失」之外的那半——
+    // 谁要给它们恢复入口，删掉对应豁免行即可（会红，红就是提示）。
+    // /icons：素材库，不是任务 —— 后续并入「新建项目」的 UI 素材选择器。
+    '/icons',
+    // /archify：出图属「交付物」环节，v1 用内置 SVG，外部技能作为可选增强。
+    '/archify',
+    // /standards：军火库自身的治理台，不是用户项目的规范 —— 计划迁往 docs/governance/。
+    '/standards',
   ]);
   const appDir = path.resolve(here, '../src/app');
   const orphans = fs

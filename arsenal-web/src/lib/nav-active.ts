@@ -18,7 +18,10 @@
  * 「/stack/env」两项 —— 侧边栏出现两个选中态。这些父项改按**精确匹配自己**。
  * `/rules/WEB-DTO-001` 那类「详情页要点亮列表页」的场景不受影响 —— 它们不在此表。
  */
-const LEAF_PARENTS = new Set(['/stack']);
+const LEAF_PARENTS = new Set(['/stack',
+  // 夜班 N12（2026-10-30）：项目组同理 —— /projects/home（项目主页）挂在 /projects 之下，
+  // 通用前缀匹配会让项目管理与项目主页同时点亮两个选中态。
+  '/projects']);
 
 export function isNavActive(pathname: string, href: string): boolean {
   // trailingSlash: true 下 usePathname() 带尾巴（/stack/），而导航配置的 href 没有
