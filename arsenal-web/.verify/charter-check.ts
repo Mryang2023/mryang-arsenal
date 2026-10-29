@@ -867,15 +867,15 @@ interface CharterExceptionLike {
     ['page.tsx', 'CharterConsole.tsx', 'CharterPanels.tsx'].every((f) => fs.existsSync(path.join(appDir, f))),
     ['page.tsx', 'CharterConsole.tsx', 'CharterPanels.tsx'].filter((f) => !fs.existsSync(path.join(appDir, f))).join(',') || '三件齐');
 
-  const shell = fs.readFileSync(path.join(repoRoot, 'arsenal-web', 'src', 'components', 'Shell.tsx'), 'utf8');
-  // 2026-10-05：侧栏入口从 /charter 迁到 /standards（工程规范台）。判据跟着改路由 ——
-  // 页面不在导航里就等于不存在，而「存在」指的是**读者能点到的那一个**。
-  check('侧栏 NAV 挂上 /standards（页面不在导航里就等于不存在）',
-    /href:\s*'\/standards'/.test(shell),
-    "NAV 里没有 href: '/standards'");
-  check('侧栏图标有（glyph 不缺 —— 缺了导航行会空一格）',
-    shell.includes("glyph: '§'") || /label:\s*'项目章程'/.test(shell),
-    '未找到项目章程的 glyph');
+  // 夜班 N12（2026-10-30）主菜单五项化：/standards 有意移出侧栏（重建计划 §9 ——
+  // 军火库自身的治理台不是用户项目的规范，计划迁 docs/governance/）。
+  // 「可达性」的判据随之从「侧栏挂了」改为「页面在 + 孤儿豁免在 project-check 登记在册」：
+  // 页面不许被顺手删掉，豁免不许被悄悄撤掉 —— 两边谁动了都会在这里红。
+  const projectCheckSrc = fs.readFileSync(path.join(repoRoot, 'arsenal-web', '.verify', 'project-check.ts'), 'utf8');
+  check('工程规范台：页面仍在（N12 起有意不进侧栏，不是被删了）',
+    fs.existsSync(path.join(repoRoot, 'arsenal-web', 'src', 'app', 'standards', 'page.tsx')));
+  check('工程规范台：孤儿豁免已在 project-check 登记（可达性收口）',
+    projectCheckSrc.includes("'/standards'"));
 }
 
 /* ══════════════════════════════════════════════════════════════
@@ -1279,8 +1279,8 @@ check('迁移页不再渲染旧的整页（章程抬头已移入治理台，避�
   !movedSrc.includes('CharterConsole'), '旧 page 若还渲染 CharterConsole，/charter 与 /standards 会各有一个 h1');
 
 const shellSrc = fs.readFileSync(path.join(here, '..', 'src', 'components', 'Shell.tsx'), 'utf8');
-check('侧栏入口指向 /standards 且标签是「工程规范」',
-  /href: '\/standards'/.test(shellSrc) && /label: '工程规范'/.test(shellSrc),
+check('工程规范台不在侧栏（N12 五项化；要恢复入口先删 project-check 的豁免）',
+  !/href: '\/standards'/.test(shellSrc),
   shellSrc.includes("href: '/charter'") ? '侧栏还指着旧路由 /charter' : '');
 check('侧栏不再有指向 /charter 的入口（否则两个入口、两个心智模型）',
   !/href: '\/charter'/.test(shellSrc), '');
