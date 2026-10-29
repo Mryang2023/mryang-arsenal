@@ -105,3 +105,6 @@ Thumbs.db
 *.log
 npm-debug.log*
 *.swp
+
+# ── 夜班运行锁（巡查协议，不许提交）──────────────────────
+.run-lock
