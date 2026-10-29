@@ -152,6 +152,11 @@ class RunsControllerTest {
         assertEquals(42, cov.path("executed").asInt());
         assertEquals(69, cov.path("total").asInt());
         assertEquals(27, cov.path("notRun").asInt(), "coverage 原样落盘，不改数字");
+
+        assertTrue(Files.isRegularFile(dir.resolve("report.md")), "DONE 状态必须蕴含 report.md 已落盘");
+        String md = Files.readString(dir.resolve("report.md"), StandardCharsets.UTF_8);
+        assertTrue(md.contains("本次覆盖"), "报告必须有覆盖率披露");
+        assertTrue(md.contains("run " + runId), "报告必须署上 runId");
     }
 
     @Test

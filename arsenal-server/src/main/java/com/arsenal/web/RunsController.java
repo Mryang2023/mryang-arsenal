@@ -4,6 +4,7 @@ import com.arsenal.autopsy.AutopsyService;
 import com.arsenal.loader.RuleIndex;
 import com.arsenal.projects.ProjectCache;
 import com.arsenal.projects.ProjectRegistry;
+import com.arsenal.runs.ReportService;
 import com.arsenal.runs.RunStore;
 import com.arsenal.scan.SourceResolver;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -80,6 +81,11 @@ public class RunsController {
             ObjectNode report = autopsy.inspect(SourceResolver.fromPath(repo.toString()));
             int[] counts = writeFindings(ref, report);
             writeCoverage(ref, report);
+            // report.md 在 complete 之前落盘 —— DONE 状态必须蕴含「报告已在」，不许出现
+            // 「run 说完成了、报告却不存在」的账。
+            ObjectNode runAccount = runs.read(projectId, ref.runId())
+                    .orElseThrow(() -> new IllegalStateException("run.json 刚写完就丢了：" + ref.runId()));
+            runs.writeFile(ref, "report.md", ReportService.render(runAccount, report));
             writeSummary(ref, counts, System.currentTimeMillis() - start);
             runs.complete(projectId, ref.runId(), "DONE");
             return ApiResponse.ok(doneNode(ref, counts, System.currentTimeMillis() - start));
