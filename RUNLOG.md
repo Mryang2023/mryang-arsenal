@@ -656,3 +656,45 @@ AstProbe 端到端真跑 AstEngine（15 检查器 / parity-check【6】那组断
   **5-27 单独转红**（fail 3 → 4，5-28..5-31 照旧绿）；② `isPrimitive` 闭集摘掉 `void` →
   **5-31 单独转红**（fail 3 → 4）。`AstEngine.java` 两次均按 sha256 `27277cd1…` 复原字节 identical、
   `git status` 重新为空。
+
+## r22 · 2026-10-29 09:10 +0800 — P1-1i：诊断换算与坐标口径分支级钉死（readErrors / SourceText / LintEngine.lineOf 对拍）
+
+### 为什么这轮值得做（判定）
+AstProbe 端到端只断言「编译错 fixture → not-executed」与 Finding 产出，而 AST 判定的**坐标与诊断换算**
+没人单独问过：`AstEngine.readErrors`（:264，把 javac 诊断换算成 ParseError —— line/col ≤0 归 0、
+code/message null 归空串、只认 ERROR 的注释claim）、`AstEngine$SourceText`（:57，`lineOf` 的 pos<0 早退 /
+换行符归属前一行；`snippetAt` 的 140 截断边界）在 .verify 里 0 直接引用。
+顺带发现一个结构事实：`LintEngine.lineOf(int[], int)`（:435）是**同一个二分的第二份实现** ——
+正好构成 B-10/B-11 式的两份实现逐向量对拍。
+
+### 实测（四条断言全绿，scan 206 → 210）
+- 5-32 readErrors 六条：ERROR 逐字段透传 / line·col ≤0 归 0 / code·message null 归空串 /
+  **WARNING 与 NOTE 不进 errors**（混一批只留 ERROR 且顺序保持）。合成 Diagnostic 喂
+  DiagnosticCollector.report（**没有 addDiagnostic —— javap 实证只有 report/getDiagnostics**，探针自建
+  匿名 Diagnostic），不必真编译。
+- 5-33 lineOf 六点 + 两份实现逐向量同值：SourceText 版（有 pos<0 早退）与 LintEngine 版在
+  neg/start/onNewline/secondLine/lastChar/beyond 全部同值（含「结果恰好一致」的 pos<0 —— 二分天然给 1，
+  早退只是捷径不是语义分歧）。
+- 5-34 columnOf 四条：1-based（首字符 = 1）/ 换行符算前一行第 3 列（与 lineOf 的归属同款，不是巧合）/
+  **index<0 给 0 而不是钳 1** —— 与 lineOf 的 pos<0→1 不对称，实测钉的，谁「顺手统一」先撞这条。
+- 5-35 snippetAt 七条：换行符上与空行都给**空串**（lastIndexOf+1 与 indexOf 交叠的边界，不是崩溃）、
+  pos<0 钳 0、141 喂 140 截成 140+「…」、恰好 140 原样。
+- **判定：换算与坐标口径当前行为全部正确，本轮没有发现缺陷 —— 补的是分支级护栏。**
+
+### 门禁与咬合证据
+- `typecheck:verify` exit 0；`verify:scan` **207 通过 / 3 失败 / 实测 210 == 声明 210**（三条红仍是
+  13-1/13-2/13-7 = B-7，0 新增）；`verify:meta` 73/0/0；`verify:visual` 重建 out/ 后 11/1/1（B-2）。
+  失败面仍 4，链实测项数 2321 → **2325**；README 总数句 2326 → **2330**（连锁三本账本轮第三次走齐）。
+- **注入回归（两路，各自的咬合面如实记）**：① `LintEngine.lineOf` 的 `<` 改 `<=`（破坏两份实现的等价）→
+  **5-33 与 5-34 双双转红**（fail 3 → 5）—— columnOf 内部调 lineOf，输出钉与等价钉的依赖被如实暴露；
+  ② `readErrors` 的 `!= ERROR` 反转成 `== ERROR` → **5-32 单独转红**（fail 3 → 4），5-35 照旧绿。
+  `LintEngine.java` / `AstEngine.java` 各按 sha256 `88a0b57d…` / `27277cd1…` 复原字节 identical、
+  `git status` 重新为空。
+
+### 本轮踩坑（记进 next_round_plan.notes ⑨）
+- `javax.tools.DiagnosticCollector` **没有 addDiagnostic**（只有 report/getDiagnostics —— javap 实证），
+  合成诊断要自建 `Diagnostic` 匿名实现再 report。
+- `AstEngine$SourceText` 是内部类，反射要 `Class.forName("...AstEngine$SourceText")`，getDeclaredConstructor
+  挂在 AstEngine 本体上会 NoSuchMethodException。
+- `ObjectNode.put(String, Object)` 在 Jackson 3 不存在 —— 反射 invoke 的 Object 返回值要 `String.valueOf`
+  收敛成字符串（r22 编译期撞了三处）。

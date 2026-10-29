@@ -155,7 +155,7 @@
   → AstEngine 五工具与 QaService.toList 已于 r21 分支级钉死；下一批真空 = `AstEngine.readErrors`（诊断换算的
   line/col/code/message 四个归一分支，DiagnosticCollector 可直接构造）与 `SourceText` 的 `lineOf`/`snippetAt`
   （Finding 行号与 140 字符截断的坐标口径，纯字符串操作可反射直问）。不要据此泛泛说「零测试」再开任务。
-- **P1-1i [证据，r21 新证] `AstEngine.readErrors`（:264）与 `SourceText.lineOf`/`snippetAt` 的归一分支 0 直接断言。**
+- **P1-1i [证据，r22 复核完成] ~~`AstEngine.readErrors`（:264）与 `SourceText.lineOf`/`snippetAt` 的归一分支 0 直接断言~~ → 已补满（`ast-pure` 扩展 + 5-32..5-35），换算与坐标口径当前行为全部正确、无缺陷。**
   readErrors 把 javac 诊断换算成 `ParseError(line, col, code, message)`，四个字段各有「≤0 → 0 / null → 空串」的
   归一分支（`:270-276`），AstProbe 只断言过「编译错 fixture → not-executed」，换算本身没人问过；
   `SourceText`（engine 包）供 `f()` 造 Finding 的 `lineOf` 与 `snippetAt(pos, 140)`，20 条 AST 断言全在消费它的

@@ -231,3 +231,16 @@
   `AstEngine.java` 两次按 sha256 `27277cd1…` 复原字节 identical、`git status` 重新为空。
 - 实测结论：六个函数当前行为全部正确，本轮没有发现缺陷 —— 补的是分支级护栏。BACKLOG 开 P1-1i（readErrors 四个归一分支 +
   SourceText lineOf/snippetAt 截断边界）作为 r22 靶子。
+
+## r22 · 2026-10-29
+- **P1-1i：AST 判定的坐标与诊断换算分支级钉死。** `AstEngine.readErrors`（诊断归一：line/col ≤0 归 0、
+  code/message null 归空串、只认 ERROR）、`AstEngine$SourceText`（lineOf 坐标口径 / snippetAt 140 截断边界）
+  与 `LintEngine.lineOf(int[], int)`（同一二分的第二份实现 —— 两份逐向量对拍）此前 0 直接断言。
+  `ast-pure` 动作扩展：合成 Diagnostic（自建匿名实现喂 report，DiagnosticCollector 没有 addDiagnostic）+
+  反射内部类构造 + LintEngine 实例对拍。前端断言 5-32..5-35（scan-check.ts）。
+- `verify:scan` 206→**210**（207 通过 / 3 失败 = B-7 老三条，0 新增）；meta 73/0/0；visual 11/1/1（B-2）；
+  README 总数 2326→**2330**。链实测项数 2321 → 2325。
+- **注入回归**：LintEngine.lineOf `<`→`<=`（破坏等价）→ 5-33+5-34 双红（columnOf 内部调 lineOf，依赖如实暴露）；
+  readErrors 只认 ERROR 反转 → 5-32 单独红；两个产品文件按 sha256 复原字节 identical。
+- 实测结论：换算与坐标口径当前行为全部正确，无缺陷。columnOf 的 index<0→0 与 lineOf 的 pos<0→1 **不对称**
+  是实测钉的（不是设计推论），谁「顺手统一」先撞 5-34。
