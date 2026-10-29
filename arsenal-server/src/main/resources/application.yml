@@ -40,6 +40,10 @@ arsenal:
     max-violations-per-rule: 5
     # 单次请求允许扫描的总字节上限，防止一个请求把内存打满
     max-scan-bytes: 2097152
+    # 体检/深检的文件级忽略规则（glob，逗号分隔，进 AutopsyService.collect 统一生效）。
+    # 内置的还有：.wb-tmp/ 目录整棵跳过（ScanGuard.SKIP_DIRS）、仓库根的 Smoke*.java、
+    # 全仓 *.min.js/*.min.css —— 那三类是实测真实项目里最常见的噪音源（夜班 N5/2026-10-30）。
+    ignore-globs: ${ARSENAL_LINT_IGNORE_GLOBS:}
 
   # 项目工坊（工坊棒1）：注册表 + 代码缓存根目录。
   # 2026-10-18：默认值改到仓库外 D:/arsenal-projects-cache —— 曾经默认落 .data/projects/

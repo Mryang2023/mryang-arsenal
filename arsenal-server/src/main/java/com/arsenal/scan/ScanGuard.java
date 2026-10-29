@@ -37,7 +37,11 @@ public final class ScanGuard {
     private static final Set<String> SKIP_DIRS = Set.of(
             ".git", "node_modules", "target", "build", "dist", "out", ".next", ".next-dev", ".nuxt",
             ".idea", ".vscode", ".gradle", ".mvn", "bin", "obj", "vendor", "__pycache__",
-            ".svn", ".hg", "coverage", ".turbo", ".cache");
+            ".svn", ".hg", "coverage", ".turbo", ".cache",
+            // 夜班 N5（2026-10-30）：.wb-tmp 是 workbuddy 工具链的临时产物目录，
+            // 对真实项目（command-center-backend）实测贡献了 22 条假 finding —— 它进 SKIP_DIRS
+            // 与进 SKIP_DIRS 的其他目录同一条理由：既不是架构事实，也不是业务源码。
+            ".wb-tmp");
 
     /** 只看这些扩展名的文件（其余只计数，不读内容） */
     private static final Set<String> TEXT_EXT = Set.of(
@@ -49,6 +53,30 @@ public final class ScanGuard {
             "(?i)(pass(word|wd)?|secret|token|api[-_]?key|access[-_]?key|private[-_]?key|credential|auth)");
 
     private ScanGuard() {
+    }
+
+    /**
+     * 文件级内置忽略（夜班 N5）。收的是「位置就说明它是噪音」的三类：
+     * <ul>
+     *   <li>仓库根的 {@code Smoke*.java} —— 手工冒烟脚本；真实项目里它贡献了 6 条假 finding。
+     *       只拦根目录：src 下真叫 Smoke 开头的可能是受测类，不能误伤。</li>
+     *   <li>{@code *.min.js} / {@code *.min.css} —— 压缩产物，读它只是浪费字节预算。</li>
+     * </ul>
+     * 面向「相对路径（/ 分隔）」判断，与 {@code AutopsyService.collect} 的 rel 口径一致。
+     * 项目级追加规则走 {@code arsenal.lint.ignore-globs}（glob），不在这里。
+     */
+    public static boolean ignoreFile(String relPath) {
+        if (relPath == null || relPath.isEmpty()) {
+            return false;
+        }
+        int slash = relPath.lastIndexOf('/');
+        String base = slash < 0 ? relPath : relPath.substring(slash + 1);
+        boolean atRoot = slash < 0;
+        String lower = base.toLowerCase(Locale.ROOT);
+        if (atRoot && lower.startsWith("smoke") && lower.endsWith(".java")) {
+            return true;
+        }
+        return lower.endsWith(".min.js") || lower.endsWith(".min.css");
     }
 
     public static boolean skipDir(String name) {

@@ -37,7 +37,9 @@ class RunsControllerTest {
     @TempDir
     Path temp;
 
-    private final ObjectMapper mapper = new ObjectMapper();
+    private final ObjectMapper mapper = tools.jackson.databind.json.JsonMapper.builder()
+            .enable(tools.jackson.databind.SerializationFeature.INDENT_OUTPUT)
+            .build();
     private ProjectRegistry registry;
     private ProjectCache cache;
     private AutopsyService autopsy;
@@ -51,6 +53,10 @@ class RunsControllerTest {
         cache = Mockito.mock(ProjectCache.class);
         autopsy = Mockito.mock(AutopsyService.class);
         index = Mockito.mock(RuleIndex.class);
+        // 模拟 Spring 注入的 mapper（字段初始化处已开 INDENT_OUTPUT）：Boot 4 给 HTTP 响应
+        // 配了 pretty printer（真实事故来源 —— 控制器若直接用它写 findings.jsonl，
+        // 200 条 finding 会被展开成 1.1 万行）。控制器内部的紧凑 writer 必须顶住这个配置，
+        // JSONL 才是一行一个对象。
         store = new RunStore(temp, mapper);
         controller = new RunsController(registry, cache, autopsy, index, store, mapper);
     }

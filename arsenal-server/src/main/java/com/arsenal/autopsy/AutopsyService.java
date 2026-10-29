@@ -81,12 +81,16 @@ public class AutopsyService {
     private final int maxFiles;
     private final long maxTotalBytes;
     private final long batchBudget;
+    /** 项目级忽略规则（arsenal.lint.ignore-globs，glob）。空 = 只用 ScanGuard 的内置忽略。 */
+    private final List<com.arsenal.engine.GlobMatcher> ignoreMatchers;
 
     public AutopsyService(ProjectScanner scanner, LintEngine lint, RuleIndex index, ObjectMapper mapper,
                           @Value("${arsenal.checkups.file:../arsenal-checkups/checkups.json}") String checkupsFile,
                           @Value("${arsenal.lint.max-scan-bytes:2097152}") long batchBudget,
                           @Value("${arsenal.autopsy.max-files:600}") int maxFiles,
-                          @Value("${arsenal.autopsy.max-total-bytes:6291456}") long maxTotalBytes) {
+                          @Value("${arsenal.autopsy.max-total-bytes:6291456}") long maxTotalBytes,
+                          @Value("${arsenal.lint.ignore-globs:}") String ignoreGlobs) {
+        this.ignoreMatchers = com.arsenal.engine.GlobMatcher.listOf(ignoreGlobs);
         this.scanner = scanner;
         this.lint = lint;
         this.index = index;
@@ -159,7 +163,7 @@ public class AutopsyService {
             out.put("root", source.rootName());
             out.put("sourceKind", source.kind());
             out.put("elapsedMs", System.currentTimeMillis() - start);
-            out.set("scope", scopeNode(files.size(), bytes, truncated, source, collected.filteredOut()));
+            out.set("scope", scopeNode(files.size(), bytes, truncated, source, collected.filteredOut(), collected.ignored()));
             out.set("coverage", coverageNode(reports));
             out.set("p0", tierNode(reports, true));
             out.set("p1", tierNode(reports, false));
@@ -182,7 +186,7 @@ public class AutopsyService {
      * 写成绝对路径的话 {@code src/main/java/...} 这类 glob 一条都匹配不上。
      */
     /** 收集结果。**capped 是截断信号** —— 它与「文件列表」一样是结论的一部分。 */
-    private record Collected(List<SourceFile> files, boolean capped, int filteredOut) {
+    private record Collected(List<SourceFile> files, boolean capped, int filteredOut, int ignored) {
     }
 
     private Collected collect(Path root, java.util.function.Predicate<String> filter) {
@@ -190,6 +194,7 @@ public class AutopsyService {
         long[] total = {0};
         boolean[] capped = {false};
         int[] filteredOut = {0};
+        int[] ignored = {0};
         try {
             Files.walkFileTree(root, new SimpleFileVisitor<>() {
                 @Override
@@ -219,6 +224,13 @@ public class AutopsyService {
                     // 名字是相对路径且用 / —— LintEngine 拿它去匹配规则的 targetGlob。
                     // 过滤器同样吃这个名字，review 模式的圈定口径与 targetGlob 对齐。
                     String rel = root.relativize(file).toString().replace('\\', '/');
+                    // 夜班 N5（2026-10-30）：忽略规则命中 = 「主动不检查」，单独计数披露，
+                    // 不混进 review 模式的 filteredOut（那是「圈外」，语义不同）。
+                    if (ScanGuard.ignoreFile(rel)
+                            || ignoreMatchers.stream().anyMatch(g -> g.matches(rel))) {
+                        ignored[0]++;
+                        return FileVisitResult.CONTINUE;
+                    }
                     if (filter != null && !filter.test(rel)) {
                         filteredOut[0]++;
                         return FileVisitResult.CONTINUE; // 圈外文件不读内容 —— 这是真·未检查，不是读了再丢
@@ -244,7 +256,7 @@ public class AutopsyService {
         }
         out.sort(Comparator.comparing(SourceFile::name));
         // 文件数那条截断：walk 在 out.size() >= maxFiles 时就停，正好等于上限也算踩线
-        return new Collected(List.copyOf(out), capped[0] || out.size() >= maxFiles, filteredOut[0]);
+        return new Collected(List.copyOf(out), capped[0] || out.size() >= maxFiles, filteredOut[0], ignored[0]);
     }
 
     private static boolean readable(String fileName) {
@@ -256,7 +268,7 @@ public class AutopsyService {
         return EXTS.contains(ext) && ScanGuard.readable(fileName);
     }
 
-    private ObjectNode scopeNode(int fileCount, long bytes, boolean truncated, SourceResolver source, int filteredOut) {
+    private ObjectNode scopeNode(int fileCount, long bytes, boolean truncated, SourceResolver source, int filteredOut, int ignored) {
         ObjectNode n = mapper.createObjectNode();
         n.put("files", fileCount);
         n.put("bytes", bytes);
@@ -264,6 +276,9 @@ public class AutopsyService {
         // ★ 圈外被过滤掉的文件数 —— 「没进引擎」与「没这个文件」是两回事，
         //   /qa 的 review 模式靠这个数字披露「圈外根本没检查」
         n.put("filteredOut", filteredOut);
+        // ★ 忽略规则命中数（.wb-tmp / 根目录 Smoke*.java / *.min.* + 配置追加）——
+        //   「被忽略」也是一条结论：多少文件主动没进引擎，报告里要看得见
+        n.put("ignored", ignored);
         // ★ 只给目录名不给绝对路径 —— 事实 JSON 会被留档、会进快照，
         //   绝对路径既泄隐私又不可复现（本仓既有口径，见 SourceResolver#rootName）
         n.put("rootName", source.rootName());

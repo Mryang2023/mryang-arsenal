@@ -27,6 +27,24 @@ public final class GlobMatcher {
         return new GlobMatcher(g, Pattern.compile(toRegex(g), Pattern.CASE_INSENSITIVE));
     }
 
+    /**
+     * 逗号分隔的配置串 → matcher 列表（夜班 N5/2026-10-30 起供 {@code arsenal.lint.ignore-globs} 用）。
+     * 空串 / null / 全是空段 → 空列表（调用方用它表示「无追加规则」，不能塞进一个空 glob 误伤全仓）。
+     */
+    public static java.util.List<GlobMatcher> listOf(String commaSeparated) {
+        java.util.List<GlobMatcher> out = new java.util.ArrayList<>();
+        if (commaSeparated == null || commaSeparated.isBlank()) {
+            return out;
+        }
+        for (String part : commaSeparated.split(",")) {
+            String g = part.trim();
+            if (!g.isEmpty()) {
+                out.add(compile(g));
+            }
+        }
+        return out;
+    }
+
     public boolean matches(String path) {
         return pattern.matcher(normalize(path)).matches();
     }

@@ -1,0 +1,17 @@
+{
+  "success" : true,
+  "code" : "OK",
+  "message" : null,
+  "data" : {
+    "runId" : "0394f68150754090",
+    "projectId" : "e45db8ec4039",
+    "status" : "DONE",
+    "elapsedMs" : 13452,
+    "counts" : {
+      "p0" : 200,
+      "p1" : 21,
+      "other" : 0
+    },
+    "files" : [ "run.json", "findings.jsonl", "coverage.json", "summary.json" ]
+  }
+}

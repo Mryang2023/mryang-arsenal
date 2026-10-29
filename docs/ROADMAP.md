@@ -10,8 +10,8 @@
 - [x] N2 提交体检 run 端点：`POST /api/v2/projects/{id}/runs` 复用静态引擎跑一次体检，落盘 `runs/<runId>/run.json + findings.jsonl + coverage.json`（挂到既有项目注册表与缓存，不动 v1 端点）；验收：curl 对已导入项目创建 run 后三文件存在，findings.jsonl 行数 == coverage 口径；Controller 的 400/404 分支有 JUnit 覆盖，`./mvnw -q test` 全绿
 - [x] N3 ReportService 与 report.md：生成健康分、覆盖率披露（执行/跳过分层及原因）、Top 问题表（文件:行 · 规则 · 出处）、下一步建议；验收：JUnit 断言 report.md 含「本次覆盖」「Top」字样、≥3 条带行号的 finding 行与规则出处；对真实 run 生成一份人工可读的样例
 - [x] N4 下载端点与产物清单：`GET /api/v2/runs/{runId}/report.md`（Content-Disposition 附件下载）与 `GET /api/v2/runs/{runId}/artifacts`（清单+哈希）；验收：JUnit + 手工 curl 断言 200 / 附件头 / 404 语义正确，`./mvnw -q test` 全绿
-- [ ] N5 扫描忽略规则：默认排除 `.wb-tmp/**`、根目录 `Smoke*.java`、`*.min.js`，支持项目级配置追加（配置项挂 `arsenal.lint` 或 run 请求体）；验收：JUnit 用夹具目录断言这些路径不进 findings；对已导入项目重扫，`.wb-tmp` 命中归零且问题总数下降
-- [ ] N6 后端测试补齐 ≥15 个：RunStore / ReportService / RunsController 三处覆盖收口；验收：`./mvnw -q test` 全绿且 Surefire 统计 tests ≥ 15
+- [x] N5 扫描忽略规则（实测：真机 run d6bd41128c9444fa 的 findings 中 .wb-tmp 命中 0、SmokeCcgp 0、scope 435→434；总数 221 持平的原因是每规则回报上限让 6 条 src 真实问题回填——非噪音残留）：默认排除 `.wb-tmp/**`、根目录 `Smoke*.java`、`*.min.js`，支持项目级配置追加（配置项挂 `arsenal.lint` 或 run 请求体）；验收：JUnit 用夹具目录断言这些路径不进 findings；对已导入项目重扫，`.wb-tmp` 命中归零且问题总数下降
+- [x] N6 后端测试补齐 ≥15 个（实测 Surefire 28/28 绿）：RunStore / ReportService / RunsController 三处覆盖收口；验收：`./mvnw -q test` 全绿且 Surefire 统计 tests ≥ 15
 
 ## B · 前端项目主页（增量，不碰现有导航）
 

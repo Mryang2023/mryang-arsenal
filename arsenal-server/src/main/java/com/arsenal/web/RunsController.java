@@ -45,6 +45,13 @@ public class RunsController {
     private final RuleIndex index;
     private final RunStore runs;
     private final ObjectMapper mapper;
+    /**
+     * findings.jsonl 专用紧凑 writer。Spring 注入的 {@code mapper} 带默认 pretty printer
+     * （HTTP 响应要人读，这是它的职责），但 JSONL 的契约是「一行一个对象」——
+     * 200 条 finding 被 pretty 展开 1.1 万行，下游按行解析直接全碎。
+     * Jackson 3 裸 new 出来的默认就是紧凑串（RunsControllerTest 侧已实证）。
+     */
+    private final ObjectMapper jsonl = new ObjectMapper();
 
     public RunsController(ProjectRegistry registry, ProjectCache cache, AutopsyService autopsy,
                           RuleIndex index, RunStore runs, ObjectMapper mapper) {
@@ -125,7 +132,7 @@ public class RunsController {
         int count = 0;
         if (bucket instanceof ArrayNode arr) {
             for (JsonNode f : arr) {
-                lines.append(mapper.writeValueAsString(f)).append('\n');
+                lines.append(jsonl.writeValueAsString(f)).append('\n');
                 count++;
             }
         }
