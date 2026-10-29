@@ -1,5 +1,7 @@
 'use client';
 
+import Link from 'next/link';
+
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import {
@@ -448,6 +450,13 @@ function RowActions({
           设为当前
         </button>
       )}
+      <Link
+        href={`/projects/home?id=${entry.id}`}
+        className="rounded border px-2 py-1 text-2xs hover:bg-canvas"
+        style={{ color: '#D9A441', borderColor: 'rgba(217,164,65,0.35)' }}
+      >
+        项目主页
+      </Link>
       <button
         type="button"
         onClick={() => onOpen(entry, '/autopsy')}

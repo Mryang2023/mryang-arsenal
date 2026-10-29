@@ -113,4 +113,48 @@ class RunArtifactControllerTest {
         assertFalse(out.success());
         assertEquals("NOT_FOUND", out.code());
     }
+
+    @Test
+    void findingsEndpointFiltersAndKeepsCountHonest() throws Exception {
+        RunStore.RunRef ref = startRun();
+        StringBuilder lines = new StringBuilder();
+        lines.append("{\"ruleId\":\"REL-LOG-001\",\"severity\":\"NEVER\",\"file\":\"src/A.java\",\"line\":12,\"snippet\":\"System.out.println(1);\",\"rule\":{\"sources\":[{\"ref\":\"阿里巴巴Java开发手册\"}]}}\n");
+        lines.append("{\"ruleId\":\"REL-LOG-001\",\"severity\":\"NEVER\",\"file\":\"src/B.java\",\"line\":30,\"snippet\":\"printStackTrace();\"}\n");
+        lines.append("{\"ruleId\":\"WEB-CTRL-002\",\"severity\":\"MUST\",\"file\":\"src/C.java\",\"line\":8,\"snippet\":\"@RequestBody\"}\n");
+        lines.append("not-json-garbage\n"); // 坏行：跳过但计数披露
+        store.writeFile(ref, "findings.jsonl", lines.toString());
+
+        // 全量：3 条 + 1 条坏行披露
+        var all = controller.findings(ref.runId(), null, null, null, 200);
+        assertTrue(all.success());
+        assertEquals(3, all.data().path("total").asInt());
+        assertEquals(3, all.data().path("returned").asInt());
+        assertEquals(1, all.data().path("badLines").asInt(), "坏行要计数，不许静默消失");
+
+        // 按严重度筛
+        var never = controller.findings(ref.runId(), "never", null, null, 200);
+        assertEquals(2, never.data().path("total").asInt());
+        // 按规则筛
+        var byRule = controller.findings(ref.runId(), null, "rel-log-001", null, 200);
+        assertEquals(2, byRule.data().path("total").asInt(), "规则筛选不分大小写");
+        // 按文件子串筛
+        var byFile = controller.findings(ref.runId(), null, null, "src/A", 200);
+        assertEquals(1, byFile.data().path("total").asInt());
+        // limit 截断：total 照实，returned 受 cap
+        var capped = controller.findings(ref.runId(), null, null, null, 2);
+        assertEquals(3, capped.data().path("total").asInt());
+        assertEquals(2, capped.data().path("returned").asInt(), "截断时 total 与 returned 分开报");
+
+        // 出处随行内嵌的 rule.sources 原样带出 —— 问题页签「凭什么」的链接地基
+        var items = (tools.jackson.databind.node.ArrayNode) all.data().get("items");
+        assertEquals("阿里巴巴Java开发手册",
+                items.get(0).path("rule").path("sources").get(0).path("ref").asString());
+    }
+
+    @Test
+    void findingsOfUnknownRunIsNotFound() {
+        var out = controller.findings("ffffffffffffffff", null, null, null, 200);
+        assertFalse(out.success());
+        assertEquals("NOT_FOUND", out.code());
+    }
 }

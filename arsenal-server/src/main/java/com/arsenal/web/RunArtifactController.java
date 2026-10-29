@@ -106,6 +106,75 @@ public class RunArtifactController {
                 .body(ApiResponse.fail("NOT_FOUND", message));
     }
 
+    /**
+     * findings.jsonl 的读取口（问题页签的数据源）。
+     *
+     * <p>按严重度 / 规则 / 文件路径筛选，limit 截断（前端对「另有 N 条」如实披露）。
+     * 坏行跳过并计数 —— 落盘时是紧凑 JSONL（N5 修过 pretty 事故），坏行意味着
+     * 文件被手改或跨版本，跳过比整份拒绝有用，但跳了几条要让人看见。
+     */
+    @GetMapping("/findings")
+    public ApiResponse<ObjectNode> findings(@PathVariable("runId") String runId,
+                                            @org.springframework.web.bind.annotation.RequestParam(required = false) String severity,
+                                            @org.springframework.web.bind.annotation.RequestParam(required = false) String ruleId,
+                                            @org.springframework.web.bind.annotation.RequestParam(required = false) String file,
+                                            @org.springframework.web.bind.annotation.RequestParam(defaultValue = "200") int limit) {
+        Path dir = runs.findRun(runId).map(RunStore.RunRef::dir).orElse(null);
+        if (dir == null) {
+            return ApiResponse.fail("NOT_FOUND", "没有这个 run：" + runId);
+        }
+        Path jsonl = dir.resolve("findings.jsonl");
+        if (!Files.isRegularFile(jsonl)) {
+            return ApiResponse.fail("NOT_FOUND", "该 run 没有 findings.jsonl —— run 可能未完成或生成于 N2 之前");
+        }
+        int cap = Math.max(1, Math.min(500, limit));
+        List<ObjectNode> items = new ArrayList<>();
+        int total = 0;
+        int badLines = 0;
+        try {
+            for (String line : Files.readAllLines(jsonl, StandardCharsets.UTF_8)) {
+                if (line.isBlank()) {
+                    continue;
+                }
+                ObjectNode f;
+                try {
+                    f = (ObjectNode) mapper.readTree(line);
+                } catch (RuntimeException e) {
+                    badLines++;
+                    continue;
+                }
+                if (severity != null && !severity.isBlank()
+                        && !severity.equalsIgnoreCase(f.path("severity").asString(""))) {
+                    continue;
+                }
+                if (ruleId != null && !ruleId.isBlank()
+                        && !ruleId.equalsIgnoreCase(f.path("ruleId").asString(""))) {
+                    continue;
+                }
+                if (file != null && !file.isBlank()
+                        && !f.path("file").asString("").contains(file)) {
+                    continue;
+                }
+                total++;
+                if (items.size() < cap) {
+                    items.add(f);
+                }
+            }
+        } catch (IOException e) {
+            return ApiResponse.fail("READ_ERROR", "findings.jsonl 读不出来：" + e.getMessage());
+        }
+        ObjectNode out = mapper.createObjectNode();
+        out.put("total", total);
+        out.put("returned", items.size());
+        out.put("badLines", badLines);
+        ObjectNode applied = out.putObject("filters");
+        applied.put("severity", severity == null ? "" : severity);
+        applied.put("ruleId", ruleId == null ? "" : ruleId);
+        applied.put("file", file == null ? "" : file);
+        out.set("items", mapper.valueToTree(items));
+        return ApiResponse.ok(out);
+    }
+
     static String sha256(byte[] bytes) {
         try {
             return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(bytes));

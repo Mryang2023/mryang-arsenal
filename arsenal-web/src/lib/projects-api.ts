@@ -149,7 +149,8 @@ const PROJECTS_TIMEOUT_MS = 15_000;
  */
 const INGEST_TIMEOUT_MS = 120_000;
 
-async function call<T>(path: string, init?: RequestInit, timeoutMs: number = PROJECTS_TIMEOUT_MS): Promise<ProjectsOutcome<T>> {
+/** 通用调用口（夜班 N7 起对 runs-api 开放）：三态落成 ok / rejected / offline，页面只对三种状态说三种话。 */
+export async function call<T>(path: string, init?: RequestInit, timeoutMs: number = PROJECTS_TIMEOUT_MS): Promise<ProjectsOutcome<T>> {
   const base = arsenalApiBase();
   try {
     return await readEnvelope<T>(
