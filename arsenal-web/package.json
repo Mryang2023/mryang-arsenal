@@ -42,6 +42,7 @@
     "verify:topology": "tsx .verify/topology-check.ts",
     "verify:visual": "tsx .verify/visual-check.ts",
     "verify:meta": "tsx .verify/meta-check.ts",
+    "verify:rules": "node scripts/verify-rules.mjs",
     "verify": "node scripts/verify-all.mjs",
     "verify:cases": "tsx .verify/case-check.ts"
   },
