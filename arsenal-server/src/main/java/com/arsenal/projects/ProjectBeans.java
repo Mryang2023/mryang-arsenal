@@ -39,4 +39,15 @@ public class ProjectBeans {
             @Value("${arsenal.projects-dir:}") String ymlDir, ObjectMapper mapper) {
         return new ProjectCache(ProjectPaths.resolveRoot(ymlDir), mapper);
     }
+
+    /**
+     * Run 落盘层（夜班 N1/2026-10-30）。与 registry / cache 同根 ——
+     * run 目录就是 {@code <项目根>/<projectId>/runs/<runId>}，和缓存、注册表住在同一棵树上，
+     * 删项目时一个子树带走全部产物，不会留孤儿目录。
+     */
+    @Bean
+    public com.arsenal.runs.RunStore runStore(
+            @Value("${arsenal.projects-dir:}") String ymlDir, ObjectMapper mapper) {
+        return new com.arsenal.runs.RunStore(ProjectPaths.resolveRoot(ymlDir), mapper);
+    }
 }
